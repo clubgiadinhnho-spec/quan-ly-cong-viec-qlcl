@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bảng Theo Dõi Công Việc P.QLCL</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+    <div class="page-shell">
+        <!-- Banner chuyên nghiệp kiểu Dashboard -->
+        <header class="hero">
+            <div class="hero-content">
+                <div class="hero-logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></svg>
+                </div>
+                <h1>BẢNG THEO DÕI CÔNG VIỆC P.QLCL</h1>
+            </div>
+            <div class="hero-side">
+                <div class="metric-card">
+                    <span>ĐANG LÀM</span>
+                    <strong id="openCount">0</strong>
+                </div>
+                <div class="metric-card success">
+                    <span>HOÀN THÀNH</span>
+                    <strong id="doneCount">0</strong>
+                </div>
+                <button class="btn-print-fake">IN BÁO CÁO A3</button>
+            </div>
+        </header>
+
+        <!-- Khu vực Thêm công việc mới -->
+        <section class="panel add-task-panel">
+            <form id="taskForm" class="task-form-container">
+                <div class="form-header-row">
+                    <button type="submit" class="main-add-button">THÊM CÔNG VIỆC</button>
+                    <p id="syncStatus" class="sync-status">Đang tải dữ liệu...</p>
+                </div>
+
+                <div class="task-form-grid">
+                    <div class="input-group">
+                        <label>Mã việc</label>
+                        <input name="code" type="text" placeholder="Tự động" />
+                    </div>
+                    <div class="input-group">
+                        <label>Ngày phát sinh</label>
+                        <input name="createdAt" type="text" placeholder="dd/mm/yy" required />
+                    </div>
+                    <div class="input-group">
+                        <label>Hạng mục công việc</label>
+                        <input name="title" type="text" placeholder="Nội dung hạng mục..." required />
+                    </div>
+                    <div class="input-group">
+                        <label>Mục tiêu</label>
+                        <input name="goal" type="text" placeholder="Mục tiêu đạt được..." required />
+                    </div>
+                    <div class="input-group">
+                        <label>Người thực hiện</label>
+                        <select name="assignee" required>
+                            <option value="">Chọn nhân viên</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Bắt đầu</label>
+                        <input name="startDate" type="text" placeholder="dd/mm/yy" required />
+                    </div>
+                    <div class="input-group">
+                        <label>HT dự kiến</label>
+                        <input name="dueDate" type="text" placeholder="dd/mm/yy" required />
+                    </div>
+                    
+                    <div class="textarea-group">
+                        <label>Diễn tiến tuần trước</label>
+                        <textarea name="previousWeek" rows="2"></textarea>
+                    </div>
+                    <div class="textarea-group">
+                        <label>Trong tuần</label>
+                        <textarea name="thisWeek" rows="2"></textarea>
+                    </div>
+                    <div class="textarea-group">
+                        <label>Bước tiếp theo</label>
+                        <textarea name="endWeek" rows="2"></textarea>
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        <!-- Bảng điều khiển và danh sách -->
+        <section class="panel">
+            <div class="controls">
+                <div class="control-item">
+                    <label>Người thực hiện</label>
+                    <select id="memberFilter"></select>
+                </div>
+                <div class="control-item">
+                    <label>Tìm nhanh</label>
+                    <input id="searchInput" type="search" placeholder="Mã việc, nội dung..." />
+                </div>
+                <button id="openReportButton" class="report-nav-button">TỔNG HỢP BÁO CÁO</button>
+            </div>
+
+            <div id="boardPage" class="page-panel active">
+                <div class="tab-row">
+                    <button class="tab-button active" data-tab="active">Việc đang thực hiện</button>
+                    <button class="tab-button" data-tab="completed">Việc đã hoàn thành</button>
+                </div>
+
+                <div id="activeTab" class="tab-panel active">
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th class="col-compact">XONG</th>
+                                    <th style="width: 60px;">MÃ</th>
+                                    <th>HẠNG MỤC CÔNG VIỆC</th>
+                                    <th>MỤC TIÊU</th>
+                                    <th>NGƯỜI THỰC HIỆN</th>
+                                    <th style="width: 80px;">BẮT ĐẦU</th>
+                                    <th style="width: 80px;">HẠN HT</th>
+                                    <th>TUẦN TRƯỚC</th>
+                                    <th>TRONG TUẦN</th>
+                                    <th>BƯỚC TIẾP</th>
+                                    <th class="col-compact">CHECK</th>
+                                </tr>
+                            </thead>
+                            <tbody id="activeTasksBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trang báo cáo (ẩn mặc định) -->
+            <div id="reportPage" class="page-panel">
+                <div class="board-actions">
+                    <button id="closeReportButton" class="tab-button active">← QUAY LẠI BẢNG CÔNG VIỆC</button>
+                </div>
+                <div class="report-grid">
+                    <div class="report-card"><span>Việc hoàn thành</span><strong id="reportCompletedCount">0</strong></div>
+                    <div class="report-card"><span>Đúng hạn</span><strong id="reportOnTimeCount">0</strong></div>
+                    <div class="report-card"><span>Trễ hạn</span><strong id="reportLateCount">0</strong></div>
+                    <div class="report-card"><span>Việc nổi cộm</span><strong id="reportHotCount">0</strong></div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="./config.js"></script>
+    <script type="module" src="./app.js"></script>
+</body>
+</html>

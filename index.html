@@ -1,153 +1,242 @@
 <!DOCTYPE html>
 <html lang="vi">
-<head>
+  <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Bảng Theo Dõi Công Việc P.QLCL</title>
+    <title>Bảng Theo Dõi Công Việc</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="./styles.css" />
-</head>
-<body>
+  </head>
+  <body>
     <div class="page-shell">
-        <!-- Banner chuyên nghiệp kiểu Dashboard -->
-        <header class="hero">
-            <div class="hero-content">
-                <div class="hero-logo">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m8 3 4 8 5-5 5 15H2L8 3z"/></svg>
-                </div>
-                <h1>BẢNG THEO DÕI CÔNG VIỆC P.QLCL</h1>
+      <header class="hero">
+        <div class="hero-overlay"></div>
+        <div>
+          <p class="eyebrow">Team workspace</p>
+          <h1>BẢNG THEO DÕI CÔNG VIỆC P.QLCL</h1>
+        </div>
+        <div class="hero-side">
+          <div class="metric-card">
+            <span>Đang làm</span>
+            <strong id="openCount">0</strong>
+          </div>
+          <div class="metric-card success">
+            <span>Đã hoàn thành</span>
+            <strong id="doneCount">0</strong>
+          </div>
+        </div>
+      </header>
+
+      <section class="panel controls">
+        <div class="control-group">
+          <label for="memberFilter">Người thực hiện</label>
+          <select id="memberFilter"></select>
+        </div>
+        <div class="control-group">
+          <label for="searchInput">Tìm nhanh</label>
+          <input id="searchInput" type="search" placeholder="Tìm theo mã, nội dung, mục tiêu..." />
+        </div>
+        <div class="control-group">
+          <label for="viewMode">Chế độ dữ liệu</label>
+          <select id="viewMode" disabled>
+            <option value="demo">Demo cục bộ</option>
+            <option value="supabase">Supabase dùng chung</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="panel add-task-panel">
+        <div class="panel-title-row">
+          <div>
+            <p class="section-kicker">Tạo mới</p>
+            <h2>THÊM CÔNG VIỆC</h2>
+          </div>
+          <p id="syncStatus" class="sync-status">Đang dùng dữ liệu demo cục bộ.</p>
+        </div>
+
+        <form id="taskForm" class="task-form">
+          <input name="code" type="text" maxlength="20" placeholder="Mã việc (VD: C133)" required />
+          <input name="createdAt" type="text" inputmode="numeric" placeholder="Ngày phát sinh dd/mm/yy" required />
+          <input name="title" type="text" maxlength="140" placeholder="Hạng mục công việc" required />
+          <input name="goal" type="text" maxlength="140" placeholder="Mục tiêu" required />
+          <select name="assignee" required>
+            <option value="">Chọn người thực hiện</option>
+          </select>
+          <input name="startDate" type="text" inputmode="numeric" placeholder="Bắt đầu dd/mm/yy" required />
+          <input name="dueDate" type="text" inputmode="numeric" placeholder="HT dự kiến dd/mm/yy" required />
+          <textarea name="previousWeek" rows="2" maxlength="220" placeholder="Diễn tiến tuần trước (nếu có)"></textarea>
+          <textarea name="thisWeek" rows="2" maxlength="220" placeholder="Trong tuần (nếu có)"></textarea>
+          <textarea name="endWeek" rows="2" maxlength="220" placeholder="Cuối tuần / bước tiếp theo (nếu có)"></textarea>
+          <button type="submit">THÊM CÔNG VIỆC</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="board-actions">
+          <button id="openReportButton" class="report-nav-button" type="button">TỔNG HỢP BÁO CÁO</button>
+        </div>
+
+        <div id="boardPage" class="page-panel active">
+        <div class="tab-row">
+          <button class="tab-button active" data-tab="active">Việc đang thực hiện</button>
+          <button class="tab-button" data-tab="completed">Việc đã hoàn thành</button>
+        </div>
+
+        <div class="status-legend">
+          <span class="legend-item"><i class="legend-dot status-open"></i> Đang theo dõi</span>
+          <span class="legend-item"><i class="legend-dot status-warning"></i> Sắp tới hạn</span>
+          <span class="legend-item"><i class="legend-dot status-overdue"></i> Quá hạn</span>
+          <span class="legend-item"><i class="legend-dot status-done"></i> Hoàn thành</span>
+        </div>
+
+        <div id="activeTab" class="tab-panel active">
+          <div class="table-wrap">
+            <table class="active-table">
+              <thead>
+                <tr>
+                  <th class="compact-head">XONG</th>
+                  <th class="vertical-head"><span>MÃ</span></th>
+                  <th class="vertical-head"><span>NGÀY PHÁT SINH</span></th>
+                  <th>HẠNG MỤC CÔNG VIỆC</th>
+                  <th>MỤC TIÊU</th>
+                  <th class="vertical-head"><span>NGƯỜI THỰC HIỆN</span></th>
+                  <th class="vertical-head"><span>BẮT ĐẦU</span></th>
+                  <th class="vertical-head"><span>HOÀN THÀNH DỰ KIẾN</span></th>
+                  <th>DIỄN TIẾN TUẦN TRƯỚC</th>
+                  <th>TRONG TUẦN</th>
+                  <th>CUỐI TUẦN</th>
+                  <th class="vertical-head"><span>CHECK</span></th>
+                </tr>
+              </thead>
+              <tbody id="activeTasksBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="completedTab" class="tab-panel">
+          <div class="table-wrap">
+            <table class="completed-table">
+              <thead>
+                <tr>
+                  <th>MÃ</th>
+                  <th>HẠNG MỤC CÔNG VIỆC</th>
+                  <th>NGƯỜI THỰC HIỆN</th>
+                  <th>BẮT ĐẦU</th>
+                  <th>NGÀY HOÀN THÀNH</th>
+                  <th>GHI CHÚ CUỐI</th>
+                  <th>HOÀN TÁC</th>
+                </tr>
+              </thead>
+              <tbody id="completedTasksBody"></tbody>
+            </table>
+          </div>
+        </div>
+        </div>
+
+        <div id="reportPage" class="page-panel">
+          <div class="board-actions">
+            <button id="closeReportButton" class="report-nav-button back-button" type="button">QUAY LẠI BẢNG CÔNG VIỆC</button>
+          </div>
+          <div class="report-toolbar">
+            <div class="control-group">
+              <label for="reportMonth">THÁNG BÁO CÁO</label>
+              <select id="reportMonth"></select>
             </div>
-            <div class="hero-side">
-                <div class="metric-card">
-                    <span>ĐANG LÀM</span>
-                    <strong id="openCount">0</strong>
+          </div>
+
+          <section class="report-grid">
+            <article class="report-card">
+              <span class="report-label">Việc hoàn thành trong tháng</span>
+              <strong id="reportCompletedCount">0</strong>
+            </article>
+            <article class="report-card">
+              <span class="report-label">Đúng hạn</span>
+              <strong id="reportOnTimeCount">0</strong>
+            </article>
+            <article class="report-card">
+              <span class="report-label">Không đúng hạn</span>
+              <strong id="reportLateCount">0</strong>
+            </article>
+            <article class="report-card">
+              <span class="report-label">Việc nổi cộm</span>
+              <strong id="reportHotCount">0</strong>
+            </article>
+          </section>
+
+          <section class="report-layout">
+            <article class="panel report-section">
+              <div class="panel-title-row">
+                <div>
+                  <p class="section-kicker">Thống kê</p>
+                  <h2>Theo nhân viên</h2>
                 </div>
-                <div class="metric-card success">
-                    <span>HOÀN THÀNH</span>
-                    <strong id="doneCount">0</strong>
+              </div>
+              <div class="table-wrap">
+                <table class="report-table">
+                  <thead>
+                    <tr>
+                      <th>NHÂN VIÊN</th>
+                      <th>TỔNG SỐ VIỆC</th>
+                      <th>ĐÚNG HẠN</th>
+                      <th>KHÔNG ĐÚNG HẠN</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reportMemberBody"></tbody>
+                </table>
+              </div>
+            </article>
+
+            <article class="panel report-section prominent-panel">
+              <div class="panel-title-row">
+                <div>
+                  <p class="section-kicker">Highlight</p>
+                  <h2>Việc nổi cộm trong tháng</h2>
                 </div>
-                <button class="btn-print-fake">IN BÁO CÁO A3</button>
+              </div>
+              <div id="reportProminentList" class="prominent-list"></div>
+            </article>
+          </section>
+
+          <section class="panel report-section suggestion-panel">
+            <div class="panel-title-row">
+              <div>
+                <p class="section-kicker">Gợi ý thêm</p>
+                <h2>Nên theo dõi thêm</h2>
+              </div>
             </div>
-        </header>
-
-        <!-- Khu vực Thêm công việc mới -->
-        <section class="panel add-task-panel">
-            <form id="taskForm" class="task-form-container">
-                <div class="form-header-row">
-                    <button type="submit" class="main-add-button">THÊM CÔNG VIỆC</button>
-                    <p id="syncStatus" class="sync-status">Đang tải dữ liệu...</p>
-                </div>
-
-                <div class="task-form-grid">
-                    <div class="input-group">
-                        <label>Mã việc</label>
-                        <input name="code" type="text" placeholder="Tự động" />
-                    </div>
-                    <div class="input-group">
-                        <label>Ngày phát sinh</label>
-                        <input name="createdAt" type="text" placeholder="dd/mm/yy" required />
-                    </div>
-                    <div class="input-group">
-                        <label>Hạng mục công việc</label>
-                        <input name="title" type="text" placeholder="Nội dung hạng mục..." required />
-                    </div>
-                    <div class="input-group">
-                        <label>Mục tiêu</label>
-                        <input name="goal" type="text" placeholder="Mục tiêu đạt được..." required />
-                    </div>
-                    <div class="input-group">
-                        <label>Người thực hiện</label>
-                        <select name="assignee" required>
-                            <option value="">Chọn nhân viên</option>
-                        </select>
-                    </div>
-                    <div class="input-group">
-                        <label>Bắt đầu</label>
-                        <input name="startDate" type="text" placeholder="dd/mm/yy" required />
-                    </div>
-                    <div class="input-group">
-                        <label>HT dự kiến</label>
-                        <input name="dueDate" type="text" placeholder="dd/mm/yy" required />
-                    </div>
-                    
-                    <div class="textarea-group">
-                        <label>Diễn tiến tuần trước</label>
-                        <textarea name="previousWeek" rows="2"></textarea>
-                    </div>
-                    <div class="textarea-group">
-                        <label>Trong tuần</label>
-                        <textarea name="thisWeek" rows="2"></textarea>
-                    </div>
-                    <div class="textarea-group">
-                        <label>Bước tiếp theo</label>
-                        <textarea name="endWeek" rows="2"></textarea>
-                    </div>
-                </div>
-            </form>
-        </section>
-
-        <!-- Bảng điều khiển và danh sách -->
-        <section class="panel">
-            <div class="controls">
-                <div class="control-item">
-                    <label>Người thực hiện</label>
-                    <select id="memberFilter"></select>
-                </div>
-                <div class="control-item">
-                    <label>Tìm nhanh</label>
-                    <input id="searchInput" type="search" placeholder="Mã việc, nội dung..." />
-                </div>
-                <button id="openReportButton" class="report-nav-button">TỔNG HỢP BÁO CÁO</button>
+            <div class="suggestion-list">
+              <div class="suggestion-item">Tỷ lệ hoàn thành đúng hạn theo tháng.</div>
+              <div class="suggestion-item">Top 3 đầu việc kéo dài nhiều tuần chưa đóng.</div>
+              <div class="suggestion-item">Nhân viên xử lý nhiều việc nhất trong tháng.</div>
+              <div class="suggestion-item">Danh sách việc quá hạn đang còn mở.</div>
             </div>
-
-            <div id="boardPage" class="page-panel active">
-                <div class="tab-row">
-                    <button class="tab-button active" data-tab="active">Việc đang thực hiện</button>
-                    <button class="tab-button" data-tab="completed">Việc đã hoàn thành</button>
-                </div>
-
-                <div id="activeTab" class="tab-panel active">
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th class="col-compact">XONG</th>
-                                    <th style="width: 60px;">MÃ</th>
-                                    <th>HẠNG MỤC CÔNG VIỆC</th>
-                                    <th>MỤC TIÊU</th>
-                                    <th>NGƯỜI THỰC HIỆN</th>
-                                    <th style="width: 80px;">BẮT ĐẦU</th>
-                                    <th style="width: 80px;">HẠN HT</th>
-                                    <th>TUẦN TRƯỚC</th>
-                                    <th>TRONG TUẦN</th>
-                                    <th>BƯỚC TIẾP</th>
-                                    <th class="col-compact">CHECK</th>
-                                </tr>
-                            </thead>
-                            <tbody id="activeTasksBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Trang báo cáo (ẩn mặc định) -->
-            <div id="reportPage" class="page-panel">
-                <div class="board-actions">
-                    <button id="closeReportButton" class="tab-button active">← QUAY LẠI BẢNG CÔNG VIỆC</button>
-                </div>
-                <div class="report-grid">
-                    <div class="report-card"><span>Việc hoàn thành</span><strong id="reportCompletedCount">0</strong></div>
-                    <div class="report-card"><span>Đúng hạn</span><strong id="reportOnTimeCount">0</strong></div>
-                    <div class="report-card"><span>Trễ hạn</span><strong id="reportLateCount">0</strong></div>
-                    <div class="report-card"><span>Việc nổi cộm</span><strong id="reportHotCount">0</strong></div>
-                </div>
-            </div>
-        </section>
+          </section>
+        </div>
+      </section>
     </div>
+
+    <template id="emptyStateTemplate">
+      <tr>
+        <td colspan="12" class="empty-state">Chưa có dữ liệu phù hợp.</td>
+      </tr>
+    </template>
+
+    <template id="emptyCompletedTemplate">
+      <tr>
+        <td colspan="7" class="empty-state">Chưa có công việc nào hoàn thành.</td>
+      </tr>
+    </template>
+
+    <template id="emptyReportTemplate">
+      <div class="empty-state report-empty">Chưa có dữ liệu nổi cộm trong tháng này.</div>
+    </template>
 
     <script src="./config.js"></script>
     <script type="module" src="./app.js"></script>
-</body>
+  </body>
 </html>

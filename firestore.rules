@@ -1,0 +1,67 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 3. Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function getUserRole(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid)) 
+        ? get(/databases/$(database)/documents/users/$(uid)).data.role 
+        : 'Guest';
+    }
+
+    function isBootstrapAdmin() {
+      return isSignedIn() && (request.auth.token.email == 'lenhattruong.tpp@gmail.com' || request.auth.token.email == 'lenhattruong.tpp@gmail.com'.lower());
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (getUserRole(request.auth.uid) == 'Admin' || isBootstrapAdmin());
+    }
+
+    function isManager() {
+      return isSignedIn() && (getUserRole(request.auth.uid) in ['Admin', 'Trưởng Phòng']);
+    }
+
+    // --- Users Collection ---
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // --- Messages Collection ---
+    match /messages/{messageId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // --- Tasks Collection ---
+    match /tasks/{taskId} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}

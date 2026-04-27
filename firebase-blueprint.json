@@ -1,0 +1,71 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Staff member information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "zalo": { "type": "string" },
+        "role": { "type": "string", "enum": ["Nhân Viên", "Trưởng Nhóm", "Trưởng Phòng", "Admin"] },
+        "companyEmail": { "type": "string" },
+        "personalEmail": { "type": "string" },
+        "avatar": { "type": "string" },
+        "code": { "type": "string" },
+        "abbreviation": { "type": "string" },
+        "personalNote": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "ACTIVE", "INACTIVE"] }
+      },
+      "required": ["id", "name", "phone", "role", "companyEmail", "personalEmail", "avatar", "code", "abbreviation", "status"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Group chat message",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorId", "content", "timestamp"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Work task tracked in the system",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "issueDate": { "type": "string" },
+        "title": { "type": "string" },
+        "objective": { "type": "string" },
+        "assigneeId": { "type": "string" },
+        "startDate": { "type": "string" },
+        "expectedEndDate": { "type": "string" },
+        "actualEndDate": { "type": "string" },
+        "prevProgress": { "type": "string" },
+        "currentUpdate": { "type": "string" },
+        "status": { "type": "string", "enum": ["IN_PROGRESS", "PENDING_APPROVAL", "COMPLETED", "CANCELLED", "ON_HOLD"] },
+        "priority": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
+        "isHighlighted": { "type": "boolean" },
+        "isLocked": { "type": "boolean" }
+      },
+      "required": ["code", "title", "assigneeId", "status", "priority"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "User",
+      "description": "Collection of staff members"
+    },
+    "messages": {
+      "schema": "Message",
+      "description": "Global chat messages"
+    },
+    "tasks": {
+      "schema": "Task",
+      "description": "Project tasks"
+    }
+  }
+}

@@ -130,7 +130,36 @@ export const ReportPage = ({
         backgroundColor: '#ffffff',
         windowWidth: 794, // Approx A4 width in pixels
         onclone: (clonedDoc) => {
-          // Ensure fonts are loaded in the cloned document if needed
+          // Recursive function to strip oklch/modern colors which html2canvas fails on
+          const cleanColors = (el: HTMLElement) => {
+            const style = window.getComputedStyle(el);
+            
+            // html2canvas fails on oklch. getComputedStyle usually returns rgb/rgba 
+            // in most browsers, but if it doesn't or if there are inline styles:
+            const properties = ['color', 'backgroundColor', 'borderColor', 'outlineColor', 'fill', 'stroke'];
+            properties.forEach(prop => {
+              const value = (el.style as any)[prop] || style.getPropertyValue(prop);
+              if (value && value.includes('oklch')) {
+                // Force a safe fallback or try to let the browser resolve it to RGB
+                // By setting it to computed style, we often get the resolved RGB
+                (el.style as any)[prop] = style.getPropertyValue(prop);
+                
+                // If it still contains oklch (rare but possible in some environments), force black/white/transparent
+                const finalValue = (el.style as any)[prop];
+                if (finalValue && finalValue.includes('oklch')) {
+                  if (prop === 'backgroundColor') (el.style as any)[prop] = '#ffffff';
+                  else if (prop === 'color') (el.style as any)[prop] = '#000000';
+                  else (el.style as any)[prop] = 'transparent';
+                }
+              }
+            });
+
+            // Handle children
+            Array.from(el.children).forEach(child => cleanColors(child as HTMLElement));
+          };
+
+          const cloneRoot = clonedDoc.body.querySelector('[ref="printTemplateRef"]') || clonedDoc.body;
+          cleanColors(cloneRoot as HTMLElement);
         }
       });
 

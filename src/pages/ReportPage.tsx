@@ -1,24 +1,182 @@
-import React, { useState, useEffect } from 'react';
-import { Task, User } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { Task, User, OfficialReport, ReportDraft } from '../types';
 import { STAFF_LIST } from '../constants';
 import { formatDate } from '../lib/dateUtils';
-import { AlertCircle, Plus, Paperclip, Calendar, BarChart, Info, CheckCircle2, Clock } from 'lucide-react';
+import { AlertCircle, Plus, Paperclip, Calendar, BarChart, Info, CheckCircle2, Clock, ChevronDown, CheckCircle, FileText } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 interface ReportPageProps {
   tasks: Task[];
   users: User[];
   onUpdateTask: (id: string, updates: Partial<Task>) => void;
+  currentUser: User;
+  officialReports: OfficialReport[];
+  onSaveDraft: (draft: Omit<ReportDraft, 'id'>) => Promise<void>;
+  onSaveOfficialReport: (report: Omit<OfficialReport, 'id'>) => Promise<void>;
 }
 
-export const ReportPage = ({ tasks, users, onUpdateTask }: ReportPageProps) => {
+export const ReportPage = ({ 
+  tasks, 
+  users, 
+  onUpdateTask, 
+  currentUser,
+  officialReports,
+  onSaveDraft,
+  onSaveOfficialReport
+}: ReportPageProps) => {
   const [reportPeriod, setReportPeriod] = useState(() => {
     const saved = localStorage.getItem('qc_report_period');
     return saved || 'Tháng 04/2026';
   });
+  const [monthlyConclusion, setMonthlyConclusion] = useState('');
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
+  const printTemplateRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     localStorage.setItem('qc_report_period', reportPeriod);
+    loadDraft();
   }, [reportPeriod]);
+
+  const loadDraft = async () => {
+    if (!currentUser) return;
+    try {
+      const draftId = `${reportPeriod.replace(/\//g, '-')}_${currentUser.id}`;
+      const draftDoc = await getDoc(doc(db, 'report_drafts', draftId));
+      if (draftDoc.exists()) {
+        const data = draftDoc.data() as ReportDraft;
+        setMonthlyConclusion(data.content);
+      } else {
+        setMonthlyConclusion('');
+      }
+    } catch (err: any) {
+      if (err.code === 'permission-denied') {
+        console.warn("Permission denied while loading report draft. This is expected if security rules are still deploying.");
+      } else {
+        console.error("Error loading draft:", err);
+      }
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!currentUser) return;
+    setIsSavingDraft(true);
+    try {
+      await onSaveDraft({
+        monthYear: reportPeriod,
+        content: monthlyConclusion,
+        userId: currentUser.id,
+        updatedAt: new Date().toISOString()
+      });
+      alert("Đã lưu bản nháp thành công!");
+    } catch (err) {
+      console.error("Save draft error:", err);
+      alert("Lỗi khi lưu bản nháp.");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  const currentMonthReports = officialReports.filter(r => r.monthYear === reportPeriod);
+
+  const handleExportPDF = async () => {
+    console.log('Bắt đầu xuất PDF...');
+    const confirmed = window.confirm("Bạn có muốn CHỐT báo cáo này và lưu vào lịch sử chính thức không?");
+    if (!confirmed) return;
+
+    // Save official report snapshot
+    try {
+      await onSaveOfficialReport({
+        monthYear: reportPeriod,
+        content: monthlyConclusion,
+        userId: currentUser.id,
+        stats: {
+          total: tasks.length,
+          completed: tasks.filter(t => t.status === 'COMPLETED').length,
+          ongoing: tasks.filter(t => ['IN_PROGRESS', 'PENDING_APPROVAL', 'ON_HOLD'].includes(t.status)).length,
+          issues: tasks.filter(t => t.isHighlighted).length
+        },
+        isOfficial: true,
+        createdAt: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error("Error saving official report:", err);
+    }
+
+    if (!printTemplateRef.current) return;
+
+    try {
+      const element = printTemplateRef.current;
+      
+      // Force display for capturing with high fidelity
+      const originalStyle = element.style.cssText;
+      element.style.display = 'block';
+      element.style.position = 'fixed';
+      element.style.left = '0';
+      element.style.top = '0';
+      element.style.zIndex = '-9999';
+      element.style.width = '210mm';
+      element.style.backgroundColor = 'white';
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: 794, // Approx A4 width in pixels
+        onclone: (clonedDoc) => {
+          // Ensure fonts are loaded in the cloned document if needed
+        }
+      });
+
+      // Restore original style
+      element.style.cssText = originalStyle;
+
+      const imgData = canvas.toDataURL('image/png', 1.0);
+      const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      // Calculate image height while maintaining aspect ratio
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
+
+      // Pagination support if content is long
+      let heightLeft = imgHeight - pdfHeight;
+      let position = -pdfHeight;
+
+      while (heightLeft > 0) {
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= pdfHeight;
+        position -= pdfHeight;
+      }
+
+      pdf.save(`BaoCao_QC_${reportPeriod.replace(/\//g, '-')}.pdf`);
+    } catch (err) {
+      console.error("PDF Export error:", err);
+      alert("Lỗi xuất PDF: " + (err instanceof Error ? err.message : "Vui lòng kiểm tra console"));
+    }
+  };
+
+  const handleApplyHistoricalReport = (report: OfficialReport) => {
+    setMonthlyConclusion(report.content);
+    setReportPeriod(report.monthYear);
+    setShowHistory(false);
+  };
 
   const total = tasks.length;
   const completed = tasks.filter((t) => t.status === 'COMPLETED').length;
@@ -27,8 +185,6 @@ export const ReportPage = ({ tasks, users, onUpdateTask }: ReportPageProps) => {
   const highPriority = tasks.filter((t) => t.priority === 'HIGH').length;
 
   const handleFileUpload = (taskId: string) => {
-    // In a real app, this would open a file picker
-    // For now, we simulate adding a mock attachment
     const mockFile = `evidence_${Math.floor(Math.random() * 1000)}.pdf`;
     const task = tasks.find(t => t.id === taskId);
     const attachments = [...(task?.reportAttachments || []), mockFile];
@@ -36,14 +192,49 @@ export const ReportPage = ({ tasks, users, onUpdateTask }: ReportPageProps) => {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500" ref={reportRef}>
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 bg-white p-8 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden">
-        {/* Subtle background decoration */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50/50 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none" />
         
         <div className="space-y-2 relative z-10">
            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-             <h1 className="text-3xl font-black text-gray-900 tracking-tighter">BÁO CÁO THÁNG</h1>
+             <div className="flex items-center gap-4">
+               <h1 className="text-3xl font-black text-gray-900 tracking-tighter">BÁO CÁO THÁNG</h1>
+               <div className="relative">
+                 <button 
+                  onClick={() => setShowHistory(!showHistory)}
+                  className="flex items-center gap-1 p-1 px-2 bg-gray-50 hover:bg-gray-100 rounded text-[10px] font-bold text-gray-500 border border-gray-200 uppercase"
+                 >
+                    Lịch sử <ChevronDown size={14} />
+                 </button>
+                 {showHistory && (
+                   <div className="absolute top-full left-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 overflow-hidden">
+                      <div className="p-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                         <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Báo cáo đã chốt</span>
+                         <Plus size={14} className="rotate-45 cursor-pointer text-gray-400" onClick={() => setShowHistory(false)} />
+                      </div>
+                      <div className="max-h-60 overflow-y-auto">
+                        {officialReports.map(report => (
+                          <button 
+                            key={report.id}
+                            onClick={() => handleApplyHistoricalReport(report)}
+                            className="w-full text-left p-3 hover:bg-blue-50 border-b border-gray-50 group flex items-center justify-between"
+                          >
+                             <div>
+                               <p className="text-xs font-bold text-gray-800">{report.monthYear}</p>
+                               <p className="text-[9px] text-gray-400 font-medium">{formatDate(report.createdAt)}</p>
+                             </div>
+                             <FileText size={14} className="text-gray-300 group-hover:text-blue-500 transition-colors" />
+                          </button>
+                        ))}
+                        {officialReports.length === 0 && (
+                          <div className="p-4 text-center text-xs text-gray-400 italic">Chưa có báo cáo chính thức nào.</div>
+                        )}
+                      </div>
+                   </div>
+                 )}
+               </div>
+             </div>
              <div className="relative group min-w-[280px]">
                 <input 
                   type="text" 
@@ -61,13 +252,20 @@ export const ReportPage = ({ tasks, users, onUpdateTask }: ReportPageProps) => {
            </div>
         </div>
 
-        <div className="flex gap-3 relative z-10">
-          <button className="bg-gray-50 border border-gray-200 px-5 py-3 rounded-2xl font-black text-gray-500 flex items-center gap-2 hover:bg-gray-100 transition-all text-[10px] uppercase tracking-widest">
-            <Plus size={14} className="rotate-45" />
-            LƯU NHÁP
+        <div className="flex gap-3 relative z-10 no-pdf">
+          <button 
+            onClick={handleSaveDraft}
+            disabled={isSavingDraft}
+            className="bg-gray-50 border border-gray-200 px-5 py-3 rounded-2xl font-black text-gray-500 flex items-center gap-2 hover:bg-gray-100 disabled:opacity-50 transition-all text-[10px] uppercase tracking-widest"
+          >
+            <Clock size={14} />
+            {isSavingDraft ? 'ĐANG LƯU...' : 'LƯU NHÁP'}
           </button>
-          <button className="bg-blue-600 shadow-xl shadow-blue-200 text-white px-8 py-3 rounded-2xl font-black flex items-center gap-2 hover:bg-blue-700 transition-all text-[10px] uppercase tracking-widest">
-            <Plus size={14} />
+          <button 
+            onClick={(e) => { e.preventDefault(); handleExportPDF(); }}
+            className="bg-blue-600 shadow-xl shadow-blue-200 text-white px-8 py-3 rounded-2xl font-black flex items-center gap-2 hover:bg-blue-700 transition-all text-[10px] uppercase tracking-widest"
+          >
+            <CheckCircle size={14} />
             TRÍCH XUẤT PDF
           </button>
         </div>
@@ -106,7 +304,6 @@ export const ReportPage = ({ tasks, users, onUpdateTask }: ReportPageProps) => {
          <div className="space-y-6">
            {tasks.filter((t) => t.isHighlighted).map((t) => (
              <div key={t.id} className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6 border border-gray-100 bg-gray-50/50 rounded-2xl hover:bg-white transition-all hover:shadow-md hover:border-blue-100">
-               {/* Left side: Problem info */}
                <div className="space-y-4">
                  <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -129,7 +326,6 @@ export const ReportPage = ({ tasks, users, onUpdateTask }: ReportPageProps) => {
                  </div>
                </div>
 
-               {/* Right side: Explanation and attachments */}
                <div className="space-y-4 flex flex-col">
                   <div className="flex-1">
                     <p className="text-[10px] font-black text-gray-400 uppercase mb-2 flex items-center gap-2">
@@ -144,7 +340,7 @@ export const ReportPage = ({ tasks, users, onUpdateTask }: ReportPageProps) => {
                     />
                   </div>
 
-                  <div>
+                  <div className="no-pdf">
                     <p className="text-[10px] font-black text-gray-400 uppercase mb-2">Bằng chứng / Đính kèm</p>
                     <div className="flex flex-wrap gap-2">
                       {t.reportAttachments?.map((file, idx) => (
@@ -164,7 +360,7 @@ export const ReportPage = ({ tasks, users, onUpdateTask }: ReportPageProps) => {
                       ))}
                       <button 
                         onClick={() => handleFileUpload(t.id)}
-                        className="flex items-center gap-2 border-2 border-dashed border-gray-200 p-2 rounded-lg text-[10px] font-black text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-all"
+                        className="flex items-center gap-2 border-2 border-dashed border-gray-200 p-2 rounded-lg text-[10px] font-black text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-all text-center justify-center w-full sm:w-auto"
                       >
                          <Plus size={14} />
                          ĐÍNH KÈM FILE
@@ -178,10 +374,26 @@ export const ReportPage = ({ tasks, users, onUpdateTask }: ReportPageProps) => {
              <div className="text-center py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-100">
                 <AlertCircle className="mx-auto text-gray-200 mb-4" size={48} />
                 <p className="text-sm font-bold text-gray-400 uppercase tracking-widest italic">Không có vấn đề nổi cộm trong kỳ báo cáo này.</p>
-                <p className="text-xs text-gray-300 mt-2">Dữ liệu được lấy tự động từ danh sách công việc có đánh dấu nổi bật.</p>
              </div>
            )}
          </div>
+      </div>
+
+      {/* NEW: Monthly Conclusion Section for Draft Saving */}
+      <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
+         <div className="flex items-center gap-3 mb-6 border-b border-gray-100 pb-4">
+            <div className="p-3 bg-blue-100 text-blue-600 rounded-xl"><FileText size={24} /></div>
+            <div>
+               <h3 className="text-lg font-black text-gray-800 tracking-tight uppercase">TỔNG KẾT & ĐỀ XUẤT CỦA BỘ PHẬN</h3>
+               <p className="text-xs text-gray-500 italic">Nội dung này được lưu làm nháp cho kỳ báo cáo</p>
+            </div>
+         </div>
+         <textarea 
+            className="w-full p-6 bg-gray-50 border border-gray-200 rounded-3xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 text-sm h-48 resize-none leading-relaxed transition-all shadow-inner"
+            placeholder="Nhập tổng kết chung, các kiến nghị hoặc phương hướng hoạt động cho tháng tiếp theo..."
+            value={monthlyConclusion}
+            onChange={(e) => setMonthlyConclusion(e.target.value)}
+         />
       </div>
 
        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
@@ -200,7 +412,7 @@ export const ReportPage = ({ tasks, users, onUpdateTask }: ReportPageProps) => {
              return (
                <div key={staff.id} className="p-6 bg-gray-50 rounded-2xl border border-gray-100 space-y-4">
                   <div className="flex items-center gap-3">
-                    <img src={staff.avatar} className="w-10 h-10 rounded-xl border-2 border-white shadow-sm" alt="" />
+                    <img src={staff.avatar} className="w-10 h-10 rounded-xl border-2 border-white shadow-sm object-cover" alt="" />
                     <div>
                       <p className="text-sm font-bold text-gray-800">{staff.name}</p>
                       <p className="text-[10px] text-gray-400 font-bold uppercase">{staff.role}</p>
@@ -237,7 +449,6 @@ export const ReportPage = ({ tasks, users, onUpdateTask }: ReportPageProps) => {
          </div>
        </div>
 
-       {/* Better Idea: AI Analysis Summary */}
        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-3xl shadow-xl shadow-blue-200 text-white overflow-hidden relative">
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-6">
@@ -256,11 +467,11 @@ export const ReportPage = ({ tasks, users, onUpdateTask }: ReportPageProps) => {
                   Khuyến nghị: Tập trung giải quyết dứt điểm {issues} vấn đề nổi cộm để đảm bảo KPI."
                 </p>
                 <div className="pt-4 flex gap-4">
-                   <div className="px-4 py-2 bg-white/10 rounded-xl backdrop-blur-sm border border-white/10">
+                   <div className="px-4 py-2 bg-white/10 rounded-xl backdrop-blur-sm border border-white/10 text-center">
                      <p className="text-[10px] uppercase font-black text-blue-200">Chỉ số Sức khỏe</p>
                      <p className="text-xl font-black">TỐT</p>
                    </div>
-                   <div className="px-4 py-2 bg-white/10 rounded-xl backdrop-blur-sm border border-white/10">
+                   <div className="px-4 py-2 bg-white/10 rounded-xl backdrop-blur-sm border border-white/10 text-center">
                      <p className="text-[10px] uppercase font-black text-blue-200">Độ trễ TB</p>
                      <p className="text-xl font-black">1.2 NGÀY</p>
                    </div>
@@ -275,8 +486,140 @@ export const ReportPage = ({ tasks, users, onUpdateTask }: ReportPageProps) => {
               </div>
             </div>
           </div>
-          {/* Decorative background shape */}
           <div className="absolute -bottom-12 -right-12 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+       </div>
+
+       {/* --- HIDDEN PDF PRINT TEMPLATE --- */}
+       <div ref={printTemplateRef} style={{ display: 'none' }} className="bg-white text-black pl-[30mm] pr-[20mm] pt-[20mm] pb-[20mm] font-serif w-[210mm]">
+          {/* Header */}
+          <div className="flex justify-between items-start mb-10">
+            <div className="flex items-start gap-4">
+               <img src="https://tanphuvietnam.vn/wp-content/uploads/2021/04/logo-tan-phu-1.png" alt="" className="h-12 w-auto" />
+               <div className="text-left">
+                  <p className="text-xs font-bold uppercase tracking-tight">CÔNG TY CP NHỰA TÂN PHÚ</p>
+                  <p className="text-[10px] text-gray-500 italic mt-1 leading-tight">ISO 9001:2015 Certification</p>
+               </div>
+            </div>
+            <div className="text-right">
+               <p className="text-xs font-bold uppercase">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+               <p className="text-xs font-bold">Độc lập - Tự do - Hạnh phúc</p>
+               <div className="mt-1 h-px w-32 bg-black ml-auto" />
+            </div>
+          </div>
+
+          {/* Report Title */}
+          <div className="text-center mb-10 space-y-2">
+             <h1 className="text-xl font-bold uppercase tracking-tight">BÁO CÁO TỔNG HỢP HIỆU SUẤT & GIẢI TRÌNH CÔNG VIỆC</h1>
+             <p className="text-base font-bold uppercase">KỲ BÁO CÁO: {reportPeriod}</p>
+             <p className="text-[10px] italic">Ngày lập: {new Date().toLocaleDateString('vi-VN')}</p>
+          </div>
+
+          {/* Statistics Table */}
+          <div className="mb-10">
+            <h2 className="text-xs font-bold uppercase border-l-4 border-black pl-2 mb-4">I. THỐNG KÊ CHUNG</h2>
+            <table className="w-full border-collapse border border-gray-800 text-[11px]">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border border-gray-800 p-2">TỔNG CÔNG VIỆC</th>
+                  <th className="border border-gray-800 p-2">HOÀN THÀNH</th>
+                  <th className="border border-gray-800 p-2">ĐANG THỰC HIỆN</th>
+                  <th className="border border-gray-800 p-2">VẤN ĐỀ NỔI CỘM</th>
+                  <th className="border border-gray-800 p-2">TỶ LỆ</th>
+                </tr>
+              </thead>
+              <tbody className="text-center">
+                <tr>
+                  <td className="border border-gray-800 p-4 font-bold">{total}</td>
+                  <td className="border border-gray-800 p-4 font-bold text-green-700">{completed}</td>
+                  <td className="border border-gray-800 p-4 font-bold text-blue-700">{ongoing}</td>
+                  <td className="border border-gray-800 p-4 font-bold text-red-600">{issues}</td>
+                  <td className="border border-gray-800 p-4 font-bold">{Math.round((completed / total) * 100)}%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Issues List */}
+          <div className="mb-10">
+            <h2 className="text-xs font-bold uppercase border-l-4 border-black pl-2 mb-4">II. DANH SÁCH VẤN ĐỀ NỔI CỘM & GIẢI TRÌNH</h2>
+            <table className="w-full border-collapse border border-gray-800 text-[10px]">
+               <thead>
+                 <tr className="bg-gray-100">
+                   <th className="border border-gray-800 p-2 w-[5%]">STT</th>
+                   <th className="border border-gray-800 p-2 w-[25%]">TÊN CÔNG VIỆC / MÃ CV</th>
+                   <th className="border border-gray-800 p-2 w-[15%]">PHỤ TRÁCH</th>
+                   <th className="border border-gray-800 p-2 w-[45%]">NỘI DUNG GIẢI TRÌNH & KHẮC PHỤC</th>
+                   <th className="border border-gray-800 p-2 w-[10%]">HẠN ĐỊNH</th>
+                 </tr>
+               </thead>
+               <tbody>
+                  {tasks.filter(t => t.isHighlighted).map((t, idx) => (
+                    <tr key={t.id}>
+                      <td className="border border-gray-800 p-2 text-center">{idx + 1}</td>
+                      <td className="border border-gray-800 p-2">
+                        <p className="font-bold">{t.title}</p>
+                        <p className="text-[8px] text-gray-500 uppercase mt-1">{t.code}</p>
+                      </td>
+                      <td className="border border-gray-800 p-2 text-center">
+                        {users.find(u => u.id === t.assigneeId)?.name}
+                      </td>
+                      <td className="border border-gray-800 p-2 leading-relaxed">
+                        {t.reportExplanation || 'Chưa có nội dung giải trình.'}
+                      </td>
+                      <td className="border border-gray-800 p-2 text-center text-red-600 font-bold">
+                        {formatDate(t.expectedEndDate)}
+                      </td>
+                    </tr>
+                  ))}
+                  {tasks.filter(t => t.isHighlighted).length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="border border-gray-800 p-4 text-center italic text-gray-500">
+                        Không có vấn đề nổi cộm phát sinh trong kỳ.
+                      </td>
+                    </tr>
+                  )}
+               </tbody>
+            </table>
+          </div>
+
+          {/* Conclusion Section */}
+          <div className="mb-16">
+            <h2 className="text-xs font-bold uppercase border-l-4 border-black pl-2 mb-4">III. TỔNG KẾT & ĐỀ XUẤT CỦA BỘ PHẬN</h2>
+            <div className="p-4 border border-gray-800 rounded-sm bg-gray-50 min-h-[100px] text-[11px] leading-relaxed whitespace-pre-wrap">
+              {monthlyConclusion || 'Chưa có nội dung kết luận cho kỳ báo cáo này.'}
+            </div>
+          </div>
+
+          {/* Footer - Signatures */}
+          <div className="grid grid-cols-3 gap-4 text-center text-xs mt-10">
+             <div className="space-y-20">
+                <p className="font-bold uppercase">NGƯỜI LẬP BIỂU</p>
+                <p className="font-bold">(Ký, họ tên)</p>
+                <div className="mt-16 border-t border-dotted border-gray-300 w-32 mx-auto pt-2">
+                  <p className="text-[10px] text-gray-400">.............................................</p>
+                </div>
+             </div>
+             <div className="space-y-20">
+                <p className="font-bold uppercase">TRƯỞNG PHÒNG QLCL</p>
+                <p className="font-bold">(Ký, họ tên)</p>
+                <div className="mt-16 border-t border-dotted border-gray-300 w-32 mx-auto pt-2">
+                  <p className="text-[10px] text-gray-400">.............................................</p>
+                </div>
+             </div>
+             <div className="space-y-20">
+                <p className="font-bold uppercase">GIÁM ĐỐC XÁC NHẬN</p>
+                <p className="font-bold">(Ký, đóng dấu)</p>
+                <div className="mt-16 border-t border-dotted border-gray-300 w-32 mx-auto pt-2">
+                   <p className="text-[10px] text-gray-400">.............................................</p>
+                </div>
+             </div>
+          </div>
+
+          {/* Page Footer */}
+          <div className="mt-20 pt-4 border-t border-gray-200 flex justify-between text-[8px] text-gray-400 italic">
+             <p>Tài liệu này được trích xuất tự động từ Hệ thống Quản trị Hiệu quả Công việc P.QLCL - Tân Phú Việt Nam</p>
+             <p>Trang 1 / 1</p>
+          </div>
        </div>
     </div>
   );

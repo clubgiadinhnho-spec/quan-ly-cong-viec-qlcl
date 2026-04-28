@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User, UserRoleType } from '../types';
-import { Search, Mail, Phone, MessageCircle, MoreVertical, Filter, X, Save, Edit2, Trash2 } from 'lucide-react';
+import { Search, Mail, Phone, MessageCircle, MoreVertical, Filter, X, Save, Edit2, Trash2, Shield, HelpCircle, Lock } from 'lucide-react';
+import { SECURITY_QUESTIONS } from '../constants';
 
 interface StaffListPageProps {
   users: User[];
@@ -128,19 +129,31 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                       )}
                     </div>
                     {isEditing ? (
-                      <div className="space-y-2">
-                        <input 
-                          className="text-sm font-bold border-b border-blue-200 outline-none w-full"
-                          value={editForm.name}
-                          onChange={(e) => setEditForm({...editForm, name: e.target.value})}
-                          placeholder="Họ và tên"
-                        />
-                        <input 
-                          className="text-[10px] uppercase font-black text-blue-600 border-b border-blue-100 outline-none w-full"
-                          value={editForm.abbreviation}
-                          onChange={(e) => setEditForm({...editForm, abbreviation: e.target.value})}
-                          placeholder="Tên viết tắt"
-                        />
+                      <div className="space-y-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[8px] font-black text-gray-400 uppercase ml-1">Tên & Viết tắt</label>
+                          <input 
+                            className="text-sm font-bold border-b border-blue-200 outline-none w-full bg-blue-50/20 px-1"
+                            value={editForm.name}
+                            onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                            placeholder="Họ và tên"
+                          />
+                          <input 
+                            className="text-[10px] uppercase font-black text-blue-600 border-b border-blue-100 outline-none w-full bg-blue-50/20 px-1"
+                            value={editForm.abbreviation}
+                            onChange={(e) => setEditForm({...editForm, abbreviation: e.target.value})}
+                            placeholder="Tên viết tắt"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1 pt-1">
+                          <label className="text-[8px] font-black text-gray-400 uppercase ml-1">Link Ảnh đại diện</label>
+                          <input 
+                            className="text-[10px] border-b border-blue-100 outline-none w-full bg-blue-50/20 px-1 py-1"
+                            value={editForm.avatar}
+                            onChange={(e) => setEditForm({...editForm, avatar: e.target.value})}
+                            placeholder="URL hình ảnh..."
+                          />
+                        </div>
                       </div>
                     ) : (
                       <div>
@@ -153,6 +166,15 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                         <div className="flex items-center gap-2">
                           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{staff.role}</p>
                           <span className="text-[10px] font-black text-blue-400 px-1.5 py-0.5 bg-blue-50 rounded italic">{staff.abbreviation}</span>
+                          {staff.securityQuestion && (
+                            <Shield size={10} className="text-blue-400" title="Đã thiết lập bảo mật" />
+                          )}
+                          {staff.lastActive && (Date.now() - staff.lastActive < 120000) && (
+                            <div className="flex items-center gap-1">
+                               <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                               <span className="text-[8px] font-black text-green-500 uppercase tracking-tighter">Online</span>
+                            </div>
+                          )}
                         </div>
                         <p className="text-[10px] font-bold text-blue-600 mt-1">Mã NV: {staff.code}</p>
                       </div>
@@ -248,32 +270,74 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                     </div>
                   </div>
                   {isEditing && (
-                    <div className="grid grid-cols-2 gap-4 pt-2">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] font-black text-gray-300 uppercase">Chức vụ</span>
-                        <select 
-                          className="text-xs font-bold bg-blue-50/50 rounded px-2 py-1 outline-none"
-                          value={editForm.role}
-                          onChange={(e) => setEditForm({...editForm, role: e.target.value as UserRoleType})}
-                        >
-                          {['Admin', 'Trưởng Phòng', 'Trưởng Nhóm', 'Nhân Viên'].map(r => (
-                            <option key={r} value={r}>{r}</option>
-                          ))}
-                        </select>
+                    <>
+                      <div className="pt-4 border-t border-blue-50 space-y-3">
+                        <div className="flex items-center gap-2">
+                           <Shield size={14} className="text-blue-600" />
+                           <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Thiết lập bảo mật</span>
+                        </div>
+                        <div className="space-y-3">
+                           <div className="space-y-1">
+                              <label className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1.5 ml-1">
+                                 <HelpCircle size={10} /> Câu hỏi bảo mật
+                              </label>
+                              <select 
+                                className="w-full text-xs font-bold bg-blue-50/20 border border-blue-100 rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                value={editForm.securityQuestion || SECURITY_QUESTIONS[0]}
+                                onChange={(e) => setEditForm({...editForm, securityQuestion: e.target.value})}
+                              >
+                                {SECURITY_QUESTIONS.map(q => <option key={q} value={q}>{q}</option>)}
+                                <option value="custom">-- Câu hỏi khác --</option>
+                              </select>
+                              {(editForm.securityQuestion === 'custom' || !SECURITY_QUESTIONS.includes(editForm.securityQuestion || '')) && (
+                                <input 
+                                  className="w-full mt-2 text-xs font-bold bg-gray-50 border border-gray-100 rounded-lg px-2 py-2 outline-none focus:bg-white"
+                                  value={editForm.securityQuestion || ''}
+                                  onChange={(e) => setEditForm({...editForm, securityQuestion: e.target.value})}
+                                  placeholder="Nhập câu hỏi tự chọn..."
+                                />
+                              )}
+                           </div>
+                           <div className="space-y-1">
+                              <label className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1.5 ml-1">
+                                 <Lock size={10} /> Câu trả lời bí mật
+                              </label>
+                              <input 
+                                className="w-full text-xs font-bold bg-blue-50/20 border border-blue-100 rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                value={editForm.securityAnswer || ''}
+                                onChange={(e) => setEditForm({...editForm, securityAnswer: e.target.value})}
+                                placeholder="Nhập câu trả lời..."
+                              />
+                           </div>
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-[10px] font-black text-gray-300 uppercase">Trạng thái</span>
-                        <select 
-                          className="text-xs font-bold bg-blue-50/50 rounded px-2 py-1 outline-none"
-                          value={editForm.status}
-                          onChange={(e) => setEditForm({...editForm, status: e.target.value as any})}
-                        >
-                          <option value="PENDING">Chờ duyệt</option>
-                          <option value="ACTIVE">Hoạt động</option>
-                          <option value="INACTIVE">Khóa</option>
-                        </select>
+                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-50 mt-4">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-black text-gray-300 uppercase">Chức vụ</span>
+                          <select 
+                            className="text-xs font-bold bg-blue-50/50 rounded px-2 py-1 outline-none"
+                            value={editForm.role}
+                            onChange={(e) => setEditForm({...editForm, role: e.target.value as UserRoleType})}
+                          >
+                            {['Admin', 'Trưởng Phòng', 'Trưởng Nhóm', 'Nhân Viên'].map(r => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-black text-gray-300 uppercase">Trạng thái</span>
+                          <select 
+                            className="text-xs font-bold bg-blue-50/50 rounded px-2 py-1 outline-none"
+                            value={editForm.status}
+                            onChange={(e) => setEditForm({...editForm, status: e.target.value as any})}
+                          >
+                            <option value="PENDING">Chờ duyệt</option>
+                            <option value="ACTIVE">Hoạt động</option>
+                            <option value="INACTIVE">Khóa</option>
+                          </select>
+                        </div>
                       </div>
-                    </div>
+                    </>
                   )}
                 </div>
               </div>

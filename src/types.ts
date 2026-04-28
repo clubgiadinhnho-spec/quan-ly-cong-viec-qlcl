@@ -13,6 +13,9 @@ export interface User {
   abbreviation: string;
   personalNote?: string;
   status: 'PENDING' | 'ACTIVE' | 'INACTIVE';
+  securityQuestion?: string;
+  securityAnswer?: string;
+  lastActive?: number;
 }
 
 export interface ProgressUpdate {
@@ -29,6 +32,15 @@ export interface TaskComment {
   authorId: string;
   content: string;
   timestamp: string;
+}
+
+export interface PrivateMessage {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  content: string;
+  timestamp: string;
+  chatId: string;
 }
 
 export interface Task {
@@ -48,9 +60,35 @@ export interface Task {
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
   isHighlighted: boolean;
   isLocked: boolean; // Chốt 2 tuần/lần
+  attachmentUrl?: string;
+  attachmentName?: string;
+  updatedAt: string;
   comments?: TaskComment[];
   reportExplanation?: string;
   reportAttachments?: string[];
+}
+
+export interface ReportDraft {
+  id: string;
+  monthYear: string;
+  content: string;
+  userId: string;
+  updatedAt: string;
+}
+
+export interface OfficialReport {
+  id: string;
+  monthYear: string;
+  content: string;
+  userId: string;
+  stats: {
+    total: number;
+    completed: number;
+    ongoing: number;
+    issues: number;
+  };
+  isOfficial: boolean;
+  createdAt: string;
 }
 
 export interface AuthState {

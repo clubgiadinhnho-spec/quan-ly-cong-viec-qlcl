@@ -1,5 +1,14 @@
 import { User } from './types';
 
+export const SECURITY_QUESTIONS = [
+  'Quyển sách bạn thích nhất tên là gì?',
+  'Mẹ bạn tên gì?',
+  'Tên con vật đầu tiên bạn nuôi là gì?',
+  'Trường cấp 1 của bạn tên gì?',
+  'Món ăn bạn thích nhất là gì?',
+  'Thành phố bạn sinh ra là gì?'
+];
+
 export const STAFF_LIST: User[] = [
   {
     id: 'mgr-01',
@@ -12,7 +21,24 @@ export const STAFF_LIST: User[] = [
     personalEmail: 'nhattruong@gmail.com',
     role: 'Admin',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Truong',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    securityQuestion: SECURITY_QUESTIONS[0],
+    securityAnswer: 'Dế Mèn Phiêu Lưu Ký'
+  },
+  {
+    id: 'mgr-tp',
+    name: 'Quản Trị Viên',
+    code: 'TP001',
+    abbreviation: 'TP',
+    phone: '0900000000',
+    zalo: '0900000000',
+    companyEmail: 'tanphuvietnam.tpp@gmail.com',
+    personalEmail: 'tanphuvietnam.tpp@gmail.com',
+    role: 'Trưởng Phòng',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin',
+    status: 'ACTIVE',
+    securityQuestion: SECURITY_QUESTIONS[0],
+    securityAnswer: 'Tan Phu'
   },
   {
     id: 'lead-01',
@@ -25,7 +51,9 @@ export const STAFF_LIST: User[] = [
     personalEmail: 'nhuthung@gmail.com',
     role: 'Nhân Viên',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hung',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    securityQuestion: SECURITY_QUESTIONS[2],
+    securityAnswer: 'Lu'
   },
   {
     id: 'staff-01',
@@ -38,7 +66,9 @@ export const STAFF_LIST: User[] = [
     personalEmail: 'mytan@gmail.com',
     role: 'Trưởng Nhóm',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Tan',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    securityQuestion: SECURITY_QUESTIONS[1],
+    securityAnswer: 'Hoa'
   },
   {
     id: 'staff-02',
@@ -51,7 +81,9 @@ export const STAFF_LIST: User[] = [
     personalEmail: 'phantu@gmail.com',
     role: 'Nhân Viên',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Tu',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    securityQuestion: SECURITY_QUESTIONS[3],
+    securityAnswer: 'Nguyễn Văn Trỗi'
   },
   {
     id: 'staff-03',
@@ -63,7 +95,9 @@ export const STAFF_LIST: User[] = [
     personalEmail: 'hoangnam@gmail.com',
     role: 'Nhân Viên',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Nam',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    securityQuestion: SECURITY_QUESTIONS[4],
+    securityAnswer: 'Phở'
   },
   {
     id: 'staff-04',
@@ -75,7 +109,9 @@ export const STAFF_LIST: User[] = [
     personalEmail: 'thuthao@gmail.com',
     role: 'Nhân Viên',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Thao',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    securityQuestion: SECURITY_QUESTIONS[1],
+    securityAnswer: 'Lan'
   },
   {
     id: 'staff-05',
@@ -87,7 +123,9 @@ export const STAFF_LIST: User[] = [
     personalEmail: 'anhdung@gmail.com',
     role: 'Nhân Viên',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Dung',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    securityQuestion: SECURITY_QUESTIONS[5],
+    securityAnswer: 'Hà Nội'
   },
   {
     id: 'staff-06',
@@ -99,7 +137,9 @@ export const STAFF_LIST: User[] = [
     personalEmail: 'thilan@gmail.com',
     role: 'Nhân Viên',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Lan',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    securityQuestion: SECURITY_QUESTIONS[0],
+    securityAnswer: 'Harry Potter'
   },
   {
     id: 'staff-07',
@@ -111,7 +151,9 @@ export const STAFF_LIST: User[] = [
     personalEmail: 'tiendat@gmail.com',
     role: 'Nhân Viên',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Dat',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    securityQuestion: SECURITY_QUESTIONS[2],
+    securityAnswer: 'Mimi'
   },
   {
     id: 'staff-08',
@@ -123,7 +165,9 @@ export const STAFF_LIST: User[] = [
     personalEmail: 'mylinh@gmail.com',
     role: 'Nhân Viên',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Linh',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    securityQuestion: SECURITY_QUESTIONS[4],
+    securityAnswer: 'Bún chả'
   },
   {
     id: 'staff-09',
@@ -135,7 +179,9 @@ export const STAFF_LIST: User[] = [
     personalEmail: 'giabao@gmail.com',
     role: 'Nhân Viên',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bao',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    securityQuestion: SECURITY_QUESTIONS[5],
+    securityAnswer: 'TP.HCM'
   },
   {
     id: 'staff-10',
@@ -147,6 +193,8 @@ export const STAFF_LIST: User[] = [
     personalEmail: 'tuyetngan@gmail.com',
     role: 'Nhân Viên',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ngan',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
+    securityQuestion: SECURITY_QUESTIONS[1],
+    securityAnswer: 'Mai'
   }
 ];

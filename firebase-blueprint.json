@@ -16,9 +16,11 @@
         "code": { "type": "string" },
         "abbreviation": { "type": "string" },
         "personalNote": { "type": "string" },
-        "status": { "type": "string", "enum": ["PENDING", "ACTIVE", "INACTIVE"] }
+        "status": { "type": "string", "enum": ["PENDING", "ACTIVE", "INACTIVE"] },
+        "securityQuestion": { "type": "string" },
+        "securityAnswer": { "type": "string" }
       },
-      "required": ["id", "name", "phone", "role", "companyEmail", "personalEmail", "avatar", "code", "abbreviation", "status"]
+      "required": ["id", "name", "phone", "role", "companyEmail", "personalEmail", "avatar", "code", "abbreviation", "status", "securityQuestion", "securityAnswer"]
     },
     "Message": {
       "title": "Message",
@@ -30,6 +32,19 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["authorId", "content", "timestamp"]
+    },
+    "PrivateMessage": {
+      "title": "PrivateMessage",
+      "description": "1:1 private message",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "chatId": { "type": "string", "description": "Unique ID for the pair, e.g., minId_maxId" }
+      },
+      "required": ["senderId", "receiverId", "content", "timestamp", "chatId"]
     },
     "Task": {
       "title": "Task",
@@ -49,9 +64,45 @@
         "status": { "type": "string", "enum": ["IN_PROGRESS", "PENDING_APPROVAL", "COMPLETED", "CANCELLED", "ON_HOLD"] },
         "priority": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
         "isHighlighted": { "type": "boolean" },
-        "isLocked": { "type": "boolean" }
+        "isLocked": { "type": "boolean" },
+        "attachmentUrl": { "type": "string" },
+        "attachmentName": { "type": "string" }
       },
       "required": ["code", "title", "assigneeId", "status", "priority"]
+    },
+    "ReportDraft": {
+      "title": "ReportDraft",
+      "description": "Draft content for monthly report",
+      "type": "object",
+      "properties": {
+        "monthYear": { "type": "string" },
+        "content": { "type": "string" },
+        "userId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["monthYear", "content", "userId", "updatedAt"]
+    },
+    "OfficialReport": {
+      "title": "OfficialReport",
+      "description": "Finalized official monthly report snapshot",
+      "type": "object",
+      "properties": {
+        "monthYear": { "type": "string" },
+        "content": { "type": "string" },
+        "userId": { "type": "string" },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "total": { "type": "number" },
+            "completed": { "type": "number" },
+            "ongoing": { "type": "number" },
+            "issues": { "type": "number" }
+          }
+        },
+        "isOfficial": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["monthYear", "content", "userId", "stats", "isOfficial", "createdAt"]
     }
   },
   "firestore": {
@@ -66,6 +117,18 @@
     "tasks": {
       "schema": "Task",
       "description": "Project tasks"
+    },
+    "direct_messages": {
+      "schema": "PrivateMessage",
+      "description": "1:1 private messages between users"
+    },
+    "report_drafts": {
+      "schema": "ReportDraft",
+      "description": "Monthly report drafts"
+    },
+    "official_reports": {
+      "schema": "OfficialReport",
+      "description": "Finalized monthly reports"
     }
   }
 }

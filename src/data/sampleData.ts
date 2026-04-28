@@ -1,6 +1,6 @@
 import { Task } from '../types';
 
-export const SAMPLE_TASKS: Omit<Task, 'id'>[] = [
+export const SAMPLE_TASKS: any[] = [
   {
     code: 'C0001',
     issueDate: '2026-03-01',
@@ -15,13 +15,14 @@ export const SAMPLE_TASKS: Omit<Task, 'id'>[] = [
     priority: 'HIGH',
     isHighlighted: true,
     isLocked: false,
+    updatedAt: '2026-03-01T00:00:00.000Z',
     history: [{ version: 1, content: 'Khởi tạo công việc.', timestamp: new Date().toISOString(), authorId: 'mgr-01' }]
   },
   {
     code: 'C0002',
     issueDate: '2024-05-31',
     title: 'Phối hợp với CN.BNI triển khai kiểm soát NVL đầu vào (Hạt màu)',
-    objective: 'Đáp ứng yêu cầu đã đề ra',
+    objective: 'Đáp đáp ứng yêu cầu đã đề ra',
     assigneeId: 'lead-01', // Hùng
     startDate: '2024-05-31',
     expectedEndDate: '2026-05-30',
@@ -31,6 +32,7 @@ export const SAMPLE_TASKS: Omit<Task, 'id'>[] = [
     priority: 'MEDIUM',
     isHighlighted: false,
     isLocked: false,
+    updatedAt: '2024-05-31T00:00:00.000Z',
     history: [{ version: 1, content: 'Khởi tạo công việc.', timestamp: new Date().toISOString(), authorId: 'mgr-01' }]
   },
   {

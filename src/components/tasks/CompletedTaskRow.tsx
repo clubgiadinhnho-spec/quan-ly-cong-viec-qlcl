@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, Paperclip } from 'lucide-react';
 import { Task, User } from '../../types';
 import { formatDate } from '../../lib/dateUtils';
 
@@ -30,25 +30,49 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ task, users,
           </div>
         </div>
       </td>
-      <td className="p-4 border-r border-gray-300">
-        <p className="text-sm font-bold text-gray-900">{task.title}</p>
-        <div className="flex items-center gap-2 mt-1">
-          <p className="text-xs text-gray-500 italic">{task.currentUpdate}</p>
-          <button 
-            onClick={() => onOpenChat(task.id)}
-            className="p-1 px-2 text-[9px] text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-full font-bold uppercase transition-all flex items-center gap-1"
+      <td className="p-4 border-r border-gray-300 relative group">
+        {task.attachmentUrl && (
+          <a 
+            href={task.attachmentUrl} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            title={`Xem đính kèm: ${task.attachmentName}`}
+            className="absolute top-2 right-2 p-1 bg-green-50 text-green-600 rounded hover:bg-green-100 transition-all z-10"
           >
-            <MessageSquare size={10} />
-            Hội thoại {task.comments && task.comments.length > 0 && `(${task.comments.length})`}
-          </button>
-        </div>
+            <Paperclip size={14} strokeWidth={3} />
+          </a>
+        )}
+        <p className="text-sm font-bold text-gray-900 pr-6">{task.title}</p>
+        <p className="text-[11px] text-gray-500 leading-relaxed mt-1 line-clamp-2">{task.objective}</p>
       </td>
       <td className="p-4 text-center border-r border-gray-300">
-        <div className="flex flex-col items-center gap-1">
-          <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg border border-green-100">
-            Xong: {formatDate(task.actualEndDate)}
-          </span>
+        <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg border border-green-100">
+          Xong: {formatDate(task.actualEndDate)}
+        </span>
+      </td>
+      <td className="p-4 border-r border-gray-300">
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-gray-500 italic leading-relaxed">{task.currentUpdate}</p>
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-bold uppercase tracking-tighter">v{task.history.length}</span>
+            <button 
+              onClick={() => onOpenChat(task.id)}
+              className="p-1 px-2 text-[9px] text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-full font-bold uppercase transition-all flex items-center gap-1"
+            >
+              <MessageSquare size={10} />
+              Hội thoại {task.comments && task.comments.length > 0 && `(${task.comments.length})`}
+            </button>
+          </div>
         </div>
+      </td>
+      <td className="p-1 text-center border-r border-gray-300">
+        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+          task.priority === 'HIGH' ? 'bg-red-50 text-red-600' : 
+          task.priority === 'MEDIUM' ? 'bg-orange-50 text-orange-600' : 
+          'bg-blue-50 text-blue-600'
+        }`}>
+          {task.priority === 'HIGH' ? 'CAO' : task.priority === 'MEDIUM' ? 'TRUNG BÌNH' : 'THẤP'}
+        </span>
       </td>
       <td className="py-4 px-1 text-center border-r border-gray-300">
         <div className="flex flex-col items-center gap-1">

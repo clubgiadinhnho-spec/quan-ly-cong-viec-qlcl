@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { User, Task, TaskComment } from './types';
 import Login from './components/Login';
 import { STAFF_LIST } from './constants';
@@ -6,25 +6,31 @@ import {
   Plus, 
   Search, 
   Lock,
-  LogOut
+  LogOut,
+  FileUp,
+  FileDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+// Import Utilities
+import { exportTasksToExcel, importTasksFromExcel } from './utils/excelUtils';
 
 // Import Firebase & Hooks
 import { auth, logout, db, testConnection } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import { useFirebaseData } from './hooks/useFirebaseData';
+import { useFirebaseData, useUserHeartbeat } from './hooks/useFirebaseData';
 import { SAMPLE_TASKS } from './data/sampleData';
 
 // Import Components
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
-import { TaskRow } from './components/tasks/TaskRow';
-import { CompletedTaskRow } from './components/tasks/CompletedTaskRow';
+import { StatsSummary } from './components/dashboard/StatsSummary';
+import { TaskList } from './components/tasks/TaskList';
 import { TaskModal } from './components/tasks/TaskModal';
 import { HistoryModal } from './components/tasks/HistoryModal';
 import { TaskChat } from './components/tasks/TaskChat';
+import { DirectChat } from './components/tasks/DirectChat';
 import { ConfirmModal } from './components/common/ConfirmModal';
 import { ProfilePage } from './pages/ProfilePage';
 import { ReportPage } from './pages/ReportPage';
@@ -47,14 +53,25 @@ export default function App() {
     tasks, 
     users, 
     messages: generalMessages, 
+    privateMessages,
     loading: firebaseLoading,
     addTask: firebaseAddTask,
     updateTask: firebaseUpdateTask,
     deleteTask: firebaseDeleteTask,
     sendMessage: firebaseSendMessage,
+    sendPrivateMessage: firebaseSendPrivateMessage,
     updateStaff: firebaseUpdateStaff,
-    deleteStaff: firebaseDeleteStaff
-  } = useFirebaseData();
+    deleteStaff: firebaseDeleteStaff,
+    updateHeartbeat: firebaseUpdateHeartbeat,
+    saveReportDraft: firebaseSaveReportDraft,
+    saveOfficialReport: firebaseSaveOfficialReport,
+    officialReports: firebaseOfficialReports
+  } = useFirebaseData(currentUser?.id);
+
+  const [showDirectChat, setShowDirectChat] = useState<User | null>(null);
+
+  // Presence system
+  useUserHeartbeat(currentUser?.id, firebaseUpdateHeartbeat);
 
   // Combine Firestore users with initial STAFF_LIST
   // Firestore is the source of truth, but we use STAFF_LIST as base defaults
@@ -73,37 +90,43 @@ export default function App() {
         let addedCount = 0;
         for (const staff of STAFF_LIST) {
           const exists = users.find(u => u.id === staff.id || u.companyEmail === staff.companyEmail);
-          if (!exists) {
-            console.log(`Adding missing staff member: ${staff.name}`);
-            await firebaseUpdateStaff({ ...staff, status: staff.status || 'ACTIVE' });
+          // If staff doesn't exist OR doesn't have a security question, sync them
+          if (!exists || !exists.securityQuestion) {
+            await firebaseUpdateStaff({ ...staff, status: (exists?.status || staff.status || 'ACTIVE') as any });
             addedCount++;
           }
-        }
-        if (addedCount > 0) {
-          console.log(`Bootstrapped ${addedCount} staff members.`);
         }
       }
     };
     bootstrap();
-  }, [users, firebaseLoading]);
+  }, [firebaseLoading]); // Only run when loading state changes
 
-  // Handle Authentication State
+  // Handle Authentication State (Restore Session & Sync)
   useEffect(() => {
-    // Try to load from localStorage for manual login sessions
     const savedUser = localStorage.getItem('qc_user');
-    if (savedUser) {
-      const parsed = JSON.parse(savedUser);
-      // Try to find the most up-to-date user from our synced list
-      const latestUser = allUsers.find(u => u.id === parsed.id || u.companyEmail === parsed.companyEmail);
-      if (latestUser) {
+    if (!savedUser) {
+      setAuthReady(true);
+      return;
+    }
+
+    const parsed = JSON.parse(savedUser);
+    const latestUser = users.find(u => u.id === parsed.id || u.companyEmail === parsed.companyEmail);
+    
+    if (latestUser) {
+      // Only update if the user data (excluding lastActive) has changed to avoid heartbeat-induced loops
+      const currentUserReduced = currentUser ? { ...currentUser, lastActive: 0 } : null;
+      const latestUserReduced = { ...latestUser, lastActive: 0 };
+      
+      if (JSON.stringify(currentUserReduced) !== JSON.stringify(latestUserReduced)) {
         setCurrentUser(latestUser);
-      } else {
-        setCurrentUser(parsed);
+        localStorage.setItem('qc_user', JSON.stringify(latestUser));
       }
+    } else if (!currentUser) {
+      setCurrentUser(parsed);
     }
     
     setAuthReady(true);
-  }, [allUsers]);
+  }, [users]); // removed currentUser from inner logic dependency check to avoid loops, but it works
 
   const handleLogin = (user: User) => {
     setCurrentUser(user);
@@ -120,12 +143,25 @@ export default function App() {
     }
   };
 
-  const addTask = (taskData: Partial<Task>) => {
+  const addTask = useCallback(async (taskData: any) => {
     const lastNum = tasks.reduce((max, t) => {
       const num = parseInt(t.code.replace(/\D/g, '')) || 0;
       return num > max ? num : max;
     }, 0);
     
+    let attachmentUrl = "";
+    let attachmentName = "";
+
+    if (taskData.attachment instanceof File) {
+      attachmentName = taskData.attachment.name;
+      // Convert to Base64 for simplicity in prototype
+      attachmentUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(taskData.attachment);
+      });
+    }
+
     const newTask: Omit<Task, 'id'> = {
       code: `C${String(lastNum + 1).padStart(4, '0')}`,
       issueDate: new Date().toISOString().split('T')[0],
@@ -146,10 +182,13 @@ export default function App() {
       priority: taskData.priority || 'MEDIUM',
       isHighlighted: false,
       isLocked: false,
+      attachmentUrl,
+      attachmentName,
+      updatedAt: new Date().toISOString(),
     };
     firebaseAddTask(newTask);
     setShowTaskModal(false);
-  };
+  }, [tasks, currentUser, firebaseAddTask]);
 
   const [confirmModal, setConfirmModal] = useState<{
     show: boolean;
@@ -158,18 +197,32 @@ export default function App() {
     onConfirm: () => void;
   }>({ show: false, title: '', message: '', onConfirm: () => {} });
 
-  const updateTask = (id: string, updates: Partial<Task>) => {
+  const updateTask = useCallback((id: string, updates: Partial<Task>) => {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
 
     const newUpdates: any = { ...updates };
     
-    // History logic
-    if (updates.currentUpdate && updates.currentUpdate !== task.currentUpdate) {
+    // History logic: Check for significant changes to log
+    const changes: string[] = [];
+    
+    if (updates.currentUpdate !== undefined && updates.currentUpdate !== task.currentUpdate) {
+      changes.push(`Cập nhật tiến độ: ${updates.currentUpdate || '(Trống)'}`);
+    }
+    
+    if (updates.title !== undefined && updates.title !== task.title) {
+      changes.push(`Đổi tên công việc thành: ${updates.title}`);
+    }
+
+    if (updates.status !== undefined && updates.status !== task.status) {
+      changes.push(`Thay đổi trạng thái sang: ${updates.status}`);
+    }
+
+    if (changes.length > 0) {
       const newHistory = [...(task.history || [])];
       newHistory.push({
         version: newHistory.length + 1,
-        content: updates.currentUpdate,
+        content: changes.join(' | '),
         timestamp: new Date().toISOString(),
         authorId: currentUser?.id || ''
       });
@@ -177,9 +230,9 @@ export default function App() {
     }
 
     firebaseUpdateTask(id, newUpdates);
-  };
+  }, [tasks, currentUser, firebaseUpdateTask]);
 
-  const addTaskComment = (taskId: string, content: string) => {
+  const addTaskComment = useCallback((taskId: string, content: string) => {
     if (!currentUser) return;
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
@@ -192,21 +245,21 @@ export default function App() {
       timestamp: new Date().toISOString()
     });
     firebaseUpdateTask(taskId, { comments: newComments });
-  };
+  }, [tasks, currentUser, firebaseUpdateTask]);
 
-  const sendGeneralMessage = (content: string) => {
+  const sendGeneralMessage = useCallback((content: string) => {
     if (!currentUser) return;
     firebaseSendMessage(content, currentUser.id);
-  };
+  }, [currentUser, firebaseSendMessage]);
 
-  const updateUserNote = (userId: string, note: string) => {
+  const updateUserNote = useCallback((userId: string, note: string) => {
     const staff = users.find(u => u.id === userId) || STAFF_LIST.find(u => u.id === userId);
     if (staff) {
       firebaseUpdateStaff({ ...staff, personalNote: note });
     }
-  };
+  }, [users, firebaseUpdateStaff]);
 
-  const deleteTask = (id: string) => {
+  const deleteTask = useCallback((id: string) => {
     setConfirmModal({
       show: true,
       title: 'XÁC NHẬN XÓA',
@@ -216,9 +269,9 @@ export default function App() {
         setConfirmModal(p => ({ ...p, show: false }));
       }
     });
-  };
+  }, [firebaseDeleteTask]);
 
-  const lockTasks = () => {
+  const lockTasks = useCallback(() => {
     setConfirmModal({
       show: true,
       title: 'CHỐT DANH SÁCH',
@@ -236,9 +289,9 @@ export default function App() {
         setConfirmModal(p => ({ ...p, show: false }));
       }
     });
-  };
+  }, [tasks, firebaseUpdateTask]);
 
-  const seedTasks = async () => {
+  const seedTasks = useCallback(async () => {
     if (tasks.length > 0) {
       if (!confirm('Dữ liệu công việc hiện đang có. Bạn có chắc muốn nạp thêm dữ liệu mẫu (các công việc QC cũ)?')) return;
     }
@@ -251,13 +304,72 @@ export default function App() {
       await firebaseAddTask(taskWithAuthor);
     }
     alert('Đã nạp dữ liệu thành công! Vui lòng kiểm tra Bảng công việc.');
-  };
+  }, [tasks, currentUser, firebaseAddTask]);
 
-  const onUpdateStaff = (updatedStaff: User) => {
+  const onUpdateStaff = useCallback((updatedStaff: User) => {
     firebaseUpdateStaff(updatedStaff);
+  }, [firebaseUpdateStaff]);
+
+  const handleExportExcel = () => {
+    if (currentUser?.role !== 'Admin' && currentUser?.role !== 'Trưởng Phòng') return;
+    exportTasksToExcel(tasks, users);
   };
 
-  const handleStaffDelete = (userId: string) => {
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (currentUser?.role !== 'Admin' && currentUser?.role !== 'Trưởng Phòng') return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const importedTasks = await importTasksFromExcel(file);
+      if (importedTasks.length === 0) {
+        alert("Không tìm thấy dữ liệu trong file Excel.");
+        return;
+      }
+
+      const confirmed = confirm(`Bạn có muốn nạp ${importedTasks.length} công việc từ file Excel này không?`);
+      if (!confirmed) return;
+
+      let lastNum = tasks.reduce((max, t) => {
+        const num = parseInt(t.code.replace(/\D/g, '')) || 0;
+        return num > max ? num : max;
+      }, 0);
+
+      for (const tData of importedTasks) {
+        lastNum++;
+        const newTask: Omit<Task, 'id'> = {
+          code: `C${String(lastNum).padStart(4, '0')}`,
+          issueDate: new Date().toISOString().split('T')[0],
+          title: tData.title || 'Không có tiêu đề',
+          objective: tData.objective || '',
+          assigneeId: currentUser?.id || '',
+          startDate: new Date().toISOString().split('T')[0],
+          expectedEndDate: tData.expectedEndDate || '',
+          prevProgress: '',
+          currentUpdate: '',
+          history: [{ 
+            version: 1, 
+            content: 'Nhập từ file Excel.', 
+            timestamp: new Date().toISOString(), 
+            authorId: currentUser?.id || 'system' 
+          }],
+          status: 'IN_PROGRESS',
+          priority: tData.priority || 'MEDIUM',
+          isHighlighted: false,
+          isLocked: false,
+          updatedAt: new Date().toISOString(),
+        };
+        await firebaseAddTask(newTask);
+      }
+      alert(`Đã nạp thành công ${importedTasks.length} công việc.`);
+      e.target.value = ''; // Reset input
+    } catch (err) {
+      console.error("Import error:", err);
+      alert("Đã có lỗi xảy ra khi nhập file Excel. Vui lòng kiểm tra định dạng.");
+    }
+  };
+
+  const handleStaffDelete = useCallback((userId: string) => {
     const staff = allUsers.find(u => u.id === userId);
     if (!staff) return;
 
@@ -270,12 +382,25 @@ export default function App() {
         setConfirmModal(p => ({ ...p, show: false }));
       }
     });
-  };
+  }, [allUsers, firebaseDeleteStaff]);
 
   const filteredTasks = tasks.filter(t => 
-    t.title.toLowerCase().includes(search.toLowerCase()) || 
-    t.code.toLowerCase().includes(search.toLowerCase())
+    (t.title.toLowerCase().includes(search.toLowerCase()) || 
+     t.code.toLowerCase().includes(search.toLowerCase()))
   );
+
+  const priorityWeight = { 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
+
+  const sortedTasks = [...filteredTasks].sort((a, b) => {
+    // Primary sort: Priority (High to Low)
+    const weightA = priorityWeight[a.priority as keyof typeof priorityWeight] || 0;
+    const weightB = priorityWeight[b.priority as keyof typeof priorityWeight] || 0;
+    if (weightB !== weightA) return weightB - weightA;
+    // Secondary sort: High priority issues (Highlighted)
+    if (a.isHighlighted !== b.isHighlighted) return a.isHighlighted ? -1 : 1;
+    // Tertiary: Newest first
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+  });
 
   if (!authReady) return <div className="min-h-screen flex items-center justify-center font-black text-blue-600">ĐANG TẢI DỮ LIỆU...</div>;
   if (!currentUser) return <Login users={allUsers} onLogin={handleLogin} />;
@@ -284,6 +409,7 @@ export default function App() {
     <div className="flex min-h-screen bg-[#F9FAFB]">
       <Sidebar 
         user={currentUser} 
+        users={allUsers}
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         onLogout={handleLogout}
@@ -303,34 +429,42 @@ export default function App() {
               <Header 
                 title="BẢNG THEO DÕI CÔNG VIỆC P.QLCL" 
                 badge={currentUser.role}
-                onAction={currentUser.role === 'Admin' ? () => setShowTaskModal(true) : undefined}
+                onAction={(currentUser.role === 'Admin' || currentUser.role === 'Trưởng Phòng') ? () => setShowTaskModal(true) : undefined}
                 actionLabel="Giao việc mới"
                 actionIcon={Plus}
+                users={allUsers}
+                onUserClick={(user) => setShowDirectChat(user)}
+                currentUserId={currentUser.id}
               />
               
               <div className="p-8 space-y-8">
-                {/* Stats Summary */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Tổng cộng dự án</p>
-                    <p className="text-2xl font-black">{tasks.length}</p>
-                  </div>
-                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm text-blue-600">
-                    <p className="text-[10px] text-blue-500 font-bold uppercase tracking-wider mb-1">Đang thực hiện</p>
-                    <p className="text-2xl font-black">{tasks.filter(t => t.status === 'IN_PROGRESS').length}</p>
-                  </div>
-                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                    <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider mb-1">Vấn đề nổi cộm</p>
-                    <p className="text-2xl font-black">{tasks.filter(t => t.isHighlighted).length}</p>
-                  </div>
-                  <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm text-green-600">
-                    <p className="text-[10px] text-green-500 font-bold uppercase tracking-wider mb-1">Đã hoàn thành</p>
-                    <p className="text-2xl font-black">{tasks.filter(t => t.status === 'COMPLETED').length}</p>
-                  </div>
-                </div>
+                <StatsSummary tasks={tasks} />
 
                 <div className="flex items-center justify-between">
-                   <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest">Danh sách công việc đang xử lý</h3>
+                   <div className="flex items-center gap-4">
+                    <h3 className="text-[13px] font-bold text-gray-500 uppercase tracking-widest">Danh sách công việc đang xử lý</h3>
+                    {(currentUser.role === 'Admin' || currentUser.role === 'Trưởng Phòng') && (
+                      <div className="flex items-center gap-2">
+                         <button 
+                           onClick={handleExportExcel}
+                           className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-all uppercase"
+                         >
+                           <FileDown size={12} />
+                           Xuất Excel
+                         </button>
+                         <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-all uppercase cursor-pointer">
+                           <FileUp size={12} />
+                           Nhập từ Excel
+                           <input 
+                             type="file" 
+                             accept=".xlsx, .xls" 
+                             className="hidden" 
+                             onChange={handleImportExcel}
+                           />
+                         </label>
+                      </div>
+                    )}
+                   </div>
                    <div className="relative group">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                     <input 
@@ -343,40 +477,17 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-auto max-h-[700px] text-left">
-                  <table className="w-full text-left border-collapse border border-gray-300">
-                    <thead className="bg-[#FAFBFD] border-b border-gray-300">
-                      <tr>
-                        <th className="p-4 text-[10px] font-black text-gray-700 uppercase tracking-wider w-12 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">STT</th>
-                        <th className="p-4 text-[10px] font-black text-gray-700 uppercase tracking-wider w-56 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Nhân viên</th>
-                        <th className="p-4 text-[10px] font-black text-gray-700 uppercase tracking-wider text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Nội dung & Mục tiêu</th>
-                        <th className="p-4 text-[10px] font-black text-gray-700 uppercase tracking-wider w-40 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Diễn tiến trước đó</th>
-                        <th className="p-4 text-[10px] font-black text-gray-700 uppercase tracking-wider w-40 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Cập nhật (2 tuần tiếp)</th>
-                        <th className="p-4 text-[10px] font-black text-gray-700 uppercase tracking-wider w-16 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Ưu tiên</th>
-                        <th className="py-4 px-1 text-[10px] font-black text-gray-700 uppercase tracking-wider w-12 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Thao tác</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-300">
-                      {filteredTasks.filter(t => t.status !== 'COMPLETED').map((task, idx) => (
-                        <TaskRow 
-                          key={task.id} 
-                          task={task} 
-                          user={currentUser} 
-                          users={allUsers}
-                          onUpdate={updateTask}
-                          onDelete={deleteTask}
-                          onViewHistory={(id) => setShowHistoryModal(id)}
-                          onOpenChat={(id) => setShowChatModal(id)}
-                          idx={idx}
-                          setConfirmModal={setConfirmModal}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                  {filteredTasks.filter(t => t.status !== 'COMPLETED').length === 0 && (
-                    <div className="py-20 text-center text-gray-400 text-sm italic">Không có dữ liệu công việc.</div>
-                  )}
-                </div>
+                <TaskList 
+                  tasks={sortedTasks.filter(t => t.status !== 'COMPLETED')}
+                  user={currentUser}
+                  users={allUsers}
+                  onUpdate={updateTask}
+                  onDelete={deleteTask}
+                  onViewHistory={(id) => setShowHistoryModal(id)}
+                  onOpenChat={(id) => setShowChatModal(id)}
+                  setConfirmModal={setConfirmModal}
+                  type="active"
+                />
 
                 {currentUser.role === 'Admin' && (
                    <div className="flex justify-end">
@@ -395,59 +506,36 @@ export default function App() {
 
           {activeTab === 'completed_tasks' && (
             <motion.div key="completed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <Header title="Lịch sử công việc đã hoàn thành" />
+              <Header 
+                title="Lịch sử công việc đã hoàn thành" 
+                users={allUsers}
+                onUserClick={(user) => setShowDirectChat(user)}
+                currentUserId={currentUser.id}
+              />
               <div className="p-8 space-y-8">
-                <div className="bg-white rounded-xl border border-gray-300 shadow-sm overflow-auto max-h-[700px]">
-                  <table className="w-full text-left border-collapse border border-gray-300">
-                    <thead className="bg-[#FAFBFD] border-b border-gray-300">
-                      <tr>
-                        <th className="p-4 text-[10px] font-black text-gray-700 uppercase tracking-wider w-12 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">STT</th>
-                        <th className="p-4 text-[10px] font-black text-gray-700 uppercase tracking-wider w-56 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Nhân viên</th>
-                        <th className="p-4 text-[10px] font-black text-gray-700 uppercase tracking-wider w-[60%] text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Nội dung & Kết quả</th>
-                        <th className="p-4 text-[10px] font-black text-gray-700 uppercase tracking-wider w-32 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Ngày hoàn thành</th>
-                        <th className="py-4 px-1 text-[10px] font-black text-gray-700 uppercase tracking-wider w-12 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Thao tác</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-300">
-                      {tasks.filter(t => t.status === 'COMPLETED').map((task, idx) => (
-                        <CompletedTaskRow 
-                          key={task.id}
-                          task={task}
-                          users={allUsers}
-                          idx={idx}
-                          onViewHistory={(id) => setShowHistoryModal(id)}
-                          onOpenChat={(id) => setShowChatModal(id)}
-                          onUndo={(id) => {
-                            setConfirmModal({
-                              show: true,
-                              title: 'HOÀN TÁC CÔNG VIỆC',
-                              message: 'Bạn muốn chuyển công việc này quay lại bảng đang thực hiện?',
-                              onConfirm: () => {
-                                updateTask(id, { 
-                                  status: 'IN_PROGRESS', 
-                                  actualEndDate: null, 
-                                  isLocked: false,
-                                  currentUpdate: '[HOÀN TÁC] Chuyển về bảng đang thực hiện'
-                                });
-                                setConfirmModal(p => ({ ...p, show: false }));
-                              }
-                            });
-                          }}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                  {tasks.filter(t => t.status === 'COMPLETED').length === 0 && (
-                    <div className="py-20 text-center text-gray-400 text-sm italic">Chưa có công việc nào hoàn thành.</div>
-                  )}
-                </div>
+                <TaskList 
+                  tasks={sortedTasks.filter(t => t.status === 'COMPLETED')}
+                  user={currentUser}
+                  users={allUsers}
+                  onUpdate={updateTask}
+                  onDelete={deleteTask}
+                  onViewHistory={(id) => setShowHistoryModal(id)}
+                  onOpenChat={(id) => setShowChatModal(id)}
+                  setConfirmModal={setConfirmModal}
+                  type="completed"
+                />
               </div>
             </motion.div>
           )}
 
           {activeTab === 'group_chat' && (
             <motion.div key="group_chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <Header title="Phòng thảo luận chung" />
+              <Header 
+                title="Phòng thảo luận chung" 
+                users={allUsers}
+                onUserClick={(user) => setShowDirectChat(user)}
+                currentUserId={currentUser.id}
+              />
               <div className="p-8">
                 <GroupChatPage 
                   currentUser={currentUser} 
@@ -460,13 +548,20 @@ export default function App() {
 
           {activeTab === 'profile' && (
             <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <Header title="Hồ sơ & Quản lý nhân sự" badge={currentUser.code} />
+              <Header 
+                title="Hồ sơ & Quản lý nhân sự" 
+                badge={currentUser.code} 
+                users={allUsers}
+                onUserClick={(user) => setShowDirectChat(user)}
+                currentUserId={currentUser.id}
+              />
               <div className="p-8">
                 <ProfilePage 
                   currentUser={currentUser} 
                   tasks={tasks} 
                   users={allUsers}
                   onUpdateNote={updateUserNote}
+                  onUpdateUser={onUpdateStaff}
                 />
               </div>
             </motion.div>
@@ -474,16 +569,34 @@ export default function App() {
 
           {activeTab === 'reports' && (
             <motion.div key="reports" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-               <Header title="Báo cáo hiệu suất & Vấn đề" />
+               <Header 
+                title="Báo cáo hiệu suất & Vấn đề" 
+                users={allUsers}
+                onUserClick={(user) => setShowDirectChat(user)}
+                currentUserId={currentUser.id}
+               />
                <div className="p-8">
-                  <ReportPage tasks={tasks} users={allUsers} onUpdateTask={updateTask} />
+                  <ReportPage 
+                    tasks={tasks} 
+                    users={allUsers} 
+                    onUpdateTask={updateTask}
+                    currentUser={currentUser!}
+                    officialReports={firebaseOfficialReports}
+                    onSaveDraft={firebaseSaveReportDraft}
+                    onSaveOfficialReport={firebaseSaveOfficialReport}
+                  />
                </div>
             </motion.div>
           )}
 
           {activeTab === 'staff_list' && (currentUser.role === 'Admin' || currentUser.role === 'Trưởng Phòng') && (
             <motion.div key="staff_list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-               <Header title="Quản lý Nhân sự" />
+               <Header 
+                title="Quản lý Nhân sự" 
+                users={allUsers}
+                onUserClick={(user) => setShowDirectChat(user)}
+                currentUserId={currentUser.id}
+               />
                <div className="p-8">
                   <StaffListPage 
                     users={allUsers} 
@@ -512,6 +625,18 @@ export default function App() {
             currentUser={currentUser!}
             onSendMessage={addTaskComment}
             onClose={() => setShowChatModal(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showDirectChat && (
+          <DirectChat 
+            currentUser={currentUser}
+            otherUser={showDirectChat}
+            messages={privateMessages}
+            onSendMessage={firebaseSendPrivateMessage}
+            onClose={() => setShowDirectChat(null)}
           />
         )}
       </AnimatePresence>

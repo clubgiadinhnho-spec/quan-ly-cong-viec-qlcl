@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   collection, 
   query, 
@@ -13,22 +13,26 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { User, Task, TaskComment } from '../types';
+import { User, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
-export const useFirebaseData = () => {
+export const useFirebaseData = (currentUserId?: string) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [messages, setMessages] = useState<TaskComment[]>([]);
+  const [privateMessages, setPrivateMessages] = useState<PrivateMessage[]>([]);
+  const [officialReports, setOfficialReports] = useState<OfficialReport[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Listen to Users
+    // If no user ID is provided, it means we're on the login screen or auth is still initializing.
+    // We only listen to public data like 'users' at the beginning, others wait for auth.
+    
+    // Listen to Users (needed for login and bootstrap)
     console.log("Starting users listener...");
     const usersUnsubscribe = onSnapshot(
       collection(db, 'users'),
       (snapshot) => {
-        console.log("Users snapshot received, count:", snapshot.size);
         const usersData = snapshot.docs.map(doc => ({
           ...doc.data(),
           id: doc.id
@@ -36,20 +40,37 @@ export const useFirebaseData = () => {
         setUsers(usersData);
       },
       (error) => {
-        console.error("Users listener error:", error);
+        console.warn("Users listener permission/error:", error.message);
       }
     );
+
+    if (!currentUserId) {
+      setLoading(false);
+      return () => {
+        usersUnsubscribe();
+      };
+    }
 
     // Listen to Tasks
     const tasksUnsubscribe = onSnapshot(
       query(collection(db, 'tasks'), orderBy('code', 'desc')),
       (snapshot) => {
-        const tasksData = snapshot.docs.map(doc => ({
-          ...doc.data(),
-          id: doc.id
-        } as Task));
+        const tasksData = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            ...data,
+            id: doc.id,
+            updatedAt: (data.updatedAt as any)?.toDate ? (data.updatedAt as any).toDate().toISOString() : (data.updatedAt || new Date().toISOString()),
+            issueDate: data.issueDate || new Date().toISOString().split('T')[0]
+          } as Task;
+        });
         setTasks(tasksData);
         setLoading(false);
+      },
+      (error) => {
+        if (error.code !== 'permission-denied') {
+          handleFirestoreError(error, OperationType.GET, 'tasks');
+        }
       }
     );
 
@@ -63,6 +84,46 @@ export const useFirebaseData = () => {
           timestamp: (doc.data().timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString()
         } as TaskComment));
         setMessages(messagesData);
+      },
+      (error) => {
+        if (error.code !== 'permission-denied') {
+          handleFirestoreError(error, OperationType.GET, 'messages');
+        }
+      }
+    );
+
+    // Listen to Official Reports
+    const reportsUnsubscribe = onSnapshot(
+      query(collection(db, 'official_reports'), orderBy('createdAt', 'desc')),
+      (snapshot) => {
+        const reportsData = snapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id
+        } as OfficialReport));
+        setOfficialReports(reportsData);
+      },
+      (error) => {
+        if (error.code !== 'permission-denied') {
+          console.warn("Official reports error:", error.message);
+        }
+      }
+    );
+
+    // Listen to Private Messages
+    const privateMessagesUnsubscribe = onSnapshot(
+      query(collection(db, 'direct_messages'), orderBy('timestamp', 'asc')),
+      (snapshot) => {
+        const privateMessagesData = snapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id,
+          timestamp: (doc.data().timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString()
+        } as PrivateMessage));
+        setPrivateMessages(privateMessagesData.filter(m => m.senderId === currentUserId || m.receiverId === currentUserId));
+      },
+      (error) => {
+        if (error.code !== 'permission-denied') {
+          handleFirestoreError(error, OperationType.GET, 'direct_messages');
+        }
       }
     );
 
@@ -70,10 +131,12 @@ export const useFirebaseData = () => {
       usersUnsubscribe();
       tasksUnsubscribe();
       messagesUnsubscribe();
+      reportsUnsubscribe();
+      privateMessagesUnsubscribe();
     };
-  }, []);
+  }, [currentUserId]);
 
-  const addTask = async (task: Omit<Task, 'id'>) => {
+  const addTask = useCallback(async (task: Omit<Task, 'id'>) => {
     try {
       await addDoc(collection(db, 'tasks'), {
         ...task,
@@ -82,9 +145,9 @@ export const useFirebaseData = () => {
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'tasks');
     }
-  };
+  }, []);
 
-  const updateTask = async (id: string, updates: Partial<Task>) => {
+  const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
     try {
       const taskRef = doc(db, 'tasks', id);
       await updateDoc(taskRef, {
@@ -94,17 +157,41 @@ export const useFirebaseData = () => {
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `tasks/${id}`);
     }
-  };
+  }, []);
 
-  const deleteTask = async (id: string) => {
+  const saveReportDraft = useCallback(async (draft: Omit<ReportDraft, 'id'>) => {
+    try {
+      // Use monthYear_userId as a unique doc ID for simplicity to overwrite same month's draft
+      const draftId = `${draft.monthYear.replace(/\//g, '-')}_${draft.userId}`;
+      await setDoc(doc(db, 'report_drafts', draftId), {
+        ...draft,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'report_drafts');
+    }
+  }, []);
+
+  const saveOfficialReport = useCallback(async (report: Omit<OfficialReport, 'id'>) => {
+    try {
+      await addDoc(collection(db, 'official_reports'), {
+        ...report,
+        createdAt: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'official_reports');
+    }
+  }, []);
+
+  const deleteTask = useCallback(async (id: string) => {
     try {
       await deleteDoc(doc(db, 'tasks', id));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `tasks/${id}`);
     }
-  };
+  }, []);
 
-  const sendMessage = async (content: string, authorId: string) => {
+  const sendMessage = useCallback(async (content: string, authorId: string) => {
     try {
       await addDoc(collection(db, 'messages'), {
         authorId,
@@ -114,9 +201,24 @@ export const useFirebaseData = () => {
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'messages');
     }
-  };
+  }, []);
 
-  const updateStaff = async (staff: User) => {
+  const sendPrivateMessage = useCallback(async (content: string, senderId: string, receiverId: string) => {
+    try {
+      const chatId = [senderId, receiverId].sort().join('_');
+      await addDoc(collection(db, 'direct_messages'), {
+        senderId,
+        receiverId,
+        content,
+        chatId,
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'direct_messages');
+    }
+  }, []);
+
+  const updateStaff = useCallback(async (staff: User) => {
     try {
       // Use the staff's id as the document ID if it exists, otherwise use a new one.
       // In this app, we should use the UID as the ID for clarity.
@@ -124,26 +226,59 @@ export const useFirebaseData = () => {
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `users/${staff.id}`);
     }
-  };
+  }, []);
 
-  const deleteStaff = async (id: string) => {
+  const deleteStaff = useCallback(async (id: string) => {
     try {
       await deleteDoc(doc(db, 'users', id));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
     }
-  };
+  }, []);
+
+  const updateHeartbeat = useCallback(async (userId: string) => {
+    try {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        lastActive: Date.now()
+      });
+    } catch (error) {
+      // Silently fail for heartbeat to avoid UI noise
+      console.error("Heartbeat error:", error);
+    }
+  }, []);
 
   return {
     tasks,
     users,
     messages,
+    privateMessages,
+    officialReports,
     loading,
     addTask,
     updateTask,
     deleteTask,
     sendMessage,
+    sendPrivateMessage,
     updateStaff,
-    deleteStaff
+    deleteStaff,
+    updateHeartbeat,
+    saveReportDraft,
+    saveOfficialReport
   };
+};
+
+export const useUserHeartbeat = (userId: string | undefined, updateHeartbeat: (id: string) => Promise<void>) => {
+  useEffect(() => {
+    if (!userId) return;
+
+    // Initial heartbeat
+    updateHeartbeat(userId);
+
+    const interval = setInterval(() => {
+      updateHeartbeat(userId);
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [userId, updateHeartbeat]);
 };

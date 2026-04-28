@@ -79,7 +79,12 @@ export const TaskChat = ({ task, currentUser, onSendMessage, onClose }: TaskChat
               <div key={comment.id} className={`flex flex-col ${isMe ? 'items-end text-right' : 'items-start text-left'}`}>
                 <div className={`flex items-end gap-2 w-full ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                   {!isMe && (
-                    <img src={author?.avatar} alt="avatar" className="w-6 h-6 rounded-full border border-gray-200 object-cover aspect-square flex-shrink-0" />
+                    <img 
+                      src={author?.avatar} 
+                      alt="avatar" 
+                      className="rounded-full border border-gray-200 object-cover aspect-square flex-none" 
+                      style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
+                    />
                   )}
                   <div className={`p-4 rounded-2xl text-xs leading-relaxed shadow-sm max-w-[85%] break-words ${
                     isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-none'

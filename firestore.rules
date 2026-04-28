@@ -17,17 +17,34 @@ service cloud.firestore {
       return isSignedIn() && data.firebaseUid == request.auth.uid;
     }
 
-    // 1. Users Collection
+    // 1. Users & UID Mapping
     match /users/{userId} {
       allow read: if isSignedIn();
-      // Allow creation during bootstrap or registration
-      allow create: if isSignedIn(); 
+      allow create: if isSignedIn();
       allow update: if isSignedIn() && (
-        // Allow self-update of status/activity
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastActive', 'firebaseUid'])) ||
-        // Only Admins can change roles (Admin check needs a doc lookup, so we limit it)
+        // Allow if document is unlinked
+        (resource.data.firebaseUid == null || resource.data.firebaseUid == "") ||
+        // Allow if this UID is mapped to this record
+        (exists(/databases/$(database)/documents/uid_mapping/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/uid_mapping/$(request.auth.uid)).data.targetId == userId) ||
+        // Allow if user is an admin
         isAdmin()
       );
+    }
+
+    match /uid_mapping/{uid} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Admin Helper (Optimized)
+    function isAdmin() {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/uid_mapping/$(request.auth.uid)) && 
+             exists(/databases/$(database)/documents/users/$(get(/databases/$(database)/documents/uid_mapping/$(request.auth.uid)).data.targetId)) &&
+             (
+               get(/databases/$(database)/documents/users/$(get(/databases/$(database)/documents/uid_mapping/$(request.auth.uid)).data.targetId)).data.role in ['Admin', 'Trưởng Phòng', 'Quản lý', 'Phó Phòng']
+             );
     }
 
     // 2. Tasks Collection
@@ -61,13 +78,5 @@ service cloud.firestore {
       allow create: if isSignedIn();
     }
 
-    // Admin Helper (limited use to save cost)
-    function isAdmin() {
-      // For this specific app, we check if the user requesting has role 'Admin'
-      // This requires a get() which is okay for single document updates.
-      // We assume the user profile is stored by their UID or we have a way to find it.
-      // Simplified: we'll check a dedicated 'admins' collection for O(1) lookups
-      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
-    }
   }
 }

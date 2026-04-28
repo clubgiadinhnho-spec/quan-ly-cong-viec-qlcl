@@ -83,7 +83,13 @@ export const TaskList: React.FC<TaskListProps> = ({
                 idx={idx}
                 onViewHistory={onViewHistory}
                 onOpenChat={onOpenChat}
-                onUndo={(id) => onUpdate(id, { status: 'IN_PROGRESS', actualEndDate: null, isLocked: false })}
+                onUndo={(id) => onUpdate(id, { 
+                  status: 'IN_PROGRESS', 
+                  actualEndDate: null, 
+                  isLocked: false,
+                  sortTimestamp: 0,
+                  currentUpdate: '[HOÀN TÁC] Chuyển về bảng đang thực hiện'
+                })}
               />
             )
           ))}

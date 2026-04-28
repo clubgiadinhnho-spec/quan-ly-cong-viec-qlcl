@@ -20,7 +20,12 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ task, users,
       <td className="p-4 text-center text-xs font-bold text-gray-300 border-r border-gray-300">{idx + 1}</td>
       <td className="p-4 border-r border-gray-300">
         <div className="flex items-center gap-3">
-          <img src={assignee?.avatar} alt={assignee?.name} className="w-8 h-8 rounded-full border border-gray-100" />
+          <img 
+            src={assignee?.avatar} 
+            alt={assignee?.name} 
+            className="rounded-full border border-gray-100 object-cover aspect-square flex-shrink-0" 
+            style={{ width: '32px', height: '32px', minWidth: '32px', minHeight: '32px' }}
+          />
           <div>
             <p className="text-sm font-bold text-gray-900 leading-none whitespace-nowrap">{assignee?.name}</p>
             <div className="flex flex-col gap-0.5 mt-1">

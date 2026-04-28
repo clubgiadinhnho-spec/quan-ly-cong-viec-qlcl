@@ -237,14 +237,26 @@ export const useFirebaseData = (currentUserId?: string) => {
   }, []);
 
   const updateHeartbeat = useCallback(async (userId: string) => {
+    if (!auth.currentUser) {
+      // Avoid noise if auth failed to initialize
+      return;
+    }
     try {
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
         lastActive: Date.now()
       });
-    } catch (error) {
-      // Silently fail for heartbeat to avoid UI noise
-      console.error("Heartbeat error:", error);
+    } catch (error: any) {
+      // Silently fail for heartbeat but log more info if it's a permission issue
+      if (error.code === 'permission-denied' || error.message?.includes('permissions')) {
+        // Just log once to avoid console spam
+        if (!(window as any).__heartbeat_permission_warned) {
+          console.warn("Heartbeat permission denied: Authentication session is unlinked or inactive.");
+          (window as any).__heartbeat_permission_warned = true;
+        }
+      } else {
+        console.error("Heartbeat error:", error);
+      }
     }
   }, []);
 

@@ -123,7 +123,11 @@ export default function Login({ users, onLogin }: LoginProps) {
           }
           onLogin(foundUser);
         } catch (err: any) {
-          setError('Vui lòng kích hoạt "Anonymous Auth" trong Firebase Console để tiếp tục. (Lỗi: ' + (err.message || 'Lỗi kết nối') + ')');
+          if (err.message?.includes('auth/admin-restricted-operation')) {
+            setError('LỖI CẤU HÌNH: Bạn phải BẬT "Anonymous" trong Firebase Console (Authentication > Sign-in method) để hệ thống hoạt động.');
+          } else {
+            setError('Lỗi xác thực Firebase: ' + (err.message || 'Lỗi kết nối.'));
+          }
         } finally {
           setLoading(false);
         }

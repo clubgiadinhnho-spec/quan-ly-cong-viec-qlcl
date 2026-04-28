@@ -109,15 +109,19 @@ export default function App() {
   
   useEffect(() => {
     const bootstrap = async () => {
-      if (!firebaseLoading && !bootstrapAttempted.current) {
+      if (!firebaseLoading && !bootstrapAttempted.current && auth.currentUser) {
         bootstrapAttempted.current = true;
         let addedCount = 0;
         for (const staff of STAFF_LIST) {
           const exists = users.find(u => u.id === staff.id || u.companyEmail === staff.companyEmail);
           // If staff doesn't exist OR doesn't have a security question, sync them
           if (!exists || !exists.securityQuestion) {
-            await firebaseUpdateStaff({ ...staff, status: (exists?.status || staff.status || 'ACTIVE') as any });
-            addedCount++;
+            try {
+              await firebaseUpdateStaff({ ...staff, status: (exists?.status || staff.status || 'ACTIVE') as any });
+              addedCount++;
+            } catch (e) {
+              console.warn("Bootstrap write failed (likely permissions):", e);
+            }
           }
         }
       }
@@ -130,21 +134,32 @@ export default function App() {
     const savedUser = localStorage.getItem('qc_user');
     
     const restoreAuth = async () => {
+      // Ensure we are signed in to Firebase to allow reading/writing data
+      if (!auth.currentUser) {
+        try {
+          await loginAnonymously();
+        } catch (err: any) {
+          if (err.message?.includes('auth/admin-restricted-operation')) {
+            console.error("FIREBASE CONFIG ERROR: Anonymous Authentication is disabled.");
+          } else {
+            console.error("Failed to establish firebase auth:", err);
+          }
+        }
+      }
+
       if (!savedUser) {
         setAuthReady(true);
         return;
       }
 
       const parsed = JSON.parse(savedUser);
-      
-      // Ensure we are signed in to Firebase (either via returning session or anonymous)
-      // This is crucial for Firestore rules to allow writes
-      if (!auth.currentUser) {
+
+      // Sync UID mapping if we have an active auth session
+      if (auth.currentUser) {
         try {
-          await loginAnonymously();
-        } catch (err) {
-          console.error("Failed to restore firebase auth:", err);
-          // We still allow the app to load with local session, but writes might fail
+          await setDoc(doc(db, 'uid_mapping', auth.currentUser.uid), { targetId: parsed.id });
+        } catch (e) {
+          console.warn("Restore mapping failed:", e);
         }
       }
 
@@ -169,9 +184,26 @@ export default function App() {
     restoreAuth();
   }, [users]); // removed currentUser from inner logic dependency check to avoid loops, but it works
 
-  const handleLogin = (user: User) => {
+  const handleLogin = async (user: User) => {
     setCurrentUser(user);
     localStorage.setItem('qc_user', JSON.stringify(user));
+    
+    // Create UID mapping and link firebaseUid if not set
+      if (auth.currentUser) {
+        try {
+          const uid = auth.currentUser.uid;
+          // Create mapping
+          await setDoc(doc(db, 'uid_mapping', uid), { targetId: user.id });
+          // Link firebaseUid to user record
+          if (user.firebaseUid !== uid) {
+            await firebaseUpdateStaff({ ...user, firebaseUid: uid });
+          }
+        } catch (err) {
+          console.warn("Failed to create UID mapping (session might be limited):", err);
+        }
+      } else {
+        console.warn("Login successful but Firebase session missing. Database writes will be restricted.");
+      }
   };
 
   const handleLogout = async () => {
@@ -266,12 +298,34 @@ export default function App() {
 
       for (const tData of importedTasks) {
         lastNum++;
+        
+        // Find matching user
+        let matchedAssigneeId = currentUser?.id || '';
+        const rawName = tData.assigneeName || '';
+        
+        if (rawName) {
+          // Format in Excel: "Name (Code)" or just "Name"
+          const codeMatch = rawName.match(/\((.*?)\)/);
+          const extractedCode = codeMatch ? codeMatch[1].trim() : '';
+          const extractedName = rawName.replace(/\(.*?\)/, '').trim();
+          
+          const foundUser = allUsers.find(u => 
+            (extractedCode && u.code === extractedCode) || 
+            (u.name.toLowerCase() === extractedName.toLowerCase()) ||
+            (rawName.toLowerCase().includes(u.name.toLowerCase()))
+          );
+          
+          if (foundUser) {
+            matchedAssigneeId = foundUser.id;
+          }
+        }
+
         const newTask: Omit<Task, 'id'> = {
-          code: `C${String(lastNum).padStart(4, '0')}`,
+          code: tData.code || `C${String(lastNum).padStart(6, '0')}`,
           issueDate: new Date().toISOString().split('T')[0],
           title: tData.title || 'Không có tiêu đề',
           objective: tData.objective || '',
-          assigneeId: currentUser?.id || '',
+          assigneeId: matchedAssigneeId,
           startDate: new Date().toISOString().split('T')[0],
           expectedEndDate: tData.expectedEndDate || '',
           prevProgress: '',
@@ -329,13 +383,15 @@ export default function App() {
     if (isRevertedA && !isRevertedB) return 1;
     if (!isRevertedA && isRevertedB) return -1;
     if (isRevertedA && isRevertedB) {
-      // Both are reverted, sort by update time within the bottom group
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      // Both are reverted, sort by update time (newest at the top of the reverted group)
+      const timeA = new Date(a.updatedAt).getTime() || 0;
+      const timeB = new Date(b.updatedAt).getTime() || 0;
+      return timeB - timeA;
     }
 
-    // 2. Newest created tasks at the top
-    // Tasks without sortTimestamp are treated as having their original issueDate timestamp
-    // This keeps them above reverted tasks (which have 0)
+    // 2. Main Sorting: Newest created tasks at the top
+    // Use sortTimestamp if available, otherwise fallback to issueDate
+    // Reverted tasks (0) are already handled above, so they won't reach here if compared to non-reverted
     const sortA = typeof a.sortTimestamp === 'number' ? a.sortTimestamp : (new Date(a.issueDate).getTime() || 1);
     const sortB = typeof b.sortTimestamp === 'number' ? b.sortTimestamp : (new Date(b.issueDate).getTime() || 1);
     if (sortB !== sortA) return sortB - sortA;

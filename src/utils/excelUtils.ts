@@ -39,29 +39,41 @@ export const exportTasksToExcel = (tasks: Task[], users: User[]) => {
   XLSX.writeFile(workbook, `BaoCaoCongViec_${date}.xlsx`);
 };
 
-export const importTasksFromExcel = (file: File): Promise<Partial<Task>[]> => {
+export const importTasksFromExcel = (file: File): Promise<any[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: 'binary' });
+        const workbook = XLSX.read(data, { type: 'binary', cellDates: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(worksheet) as any[];
+        const json = XLSX.utils.sheet_to_json(worksheet, { raw: false }) as any[];
 
-        const tasks: Partial<Task>[] = json.map(row => {
+        const tasks = json.map(row => {
           // Find priority from string
           let priority: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM';
-          if (row['Ưu tiên']?.toString().toUpperCase() === 'CAO') priority = 'HIGH';
-          if (row['Ưu tiên']?.toString().toUpperCase() === 'THẤP') priority = 'LOW';
+          const pStr = row['Ưu tiên']?.toString().toUpperCase();
+          if (pStr === 'CAO' || pStr === 'HIGH') priority = 'HIGH';
+          if (pStr === 'THẤP' || pStr === 'LOW') priority = 'LOW';
+
+          // Handle date from Excel (it might be in various formats depending on raw:false)
+          let expectedEndDate = row['Hạn hoàn thành'] || '';
+          if (expectedEndDate) {
+            // Try to normalize date to YYYY-MM-DD
+            const d = new Date(expectedEndDate);
+            if (!isNaN(d.getTime())) {
+              expectedEndDate = d.toISOString().split('T')[0];
+            }
+          }
 
           return {
+            code: row['Mã CV'] || '',
             title: row['Nội dung'] || '',
             objective: row['Mục tiêu'] || '',
             priority: priority,
-            expectedEndDate: row['Hạn hoàn thành'] || '',
-            // Additional fields can be mapped here if needed
+            expectedEndDate: expectedEndDate,
+            assigneeName: row['Nhân viên'] || '',
           };
         });
 

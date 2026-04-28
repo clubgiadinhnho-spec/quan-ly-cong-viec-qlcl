@@ -33,6 +33,7 @@ export const ReportPage = ({
   });
   const [monthlyConclusion, setMonthlyConclusion] = useState('');
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
   const printTemplateRef = useRef<HTMLDivElement>(null);
@@ -88,6 +89,7 @@ export const ReportPage = ({
     const confirmed = window.confirm("Bạn có muốn CHỐT báo cáo này và lưu vào lịch sử chính thức không?");
     if (!confirmed) return;
 
+    setIsExportingPDF(true);
     // Save official report snapshot (Resilient to failure)
     try {
       await onSaveOfficialReport({
@@ -199,6 +201,8 @@ export const ReportPage = ({
     } catch (err) {
       console.error("PDF Export error:", err);
       alert("Lỗi xuất PDF: " + (err instanceof Error ? err.message : "Vui lòng kiểm tra console"));
+    } finally {
+      setIsExportingPDF(false);
     }
   };
 
@@ -293,10 +297,20 @@ export const ReportPage = ({
           </button>
           <button 
             onClick={(e) => { e.preventDefault(); handleExportPDF(); }}
-            className="bg-blue-600 shadow-xl shadow-blue-200 text-white px-8 py-3 rounded-2xl font-black flex items-center gap-2 hover:bg-blue-700 transition-all text-[10px] uppercase tracking-widest"
+            disabled={isExportingPDF}
+            className="bg-blue-600 shadow-xl shadow-blue-200 text-white px-8 py-3 rounded-2xl font-black flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50 transition-all text-[10px] uppercase tracking-widest min-w-[180px] justify-center"
           >
-            <CheckCircle size={14} />
-            TRÍCH XUẤT PDF
+            {isExportingPDF ? (
+              <>
+                <Clock size={14} className="animate-spin" />
+                ĐANG XỬ LÝ...
+              </>
+            ) : (
+              <>
+                <CheckCircle size={14} />
+                TRÍCH XUẤT PDF
+              </>
+            )}
           </button>
         </div>
       </div>

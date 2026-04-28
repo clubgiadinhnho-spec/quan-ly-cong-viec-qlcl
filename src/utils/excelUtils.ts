@@ -12,10 +12,9 @@ export const exportTasksToExcel = (tasks: Task[], users: User[]) => {
     return `${day}-${month}-${year}`;
   };
 
-  const data = tasks.map((task, index) => {
+  const data = tasks.map((task) => {
     const assignee = users.find(u => u.id === task.assigneeId);
     return {
-      'STT': index + 1,
       'Mã CV': task.code,
       'Nhân viên': assignee ? `${assignee.name} (${assignee.code})` : 'N/A',
       'Nội dung': task.title,
@@ -51,29 +50,56 @@ export const importTasksFromExcel = (file: File): Promise<any[]> => {
         const json = XLSX.utils.sheet_to_json(worksheet, { raw: false }) as any[];
 
         const tasks = json.map(row => {
+          // Robust key finder helper
+          const getValue = (possibleKeys: string[]) => {
+            const rowKeys = Object.keys(row);
+            const foundKey = rowKeys.find(rk => 
+              possibleKeys.some(pk => 
+                rk.trim().toLowerCase() === pk.toLowerCase()
+              )
+            );
+            return foundKey ? row[foundKey] : undefined;
+          };
+
+          const rawCode = getValue(['Mã CV', 'Ma CV', 'Code', 'Số TT', 'STT']);
+          const rawTitle = getValue(['Nội dung', 'Noi dung', 'Title', 'Content', 'Nội dung và mục tiêu', 'Noi dung va muc tieu', 'Nội dung & Mục tiêu']);
+          const rawObjective = getValue(['Mục tiêu', 'Muc tieu', 'Objective', 'Goal', 'Nội dung và mục tiêu', 'Noi dung va muc tieu', 'Nội dung & Mục tiêu']);
+          const rawPriority = getValue(['Ưu tiên', 'Uu tien', 'Priority', 'Mức độ']);
+          const rawDate = getValue(['Hạn hoàn thành', 'Han hoan thanh', 'Deadline', 'Expected End Date', 'Thời hạn', 'Ngày hết hạn']);
+          const rawAssignee = getValue(['Nhân viên', 'Nhan vien', 'Assignee', 'Staff', 'Người thực hiện']);
+
           // Find priority from string
           let priority: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM';
-          const pStr = row['Ưu tiên']?.toString().toUpperCase();
+          const pStr = rawPriority?.toString().toUpperCase();
           if (pStr === 'CAO' || pStr === 'HIGH') priority = 'HIGH';
           if (pStr === 'THẤP' || pStr === 'LOW') priority = 'LOW';
 
-          // Handle date from Excel (it might be in various formats depending on raw:false)
-          let expectedEndDate = row['Hạn hoàn thành'] || '';
+          // Handle date from Excel
+          let expectedEndDate = rawDate || '';
           if (expectedEndDate) {
-            // Try to normalize date to YYYY-MM-DD
-            const d = new Date(expectedEndDate);
-            if (!isNaN(d.getTime())) {
-              expectedEndDate = d.toISOString().split('T')[0];
+            const dateParts = expectedEndDate.toString().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+            if (dateParts) {
+              let [_, day, month, year] = dateParts;
+              if (year.length === 2) year = '20' + year;
+              const d = new Date(`${year}-${month}-${day}`);
+              if (!isNaN(d.getTime())) {
+                expectedEndDate = d.toISOString().split('T')[0];
+              }
+            } else {
+              const d = new Date(expectedEndDate);
+              if (!isNaN(d.getTime())) {
+                expectedEndDate = d.toISOString().split('T')[0];
+              }
             }
           }
 
           return {
-            code: row['Mã CV'] || '',
-            title: row['Nội dung'] || '',
-            objective: row['Mục tiêu'] || '',
+            code: rawCode || '',
+            title: rawTitle || '',
+            objective: rawObjective || '',
             priority: priority,
             expectedEndDate: expectedEndDate,
-            assigneeName: row['Nhân viên'] || '',
+            assigneeName: rawAssignee || '',
           };
         });
 

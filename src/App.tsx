@@ -37,6 +37,8 @@ import { ReportPage } from './pages/ReportPage';
 import { GroupChatPage } from './pages/GroupChatPage';
 import { StaffListPage } from './pages/StaffListPage';
 
+import firebaseConfig from '../firebase-applet-config.json';
+
 // --- Main App ---
 
 export default function App() {
@@ -48,6 +50,7 @@ export default function App() {
   const [showHistoryModal, setShowHistoryModal] = useState<string | null>(null);
   const [showChatModal, setShowChatModal] = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [firebaseConfigError, setFirebaseConfigError] = useState<string | null>(null);
 
   // Use Firebase Hook
   const { 
@@ -114,10 +117,15 @@ export default function App() {
         let addedCount = 0;
         for (const staff of STAFF_LIST) {
           const exists = users.find(u => u.id === staff.id || u.companyEmail === staff.companyEmail);
-          // If staff doesn't exist OR doesn't have a security question, sync them
-          if (!exists || !exists.securityQuestion) {
+          // If staff doesn't exist OR doesn't have a security question OR code changed, sync them
+          if (!exists || !exists.securityQuestion || exists.code !== staff.code) {
             try {
-              await firebaseUpdateStaff({ ...staff, status: (exists?.status || staff.status || 'ACTIVE') as any });
+              await firebaseUpdateStaff({ 
+                ...staff, 
+                status: (exists?.status || staff.status || 'ACTIVE') as any,
+                // Reserve existing data that might be user-specific but update core fields
+                firebaseUid: exists?.firebaseUid || staff.firebaseUid
+              });
               addedCount++;
             } catch (e) {
               console.warn("Bootstrap write failed (likely permissions):", e);
@@ -138,9 +146,15 @@ export default function App() {
       if (!auth.currentUser) {
         try {
           await loginAnonymously();
+          setFirebaseConfigError(null);
         } catch (err: any) {
-          if (err.message?.includes('auth/admin-restricted-operation')) {
-            console.error("FIREBASE CONFIG ERROR: Anonymous Authentication is disabled.");
+          if (err.message?.includes('auth/admin-restricted-operation') || err.code === 'auth/admin-restricted-operation') {
+            setFirebaseConfigError("ANONYMOUS_AUTH_DISABLED");
+            // Only log once to avoid console spam
+            if (!(window as any).__firebase_error_logged) {
+              console.error(`FIREBASE CONFIG ERROR: Anonymous Authentication is disabled in project "${firebaseConfig.projectId}".`);
+              (window as any).__firebase_error_logged = true;
+            }
           } else {
             console.error("Failed to establish firebase auth:", err);
           }
@@ -296,28 +310,54 @@ export default function App() {
         return num > max ? num : max;
       }, 0);
 
+      let unmatchedCount = 0;
       for (const tData of importedTasks) {
         lastNum++;
         
         // Find matching user
-        let matchedAssigneeId = currentUser?.id || '';
+        let matchedAssigneeId = ''; // Initialize empty
         const rawName = tData.assigneeName || '';
         
         if (rawName) {
+          // Normalize name: remove special chars, extra spaces
+          const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+          
           // Format in Excel: "Name (Code)" or just "Name"
           const codeMatch = rawName.match(/\((.*?)\)/);
           const extractedCode = codeMatch ? codeMatch[1].trim() : '';
           const extractedName = rawName.replace(/\(.*?\)/, '').trim();
           
-          const foundUser = allUsers.find(u => 
-            (extractedCode && u.code === extractedCode) || 
-            (u.name.toLowerCase() === extractedName.toLowerCase()) ||
-            (rawName.toLowerCase().includes(u.name.toLowerCase()))
-          );
+          const foundUser = allUsers.find(u => {
+            const uNameNorm = normalize(u.name);
+            const extNameNorm = normalize(extractedName);
+            const rawNameNorm = normalize(rawName);
+            
+            // Check by code first
+            if (extractedCode && u.code === extractedCode) return true;
+            if (u.code && extractedName.includes(u.code)) return true;
+            
+            // Check by normalized name
+            if (uNameNorm === extNameNorm) return true;
+            
+            // Fuzzy match (only if names are long enough to avoid false positives)
+            if (uNameNorm.length > 5) {
+               if (extNameNorm.includes(uNameNorm)) return true;
+               if (uNameNorm.includes(extNameNorm) && extNameNorm.length > 5) return true;
+            }
+            
+            return false;
+          });
           
           if (foundUser) {
             matchedAssigneeId = foundUser.id;
+          } else {
+            unmatchedCount++;
           }
+        }
+
+        // Default to current user ONLY IF NO NAME WAS PROVIDED AT ALL in Excel
+        if (!matchedAssigneeId && !rawName) {
+          matchedAssigneeId = currentUser?.id || '';
         }
 
         const newTask: Omit<Task, 'id'> = {
@@ -345,7 +385,7 @@ export default function App() {
         };
         await firebaseAddTask(newTask);
       }
-      alert(`Đã nạp thành công ${importedTasks.length} công việc.`);
+      alert(`Đã nạp thành công ${importedTasks.length} công việc.${unmatchedCount > 0 ? `\n\nCẢNH BÁO: Có ${unmatchedCount} công việc không tìm thấy tên nhân viên khớp trong hệ thống (đã để trống tên hoặc gán cho bạn nếu không có tên).` : ''}`);
       e.target.value = ''; // Reset input
     } catch (err) {
       console.error("Import error:", err);
@@ -432,6 +472,34 @@ export default function App() {
       />
 
       <main className="flex-1 overflow-y-auto">
+        {firebaseConfigError === 'ANONYMOUS_AUTH_DISABLED' && (
+          <div className="bg-gradient-to-r from-red-600 to-orange-600 text-white p-4 text-center text-sm font-medium sticky top-0 z-[100] shadow-xl border-b border-white/20 backdrop-blur-md">
+            <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3 text-left">
+                <span className="text-2xl">⚠️</span>
+                <div>
+                  <p className="font-bold uppercase tracking-tight">Cần bật quyền truy cập (Anonymous Auth)</p>
+                  <p className="text-xs opacity-90 mt-0.5">Project: <code className="bg-black/20 px-1 rounded">{firebaseConfig.projectId}</code></p>
+                  <p className="text-[10px] opacity-75 mt-1">Truy cập Firebase Console &gt; Authentication &gt; Sign-in method &gt; Enable <b>Anonymous</b></p>
+                </div>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <button 
+                  onClick={() => window.open(`https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/providers`, '_blank')}
+                  className="bg-white text-red-600 px-4 py-1.5 rounded-full font-bold text-xs shadow-lg hover:scale-105 active:scale-95 transition-all uppercase"
+                >
+                  BẬT NGAY
+                </button>
+                <button 
+                  onClick={() => setFirebaseConfigError(null)}
+                  className="bg-black/20 text-white hover:bg-black/40 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
+                >
+                  ĐÓNG
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <AnimatePresence mode="wait">
           {activeTab === 'tasks' && (
             <motion.div 

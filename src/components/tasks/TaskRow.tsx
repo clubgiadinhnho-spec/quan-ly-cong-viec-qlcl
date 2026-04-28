@@ -47,7 +47,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({ task, user, users, onUpdate, o
 
   return (
     <tr className={`group transition-all ${task.isHighlighted ? 'bg-red-50/50' : 'hover:bg-gray-50/50'}`}>
-      <td className={`p-4 text-center text-xs font-bold border-r border-gray-300 ${task.isHighlighted ? 'text-red-300' : 'text-gray-300'}`}>{idx + 1}</td>
+      <td className={`p-4 text-center text-xs font-bold border-r border-gray-300 ${task.isHighlighted ? 'text-red-300' : 'text-gray-300'}`}>{task.code}</td>
       <td className={`p-4 border-r border-gray-300 ${task.isHighlighted ? 'border-l-4 border-red-500' : ''}`}>
         <div className="flex items-center gap-3 min-w-max">
           <div className="relative flex-none w-10 h-10">

@@ -49,7 +49,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       <table className="w-full text-left border-collapse border border-gray-300">
         <thead className="bg-[#FAFBFD] border-b border-gray-300">
           <tr>
-            <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-12 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">STT</th>
+            <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-24 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Mã CV</th>
             <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-56 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Nhân viên</th>
             <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Nội dung & Mục tiêu</th>
             <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-60 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Diễn tiến trước đó</th>

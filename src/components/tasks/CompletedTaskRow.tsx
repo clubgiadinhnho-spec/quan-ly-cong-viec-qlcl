@@ -17,7 +17,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ task, users,
 
   return (
     <tr className="hover:bg-gray-50/50 transition-all">
-      <td className="p-4 text-center text-xs font-bold text-gray-300 border-r border-gray-300">{idx + 1}</td>
+      <td className="p-4 text-center text-xs font-bold text-gray-300 border-r border-gray-300">{task.code}</td>
       <td className="p-4 border-r border-gray-300">
         <div className="flex items-center gap-3">
           <img 

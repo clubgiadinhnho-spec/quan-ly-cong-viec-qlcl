@@ -243,9 +243,9 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
     try {
       const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, {
+      await setDoc(userRef, {
         lastActive: Date.now()
-      });
+      }, { merge: true });
     } catch (error: any) {
       // Silently fail for heartbeat but log more info if it's a permission issue
       if (error.code === 'permission-denied' || error.message?.includes('permissions')) {

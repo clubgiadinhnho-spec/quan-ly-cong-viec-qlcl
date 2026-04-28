@@ -26,8 +26,11 @@ export const loginAnonymously = async () => {
   try {
     const result = await signInAnonymously(auth);
     return result.user;
-  } catch (error) {
-    console.error("Anonymous login failed:", error);
+  } catch (error: any) {
+    // We handle the specific config error in the UI to avoid console spam
+    if (error.code !== 'auth/admin-restricted-operation') {
+      console.error("Anonymous login failed:", error);
+    }
     throw error;
   }
 };

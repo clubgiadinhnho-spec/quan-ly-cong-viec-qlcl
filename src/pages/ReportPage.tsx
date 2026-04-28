@@ -107,7 +107,6 @@ export const ReportPage = ({
       });
     } catch (err: any) {
       console.warn("⚠️ Không thể lưu vào Database: " + (err.message || "Lỗi quyền hạn"));
-      alert("⚠️ Không thể lưu báo cáo vào lịch sử hệ thống (Lỗi quyền Firebase), nhưng tôi vẫn sẽ chuẩn bị file PDF cho bạn.");
     }
 
     if (!printTemplateRef.current) return;
@@ -123,7 +122,7 @@ export const ReportPage = ({
       element.style.top = '0';
       element.style.zIndex = '-9999';
       element.style.width = '210mm';
-      element.style.backgroundColor = 'white';
+      element.style.backgroundColor = '#ffffff';
 
       const canvas = await html2canvas(element, {
         scale: 2,
@@ -136,18 +135,11 @@ export const ReportPage = ({
           // Recursive function to strip oklch/modern colors which html2canvas fails on
           const cleanColors = (el: HTMLElement) => {
             const style = window.getComputedStyle(el);
-            
-            // html2canvas fails on oklch. getComputedStyle usually returns rgb/rgba 
-            // in most browsers, but if it doesn't or if there are inline styles:
             const properties = ['color', 'backgroundColor', 'borderColor', 'outlineColor', 'fill', 'stroke'];
             properties.forEach(prop => {
               const value = (el.style as any)[prop] || style.getPropertyValue(prop);
               if (value && value.includes('oklch')) {
-                // Force a safe fallback or try to let the browser resolve it to RGB
-                // By setting it to computed style, we often get the resolved RGB
                 (el.style as any)[prop] = style.getPropertyValue(prop);
-                
-                // If it still contains oklch (rare but possible in some environments), force black/white/transparent
                 const finalValue = (el.style as any)[prop];
                 if (finalValue && finalValue.includes('oklch')) {
                   if (prop === 'backgroundColor') (el.style as any)[prop] = '#ffffff';
@@ -156,8 +148,6 @@ export const ReportPage = ({
                 }
               }
             });
-
-            // Handle children
             Array.from(el.children).forEach(child => cleanColors(child as HTMLElement));
           };
 
@@ -179,14 +169,11 @@ export const ReportPage = ({
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      
-      // Calculate image height while maintaining aspect ratio
       const imgWidth = pdfWidth;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
       pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
 
-      // Pagination support if content is long
       let heightLeft = imgHeight - pdfHeight;
       let position = -pdfHeight;
 
@@ -303,7 +290,7 @@ export const ReportPage = ({
             {isExportingPDF ? (
               <>
                 <Clock size={14} className="animate-spin" />
-                ĐANG XỬ LÝ...
+                ĐANG KHỞI TẠO...
               </>
             ) : (
               <>
@@ -314,6 +301,18 @@ export const ReportPage = ({
           </button>
         </div>
       </div>
+
+      {isExportingPDF && (
+        <div className="fixed inset-0 bg-blue-900/40 backdrop-blur-sm z-[9999] flex items-center justify-center animate-in fade-in duration-300">
+           <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center text-center max-w-sm mx-auto border border-blue-100">
+              <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-6" />
+              <h3 className="text-xl font-black text-gray-900 mb-2">Đang xử lý dữ liệu</h3>
+              <p className="text-sm text-gray-500 font-medium leading-relaxed">
+                Đang khởi tạo file PDF, vui lòng đợi giây lát...
+              </p>
+           </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
         {[
@@ -631,9 +630,15 @@ export const ReportPage = ({
           {/* Conclusion Section */}
           <div className="mb-16">
             <h2 className="text-xs font-bold uppercase border-l-4 pl-2 mb-4" style={{ borderColor: '#000000', color: '#000000' }}>III. TỔNG KẾT & ĐỀ XUẤT CỦA BỘ PHẬN</h2>
-            <div className="p-4 border rounded-sm min-h-[100px] text-[11px] leading-relaxed whitespace-pre-wrap" style={{ borderColor: '#000000', backgroundColor: '#f9fafb' }}>
-              {monthlyConclusion || 'Chưa có nội dung kết luận cho kỳ báo cáo này.'}
-            </div>
+            <table className="w-full border-collapse" style={{ borderColor: '#000000' }}>
+              <tbody>
+                <tr>
+                  <td className="border p-6 text-[11px] leading-relaxed whitespace-pre-wrap" style={{ borderColor: '#000000', backgroundColor: '#f9fafb', minHeight: '150px', verticalAlign: 'top' }}>
+                    {monthlyConclusion || 'Chưa có nội dung kết luận cho kỳ báo cáo này.'}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           {/* Footer - Signatures */}

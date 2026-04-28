@@ -20,7 +20,6 @@ import { auth, logout, db, testConnection } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useFirebaseData, useUserHeartbeat } from './hooks/useFirebaseData';
-import { SAMPLE_TASKS } from './data/sampleData';
 
 // Import Components
 import { Sidebar } from './components/layout/Sidebar';
@@ -291,21 +290,6 @@ export default function App() {
     });
   }, [tasks, firebaseUpdateTask]);
 
-  const seedTasks = useCallback(async () => {
-    if (tasks.length > 0) {
-      if (!confirm('Dữ liệu công việc hiện đang có. Bạn có chắc muốn nạp thêm dữ liệu mẫu (các công việc QC cũ)?')) return;
-    }
-    
-    for (const task of SAMPLE_TASKS) {
-      const taskWithAuthor = {
-        ...task,
-        history: task.history.map(h => ({ ...h, authorId: currentUser?.id || 'system' }))
-      };
-      await firebaseAddTask(taskWithAuthor);
-    }
-    alert('Đã nạp dữ liệu thành công! Vui lòng kiểm tra Bảng công việc.');
-  }, [tasks, currentUser, firebaseAddTask]);
-
   const onUpdateStaff = useCallback((updatedStaff: User) => {
     firebaseUpdateStaff(updatedStaff);
   }, [firebaseUpdateStaff]);
@@ -413,7 +397,6 @@ export default function App() {
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         onLogout={handleLogout}
-        onSeedData={seedTasks}
       />
 
       <main className="flex-1 overflow-y-auto">

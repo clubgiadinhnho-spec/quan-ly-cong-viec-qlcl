@@ -8,10 +8,9 @@ interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onLogout: () => void;
-  onSeedData: () => void;
 }
 
-export const Sidebar = ({ user, users, activeTab, setActiveTab, onLogout, onSeedData }: SidebarProps) => {
+export const Sidebar = ({ user, users, activeTab, setActiveTab, onLogout }: SidebarProps) => {
   const activeUsers = users
     .filter(u => u.lastActive && (Date.now() - u.lastActive < 120000))
     .sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0));
@@ -48,16 +47,6 @@ export const Sidebar = ({ user, users, activeTab, setActiveTab, onLogout, onSeed
               {item.label}
             </button>
           ))}
-
-          {user.role === 'Admin' && (
-            <button
-              onClick={onSeedData}
-              className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg text-amber-600 hover:bg-amber-50 transition-all mt-4 border border-dashed border-amber-200"
-            >
-              <Database size={18} />
-              Nạp dữ liệu mẫu
-            </button>
-          )}
         </nav>
 
         {/* Active Users Section */}

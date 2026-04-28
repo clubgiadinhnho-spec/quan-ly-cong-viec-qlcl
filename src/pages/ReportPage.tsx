@@ -88,7 +88,7 @@ export const ReportPage = ({
     const confirmed = window.confirm("Bạn có muốn CHỐT báo cáo này và lưu vào lịch sử chính thức không?");
     if (!confirmed) return;
 
-    // Save official report snapshot
+    // Save official report snapshot (Resilient to failure)
     try {
       await onSaveOfficialReport({
         monthYear: reportPeriod,
@@ -103,8 +103,9 @@ export const ReportPage = ({
         isOfficial: true,
         createdAt: new Date().toISOString()
       });
-    } catch (err) {
-      console.error("Error saving official report:", err);
+    } catch (err: any) {
+      console.warn("⚠️ Không thể lưu vào Database: " + (err.message || "Lỗi quyền hạn"));
+      alert("⚠️ Không thể lưu báo cáo vào lịch sử hệ thống (Lỗi quyền Firebase), nhưng tôi vẫn sẽ chuẩn bị file PDF cho bạn.");
     }
 
     if (!printTemplateRef.current) return;
@@ -518,51 +519,53 @@ export const ReportPage = ({
           <div className="absolute -bottom-12 -right-12 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
        </div>
 
-       {/* --- HIDDEN PDF PRINT TEMPLATE --- */}
-       <div ref={printTemplateRef} style={{ display: 'none' }} className="bg-white text-black pl-[30mm] pr-[20mm] pt-[20mm] pb-[20mm] font-serif w-[210mm]">
+       <div ref={printTemplateRef} style={{ display: 'none', backgroundColor: '#ffffff', color: '#000000' }} className="pl-[30mm] pr-[20mm] pt-[20mm] pb-[20mm] font-serif w-[210mm]">
           {/* Header */}
           <div className="flex justify-between items-start mb-10">
             <div className="flex items-start gap-4">
-               <img src="https://tanphuvietnam.vn/wp-content/uploads/2021/04/logo-tan-phu-1.png" alt="" className="h-12 w-auto" />
+               {/* CSS LOGO REPLACEMENT TO AVOID CORS */}
+               <div style={{ backgroundColor: '#1e40af', width: '40px', height: '40px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', color: '#ffffff', fontSize: '20px' }}>
+                 TP
+               </div>
                <div className="text-left">
-                  <p className="text-xs font-bold uppercase tracking-tight">CÔNG TY CP NHỰA TÂN PHÚ</p>
-                  <p className="text-[10px] text-gray-500 italic mt-1 leading-tight">ISO 9001:2015 Certification</p>
+                  <p className="text-xs font-bold uppercase tracking-tight" style={{ color: '#000000' }}>CÔNG TY CP NHỰA TÂN PHÚ</p>
+                  <p className="text-[10px] italic mt-1 leading-tight" style={{ color: '#6b7280' }}>ISO 9001:2015 Certification</p>
                </div>
             </div>
             <div className="text-right">
-               <p className="text-xs font-bold uppercase">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-               <p className="text-xs font-bold">Độc lập - Tự do - Hạnh phúc</p>
-               <div className="mt-1 h-px w-32 bg-black ml-auto" />
+               <p className="text-xs font-bold uppercase" style={{ color: '#000000' }}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+               <p className="text-xs font-bold" style={{ color: '#000000' }}>Độc lập - Tự do - Hạnh phúc</p>
+               <div className="mt-1 h-px w-32 ml-auto" style={{ backgroundColor: '#000000' }} />
             </div>
           </div>
 
           {/* Report Title */}
           <div className="text-center mb-10 space-y-2">
-             <h1 className="text-xl font-bold uppercase tracking-tight">BÁO CÁO TỔNG HỢP HIỆU SUẤT & GIẢI TRÌNH CÔNG VIỆC</h1>
-             <p className="text-base font-bold uppercase">KỲ BÁO CÁO: {reportPeriod}</p>
-             <p className="text-[10px] italic">Ngày lập: {new Date().toLocaleDateString('vi-VN')}</p>
+             <h1 className="text-xl font-bold uppercase tracking-tight" style={{ color: '#000000' }}>BÁO CÁO TỔNG HỢP HIỆU SUẤT & GIẢI TRÌNH CÔNG VIỆC</h1>
+             <p className="text-base font-bold uppercase" style={{ color: '#000000' }}>KỲ BÁO CÁO: {reportPeriod}</p>
+             <p className="text-[10px] italic" style={{ color: '#6b7280' }}>Ngày lập: {new Date().toLocaleDateString('vi-VN')}</p>
           </div>
 
           {/* Statistics Table */}
           <div className="mb-10">
-            <h2 className="text-xs font-bold uppercase border-l-4 border-black pl-2 mb-4">I. THỐNG KÊ CHUNG</h2>
-            <table className="w-full border-collapse border border-gray-800 text-[11px]">
+            <h2 className="text-xs font-bold uppercase border-l-4 pl-2 mb-4" style={{ borderColor: '#000000', color: '#000000' }}>I. THỐNG KÊ CHUNG</h2>
+            <table className="w-full border-collapse border text-[11px]" style={{ borderColor: '#000000' }}>
               <thead>
-                <tr className="bg-gray-100">
-                  <th className="border border-gray-800 p-2">TỔNG CÔNG VIỆC</th>
-                  <th className="border border-gray-800 p-2">HOÀN THÀNH</th>
-                  <th className="border border-gray-800 p-2">ĐANG THỰC HIỆN</th>
-                  <th className="border border-gray-800 p-2">VẤN ĐỀ NỔI CỘM</th>
-                  <th className="border border-gray-800 p-2">TỶ LỆ</th>
+                <tr style={{ backgroundColor: '#f3f4f6' }}>
+                  <th className="border p-2" style={{ borderColor: '#000000' }}>TỔNG CÔNG VIỆC</th>
+                  <th className="border p-2" style={{ borderColor: '#000000' }}>HOÀN THÀNH</th>
+                  <th className="border p-2" style={{ borderColor: '#000000' }}>ĐANG THỰC HIỆN</th>
+                  <th className="border p-2" style={{ borderColor: '#000000' }}>VẤN ĐỀ NỔI CỘM</th>
+                  <th className="border p-2" style={{ borderColor: '#000000' }}>TỶ LỆ</th>
                 </tr>
               </thead>
               <tbody className="text-center">
                 <tr>
-                  <td className="border border-gray-800 p-4 font-bold">{total}</td>
-                  <td className="border border-gray-800 p-4 font-bold text-green-700">{completed}</td>
-                  <td className="border border-gray-800 p-4 font-bold text-blue-700">{ongoing}</td>
-                  <td className="border border-gray-800 p-4 font-bold text-red-600">{issues}</td>
-                  <td className="border border-gray-800 p-4 font-bold">{Math.round((completed / total) * 100)}%</td>
+                  <td className="border p-4 font-bold" style={{ borderColor: '#000000' }}>{total}</td>
+                  <td className="border p-4 font-bold" style={{ borderColor: '#000000', color: '#15803d' }}>{completed}</td>
+                  <td className="border p-4 font-bold" style={{ borderColor: '#000000', color: '#1d4ed8' }}>{ongoing}</td>
+                  <td className="border p-4 font-bold" style={{ borderColor: '#000000', color: '#dc2626' }}>{issues}</td>
+                  <td className="border p-4 font-bold" style={{ borderColor: '#000000' }}>{total > 0 ? Math.round((completed / total) * 100) : 0}%</td>
                 </tr>
               </tbody>
             </table>
@@ -570,39 +573,39 @@ export const ReportPage = ({
 
           {/* Issues List */}
           <div className="mb-10">
-            <h2 className="text-xs font-bold uppercase border-l-4 border-black pl-2 mb-4">II. DANH SÁCH VẤN ĐỀ NỔI CỘM & GIẢI TRÌNH</h2>
-            <table className="w-full border-collapse border border-gray-800 text-[10px]">
+            <h2 className="text-xs font-bold uppercase border-l-4 pl-2 mb-4" style={{ borderColor: '#000000', color: '#000000' }}>II. DANH SÁCH VẤN ĐỀ NỔI CỘM & GIẢI TRÌNH</h2>
+            <table className="w-full border-collapse border text-[10px]" style={{ borderColor: '#000000' }}>
                <thead>
-                 <tr className="bg-gray-100">
-                   <th className="border border-gray-800 p-2 w-[5%]">STT</th>
-                   <th className="border border-gray-800 p-2 w-[25%]">TÊN CÔNG VIỆC / MÃ CV</th>
-                   <th className="border border-gray-800 p-2 w-[15%]">PHỤ TRÁCH</th>
-                   <th className="border border-gray-800 p-2 w-[45%]">NỘI DUNG GIẢI TRÌNH & KHẮC PHỤC</th>
-                   <th className="border border-gray-800 p-2 w-[10%]">HẠN ĐỊNH</th>
+                 <tr style={{ backgroundColor: '#f3f4f6' }}>
+                   <th className="border p-2 w-[5%]" style={{ borderColor: '#000000' }}>STT</th>
+                   <th className="border p-2 w-[25%]" style={{ borderColor: '#000000' }}>TÊN CÔNG VIỆC / MÃ CV</th>
+                   <th className="border p-2 w-[15%]" style={{ borderColor: '#000000' }}>PHỤ TRÁCH</th>
+                   <th className="border p-2 w-[45%]" style={{ borderColor: '#000000' }}>NỘI DUNG GIẢI TRÌNH & KHẮC PHỤC</th>
+                   <th className="border p-2 w-[10%]" style={{ borderColor: '#000000' }}>HẠN ĐỊNH</th>
                  </tr>
                </thead>
                <tbody>
                   {tasks.filter(t => t.isHighlighted).map((t, idx) => (
                     <tr key={t.id}>
-                      <td className="border border-gray-800 p-2 text-center">{idx + 1}</td>
-                      <td className="border border-gray-800 p-2">
+                      <td className="border p-2 text-center" style={{ borderColor: '#000000' }}>{idx + 1}</td>
+                      <td className="border p-2" style={{ borderColor: '#000000' }}>
                         <p className="font-bold">{t.title}</p>
-                        <p className="text-[8px] text-gray-500 uppercase mt-1">{t.code}</p>
+                        <p className="text-[8px] uppercase mt-1" style={{ color: '#6b7280' }}>{t.code}</p>
                       </td>
-                      <td className="border border-gray-800 p-2 text-center">
+                      <td className="border p-2 text-center" style={{ borderColor: '#000000' }}>
                         {users.find(u => u.id === t.assigneeId)?.name}
                       </td>
-                      <td className="border border-gray-800 p-2 leading-relaxed">
+                      <td className="border p-2 leading-relaxed" style={{ borderColor: '#000000' }}>
                         {t.reportExplanation || 'Chưa có nội dung giải trình.'}
                       </td>
-                      <td className="border border-gray-800 p-2 text-center text-red-600 font-bold">
+                      <td className="border p-2 text-center font-bold" style={{ borderColor: '#000000', color: '#dc2626' }}>
                         {formatDate(t.expectedEndDate)}
                       </td>
                     </tr>
                   ))}
                   {tasks.filter(t => t.isHighlighted).length === 0 && (
                     <tr>
-                      <td colSpan={5} className="border border-gray-800 p-4 text-center italic text-gray-500">
+                      <td colSpan={5} className="border p-4 text-center italic" style={{ borderColor: '#000000', color: '#6b7280' }}>
                         Không có vấn đề nổi cộm phát sinh trong kỳ.
                       </td>
                     </tr>
@@ -613,8 +616,8 @@ export const ReportPage = ({
 
           {/* Conclusion Section */}
           <div className="mb-16">
-            <h2 className="text-xs font-bold uppercase border-l-4 border-black pl-2 mb-4">III. TỔNG KẾT & ĐỀ XUẤT CỦA BỘ PHẬN</h2>
-            <div className="p-4 border border-gray-800 rounded-sm bg-gray-50 min-h-[100px] text-[11px] leading-relaxed whitespace-pre-wrap">
+            <h2 className="text-xs font-bold uppercase border-l-4 pl-2 mb-4" style={{ borderColor: '#000000', color: '#000000' }}>III. TỔNG KẾT & ĐỀ XUẤT CỦA BỘ PHẬN</h2>
+            <div className="p-4 border rounded-sm min-h-[100px] text-[11px] leading-relaxed whitespace-pre-wrap" style={{ borderColor: '#000000', backgroundColor: '#f9fafb' }}>
               {monthlyConclusion || 'Chưa có nội dung kết luận cho kỳ báo cáo này.'}
             </div>
           </div>
@@ -622,30 +625,30 @@ export const ReportPage = ({
           {/* Footer - Signatures */}
           <div className="grid grid-cols-3 gap-4 text-center text-xs mt-10">
              <div className="space-y-20">
-                <p className="font-bold uppercase">NGƯỜI LẬP BIỂU</p>
+                <p className="font-bold uppercase" style={{ color: '#000000' }}>NGƯỜI LẬP BIỂU</p>
                 <p className="font-bold">(Ký, họ tên)</p>
-                <div className="mt-16 border-t border-dotted border-gray-300 w-32 mx-auto pt-2">
-                  <p className="text-[10px] text-gray-400">.............................................</p>
+                <div className="mt-16 border-t border-dotted w-32 mx-auto pt-2" style={{ borderColor: '#d1d5db' }}>
+                  <p className="text-[10px]" style={{ color: '#9ca3af' }}>.............................................</p>
                 </div>
              </div>
              <div className="space-y-20">
-                <p className="font-bold uppercase">TRƯỞNG PHÒNG QLCL</p>
+                <p className="font-bold uppercase" style={{ color: '#000000' }}>TRƯỞNG PHÒNG QLCL</p>
                 <p className="font-bold">(Ký, họ tên)</p>
-                <div className="mt-16 border-t border-dotted border-gray-300 w-32 mx-auto pt-2">
-                  <p className="text-[10px] text-gray-400">.............................................</p>
+                <div className="mt-16 border-t border-dotted w-32 mx-auto pt-2" style={{ borderColor: '#d1d5db' }}>
+                  <p className="text-[10px]" style={{ color: '#9ca3af' }}>.............................................</p>
                 </div>
              </div>
              <div className="space-y-20">
-                <p className="font-bold uppercase">GIÁM ĐỐC XÁC NHẬN</p>
+                <p className="font-bold uppercase" style={{ color: '#000000' }}>GIÁM ĐỐC XÁC NHẬN</p>
                 <p className="font-bold">(Ký, đóng dấu)</p>
-                <div className="mt-16 border-t border-dotted border-gray-300 w-32 mx-auto pt-2">
-                   <p className="text-[10px] text-gray-400">.............................................</p>
+                <div className="mt-16 border-t border-dotted w-32 mx-auto pt-2" style={{ borderColor: '#d1d5db' }}>
+                   <p className="text-[10px]" style={{ color: '#9ca3af' }}>.............................................</p>
                 </div>
              </div>
           </div>
 
           {/* Page Footer */}
-          <div className="mt-20 pt-4 border-t border-gray-200 flex justify-between text-[8px] text-gray-400 italic">
+          <div className="mt-20 pt-4 border-t flex justify-between text-[8px] italic" style={{ borderColor: '#e5e7eb', color: '#9ca3af' }}>
              <p>Tài liệu này được trích xuất tự động từ Hệ thống Quản trị Hiệu quả Công việc P.QLCL - Tân Phú Việt Nam</p>
              <p>Trang 1 / 1</p>
           </div>

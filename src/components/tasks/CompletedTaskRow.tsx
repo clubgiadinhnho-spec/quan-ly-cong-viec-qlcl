@@ -66,13 +66,19 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ task, users,
         </div>
       </td>
       <td className="p-1 text-center border-r border-gray-300">
-        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
-          task.priority === 'HIGH' ? 'bg-red-50 text-red-600' : 
-          task.priority === 'MEDIUM' ? 'bg-orange-50 text-orange-600' : 
-          'bg-blue-50 text-blue-600'
-        }`}>
-          {task.priority === 'HIGH' ? 'CAO' : task.priority === 'MEDIUM' ? 'TRUNG BÌNH' : 'THẤP'}
-        </span>
+        {task.priorityOrder ? (
+          <span 
+            style={{ 
+              backgroundColor: `rgba(220, 38, 38, ${Math.max(0.1, 1 - (task.priorityOrder - 1) * 0.2)})`,
+              color: task.priorityOrder > 3 ? '#991b1b' : '#ffffff'
+            }}
+            className="text-[10px] font-black w-7 h-7 rounded-full flex items-center justify-center mx-auto"
+          >
+            {task.priorityOrder}
+          </span>
+        ) : (
+          <span className="text-[10px] font-bold text-gray-300">-</span>
+        )}
       </td>
       <td className="py-4 px-1 text-center border-r border-gray-300">
         <div className="flex flex-col items-center gap-1">

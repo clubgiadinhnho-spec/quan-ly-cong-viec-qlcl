@@ -33,8 +33,8 @@ export const HistoryModal = ({ taskId, tasks, onClose }: HistoryModalProps) => {
         <div className="p-6 max-h-[400px] overflow-y-auto">
           <div className="relative border-l-2 border-blue-100 ml-4 space-y-8">
             {task.history.slice().reverse().map((h, i) => (
-              <div key={i} className="relative pl-6">
-                <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-blue-600 border-2 border-white" />
+              <div key={i} className="relative">
+                <div className="absolute -left-[17px] top-1 w-4 h-4 rounded-full bg-blue-600 border-2 border-white z-10" />
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase">Phiên bản v{h.version}</span>
                   <span className="text-[10px] text-gray-400 font-bold">{formatDateTime(h.timestamp)}</span>

@@ -1,20 +1,23 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Plus } from 'lucide-react';
-import { User } from '../../types';
+import { Edit2, Plus } from 'lucide-react';
+import { Task, User } from '../../types';
 
 interface TaskModalProps {
   onClose: () => void;
-  onAdd: (task: any) => void;
+  onSave: (task: any) => void;
   users: User[];
+  task?: Task;
 }
 
-export const TaskModal = ({ onClose, onAdd, users }: TaskModalProps) => {
-  const [title, setTitle] = useState('');
-  const [objective, setObjective] = useState('');
-  const [assigneeId, setAssigneeId] = useState('');
-  const [expectedDate, setExpectedDate] = useState('');
+export const TaskModal = ({ onClose, onSave, users, task }: TaskModalProps) => {
+  const [title, setTitle] = useState(task?.title || '');
+  const [objective, setObjective] = useState(task?.objective || '');
+  const [assigneeId, setAssigneeId] = useState(task?.assigneeId || '');
+  const [expectedDate, setExpectedDate] = useState(task?.expectedEndDate || '');
   const [attachment, setAttachment] = useState<File | null>(null);
+
+  const isEdit = !!task;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -25,8 +28,8 @@ export const TaskModal = ({ onClose, onAdd, users }: TaskModalProps) => {
         className="relative bg-white w-full max-w-lg rounded-2xl p-8 shadow-2xl"
       >
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-          <Plus className="text-blue-600" />
-          KHỞI TẠO CÔNG VIỆC MỚI
+          {isEdit ? <Edit2 className="text-blue-600" /> : <Plus className="text-blue-600" />}
+          {isEdit ? 'CẬP NHẬT CÔNG VIỆC' : 'KHỞI TẠO CÔNG VIỆC MỚI'}
         </h2>
         
         <div className="space-y-4">
@@ -70,40 +73,42 @@ export const TaskModal = ({ onClose, onAdd, users }: TaskModalProps) => {
               />
             </div>
           </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Đính kèm tài liệu mô tả (PDF/Ảnh)</label>
-            <div className="relative group">
-              <input 
-                type="file"
-                accept="image/*,application/pdf"
-                className="hidden"
-                id="task-attachment"
-                onChange={(e) => setAttachment(e.target.files?.[0] || null)}
-              />
-              <label 
-                htmlFor="task-attachment"
-                className="flex items-center justify-between w-full px-4 py-3 bg-gray-50 border border-gray-200 border-dashed rounded-lg cursor-pointer group-hover:border-blue-400 group-hover:bg-blue-50/30 transition-all"
-              >
-                <span className="text-gray-400 text-sm truncate pr-4">
-                  {attachment ? attachment.name : "Chọn file PDF hoặc Ảnh..."}
-                </span>
-                <span className="text-[10px] font-bold bg-gray-200 text-gray-600 px-2 py-1 rounded group-hover:bg-blue-600 group-hover:text-white uppercase transition-all">
-                  Browse
-                </span>
-              </label>
+          
+          {!isEdit && (
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Đính kèm tài liệu mô tả (PDF/Ảnh)</label>
+              <div className="relative group">
+                <input 
+                  type="file"
+                  accept="image/*,application/pdf"
+                  className="hidden"
+                  id="task-attachment"
+                  onChange={(e) => setAttachment(e.target.files?.[0] || null)}
+                />
+                <label 
+                  htmlFor="task-attachment"
+                  className="flex items-center justify-between w-full px-4 py-3 bg-gray-50 border border-gray-200 border-dashed rounded-lg cursor-pointer group-hover:border-blue-400 group-hover:bg-blue-50/30 transition-all"
+                >
+                  <span className="text-gray-400 text-sm truncate pr-4">
+                    {attachment ? attachment.name : "Chọn file PDF hoặc Ảnh..."}
+                  </span>
+                  <span className="text-[10px] font-bold bg-gray-200 text-gray-600 px-2 py-1 rounded group-hover:bg-blue-600 group-hover:text-white uppercase transition-all">
+                    Browse
+                  </span>
+                </label>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="mt-8 flex gap-3">
           <button onClick={onClose} className="flex-1 px-4 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-all">HỦY</button>
           <button 
             disabled={!title || !assigneeId}
-            onClick={() => onAdd({ title, objective, assigneeId, expectedEndDate: expectedDate, attachment })}
+            onClick={() => onSave({ title, objective, assigneeId, expectedEndDate: expectedDate, attachment })}
             className="flex-1 px-4 py-3 bg-[#1A56DB] text-white font-bold rounded-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none"
           >
-            LƯU CÔNG VIỆC
+            {isEdit ? 'CẬP NHẬT' : 'KHỞI TẠO'}
           </button>
         </div>
       </motion.div>

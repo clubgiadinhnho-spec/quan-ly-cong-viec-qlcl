@@ -20,6 +20,7 @@ import { auth, logout, db, testConnection } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useFirebaseData, useUserHeartbeat } from './hooks/useFirebaseData';
+import { useTaskActions } from './hooks/useTaskActions';
 
 // Import Components
 import { Sidebar } from './components/layout/Sidebar';
@@ -43,6 +44,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('tasks');
   const [search, setSearch] = useState('');
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState<string | null>(null);
   const [showChatModal, setShowChatModal] = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -67,16 +69,39 @@ export default function App() {
     officialReports: firebaseOfficialReports
   } = useFirebaseData(currentUser?.id);
 
-  const [showDirectChat, setShowDirectChat] = useState<User | null>(null);
-
-  // Presence system
-  useUserHeartbeat(currentUser?.id, firebaseUpdateHeartbeat);
-
   // Combine Firestore users with initial STAFF_LIST
   // Firestore is the source of truth, but we use STAFF_LIST as base defaults
   const allUsers = React.useMemo(() => {
     return users;
   }, [users]);
+
+  const { 
+    addTask: baseAddTask,
+    updateTask,
+    addTaskComment
+  } = useTaskActions({
+    tasks,
+    currentUser,
+    allUsers,
+    firebaseAddTask,
+    firebaseUpdateTask,
+    firebaseDeleteTask
+  });
+
+  const addTask = useCallback(async (taskData: any) => {
+    if (editingTask) {
+      await updateTask(editingTask.id, taskData);
+      setEditingTask(null);
+    } else {
+      await baseAddTask(taskData);
+      setShowTaskModal(false);
+    }
+  }, [baseAddTask, updateTask, editingTask]);
+
+  const [showDirectChat, setShowDirectChat] = useState<User | null>(null);
+
+  // Presence system
+  useUserHeartbeat(currentUser?.id, firebaseUpdateHeartbeat);
 
   // Auto-bootstrap STAFF_LIST to Firestore
   // We ensure every person in STAFF_LIST exists in Firestore
@@ -142,109 +167,12 @@ export default function App() {
     }
   };
 
-  const addTask = useCallback(async (taskData: any) => {
-    const lastNum = tasks.reduce((max, t) => {
-      const num = parseInt(t.code.replace(/\D/g, '')) || 0;
-      return num > max ? num : max;
-    }, 0);
-    
-    let attachmentUrl = "";
-    let attachmentName = "";
-
-    if (taskData.attachment instanceof File) {
-      attachmentName = taskData.attachment.name;
-      // Convert to Base64 for simplicity in prototype
-      attachmentUrl = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(taskData.attachment);
-      });
-    }
-
-    const newTask: Omit<Task, 'id'> = {
-      code: `C${String(lastNum + 1).padStart(4, '0')}`,
-      issueDate: new Date().toISOString().split('T')[0],
-      title: taskData.title || '',
-      objective: taskData.objective || '',
-      assigneeId: taskData.assigneeId || currentUser?.id || '',
-      startDate: taskData.startDate || new Date().toISOString().split('T')[0],
-      expectedEndDate: taskData.expectedEndDate || '',
-      prevProgress: '',
-      currentUpdate: '',
-      history: [{ 
-        version: 1, 
-        content: 'Khởi tạo công việc.', 
-        timestamp: new Date().toISOString(), 
-        authorId: currentUser?.id || '' 
-      }],
-      status: 'IN_PROGRESS',
-      priority: taskData.priority || 'MEDIUM',
-      isHighlighted: false,
-      isLocked: false,
-      attachmentUrl,
-      attachmentName,
-      updatedAt: new Date().toISOString(),
-    };
-    firebaseAddTask(newTask);
-    setShowTaskModal(false);
-  }, [tasks, currentUser, firebaseAddTask]);
-
   const [confirmModal, setConfirmModal] = useState<{
     show: boolean;
     title: string;
     message: string;
     onConfirm: () => void;
   }>({ show: false, title: '', message: '', onConfirm: () => {} });
-
-  const updateTask = useCallback((id: string, updates: Partial<Task>) => {
-    const task = tasks.find(t => t.id === id);
-    if (!task) return;
-
-    const newUpdates: any = { ...updates };
-    
-    // History logic: Check for significant changes to log
-    const changes: string[] = [];
-    
-    if (updates.currentUpdate !== undefined && updates.currentUpdate !== task.currentUpdate) {
-      changes.push(`Cập nhật tiến độ: ${updates.currentUpdate || '(Trống)'}`);
-    }
-    
-    if (updates.title !== undefined && updates.title !== task.title) {
-      changes.push(`Đổi tên công việc thành: ${updates.title}`);
-    }
-
-    if (updates.status !== undefined && updates.status !== task.status) {
-      changes.push(`Thay đổi trạng thái sang: ${updates.status}`);
-    }
-
-    if (changes.length > 0) {
-      const newHistory = [...(task.history || [])];
-      newHistory.push({
-        version: newHistory.length + 1,
-        content: changes.join(' | '),
-        timestamp: new Date().toISOString(),
-        authorId: currentUser?.id || ''
-      });
-      newUpdates.history = newHistory;
-    }
-
-    firebaseUpdateTask(id, newUpdates);
-  }, [tasks, currentUser, firebaseUpdateTask]);
-
-  const addTaskComment = useCallback((taskId: string, content: string) => {
-    if (!currentUser) return;
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const newComments = [...(task.comments || [])];
-    newComments.push({
-      id: Math.random().toString(36).substr(2, 9),
-      authorId: currentUser.id,
-      content,
-      timestamp: new Date().toISOString()
-    });
-    firebaseUpdateTask(taskId, { comments: newComments });
-  }, [tasks, currentUser, firebaseUpdateTask]);
 
   const sendGeneralMessage = useCallback((content: string) => {
     if (!currentUser) return;
@@ -397,6 +325,7 @@ export default function App() {
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         onLogout={handleLogout}
+        onUserClick={(user) => setShowDirectChat(user)}
       />
 
       <main className="flex-1 overflow-y-auto">
@@ -468,6 +397,7 @@ export default function App() {
                   onDelete={deleteTask}
                   onViewHistory={(id) => setShowHistoryModal(id)}
                   onOpenChat={(id) => setShowChatModal(id)}
+                  onEdit={setEditingTask}
                   setConfirmModal={setConfirmModal}
                   type="active"
                 />
@@ -504,6 +434,7 @@ export default function App() {
                   onDelete={deleteTask}
                   onViewHistory={(id) => setShowHistoryModal(id)}
                   onOpenChat={(id) => setShowChatModal(id)}
+                  onEdit={setEditingTask}
                   setConfirmModal={setConfirmModal}
                   type="completed"
                 />
@@ -594,9 +525,19 @@ export default function App() {
       </main>
 
       {/* Modals */}
-      {showTaskModal && (
-        <TaskModal onClose={() => setShowTaskModal(false)} onAdd={addTask} users={allUsers} />
-      )}
+      <AnimatePresence>
+        {(showTaskModal || editingTask) && (
+          <TaskModal 
+            onClose={() => {
+              setShowTaskModal(false);
+              setEditingTask(null);
+            }} 
+            onSave={addTask} 
+            users={allUsers} 
+            task={editingTask || undefined}
+          />
+        )}
+      </AnimatePresence>
       {showHistoryModal && (
         <HistoryModal taskId={showHistoryModal} tasks={tasks} onClose={() => setShowHistoryModal(null)} />
       )}

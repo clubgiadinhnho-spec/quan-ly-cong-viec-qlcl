@@ -16,6 +16,17 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
   const [newMessage, setNewMessage] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  if (!currentUser?.id || !otherUser?.id) {
+    return (
+      <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[999] flex items-center justify-center">
+        <div className="bg-white p-6 rounded-2xl shadow-xl">
+          <p className="text-sm font-bold text-red-500">Lỗi: Không tìm thấy ID người dùng để tạo cuộc trò chuyện.</p>
+          <button onClick={onClose} className="mt-4 px-4 py-2 bg-gray-100 rounded-lg text-xs">Đóng</button>
+        </div>
+      </div>
+    );
+  }
+
   const chatId = [currentUser.id, otherUser.id].sort().join('_');
   const chatMessages = messages.filter(m => m.chatId === chatId);
 
@@ -32,12 +43,20 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
   };
 
   return (
+    <>
+    <motion.div 
+      initial={{ opacity: 0 }} 
+      animate={{ opacity: 1 }} 
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-[9998]"
+    />
     <motion.div
       initial={{ x: '100%' }}
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      className="fixed top-0 right-0 h-full w-full max-w-sm bg-white shadow-2xl z-[70] flex flex-col border-l border-gray-100"
+      className="fixed top-0 right-0 h-full w-full max-w-sm bg-white shadow-2xl z-[9999] flex flex-col border-l border-gray-100"
     >
       {/* Header */}
       <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
@@ -82,7 +101,7 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
             
             return (
               <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                <div className={`p-3 rounded-2xl text-xs leading-relaxed shadow-sm max-w-[85%] ${
+                <div className={`p-3 rounded-2xl text-xs leading-relaxed shadow-sm w-full ${
                   isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-none'
                 }`}>
                   {msg.content}
@@ -122,5 +141,6 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
         <p className="text-[9px] text-gray-400 mt-2 text-center font-bold uppercase italic tracking-tighter opacity-70">Nhấn Enter để gửi</p>
       </div>
     </motion.div>
+    </>
   );
 };

@@ -11,11 +11,13 @@ interface TaskRowProps {
   onDelete: (id: string) => void;
   onViewHistory: (id: string) => void;
   onOpenChat: (id: string) => void;
+  onTogglePriority: (id: string) => void;
+  onEdit: (task: Task) => void;
   idx: number;
   setConfirmModal: (modal: any) => void;
 }
 
-export const TaskRow: React.FC<TaskRowProps> = ({ task, user, users, onUpdate, onDelete, onViewHistory, onOpenChat, idx, setConfirmModal }) => {
+export const TaskRow: React.FC<TaskRowProps> = ({ task, user, users, onUpdate, onDelete, onViewHistory, onOpenChat, onTogglePriority, onEdit, idx, setConfirmModal }) => {
   const assignee = users.find(s => s.id === task.assigneeId);
   const isOwner = user.id === task.assigneeId;
   const isManager = user.role === 'Admin' || user.role === 'Trưởng Phòng';
@@ -48,9 +50,30 @@ export const TaskRow: React.FC<TaskRowProps> = ({ task, user, users, onUpdate, o
       <td className={`p-4 text-center text-xs font-bold border-r border-gray-300 ${task.isHighlighted ? 'text-red-300' : 'text-gray-300'}`}>{idx + 1}</td>
       <td className={`p-4 border-r border-gray-300 ${task.isHighlighted ? 'border-l-4 border-red-500' : ''}`}>
         <div className="flex items-center gap-3">
-          <img src={assignee?.avatar} alt={assignee?.name} className="w-8 h-8 rounded-full border border-gray-100 shadow-sm" />
+          <div className="relative">
+            <img src={assignee?.avatar} alt={assignee?.name} className="w-8 h-8 rounded-full border border-gray-100 shadow-sm" />
+            {isManager && (
+              <button 
+                onClick={() => onEdit(task)}
+                className="absolute -top-1 -left-1 w-4 h-4 bg-blue-600 text-white rounded-full flex items-center justify-center border border-white hover:scale-110 transition-all shadow-sm"
+                title="Thay đổi nhân sự / Chỉnh sửa"
+              >
+                <span className="text-[8px]">✎</span>
+              </button>
+            )}
+          </div>
           <div>
-            <p className="text-sm font-bold text-gray-900 leading-none whitespace-nowrap">{assignee?.name}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-bold text-gray-900 leading-none whitespace-nowrap">{assignee?.name}</p>
+              {isManager && (
+                <button 
+                  onClick={() => onEdit(task)} 
+                  className="text-[9px] text-blue-500 hover:underline font-black uppercase opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  Sửa
+                </button>
+              )}
+            </div>
             <div className="flex flex-col gap-1 mt-1">
               <p className="text-[10px] text-gray-500 font-medium opacity-70 leading-normal">Giao việc: {formatDate(task.issueDate)}</p>
               <p className="text-[10px] text-blue-600 font-black leading-normal">Hạn: {formatDate(task.expectedEndDate)}</p>
@@ -81,11 +104,23 @@ export const TaskRow: React.FC<TaskRowProps> = ({ task, user, users, onUpdate, o
           </a>
         )}
         {isManager ? (
-           <input 
-            className="text-sm font-bold text-gray-900 bg-transparent border-b border-transparent focus:border-blue-400 outline-none w-full py-0.5 pr-6"
-            defaultValue={task.title}
-            onBlur={(e) => onUpdate(task.id, { title: e.target.value })}
-          />
+           <div className="relative">
+             <input 
+              className="text-sm font-bold text-gray-900 bg-transparent border-b border-transparent focus:border-blue-400 outline-none w-full py-0.5 pr-6"
+              defaultValue={task.title}
+              onBlur={(e) => {
+                if (e.target.value !== task.title) {
+                  onUpdate(task.id, { title: e.target.value });
+                }
+              }}
+            />
+            <button 
+              onClick={() => onEdit(task)}
+              className="absolute top-1 right-0 text-blue-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <span className="text-[10px]">✎</span>
+            </button>
+           </div>
         ) : (
           <p className="text-sm font-bold text-gray-900 leading-relaxed pr-6">{task.title}</p>
         )}
@@ -130,15 +165,22 @@ export const TaskRow: React.FC<TaskRowProps> = ({ task, user, users, onUpdate, o
       </td>
       <td className="p-1 text-center border-r border-gray-300">
         <button 
-          onClick={() => canEditPriority && onUpdate(task.id, { priority: task.priority === 'HIGH' ? 'MEDIUM' : (task.priority === 'MEDIUM' ? 'LOW' : 'HIGH') })}
+          onClick={() => canEditPriority && onTogglePriority(task.id)}
           disabled={!canEditPriority || task.isLocked}
-          className={`text-[9px] font-bold px-2 py-1 rounded-full uppercase tracking-tighter transition-all ${
-            task.priority === 'HIGH' ? 'bg-red-100 text-red-700' : 
-            task.priority === 'MEDIUM' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-500'
-          } ${!canEditPriority || task.isLocked ? 'cursor-default' : 'hover:scale-105 active:scale-95 cursor-pointer'}`}
-          title={!canEditPriority ? 'Bạn không có quyền chỉnh sửa ưu tiên' : ''}
+          style={{ 
+            backgroundColor: task.priorityOrder 
+              ? `rgba(220, 38, 38, ${Math.max(0.1, 1 - (task.priorityOrder - 1) * 0.2)})` 
+              : undefined,
+            color: task.priorityOrder 
+              ? (task.priorityOrder > 3 ? '#991b1b' : '#ffffff') 
+              : undefined
+          }}
+          className={`text-[10px] font-black w-8 h-8 rounded-full flex items-center justify-center mx-auto transition-all transition-all ${
+            !task.priorityOrder ? 'bg-gray-100 text-gray-400 hover:bg-gray-200' : ''
+          } ${!canEditPriority || task.isLocked ? 'cursor-default opacity-50' : 'hover:scale-110 active:scale-90 cursor-pointer'}`}
+          title={task.priorityOrder ? `Mức ưu tiên ${task.priorityOrder}` : 'Thêm mức ưu tiên'}
         >
-          {task.priority === 'HIGH' ? 'Khẩn' : (task.priority === 'MEDIUM' ? 'T.Bình' : 'Thấp')}
+          {task.priorityOrder || '+'}
         </button>
       </td>
       <td className="py-4 px-1 text-center border-r border-gray-300">

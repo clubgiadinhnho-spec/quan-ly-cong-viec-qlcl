@@ -77,11 +77,11 @@ export const TaskChat = ({ task, currentUser, onSendMessage, onClose }: TaskChat
             
             return (
               <div key={comment.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                <div className={`flex items-end gap-2 max-w-[85%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                <div className={`flex items-end gap-2 w-full ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                   {!isMe && (
                     <img src={author?.avatar} alt="avatar" className="w-6 h-6 rounded-full border border-gray-200" />
                   )}
-                  <div className={`p-3 rounded-2xl text-xs leading-relaxed shadow-sm ${
+                  <div className={`p-3 rounded-2xl text-xs leading-relaxed shadow-sm w-full ${
                     isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-none'
                   }`}>
                     {comment.content}

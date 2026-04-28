@@ -8,11 +8,12 @@ interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onLogout: () => void;
+  onUserClick?: (user: User) => void;
 }
 
-export const Sidebar = ({ user, users, activeTab, setActiveTab, onLogout }: SidebarProps) => {
+export const Sidebar = ({ user, users, activeTab, setActiveTab, onLogout, onUserClick }: SidebarProps) => {
   const activeUsers = users
-    .filter(u => u.lastActive && (Date.now() - u.lastActive < 120000))
+    .filter(u => u.id !== user.id && u.lastActive && (Date.now() - u.lastActive < 120000))
     .sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0));
 
   return (
@@ -64,16 +65,20 @@ export const Sidebar = ({ user, users, activeTab, setActiveTab, onLogout }: Side
           <div className="space-y-3">
             {activeUsers.length > 0 ? (
               activeUsers.map(u => (
-                <div key={u.id} className="flex items-center gap-2.5 px-2 group">
+                <button 
+                  key={u.id} 
+                  onClick={() => onUserClick?.(u)}
+                  className="w-full flex items-center gap-2.5 px-2 group hover:bg-blue-50/50 py-1.5 rounded-lg transition-all"
+                >
                   <div className="relative flex-none">
-                    <img src={u.avatar} alt={u.name} className="w-7 h-7 rounded-full border border-gray-100 bg-gray-50" />
+                    <img src={u.avatar} alt={u.name} className="w-7 h-7 rounded-full border border-gray-100 bg-gray-50 object-cover" />
                     <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 border-2 border-white rounded-full"></div>
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 text-left">
                     <p className="text-[11px] font-bold text-gray-700 truncate group-hover:text-blue-600 transition-colors">{u.name}</p>
                     <p className="text-[8px] text-gray-400 font-black uppercase tracking-tighter truncate">{u.role}</p>
                   </div>
-                </div>
+                </button>
               ))
             ) : (
               <p className="text-[10px] text-gray-400 italic px-2">Không có ai trực tuyến</p>

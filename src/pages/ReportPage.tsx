@@ -203,7 +203,7 @@ export const ReportPage = ({
   const completed = tasks.filter((t) => t.status === 'COMPLETED').length;
   const ongoing = tasks.filter((t) => ['IN_PROGRESS', 'PENDING_APPROVAL', 'ON_HOLD'].includes(t.status)).length;
   const issues = tasks.filter((t) => t.isHighlighted).length;
-  const highPriority = tasks.filter((t) => t.priority === 'HIGH').length;
+  const highPriority = tasks.filter((t) => !!t.priorityOrder).length;
 
   const handleFileUpload = (taskId: string) => {
     const mockFile = `evidence_${Math.floor(Math.random() * 1000)}.pdf`;

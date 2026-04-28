@@ -11,6 +11,7 @@ interface TaskListProps {
   onDelete: (id: string) => void;
   onViewHistory: (id: string) => void;
   onOpenChat: (id: string) => void;
+  onEdit: (task: Task) => void;
   setConfirmModal: (modal: any) => void;
   type: 'active' | 'completed';
 }
@@ -23,18 +24,29 @@ export const TaskList: React.FC<TaskListProps> = ({
   onDelete, 
   onViewHistory, 
   onOpenChat, 
+  onEdit,
   setConfirmModal,
   type 
 }) => {
-  const priorityWeight = { 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
-
   const sortedTasks = [...tasks].sort((a, b) => {
-    const weightA = priorityWeight[a.priority as keyof typeof priorityWeight] || 0;
-    const weightB = priorityWeight[b.priority as keyof typeof priorityWeight] || 0;
-    if (weightB !== weightA) return weightB - weightA;
-    if (a.isHighlighted !== b.isHighlighted) return a.isHighlighted ? -1 : 1;
+    // Luôn sắp xếp theo mã công việc giảm dần (mới nhất lên trên)
+    // Người dùng yêu cầu không tự động đẩy ưu tiên lên đầu
     return b.code.localeCompare(a.code);
   });
+
+  const handleTogglePriority = (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    if (task.priorityOrder) {
+      // Nếu đã có thứ tự, nhấn lại để xóa
+      onUpdate(taskId, { priorityOrder: undefined });
+    } else {
+      // Nếu chưa có, lấy số lớn nhất hiện tại + 1
+      const maxOrder = tasks.reduce((max, t) => (t.priorityOrder || 0) > max ? (t.priorityOrder || 0) : max, 0);
+      onUpdate(taskId, { priorityOrder: maxOrder + 1 });
+    }
+  };
 
   return (
     <div className="overflow-x-auto ring-1 ring-gray-200 rounded-xl">
@@ -63,7 +75,9 @@ export const TaskList: React.FC<TaskListProps> = ({
                 onDelete={onDelete}
                 onViewHistory={onViewHistory}
                 onOpenChat={onOpenChat}
+                onEdit={onEdit}
                 setConfirmModal={setConfirmModal}
+                onTogglePriority={handleTogglePriority}
               />
             ) : (
               <CompletedTaskRow 
@@ -73,7 +87,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                 idx={idx}
                 onViewHistory={onViewHistory}
                 onOpenChat={onOpenChat}
-                onUndo={(id) => onUpdate(id, { status: 'IN_PROGRESS', actualEndDate: undefined })}
+                onUndo={(id) => onUpdate(id, { status: 'IN_PROGRESS', actualEndDate: null, isLocked: false })}
               />
             )
           ))}

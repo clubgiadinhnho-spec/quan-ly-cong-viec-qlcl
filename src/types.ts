@@ -58,6 +58,7 @@ export interface Task {
   history: ProgressUpdate[];
   status: TaskStatus;
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  priorityOrder?: number;
   isHighlighted: boolean;
   isLocked: boolean; // Chốt 2 tuần/lần
   attachmentUrl?: string;

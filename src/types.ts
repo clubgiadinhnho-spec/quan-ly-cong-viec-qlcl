@@ -16,6 +16,7 @@ export interface User {
   securityQuestion?: string;
   securityAnswer?: string;
   lastActive?: number;
+  firebaseUid?: string;
 }
 
 export interface ProgressUpdate {
@@ -64,6 +65,7 @@ export interface Task {
   attachmentUrl?: string;
   attachmentName?: string;
   updatedAt: string;
+  sortTimestamp: number;
   comments?: TaskComment[];
   reportExplanation?: string;
   reportAttachments?: string[];

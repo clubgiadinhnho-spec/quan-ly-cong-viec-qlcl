@@ -49,9 +49,13 @@ export const TaskRow: React.FC<TaskRowProps> = ({ task, user, users, onUpdate, o
     <tr className={`group transition-all ${task.isHighlighted ? 'bg-red-50/50' : 'hover:bg-gray-50/50'}`}>
       <td className={`p-4 text-center text-xs font-bold border-r border-gray-300 ${task.isHighlighted ? 'text-red-300' : 'text-gray-300'}`}>{idx + 1}</td>
       <td className={`p-4 border-r border-gray-300 ${task.isHighlighted ? 'border-l-4 border-red-500' : ''}`}>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <img src={assignee?.avatar} alt={assignee?.name} className="w-8 h-8 rounded-full border border-gray-100 shadow-sm" />
+        <div className="flex items-center gap-3 min-w-max">
+          <div className="relative shrink-0 w-8 h-8">
+            <img 
+              src={assignee?.avatar} 
+              alt={assignee?.name} 
+              className="w-full h-full rounded-full border border-gray-100 shadow-sm object-cover aspect-square flex-shrink-0" 
+            />
             {isManager && (
               <button 
                 onClick={() => onEdit(task)}

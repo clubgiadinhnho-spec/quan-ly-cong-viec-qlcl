@@ -61,6 +61,7 @@ export const useTaskActions = ({
       attachmentUrl,
       attachmentName,
       updatedAt: new Date().toISOString(),
+      sortTimestamp: Date.now(),
     };
     await firebaseAddTask(newTask);
   }, [tasks, currentUser, firebaseAddTask]);

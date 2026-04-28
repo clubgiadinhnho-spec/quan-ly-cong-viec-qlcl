@@ -16,7 +16,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { exportTasksToExcel, importTasksFromExcel } from './utils/excelUtils';
 
 // Import Firebase & Hooks
-import { auth, logout, db, testConnection } from './lib/firebase';
+import { auth, logout, db, testConnection, loginAnonymously } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useFirebaseData, useUserHeartbeat } from './hooks/useFirebaseData';
@@ -128,28 +128,45 @@ export default function App() {
   // Handle Authentication State (Restore Session & Sync)
   useEffect(() => {
     const savedUser = localStorage.getItem('qc_user');
-    if (!savedUser) {
-      setAuthReady(true);
-      return;
-    }
-
-    const parsed = JSON.parse(savedUser);
-    const latestUser = users.find(u => u.id === parsed.id || u.companyEmail === parsed.companyEmail);
     
-    if (latestUser) {
-      // Only update if the user data (excluding lastActive) has changed to avoid heartbeat-induced loops
-      const currentUserReduced = currentUser ? { ...currentUser, lastActive: 0 } : null;
-      const latestUserReduced = { ...latestUser, lastActive: 0 };
-      
-      if (JSON.stringify(currentUserReduced) !== JSON.stringify(latestUserReduced)) {
-        setCurrentUser(latestUser);
-        localStorage.setItem('qc_user', JSON.stringify(latestUser));
+    const restoreAuth = async () => {
+      if (!savedUser) {
+        setAuthReady(true);
+        return;
       }
-    } else if (!currentUser) {
-      setCurrentUser(parsed);
-    }
-    
-    setAuthReady(true);
+
+      const parsed = JSON.parse(savedUser);
+      
+      // Ensure we are signed in to Firebase (either via returning session or anonymous)
+      // This is crucial for Firestore rules to allow writes
+      if (!auth.currentUser) {
+        try {
+          await loginAnonymously();
+        } catch (err) {
+          console.error("Failed to restore firebase auth:", err);
+          // We still allow the app to load with local session, but writes might fail
+        }
+      }
+
+      const latestUser = users.find(u => u.id === parsed.id || u.companyEmail === parsed.companyEmail);
+      
+      if (latestUser) {
+        // Only update if the user data (excluding lastActive) has changed to avoid heartbeat-induced loops
+        const currentUserReduced = currentUser ? { ...currentUser, lastActive: 0 } : null;
+        const latestUserReduced = { ...latestUser, lastActive: 0 };
+        
+        if (JSON.stringify(currentUserReduced) !== JSON.stringify(latestUserReduced)) {
+          setCurrentUser(latestUser);
+          localStorage.setItem('qc_user', JSON.stringify(latestUser));
+        }
+      } else if (!currentUser) {
+        setCurrentUser(parsed);
+      }
+      
+      setAuthReady(true);
+    };
+
+    restoreAuth();
   }, [users]); // removed currentUser from inner logic dependency check to avoid loops, but it works
 
   const handleLogin = (user: User) => {
@@ -270,6 +287,7 @@ export default function App() {
           isHighlighted: false,
           isLocked: false,
           updatedAt: new Date().toISOString(),
+          sortTimestamp: Date.now(),
         };
         await firebaseAddTask(newTask);
       }
@@ -304,14 +322,43 @@ export default function App() {
   const priorityWeight = { 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
 
   const sortedTasks = [...filteredTasks].sort((a, b) => {
-    // Primary sort: Priority (High to Low)
+    // 1. Reverted tasks (sortTimestamp === 0) MUST go to the absolute bottom
+    const isRevertedA = a.sortTimestamp === 0;
+    const isRevertedB = b.sortTimestamp === 0;
+    
+    if (isRevertedA && !isRevertedB) return 1;
+    if (!isRevertedA && isRevertedB) return -1;
+    if (isRevertedA && isRevertedB) {
+      // Both are reverted, sort by update time within the bottom group
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    }
+
+    // 2. Newest created tasks at the top
+    // Tasks without sortTimestamp are treated as having their original issueDate timestamp
+    // This keeps them above reverted tasks (which have 0)
+    const sortA = typeof a.sortTimestamp === 'number' ? a.sortTimestamp : (new Date(a.issueDate).getTime() || 1);
+    const sortB = typeof b.sortTimestamp === 'number' ? b.sortTimestamp : (new Date(b.issueDate).getTime() || 1);
+    if (sortB !== sortA) return sortB - sortA;
+
+    // 3. Secondary: Priority Order (Specific manually assigned order)
+    if (a.priorityOrder !== b.priorityOrder) {
+      if (!a.priorityOrder) return 1;
+      if (!b.priorityOrder) return -1;
+      return a.priorityOrder - b.priorityOrder;
+    }
+
+    // 4. Tertiary: Priority Weight (HIGH > MEDIUM > LOW)
     const weightA = priorityWeight[a.priority as keyof typeof priorityWeight] || 0;
     const weightB = priorityWeight[b.priority as keyof typeof priorityWeight] || 0;
     if (weightB !== weightA) return weightB - weightA;
-    // Secondary sort: High priority issues (Highlighted)
+    
+    // 5. High priority issues (Highlighted)
     if (a.isHighlighted !== b.isHighlighted) return a.isHighlighted ? -1 : 1;
-    // Tertiary: Newest first
-    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    
+    // 6. Update time
+    const timeA = new Date(a.updatedAt).getTime() || 0;
+    const timeB = new Date(b.updatedAt).getTime() || 0;
+    return timeB - timeA;
   });
 
   if (!authReady) return <div className="min-h-screen flex items-center justify-center font-black text-blue-600">ĐANG TẢI DỮ LIỆU...</div>;

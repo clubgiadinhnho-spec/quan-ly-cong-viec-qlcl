@@ -28,11 +28,7 @@ export const TaskList: React.FC<TaskListProps> = ({
   setConfirmModal,
   type 
 }) => {
-  const sortedTasks = [...tasks].sort((a, b) => {
-    // Luôn sắp xếp theo mã công việc giảm dần (mới nhất lên trên)
-    // Người dùng yêu cầu không tự động đẩy ưu tiên lên đầu
-    return b.code.localeCompare(a.code);
-  });
+  const sortedTasks = [...tasks];
 
   const handleTogglePriority = (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);

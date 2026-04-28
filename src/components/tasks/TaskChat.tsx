@@ -34,7 +34,7 @@ export const TaskChat = ({ task, currentUser, onSendMessage, onClose }: TaskChat
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      className="fixed top-0 right-0 h-full w-full max-w-sm bg-white shadow-2xl z-[60] flex flex-col border-l border-gray-100"
+      className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[60] flex flex-col border-l border-gray-100"
     >
       {/* Header */}
       <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
@@ -61,7 +61,7 @@ export const TaskChat = ({ task, currentUser, onSendMessage, onClose }: TaskChat
       {/* Messages area */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50"
+        className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/50"
       >
         {(!task.comments || task.comments.length === 0) ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-8">
@@ -76,12 +76,12 @@ export const TaskChat = ({ task, currentUser, onSendMessage, onClose }: TaskChat
             const author = STAFF_LIST.find(s => s.id === comment.authorId);
             
             return (
-              <div key={comment.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+              <div key={comment.id} className={`flex flex-col ${isMe ? 'items-end text-right' : 'items-start text-left'}`}>
                 <div className={`flex items-end gap-2 w-full ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                   {!isMe && (
-                    <img src={author?.avatar} alt="avatar" className="w-6 h-6 rounded-full border border-gray-200" />
+                    <img src={author?.avatar} alt="avatar" className="w-6 h-6 rounded-full border border-gray-200 object-cover aspect-square flex-shrink-0" />
                   )}
-                  <div className={`p-3 rounded-2xl text-xs leading-relaxed shadow-sm w-full ${
+                  <div className={`p-4 rounded-2xl text-xs leading-relaxed shadow-sm max-w-[85%] break-words ${
                     isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-none'
                   }`}>
                     {comment.content}

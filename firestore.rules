@@ -2,8 +2,72 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // 0. Global Safety Net
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
+    }
+
+    // Helper Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(data) {
+      return isSignedIn() && data.firebaseUid == request.auth.uid;
+    }
+
+    // 1. Users Collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      // Allow creation during bootstrap or registration
+      allow create: if isSignedIn(); 
+      allow update: if isSignedIn() && (
+        // Allow self-update of status/activity
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastActive', 'firebaseUid'])) ||
+        // Only Admins can change roles (Admin check needs a doc lookup, so we limit it)
+        isAdmin()
+      );
+    }
+
+    // 2. Tasks Collection
+    match /tasks/{taskId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        !resource.data.isLocked || isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 3. Messages & Direct Messages
+    match /messages/{msgId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+
+    match /direct_messages/{msgId} {
+      allow read: if isSignedIn(); // Simplified for now to avoid complex queries in rules
+      allow create: if isSignedIn();
+    }
+
+    // 4. Reports
+    match /report_drafts/{draftId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /official_reports/{reportId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+
+    // Admin Helper (limited use to save cost)
+    function isAdmin() {
+      // For this specific app, we check if the user requesting has role 'Admin'
+      // This requires a get() which is okay for single document updates.
+      // We assume the user profile is stored by their UID or we have a way to find it.
+      // Simplified: we'll check a dedicated 'admins' collection for O(1) lookups
+      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
   }
 }

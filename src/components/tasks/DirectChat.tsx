@@ -28,7 +28,11 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
   }
 
   const chatId = [currentUser.id, otherUser.id].sort().join('_');
-  const chatMessages = messages.filter(m => m.chatId === chatId);
+  const chatMessages = messages.filter(m => 
+    m.chatId === chatId || 
+    (m.senderId === currentUser.id && m.receiverId === otherUser.id) ||
+    (m.senderId === otherUser.id && m.receiverId === currentUser.id)
+  );
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -56,7 +60,7 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      className="fixed top-0 right-0 h-full w-full max-w-sm bg-white shadow-2xl z-[9999] flex flex-col border-l border-gray-100"
+      className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[9999] flex flex-col border-l border-gray-100"
     >
       {/* Header */}
       <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
@@ -65,7 +69,7 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
             <img 
               src={otherUser.avatar} 
               alt={otherUser.name} 
-              className="w-10 h-10 rounded-full border-2 border-white shadow-sm"
+              className="w-10 h-10 rounded-full border-2 border-white shadow-sm object-cover aspect-square flex-shrink-0"
             />
             {otherUser.lastActive && Date.now() - otherUser.lastActive < 60000 && (
               <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
@@ -86,7 +90,7 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
       {/* Messages area */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50"
+        className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/50"
       >
         {chatMessages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-8">
@@ -100,8 +104,8 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
             const isMe = msg.senderId === currentUser.id;
             
             return (
-              <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                <div className={`p-3 rounded-2xl text-xs leading-relaxed shadow-sm w-full ${
+              <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end text-right' : 'items-start text-left'}`}>
+                <div className={`p-4 rounded-2xl text-xs leading-relaxed shadow-sm max-w-[85%] break-words ${
                   isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-none'
                 }`}>
                   {msg.content}

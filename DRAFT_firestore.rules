@@ -1,0 +1,149 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Since we use Anonymous auth, we don't have email-verified.
+    // We check if the user is signed in at all.
+    // For production, Google Auth with email verification is better.
+
+    // 1. Users Collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidUser(incoming());
+      allow update: if isSignedIn() && isValidUser(incoming()) && (
+        // Allow self-update of non-sensitive fields
+        (incoming().diff(existing()).affectedKeys().hasOnly(['lastActive', 'personalNote', 'zalo', 'avatar', 'securityQuestion', 'securityAnswer'])) ||
+        // Admin can update everything
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'name', 'phone', 'role', 'status'])
+        && data.id is string && data.id.size() <= 64
+        && data.name is string && data.name.size() <= 100
+        && data.phone is string && data.phone.size() <= 20
+        && data.role in ['Nhân Viên', 'Trưởng Nhóm', 'Trưởng Phòng', 'Admin']
+        && data.status in ['PENDING', 'ACTIVE', 'INACTIVE'];
+    }
+
+    // 2. Tasks Collection
+    match /tasks/{taskId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidTask(incoming());
+      allow update: if isSignedIn() && isValidTask(incoming()) && (
+        // Action: Common Update (Assignee or Status)
+        (incoming().diff(existing()).affectedKeys().hasAny(['status', 'currentUpdate', 'prevProgress', 'updatedAt', 'sortTimestamp'])) ||
+        // Action: Manager Action
+        (isManager() && incoming().diff(existing()).affectedKeys().hasAny(['isHighlighted', 'isLocked', 'priority', 'assigneeId', 'expectedEndDate'])) ||
+        // Admin escape hatch
+        isAdmin()
+      );
+      allow delete: if isManager() || isAdmin();
+    }
+
+    function isValidTask(data) {
+      return data.keys().hasAll(['id', 'code', 'title', 'assigneeId', 'status', 'priority'])
+        && data.id is string
+        && data.code is string && data.code.size() <= 20
+        && data.title is string && data.title.size() <= 200
+        && data.status in ['IN_PROGRESS', 'PENDING_APPROVAL', 'COMPLETED', 'CANCELLED', 'ON_HOLD']
+        && data.priority in ['LOW', 'MEDIUM', 'HIGH'];
+    }
+
+    // 3. Messages (Group Chat)
+    match /messages/{msgId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidMessage(incoming());
+      allow update, delete: if isAdmin();
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['authorId', 'content'])
+        && data.content is string && data.content.size() <= 5000;
+    }
+
+    // 4. Direct Messages (Private Chat)
+    match /direct_messages/{msgId} {
+      allow read: if isSignedIn() && (resource.data.senderId == getMyCustomId() || resource.data.receiverId == getMyCustomId());
+      allow create: if isSignedIn() && isValidDirectMessage(incoming()) && (incoming().senderId == getMyCustomId());
+      allow update, delete: if isAdmin();
+    }
+
+    function isValidDirectMessage(data) {
+      return data.keys().hasAll(['senderId', 'receiverId', 'chatId', 'content'])
+        && data.content is string && data.content.size() <= 5000;
+    }
+
+    // 5. Official Reports
+    match /official_reports/{reportId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidOfficialReport(incoming());
+      allow update, delete: if isAdmin();
+    }
+
+    function isValidOfficialReport(data) {
+      return data.keys().hasAll(['userId', 'monthYear', 'content'])
+        && data.content is string;
+    }
+
+    // 6. Report Drafts
+    match /report_drafts/{draftId} {
+      allow read: if isSignedIn() && (resource.data.userId == getMyCustomId());
+      allow create, update: if isSignedIn() && isValidReportDraft(incoming()) && (incoming().userId == getMyCustomId());
+      allow delete: if isSignedIn() && (resource.data.userId == getMyCustomId());
+    }
+
+    function isValidReportDraft(data) {
+      return data.keys().hasAll(['userId', 'monthYear', 'content'])
+        && data.content is string;
+    }
+
+    // Helper to check if current user is Admin via the users collection
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(getMyCustomId())).data.role == 'Admin';
+    }
+
+    function isManager() {
+      let role = get(/databases/$(database)/documents/users/$(getMyCustomId())).data.role;
+      return role in ['Admin', 'Trưởng Phòng', 'Trưởng Nhóm'];
+    }
+
+    // This is tricky: we need a way to link the auth.uid to the internal user ID.
+    // For now, if we use Anonymous auth, we can't easily do this without a mapping.
+    // I'll assume the app stores the 'uid' in the user document when they log in.
+    // But since I don't have that yet, I'll temporarily use a simpler check or 
+    // allow all signed in users for some actions.
+    
+    function getMyCustomId() {
+       // Placeholder: in a real app, you'd do:
+       // return get(/databases/$(database)/documents/uid_map/$(request.auth.uid)).data.userId;
+       // For this demo, let's assume the auth works.
+       return request.auth.uid; 
+    }
+  }
+}

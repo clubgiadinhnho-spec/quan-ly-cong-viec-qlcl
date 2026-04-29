@@ -8,98 +8,87 @@ export const exportTasksToExcel = (tasks: Task[], users: User[]) => {
     if (isNaN(date.getTime())) return dateStr;
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = String(date.getFullYear()).slice(-2);
-    return `${day}-${month}-${year}`;
+    const year = String(date.getFullYear());
+    return `${day}/${month}/${year}`;
   };
 
   const data = tasks.map((task) => {
     const assignee = users.find(u => u.id === task.assigneeId);
     return {
       'Mã CV': task.code,
-      'Nhân viên': assignee ? `${assignee.name} (${assignee.code})` : 'N/A',
-      'Nội dung': task.title,
-      'Mục tiêu': task.objective,
+      'Nhân viên': assignee ? assignee.name : 'N/A',
+      'Nội dung công việc': task.title,
+      'Mục tiêu đạt được': task.objective,
       'Hạn hoàn thành': formatDate(task.expectedEndDate),
-      'Ưu tiên': task.priority === 'HIGH' ? 'CAO' : task.priority === 'MEDIUM' ? 'TRUNG BÌNH' : 'THẤP',
-      'Trạng thái': task.status === 'COMPLETED' ? 'ĐÃ XONG' : 
-                   task.status === 'IN_PROGRESS' ? 'ĐANG LÀM' : 
-                   task.status === 'ON_HOLD' ? 'TẠM DỪNG' : 
-                   task.status === 'PENDING_APPROVAL' ? 'CHỜ DUYỆT' : 'HỦY',
-      'Đính kèm': task.attachmentName || ''
+      'Ưu tiên (CAO/TRUNG BINH/THAP)': task.priority === 'HIGH' ? 'CAO' : task.priority === 'LOW' ? 'THẤP' : 'TRUNG BÌNH',
+      'Diễn tiến trước đó': task.prevProgress || '',
+      'Cập nhật tiến độ': task.currentUpdate || ''
     };
   });
 
   const worksheet = XLSX.utils.json_to_sheet(data);
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Tasks');
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'DanhSachCongViec');
   
-  // Create dynamic filename with date
   const date = new Date().toISOString().split('T')[0];
-  XLSX.writeFile(workbook, `BaoCaoCongViec_${date}.xlsx`);
+  XLSX.writeFile(workbook, `BaoCao_QC_${date}.xlsx`);
 };
 
-export const importTasksFromExcel = (file: File): Promise<any[]> => {
+export const downloadSampleExcel = () => {
+  const sampleData = [
+    {
+      'Nội dung công việc': 'Ví dụ: Kiểm tra chất lượng lô hàng nhựa tháng 4',
+      'Mục tiêu đạt được': 'Đảm bảo 100% sản phẩm đạt tiêu chuẩn ISO',
+      'Hạn hoàn thành': '2026-05-15',
+      'Ưu tiên (CAO/TRUNG BINH/THAP)': 'CAO',
+      'Nhân viên (Tên hoặc Email)': 'lenhattruong.tpp@gmail.com',
+      'Diễn tiến trước đó': 'Đã lấy mẫu sơ bộ',
+      'Cập nhật tiến độ': 'Đang tiến hành đo đạc thông số'
+    },
+    {
+      'Nội dung công việc': 'Ví dụ: Đào tạo quy trình mới cho nhân sự cấp dưới',
+      'Mục tiêu đạt được': 'Cả đội nắm vững quy trình vận hành máy thổi',
+      'Hạn hoàn thành': '2026-05-20',
+      'Ưu tiên (CAO/TRUNG BINH/THAP)': 'TRUNG BINH',
+      'Nhân viên (Tên hoặc Email)': 'tan.vo@tanphuvietnam.vn',
+      'Diễn tiến trước đó': '',
+      'Cập nhật tiến độ': 'Đã soạn xong giáo án'
+    }
+  ];
+
+  const worksheet = XLSX.utils.json_to_sheet(sampleData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'MauNhapLieu');
+  
+  XLSX.writeFile(workbook, 'Mau_Nhap_Lieu_QC.xlsx');
+};
+
+export const importTasksFromExcel = (file: File): Promise<Partial<Task>[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: 'binary', cellDates: true });
+        const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
+        // { raw: false } means XLSX will try to format cells based on their format string (like dates)
         const json = XLSX.utils.sheet_to_json(worksheet, { raw: false }) as any[];
 
-        const tasks = json.map(row => {
-          // Robust key finder helper
-          const getValue = (possibleKeys: string[]) => {
-            const rowKeys = Object.keys(row);
-            const foundKey = rowKeys.find(rk => 
-              possibleKeys.some(pk => 
-                rk.trim().toLowerCase() === pk.toLowerCase()
-              )
-            );
-            return foundKey ? row[foundKey] : undefined;
-          };
-
-          const rawCode = getValue(['Mã CV', 'Ma CV', 'Code', 'Số TT', 'STT']);
-          const rawTitle = getValue(['Nội dung', 'Noi dung', 'Title', 'Content', 'Nội dung và mục tiêu', 'Noi dung va muc tieu', 'Nội dung & Mục tiêu']);
-          const rawObjective = getValue(['Mục tiêu', 'Muc tieu', 'Objective', 'Goal', 'Nội dung và mục tiêu', 'Noi dung va muc tieu', 'Nội dung & Mục tiêu']);
-          const rawPriority = getValue(['Ưu tiên', 'Uu tien', 'Priority', 'Mức độ']);
-          const rawDate = getValue(['Hạn hoàn thành', 'Han hoan thanh', 'Deadline', 'Expected End Date', 'Thời hạn', 'Ngày hết hạn']);
-          const rawAssignee = getValue(['Nhân viên', 'Nhan vien', 'Assignee', 'Staff', 'Người thực hiện']);
-
-          // Find priority from string
+        const tasks: Partial<Task>[] = json.map(row => {
           let priority: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM';
-          const pStr = rawPriority?.toString().toUpperCase();
-          if (pStr === 'CAO' || pStr === 'HIGH') priority = 'HIGH';
-          if (pStr === 'THẤP' || pStr === 'LOW') priority = 'LOW';
-
-          // Handle date from Excel
-          let expectedEndDate = rawDate || '';
-          if (expectedEndDate) {
-            const dateParts = expectedEndDate.toString().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-            if (dateParts) {
-              let [_, day, month, year] = dateParts;
-              if (year.length === 2) year = '20' + year;
-              const d = new Date(`${year}-${month}-${day}`);
-              if (!isNaN(d.getTime())) {
-                expectedEndDate = d.toISOString().split('T')[0];
-              }
-            } else {
-              const d = new Date(expectedEndDate);
-              if (!isNaN(d.getTime())) {
-                expectedEndDate = d.toISOString().split('T')[0];
-              }
-            }
-          }
+          const pVal = row['Ưu tiên (CAO/TRUNG BINH/THAP)']?.toString().toUpperCase();
+          if (pVal === 'CAO') priority = 'HIGH';
+          if (pVal === 'THAP' || pVal === 'THẤP') priority = 'LOW';
 
           return {
-            code: rawCode || '',
-            title: rawTitle || '',
-            objective: rawObjective || '',
+            title: row['Nội dung công việc'] || '',
+            objective: row['Mục tiêu đạt được'] || '',
             priority: priority,
-            expectedEndDate: expectedEndDate,
-            assigneeName: rawAssignee || '',
+            expectedEndDate: row['Hạn hoàn thành'] || '',
+            assigneeId: row['Nhân viên (Tên hoặc Email)'] || '',
+            prevProgress: row['Diễn tiến trước đó'] || '',
+            currentUpdate: row['Cập nhật tiến độ'] || ''
           };
         });
 
@@ -109,6 +98,6 @@ export const importTasksFromExcel = (file: File): Promise<any[]> => {
       }
     };
     reader.onerror = (err) => reject(err);
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   });
 };

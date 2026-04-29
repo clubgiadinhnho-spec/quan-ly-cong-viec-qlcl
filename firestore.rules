@@ -1,82 +1,180 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // 0. Global Safety Net
+    // 1. Connection & System
+    match /test/{docId} {
+      allow get: if true;
+    }
+
+    // Phase 3: Global Helpers
+    // -------------------------------------------------------------------------
+    function isSignedIn() { 
+      return request.auth != null; 
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function userExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'lenhattruong.tpp@gmail.com' ||
+        (userExists() && getUserData().role == 'Admin')
+      );
+    }
+    
+    function isManager() {
+      return isAdmin() || (isSignedIn() && userExists() && (getUserData().role == 'Trưởng Phòng'));
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // 2. Users Collection
+    match /users/{userId} {
+      allow list: if true;
+      allow get: if true;
+      allow create: if (isAdmin() || isOwner(userId)) && isValidUser(incoming());
+      allow update: if ((isAdmin() || (isOwner(userId) && isSelfUpdate())) && isValidUser(incoming()));
+      allow delete: if isAdmin();
+
+      function isValidUser(data) {
+        return data.keys().hasAll(['id', 'name', 'role', 'companyEmail', 'personalEmail', 'avatar', 'code', 'abbreviation', 'status']) &&
+               data.id == userId &&
+               isValidId(data.id) &&
+               data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+               data.role in ['Nhân Viên', 'Trưởng Nhóm', 'Trưởng Phòng', 'Admin'] &&
+               data.status in ['PENDING', 'ACTIVE', 'INACTIVE'] &&
+               data.companyEmail is string && data.companyEmail.size() <= 150 &&
+               data.personalEmail is string && data.personalEmail.size() <= 150 &&
+               data.avatar is string && data.avatar.size() <= 1000 &&
+               data.code is string && data.code.size() <= 20 &&
+               data.abbreviation is string && data.abbreviation.size() <= 10 &&
+               (data.keys().hasAny(['securityQuestion']) ? (data.securityQuestion is string && data.securityQuestion.size() <= 200) : true) &&
+               (data.keys().hasAny(['securityAnswer']) ? (data.securityAnswer is string && data.securityAnswer.size() <= 100) : true);
+      }
+
+      function isSelfUpdate() {
+        return incoming().diff(existing()).affectedKeys().hasOnly(['lastActive', 'personalNote', 'securityQuestion', 'securityAnswer', 'status']);
+      }
+    }
+
+    // 3. Tasks Collection
+    // -------------------------------------------------------------------------
+    match /tasks/{taskId} {
+      allow list: if isSignedIn() && resource.data.code is string;
+      allow get: if isSignedIn();
+      
+      allow create: if (isAdmin() || isManager()) && isValidTask(incoming());
+      
+      allow update: if (
+        isSignedIn() && (
+          isAdmin() || 
+          isManager() || 
+          (existing().assigneeId == request.auth.uid && isProgressUpdate())
+        ) && 
+        isValidTask(incoming())
+      );
+      
+      allow delete: if isAdmin() || isManager();
+
+      function isValidTask(data) {
+        return data.keys().hasAll(['code', 'title', 'assigneeId', 'status', 'priority']) &&
+               data.code is string && data.code.size() <= 20 &&
+               data.title is string && data.title.size() > 0 && data.title.size() <= 2000 &&
+               data.assigneeId is string && data.assigneeId.size() <= 128 &&
+               data.status in ['IN_PROGRESS', 'PENDING_APPROVAL', 'COMPLETED', 'CANCELLED', 'ON_HOLD'] &&
+               data.priority in ['LOW', 'MEDIUM', 'HIGH'];
+      }
+
+      function isProgressUpdate() {
+        return incoming().diff(existing()).affectedKeys().hasOnly(['currentUpdate', 'status', 'updatedAt', 'prevProgress']);
+      }
+    }
+
+    // 4. Messages (Global Chat)
+    // -------------------------------------------------------------------------
+    match /messages/{messageId} {
+      allow list: if isSignedIn() && resource.data.authorId is string;
+      allow get: if isSignedIn();
+      
+      allow create: if isSignedIn() && incoming().authorId == request.auth.uid && isValidMessage(incoming());
+      allow delete: if isAdmin();
+
+      function isValidMessage(data) {
+        return data.keys().hasAll(['authorId', 'content', 'timestamp']) &&
+               data.authorId == request.auth.uid &&
+               data.content is string && data.content.size() > 0 && data.content.size() <= 2000 &&
+               data.timestamp is timestamp;
+      }
+    }
+
+    // 5. Direct Messages
+    // -------------------------------------------------------------------------
+    match /direct_messages/{msgId} {
+      allow read: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow create: if isSignedIn() && incoming().senderId == request.auth.uid && isValidPrivateMessage(incoming());
+
+      function isValidPrivateMessage(data) {
+        return data.keys().hasAll(['senderId', 'receiverId', 'content', 'timestamp', 'chatId']) &&
+               data.senderId == request.auth.uid &&
+               data.content is string && data.content.size() > 0 && data.content.size() <= 5000 &&
+               data.timestamp is timestamp &&
+               data.chatId is string && data.chatId.size() <= 260;
+      }
+    }
+
+    // 6. Report Drafts
+    // -------------------------------------------------------------------------
+    match /report_drafts/{draftId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isManager());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isManager());
+      
+      allow write: if isSignedIn() && incoming().userId == request.auth.uid && isValidDraft(incoming());
+
+      function isValidDraft(data) {
+        return data.keys().hasAll(['monthYear', 'content', 'userId', 'updatedAt']) &&
+               data.userId == request.auth.uid &&
+               data.monthYear is string && data.monthYear.size() <= 10 &&
+               data.content is string && data.content.size() <= 100000 &&
+               data.updatedAt is timestamp;
+      }
+    }
+
+    // 7. Official Reports
+    // -------------------------------------------------------------------------
+    match /official_reports/{reportId} {
+      allow list: if isSignedIn() && resource.data.monthYear is string;
+      allow get: if isSignedIn();
+      
+      allow create: if isManager() && isValidOfficialReport(incoming());
+      allow delete: if isAdmin();
+
+      function isValidOfficialReport(data) {
+        return data.keys().hasAll(['monthYear', 'content', 'userId', 'stats', 'isOfficial', 'createdAt']) &&
+               data.monthYear is string && data.monthYear.size() <= 10 &&
+               data.content is string && data.content.size() <= 500000 &&
+               data.isOfficial == true &&
+               data.createdAt is timestamp;
+      }
+    }
+
+    // Default Deny
     match /{document=**} {
       allow read, write: if false;
     }
-
-    // Helper Primitives
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(data) {
-      return isSignedIn() && data.firebaseUid == request.auth.uid;
-    }
-
-    // 1. Users & UID Mapping
-    match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && (
-        // Allow if document is unlinked
-        (resource.data.firebaseUid == null || resource.data.firebaseUid == "") ||
-        // Allow if this UID is mapped to this record
-        (exists(/databases/$(database)/documents/uid_mapping/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/uid_mapping/$(request.auth.uid)).data.targetId == userId) ||
-        // Allow if user is an admin
-        isAdmin()
-      );
-    }
-
-    match /uid_mapping/{uid} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn() && request.auth.uid == uid;
-    }
-
-    // Admin Helper (Optimized)
-    function isAdmin() {
-      return isSignedIn() && 
-             exists(/databases/$(database)/documents/uid_mapping/$(request.auth.uid)) && 
-             exists(/databases/$(database)/documents/users/$(get(/databases/$(database)/documents/uid_mapping/$(request.auth.uid)).data.targetId)) &&
-             (
-               get(/databases/$(database)/documents/users/$(get(/databases/$(database)/documents/uid_mapping/$(request.auth.uid)).data.targetId)).data.role in ['Admin', 'Trưởng Phòng', 'Quản lý', 'Phó Phòng']
-             );
-    }
-
-    // 2. Tasks Collection
-    match /tasks/{taskId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && (
-        !resource.data.isLocked || isAdmin()
-      );
-      allow delete: if isAdmin();
-    }
-
-    // 3. Messages & Direct Messages
-    match /messages/{msgId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-    }
-
-    match /direct_messages/{msgId} {
-      allow read: if isSignedIn(); // Simplified for now to avoid complex queries in rules
-      allow create: if isSignedIn();
-    }
-
-    // 4. Reports
-    match /report_drafts/{draftId} {
-      allow read, write: if isSignedIn();
-    }
-
-    match /official_reports/{reportId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-    }
-
   }
 }

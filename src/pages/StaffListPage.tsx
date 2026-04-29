@@ -121,11 +121,13 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                       <img src={staff.avatar} alt="" className="w-16 h-16 rounded-2xl object-cover border-2 border-gray-50" />
                       {!isEditing && (
                         <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
-                          staff.status === 'PENDING' ? 'bg-amber-400 animate-pulse' :
+                          staff.lastActive && (Date.now() - staff.lastActive < 120000) ? 'animate-pulse ring-2 ring-blue-400 ring-offset-2' : ''
+                        } ${
+                          staff.status === 'PENDING' ? 'bg-amber-400' :
                           staff.role === 'Admin' ? 'bg-red-500' : 
                           staff.role === 'Trưởng Phòng' ? 'bg-indigo-500' : 
                           staff.role === 'Trưởng Nhóm' ? 'bg-amber-500' : 'bg-green-500'
-                        }`} />
+                        }`} title={staff.lastActive && (Date.now() - staff.lastActive < 120000) ? 'Đang trực tuyến' : 'Ngoại tuyến'} />
                       )}
                     </div>
                     {isEditing ? (
@@ -168,12 +170,6 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                           <span className="text-[10px] font-black text-blue-400 px-1.5 py-0.5 bg-blue-50 rounded italic">{staff.abbreviation}</span>
                           {staff.securityQuestion && (
                             <Shield size={10} className="text-blue-400" title="Đã thiết lập bảo mật" />
-                          )}
-                          {staff.lastActive && (Date.now() - staff.lastActive < 120000) && (
-                            <div className="flex items-center gap-1">
-                               <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                               <span className="text-[8px] font-black text-green-500 uppercase tracking-tighter">Online</span>
-                            </div>
                           )}
                         </div>
                         <p className="text-[10px] font-bold text-blue-600 mt-1">Mã NV: {staff.code}</p>

@@ -34,41 +34,6 @@ export const Header = ({
               {badge}
             </span>
           )}
-          
-          {activeUsers.length > 0 && (
-            <div className="flex items-center -space-x-3 ml-2">
-              {activeUsers.map(user => (
-                <button
-                  key={user.id}
-                  onClick={() => onUserClick?.(user)}
-                  className="relative group transition-all z-10 hover:z-50"
-                  title={`Chat với ${user.name}`}
-                >
-                  <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm overflow-hidden hover:border-blue-500 hover:scale-125 transition-all cursor-pointer ring-2 ring-green-400 ring-offset-1 bg-gray-100">
-                    <img 
-                      src={user.avatar} 
-                      alt={user.name} 
-                      className="w-full h-full object-cover" 
-                    />
-                  </div>
-                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border border-white rounded-full"></span>
-                  
-                  {/* Tooltip */}
-                  <div className="absolute top-10 left-1/2 -translate-x-1/2 px-2 py-1.5 bg-gray-900/95 backdrop-blur-md text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-all scale-75 group-hover:scale-100 shadow-2xl shadow-black/20 whitespace-nowrap z-[100] pointer-events-none font-bold border border-white/10">
-                    <div className="flex flex-col items-center">
-                      <span>{user.name}</span>
-                      <span className="text-[7px] text-blue-300 uppercase tracking-tighter opacity-80">{user.role}</span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-              {activeUsers.length > 0 && (
-                <div className="ml-4 pl-4 border-l border-gray-100 h-6 flex items-center">
-                   <span className="text-[9px] font-black text-green-600 uppercase tracking-widest animate-pulse">Online</span>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
       <div className="flex gap-3">

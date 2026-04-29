@@ -65,10 +65,6 @@ export const prepareTaskUpdates = (
     
     const prefix = isReverting ? '[HOÀN TÁC] ' : '';
     changes.push(`${prefix}Thay đổi trạng thái sang: ${statusLabel}`);
-    
-    if (isReverting) {
-      newUpdates.sortTimestamp = 0;
-    }
   }
 
   // Track priorityOrder changes

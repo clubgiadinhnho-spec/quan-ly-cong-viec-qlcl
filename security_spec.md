@@ -1,45 +1,25 @@
-# Firestore Security Specification
+# Security Specification
 
 ## 1. Data Invariants
-- **Identity Consistency**: Any write to a collection that tracks ownership (tasks, reports, messages) must have a `userId` or `senderId` that matches the authenticated person.
-- **Role-Based Access**: Only Admins or designated managers can delete/lock tasks.
-- **Privacy**: Direct messages are strictly private between the two participants.
-- **Referential Integrity**: Tasks must be assigned to valid users.
+- A User must have a unique ID matching their Firebase Auth UID (if applicable, but here we use manual IDs for the staff list, so we map them).
+- A Message must have an `authorId` that matches the `request.auth.uid`.
+- A Message `timestamp` must be the server time.
+- Tasks can only be created or modified by users with 'Admin' or 'Trưởng Phòng' roles.
 
-## 2. The "Dirty Dozen" Payloads (Deny List)
+## 2. The "Dirty Dozen" Payloads
 
-1. **Identity Spoofing (User Profile)**: User A tries to update User B's profile.
-2. **Privilege Escalation**: User A (Staff) tries to change their own role to 'Admin'.
-3. **Ghost Field Injection**: Adding `isVerified: true` to a task document.
-4. **Orphaned Task**: Creating a task assigned to a non-existent user ID.
-5. **Private Message Snoop**: User C tries to read a message between User A and User B.
-6. **Task Hijacking**: User A tries to update a task assigned to User B.
-7. **Timestamp Fraud**: Sending a future date for `updatedAt` instead of `request.time`.
-8. **Malicious ID Injection**: Creating a document with a 2KB junk string as the ID.
-9. **Status Shortcutting**: Moving a task from 'IN_PROGRESS' directly to 'COMPLETED' without approval if it's a locked task.
-10. **Resource Exhaustion**: Sending a 1MB string in a chat message content.
-11. **Report Tampering**: User A tries to delete User B's monthly report.
-12. **Lock-out Attack**: User A tries to set `isLocked: true` on all tasks to prevent others from editing.
+1. **Identity Spoofing (Create User)**: Attempt to create a user document with an ID that doesn't match the authenticated user (if users can self-register).
+2. **Identity Spoofing (Message)**: Attempt to send a message with `authorId` pointing to someone else.
+3. **Resource Poisoning (User)**: Attempt to inject a 1MB string into the `name` field of a User.
+4. **State Shortcutting (Task)**: Attempt to set a task status to 'COMPLETED' without being the assignee or manager.
+5. **Privilege Escalation (User)**: A regular 'Nhân Viên' attempting to update their own `role` to 'Admin'.
+6. **Orphaned Message**: Creating a message with an `authorId` that does not exist in the `users` collection.
+7. **Timestamp Fraud**: Sending a message with a manually specified `timestamp` far in the past/future.
+8. **Shadow Field (Task)**: Adding a `isVerified: true` field to a Task document that isn't in the schema.
+9. **Blanket Query Scraping**: Attempting to list all users without being authenticated.
+10. **ID Poisoning**: Attempting to access a document with a 2KB junk string as the ID.
+11. **PII Leak**: An unauthenticated user attempting to get a user document to read their `personalEmail`.
+12. **De-indexing Attack**: Rapidly creating 10,000 empty nodes in any collection.
 
-## 3. Test Runner Draft
-
-```typescript
-// firestore.rules.test.ts
-// This file simulates the "Dirty Dozen" attacks.
-// (Simplified pseudo-code for the spec)
-
-test('User cannot update another user profile', async () => {
-  const db = getFirestore(userA);
-  await assertFails(updateDoc(doc(db, 'users', 'userB'), { name: 'Hacker' }));
-});
-
-test('Staff cannot promote themselves to Admin', async () => {
-  const db = getFirestore(userA);
-  await assertFails(updateDoc(doc(db, 'users', 'userA'), { role: 'Admin' }));
-});
-
-test('Cannot read private messages of others', async () => {
-  const db = getFirestore(userC);
-  await assertFails(getDoc(doc(db, 'direct_messages', 'userA_userB_123')));
-});
-```
+## 3. Test Runner (Mock)
+(See `firestore.rules.test.ts` for implementation details).

@@ -49,13 +49,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({ task, user, users, onUpdate, o
     <tr className={`group transition-all ${task.isHighlighted ? 'bg-red-50/50' : 'hover:bg-gray-50/50'}`}>
       <td className={`p-4 text-center text-xs font-bold border-r border-gray-300 ${task.isHighlighted ? 'text-red-300' : 'text-gray-300'}`}>{task.code}</td>
       <td className={`p-4 border-r border-gray-300 ${task.isHighlighted ? 'border-l-4 border-red-500' : ''}`}>
-        <div className="flex items-center gap-3 min-w-max">
-          <div className="relative flex-none w-10 h-10">
-            <img 
-              src={assignee?.avatar} 
-              alt={assignee?.name} 
-              className="w-full h-full rounded-full border border-gray-100 shadow-sm object-cover aspect-square block !max-w-none" 
-            />
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <img src={assignee?.avatar} alt={assignee?.name} className="w-8 h-8 rounded-full border border-gray-100 shadow-sm" />
             {isManager && (
               <button 
                 onClick={() => onEdit(task)}
@@ -241,7 +237,6 @@ export const TaskRow: React.FC<TaskRowProps> = ({ task, user, users, onUpdate, o
                         status: 'IN_PROGRESS', 
                         actualEndDate: null, 
                         isLocked: false,
-                        sortTimestamp: Date.now(),
                         currentUpdate: '[HOÀN TÁC] Chuyển về bảng đang thực hiện'
                       });
                       setConfirmModal((p: any) => ({ ...p, show: false }));

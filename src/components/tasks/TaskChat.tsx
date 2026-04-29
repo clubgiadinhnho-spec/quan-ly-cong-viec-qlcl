@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessageSquare, Send, X, User as UserIcon } from 'lucide-react';
+import { MessageSquare, Send, X, User as UserIcon, Minus, ChevronUp } from 'lucide-react';
 import { Task, User, TaskComment } from '../../types';
 import { STAFF_LIST } from '../../constants';
 import { formatDateTime } from '../../lib/dateUtils';
@@ -14,6 +14,7 @@ interface TaskChatProps {
 
 export const TaskChat = ({ task, currentUser, onSendMessage, onClose }: TaskChatProps) => {
   const [newMessage, setNewMessage] = useState('');
+  const [isMinimized, setIsMinimized] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,37 +32,64 @@ export const TaskChat = ({ task, currentUser, onSendMessage, onClose }: TaskChat
   return (
     <motion.div
       initial={{ x: '100%' }}
-      animate={{ x: 0 }}
+      animate={{ 
+        x: 0,
+        height: isMinimized ? '48px' : '100%',
+        bottom: isMinimized ? '20px' : '20px', // Always offset from bottom if floating
+        right: '20px',
+        top: isMinimized ? 'auto' : '0',
+        maxHeight: isMinimized ? '48px' : '100%'
+      }}
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[60] flex flex-col border-l border-gray-100"
+      className={`fixed right-0 ${isMinimized ? 'w-72 rounded-xl border border-gray-200' : 'h-full w-full max-w-sm border-l border-gray-100'} bg-white shadow-2xl z-[9999] flex flex-col`}
     >
       {/* Header */}
-      <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+      <div className={`p-4 ${isMinimized ? 'h-full' : 'border-b border-gray-100 bg-gray-50'} flex items-center justify-between cursor-pointer`} onClick={() => isMinimized && setIsMinimized(false)}>
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
-            <MessageSquare size={18} />
+          <div className={`p-1.5 ${isMinimized ? 'bg-blue-50 text-blue-500' : 'bg-blue-100 text-blue-600'} rounded-lg`}>
+            <MessageSquare size={isMinimized ? 14 : 18} />
           </div>
           <div>
-            <h3 className="text-sm font-black text-gray-800 uppercase tracking-tighter">Trao đổi công việc</h3>
-            <p className="text-[10px] text-gray-500 font-bold">{task.code}</p>
+            <h3 className={`${isMinimized ? 'text-[11px]' : 'text-sm'} font-black text-gray-800 uppercase tracking-tighter`}>Trao đổi công việc</h3>
+            {!isMinimized && <p className="text-[10px] text-gray-500 font-bold">{task.code}</p>}
           </div>
         </div>
-        <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
-          <X size={18} className="text-gray-400" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMinimized(!isMinimized);
+            }} 
+            className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+            title={isMinimized ? "Mở rộng" : "Thu gọn"}
+          >
+            {isMinimized ? <ChevronUp size={16} className="text-gray-500" /> : <Minus size={16} className="text-gray-500" />}
+          </button>
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }} 
+            className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+          >
+            <X size={16} className="text-gray-400" />
+          </button>
+        </div>
       </div>
 
-      {/* Task Context info */}
-      <div className="p-4 bg-blue-50/30 border-b border-blue-50">
-        <p className="text-[11px] font-bold text-gray-700 line-clamp-1">{task.title}</p>
-        <p className="text-[9px] text-gray-400 mt-1 uppercase italic">Nhân sự: {STAFF_LIST.find(s => s.id === task.assigneeId)?.name}</p>
-      </div>
+      {!isMinimized && (
+        <>
+          {/* Task Context info */}
+          <div className="p-4 bg-blue-50/30 border-b border-blue-50">
+            <p className="text-[11px] font-bold text-gray-700 line-clamp-1">{task.title}</p>
+            <p className="text-[9px] text-gray-400 mt-1 uppercase italic">Nhân sự: {STAFF_LIST.find(s => s.id === task.assigneeId)?.name}</p>
+          </div>
 
       {/* Messages area */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/50"
+        className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50"
       >
         {(!task.comments || task.comments.length === 0) ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-8">
@@ -76,17 +104,12 @@ export const TaskChat = ({ task, currentUser, onSendMessage, onClose }: TaskChat
             const author = STAFF_LIST.find(s => s.id === comment.authorId);
             
             return (
-              <div key={comment.id} className={`flex flex-col ${isMe ? 'items-end text-right' : 'items-start text-left'}`}>
+              <div key={comment.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                 <div className={`flex items-end gap-2 w-full ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                   {!isMe && (
-                    <img 
-                      src={author?.avatar} 
-                      alt="avatar" 
-                      className="rounded-full border border-gray-200 object-cover aspect-square flex-none" 
-                      style={{ width: '24px', height: '24px', minWidth: '24px', minHeight: '24px' }}
-                    />
+                    <img src={author?.avatar} alt="avatar" className="w-6 h-6 rounded-full border border-gray-200" />
                   )}
-                  <div className={`p-4 rounded-2xl text-xs leading-relaxed shadow-sm max-w-[85%] break-words ${
+                  <div className={`p-3 rounded-2xl text-xs leading-relaxed shadow-sm w-full ${
                     isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-none'
                   }`}>
                     {comment.content}
@@ -127,6 +150,8 @@ export const TaskChat = ({ task, currentUser, onSendMessage, onClose }: TaskChat
         </div>
         <p className="text-[9px] text-gray-400 mt-2 text-center italic">Nhấn Enter để gửi</p>
       </div>
+        </>
+      )}
     </motion.div>
   );
 };

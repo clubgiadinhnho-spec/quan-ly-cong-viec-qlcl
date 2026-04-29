@@ -3,7 +3,7 @@ import { User } from '../types';
 import { SECURITY_QUESTIONS } from '../constants';
 import { LogIn, Phone, User as UserIcon, UserPlus, ArrowLeft, Mail, Shield, Hash, Type, CheckCircle2, HelpCircle, Lock, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db, loginWithGoogle, loginAnonymously } from '../lib/firebase';
+import { db, loginWithGoogle } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
 interface LoginProps {
@@ -93,44 +93,24 @@ export default function Login({ users, onLogin }: LoginProps) {
     }
   };
 
-  const handleFinalLogin = async (e: React.FormEvent) => {
+  const handleFinalLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!foundUser) return;
 
     if (foundUser.securityAnswer?.toLowerCase().trim() === securityAnswer.toLowerCase().trim()) {
       if (foundUser.status === 'ACTIVE') {
-        setLoading(true);
-        try {
-          // Sign in anonymously to satisfy Firestore rules
-          const afUser = await loginAnonymously();
-          
-          if (foundUser.id) {
-            // Link this staff user with the anonymous firebase UID
-            const userRef = doc(db, 'users', foundUser.id);
-            await setDoc(userRef, { ...foundUser, firebaseUid: afUser.uid }, { merge: true });
-          }
-
-          if (rememberMe) {
-            localStorage.setItem('qc_remember_me', 'true');
-            localStorage.setItem('qc_remember_name', name);
-            localStorage.setItem('qc_remember_phone', phone);
-            localStorage.setItem('qc_remember_sec_answer', securityAnswer);
-          } else {
-            localStorage.removeItem('qc_remember_me');
-            localStorage.removeItem('qc_remember_name');
-            localStorage.removeItem('qc_remember_phone');
-            localStorage.removeItem('qc_remember_sec_answer');
-          }
-          onLogin(foundUser);
-        } catch (err: any) {
-          if (err.message?.includes('auth/admin-restricted-operation')) {
-            setError('LỖI CẤU HÌNH: Bạn phải BẬT "Anonymous" trong Firebase Console (Authentication > Sign-in method) để hệ thống hoạt động.');
-          } else {
-            setError('Lỗi xác thực Firebase: ' + (err.message || 'Lỗi kết nối.'));
-          }
-        } finally {
-          setLoading(false);
+        if (rememberMe) {
+          localStorage.setItem('qc_remember_me', 'true');
+          localStorage.setItem('qc_remember_name', name);
+          localStorage.setItem('qc_remember_phone', phone);
+          localStorage.setItem('qc_remember_sec_answer', securityAnswer);
+        } else {
+          localStorage.removeItem('qc_remember_me');
+          localStorage.removeItem('qc_remember_name');
+          localStorage.removeItem('qc_remember_phone');
+          localStorage.removeItem('qc_remember_sec_answer');
         }
+        onLogin(foundUser);
       } else {
         setError('Tài khoản của bạn đang chờ quản trị viên phê duyệt.');
         setFoundUser(null);

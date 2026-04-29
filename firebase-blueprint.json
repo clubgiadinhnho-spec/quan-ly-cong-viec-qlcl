@@ -1,34 +1,56 @@
 {
   "entities": {
-    "user": {
+    "User": {
       "title": "User",
-      "description": "System user profiles",
+      "description": "Staff member information",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
         "phone": { "type": "string" },
+        "zalo": { "type": "string" },
         "role": { "type": "string", "enum": ["Nhân Viên", "Trưởng Nhóm", "Trưởng Phòng", "Admin"] },
         "companyEmail": { "type": "string" },
         "personalEmail": { "type": "string" },
         "avatar": { "type": "string" },
         "code": { "type": "string" },
         "abbreviation": { "type": "string" },
+        "personalNote": { "type": "string" },
         "status": { "type": "string", "enum": ["PENDING", "ACTIVE", "INACTIVE"] },
         "securityQuestion": { "type": "string" },
-        "securityAnswer": { "type": "string" },
-        "lastActive": { "type": "number" },
-        "personalNote": { "type": "string" },
-        "zalo": { "type": "string" }
+        "securityAnswer": { "type": "string" }
       },
-      "required": ["id", "name", "phone", "role", "companyEmail", "status"]
+      "required": ["id", "name", "phone", "role", "companyEmail", "personalEmail", "avatar", "code", "abbreviation", "status", "securityQuestion", "securityAnswer"]
     },
-    "task": {
-      "title": "Task",
-      "description": "Task management entity",
+    "Message": {
+      "title": "Message",
+      "description": "Group chat message",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
+        "authorId": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorId", "content", "timestamp"]
+    },
+    "PrivateMessage": {
+      "title": "PrivateMessage",
+      "description": "1:1 private message",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "chatId": { "type": "string", "description": "Unique ID for the pair, e.g., minId_maxId" }
+      },
+      "required": ["senderId", "receiverId", "content", "timestamp", "chatId"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Work task tracked in the system",
+      "type": "object",
+      "properties": {
         "code": { "type": "string" },
         "issueDate": { "type": "string" },
         "title": { "type": "string" },
@@ -43,64 +65,31 @@
         "priority": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
         "isHighlighted": { "type": "boolean" },
         "isLocked": { "type": "boolean" },
-        "updatedAt": { "type": "string" },
-        "sortTimestamp": { "type": "number" },
         "attachmentUrl": { "type": "string" },
-        "attachmentName": { "type": "string" },
-        "reportExplanation": { "type": "string" },
-        "reportAttachments": { "type": "array", "items": { "type": "string" } }
+        "attachmentName": { "type": "string" }
       },
-      "required": ["id", "code", "title", "assigneeId", "status", "priority"]
+      "required": ["code", "title", "assigneeId", "status", "priority"]
     },
-    "message": {
-      "title": "Message",
-      "description": "Chat message or comment",
+    "ReportDraft": {
+      "title": "ReportDraft",
+      "description": "Draft content for monthly report",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "authorId": { "type": "string" },
-        "content": { "type": "string" },
-        "timestamp": { "type": "string" }
-      },
-      "required": ["authorId", "content"]
-    },
-    "directMessage": {
-      "title": "Direct Message",
-      "description": "One-to-one private message",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "senderId": { "type": "string" },
-        "receiverId": { "type": "string" },
-        "chatId": { "type": "string" },
-        "content": { "type": "string" },
-        "timestamp": { "type": "string" }
-      },
-      "required": ["senderId", "receiverId", "chatId", "content"]
-    },
-    "reportDraft": {
-      "title": "Report Draft",
-      "description": "Monthly report draft",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
         "monthYear": { "type": "string" },
         "content": { "type": "string" },
         "userId": { "type": "string" },
-        "updatedAt": { "type": "string" }
-      }
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["monthYear", "content", "userId", "updatedAt"]
     },
-    "officialReport": {
-      "title": "Official Report",
-      "description": "Finalized monthly report",
+    "OfficialReport": {
+      "title": "OfficialReport",
+      "description": "Finalized official monthly report snapshot",
       "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "monthYear": { "type": "string" },
         "content": { "type": "string" },
         "userId": { "type": "string" },
-        "isOfficial": { "type": "boolean" },
-        "createdAt": { "type": "string" },
         "stats": {
           "type": "object",
           "properties": {
@@ -109,16 +98,37 @@
             "ongoing": { "type": "number" },
             "issues": { "type": "number" }
           }
-        }
-      }
+        },
+        "isOfficial": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["monthYear", "content", "userId", "stats", "isOfficial", "createdAt"]
     }
   },
   "firestore": {
-    "users": { "schema": "user", "description": "Users of the system" },
-    "tasks": { "schema": "task", "description": "System tasks" },
-    "messages": { "schema": "message", "description": "Global chat messages" },
-    "direct_messages": { "schema": "directMessage", "description": "Private messages between users" },
-    "report_drafts": { "schema": "reportDraft", "description": "User monthly report drafts" },
-    "official_reports": { "schema": "officialReport", "description": "Submitted official reports" }
+    "users": {
+      "schema": "User",
+      "description": "Collection of staff members"
+    },
+    "messages": {
+      "schema": "Message",
+      "description": "Global chat messages"
+    },
+    "tasks": {
+      "schema": "Task",
+      "description": "Project tasks"
+    },
+    "direct_messages": {
+      "schema": "PrivateMessage",
+      "description": "1:1 private messages between users"
+    },
+    "report_drafts": {
+      "schema": "ReportDraft",
+      "description": "Monthly report drafts"
+    },
+    "official_reports": {
+      "schema": "OfficialReport",
+      "description": "Finalized monthly reports"
+    }
   }
 }

@@ -28,7 +28,11 @@ export const TaskList: React.FC<TaskListProps> = ({
   setConfirmModal,
   type 
 }) => {
-  const sortedTasks = [...tasks];
+  const sortedTasks = [...tasks].sort((a, b) => {
+    // Luôn sắp xếp theo mã công việc giảm dần (mới nhất lên trên)
+    // Người dùng yêu cầu không tự động đẩy ưu tiên lên đầu
+    return b.code.localeCompare(a.code);
+  });
 
   const handleTogglePriority = (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
@@ -49,7 +53,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       <table className="w-full text-left border-collapse border border-gray-300">
         <thead className="bg-[#FAFBFD] border-b border-gray-300">
           <tr>
-            <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-24 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Mã CV</th>
+            <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-20 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Mã CV</th>
             <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-56 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Nhân viên</th>
             <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Nội dung & Mục tiêu</th>
             <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-60 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Diễn tiến trước đó</th>
@@ -83,13 +87,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                 idx={idx}
                 onViewHistory={onViewHistory}
                 onOpenChat={onOpenChat}
-                onUndo={(id) => onUpdate(id, { 
-                  status: 'IN_PROGRESS', 
-                  actualEndDate: null, 
-                  isLocked: false,
-                  sortTimestamp: 0,
-                  currentUpdate: '[HOÀN TÁC] Chuyển về bảng đang thực hiện'
-                })}
+                onUndo={(id) => onUpdate(id, { status: 'IN_PROGRESS', actualEndDate: null, isLocked: false })}
               />
             )
           ))}

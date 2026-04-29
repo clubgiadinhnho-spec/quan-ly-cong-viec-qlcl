@@ -58,7 +58,7 @@ export const STAFF_LIST: User[] = [
   {
     id: 'staff-01',
     name: 'Võ Thị Mỹ Tân',
-    code: '2020.00292',
+    code: 'S001',
     abbreviation: 'VMT',
     phone: '0912345678',
     zalo: '0912345678',
@@ -73,7 +73,7 @@ export const STAFF_LIST: User[] = [
   {
     id: 'staff-02',
     name: 'Nguyễn Kiều Phan Tú',
-    code: '2017.00308',
+    code: 'S002',
     abbreviation: 'NPT',
     phone: '0922345678',
     zalo: '0922345678',

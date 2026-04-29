@@ -39,7 +39,7 @@ export const useTaskActions = ({
     }
 
     const newTask: Omit<Task, 'id'> = {
-      code: `C${String(lastNum + 1).padStart(6, '0')}`,
+      code: `C${String(lastNum + 1).padStart(4, '0')}`,
       issueDate: new Date().toISOString().split('T')[0],
       title: taskData.title || '',
       objective: taskData.objective || '',
@@ -61,7 +61,6 @@ export const useTaskActions = ({
       attachmentUrl,
       attachmentName,
       updatedAt: new Date().toISOString(),
-      sortTimestamp: Date.now(),
     };
     await firebaseAddTask(newTask);
   }, [tasks, currentUser, firebaseAddTask]);

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { MessageCircle, Send, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { MessageCircle, Send, X, Minus, ChevronUp } from 'lucide-react';
 import { User, PrivateMessage } from '../../types';
 import { formatDateTime } from '../../lib/dateUtils';
 
@@ -14,6 +14,7 @@ interface DirectChatProps {
 
 export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, onClose }: DirectChatProps) => {
   const [newMessage, setNewMessage] = useState('');
+  const [isMinimized, setIsMinimized] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   if (!currentUser?.id || !otherUser?.id) {
@@ -28,11 +29,7 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
   }
 
   const chatId = [currentUser.id, otherUser.id].sort().join('_');
-  const chatMessages = messages.filter(m => 
-    m.chatId === chatId || 
-    (m.senderId === currentUser.id && m.receiverId === otherUser.id) ||
-    (m.senderId === otherUser.id && m.receiverId === currentUser.id)
-  );
+  const chatMessages = messages.filter(m => m.chatId === chatId);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -48,49 +45,82 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
 
   return (
     <>
-    <motion.div 
-      initial={{ opacity: 0 }} 
-      animate={{ opacity: 1 }} 
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-      className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-[9998]"
-    />
+    <AnimatePresence>
+      {!isMinimized && (
+        <motion.div 
+          initial={{ opacity: 0 }} 
+          animate={{ opacity: 1 }} 
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="fixed inset-0 bg-black/5 z-[9998]"
+        />
+      )}
+    </AnimatePresence>
     <motion.div
       initial={{ x: '100%' }}
-      animate={{ x: 0 }}
+      animate={{ 
+        x: 0,
+        height: isMinimized ? '48px' : '100%',
+        bottom: isMinimized ? '20px' : '0',
+        right: isMinimized ? '20px' : '0',
+        top: isMinimized ? 'auto' : '0',
+        maxHeight: isMinimized ? '48px' : '100%'
+      }}
       exit={{ x: '100%' }}
       transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-[9999] flex flex-col border-l border-gray-100"
+      className={`fixed ${isMinimized ? 'w-72 rounded-xl border border-gray-200' : 'h-full w-full max-w-sm border-l border-gray-100'} bg-white shadow-2xl z-[9999] flex flex-col`}
     >
       {/* Header */}
-      <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+      <div className={`p-4 ${isMinimized ? 'h-full' : 'border-b border-gray-100 bg-gray-50'} flex items-center justify-between cursor-pointer`} onClick={() => isMinimized && setIsMinimized(false)}>
         <div className="flex items-center gap-3">
           <div className="relative">
             <img 
               src={otherUser.avatar} 
               alt={otherUser.name} 
-              className="w-10 h-10 rounded-full border-2 border-white shadow-sm object-cover aspect-square flex-shrink-0"
+              className={`${isMinimized ? 'w-6 h-6' : 'w-10 h-10'} rounded-full border-2 border-white shadow-sm transition-all`}
             />
             {otherUser.lastActive && Date.now() - otherUser.lastActive < 60000 && (
-              <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+              <span className={`absolute bottom-0 right-0 ${isMinimized ? 'w-2 h-2' : 'w-3 h-3'} bg-green-500 border-2 border-white rounded-full`}></span>
             )}
           </div>
           <div>
-            <h3 className="text-sm font-black text-gray-800 uppercase tracking-tighter">{otherUser.name}</h3>
-            <p className="text-[10px] text-gray-500 font-bold uppercase">
-              {otherUser.lastActive && Date.now() - otherUser.lastActive < 60000 ? 'Đang hoạt động' : 'Ngoại tuyến'}
-            </p>
+            <h3 className={`${isMinimized ? 'text-[11px]' : 'text-sm'} font-black text-gray-800 uppercase tracking-tighter`}>{otherUser.name}</h3>
+            {!isMinimized && (
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-2">
+                {otherUser.role} <span className="w-1 h-1 bg-gray-300 rounded-full"></span> {otherUser.abbreviation}
+              </p>
+            )}
           </div>
         </div>
-        <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors font-black">
-          <X size={18} className="text-gray-400" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMinimized(!isMinimized);
+            }} 
+            className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+            title={isMinimized ? "Mở rộng" : "Thu gọn"}
+          >
+            {isMinimized ? <ChevronUp size={16} className="text-gray-500" /> : <Minus size={16} className="text-gray-500" />}
+          </button>
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }} 
+            className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+          >
+            <X size={16} className="text-gray-400" />
+          </button>
+        </div>
       </div>
 
-      {/* Messages area */}
+      {!isMinimized && (
+        <>
+          {/* Messages area */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-6 space-y-6 bg-gray-50/50"
+        className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50"
       >
         {chatMessages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-8">
@@ -104,8 +134,8 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
             const isMe = msg.senderId === currentUser.id;
             
             return (
-              <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end text-right' : 'items-start text-left'}`}>
-                <div className={`p-4 rounded-2xl text-xs leading-relaxed shadow-sm max-w-[85%] break-words ${
+              <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                <div className={`p-3 rounded-2xl text-xs leading-relaxed shadow-sm w-full ${
                   isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-none'
                 }`}>
                   {msg.content}
@@ -144,6 +174,8 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
         </div>
         <p className="text-[9px] text-gray-400 mt-2 text-center font-bold uppercase italic tracking-tighter opacity-70">Nhấn Enter để gửi</p>
       </div>
+        </>
+      )}
     </motion.div>
     </>
   );

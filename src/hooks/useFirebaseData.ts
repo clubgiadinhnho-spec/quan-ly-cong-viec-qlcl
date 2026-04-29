@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { 
   collection, 
   query, 
+  where,
+  or,
   orderBy, 
   onSnapshot, 
   addDoc, 
@@ -70,6 +72,8 @@ export const useFirebaseData = (currentUserId?: string) => {
       (error) => {
         if (error.code !== 'permission-denied') {
           handleFirestoreError(error, OperationType.GET, 'tasks');
+        } else {
+          console.warn("Permission denied for tasks listener. You might not have the correct role.");
         }
       }
     );
@@ -88,6 +92,8 @@ export const useFirebaseData = (currentUserId?: string) => {
       (error) => {
         if (error.code !== 'permission-denied') {
           handleFirestoreError(error, OperationType.GET, 'messages');
+        } else {
+          console.warn("Permission denied for messages listener.");
         }
       }
     );
@@ -109,30 +115,65 @@ export const useFirebaseData = (currentUserId?: string) => {
       }
     );
 
-    // Listen to Private Messages
-    const privateMessagesUnsubscribe = onSnapshot(
-      query(collection(db, 'direct_messages'), orderBy('timestamp', 'asc')),
-      (snapshot) => {
-        const privateMessagesData = snapshot.docs.map(doc => ({
-          ...doc.data(),
-          id: doc.id,
-          timestamp: (doc.data().timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString()
-        } as PrivateMessage));
-        setPrivateMessages(privateMessagesData.filter(m => m.senderId === currentUserId || m.receiverId === currentUserId));
-      },
-      (error) => {
-        if (error.code !== 'permission-denied') {
-          handleFirestoreError(error, OperationType.GET, 'direct_messages');
-        }
-      }
+    // Listen to Private Messages (Using two separate listeners to ensure security rule compatibility)
+    let messagesFromMe: PrivateMessage[] = [];
+    let messagesToMe: PrivateMessage[] = [];
+
+    const syncPrivateMessages = () => {
+      // Use a Map to de-duplicate by ID and then sort by timestamp
+      const allMessages = new Map<string, PrivateMessage>();
+      messagesFromMe.forEach(m => allMessages.set(m.id, m));
+      messagesToMe.forEach(m => allMessages.set(m.id, m));
+      
+      const sortedMessages = Array.from(allMessages.values()).sort((a, b) => {
+        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+      });
+      setPrivateMessages(sortedMessages);
+    };
+
+    const qFromMe = query(
+      collection(db, 'direct_messages'), 
+      where('senderId', '==', currentUserId)
     );
+
+    const qToMe = query(
+      collection(db, 'direct_messages'), 
+      where('receiverId', '==', currentUserId)
+    );
+
+    const unsubFromMe = onSnapshot(qFromMe, (snapshot) => {
+      messagesFromMe = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id,
+        timestamp: (doc.data().timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString()
+      } as PrivateMessage));
+      syncPrivateMessages();
+    }, (error) => {
+      if (error.code !== 'permission-denied') {
+        handleFirestoreError(error, OperationType.GET, 'direct_messages_from');
+      }
+    });
+
+    const unsubToMe = onSnapshot(qToMe, (snapshot) => {
+      messagesToMe = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id,
+        timestamp: (doc.data().timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString()
+      } as PrivateMessage));
+      syncPrivateMessages();
+    }, (error) => {
+      if (error.code !== 'permission-denied') {
+        handleFirestoreError(error, OperationType.GET, 'direct_messages_to');
+      }
+    });
 
     return () => {
       usersUnsubscribe();
       tasksUnsubscribe();
       messagesUnsubscribe();
       reportsUnsubscribe();
-      privateMessagesUnsubscribe();
+      unsubFromMe();
+      unsubToMe();
     };
   }, [currentUserId]);
 
@@ -236,27 +277,26 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
-  const updateHeartbeat = useCallback(async (userId: string) => {
-    if (!auth.currentUser) {
-      // Avoid noise if auth failed to initialize
-      return;
+  const clearAllTasks = useCallback(async (taskIds: string[]) => {
+    try {
+      // Loop sequentially to avoid bulk operation restrictions and ensure client-side permissions
+      for (const id of taskIds) {
+        await deleteDoc(doc(db, 'tasks', id));
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'multiple tasks');
     }
+  }, []);
+
+  const updateHeartbeat = useCallback(async (userId: string) => {
     try {
       const userRef = doc(db, 'users', userId);
-      await setDoc(userRef, {
+      await updateDoc(userRef, {
         lastActive: Date.now()
-      }, { merge: true });
-    } catch (error: any) {
-      // Silently fail for heartbeat but log more info if it's a permission issue
-      if (error.code === 'permission-denied' || error.message?.includes('permissions')) {
-        // Just log once to avoid console spam
-        if (!(window as any).__heartbeat_permission_warned) {
-          console.warn("Heartbeat permission denied: Authentication session is unlinked or inactive.");
-          (window as any).__heartbeat_permission_warned = true;
-        }
-      } else {
-        console.error("Heartbeat error:", error);
-      }
+      });
+    } catch (error) {
+      // Silently fail for heartbeat to avoid UI noise
+      console.error("Heartbeat error:", error);
     }
   }, []);
 
@@ -276,7 +316,8 @@ export const useFirebaseData = (currentUserId?: string) => {
     deleteStaff,
     updateHeartbeat,
     saveReportDraft,
-    saveOfficialReport
+    saveOfficialReport,
+    clearAllTasks
   };
 };
 

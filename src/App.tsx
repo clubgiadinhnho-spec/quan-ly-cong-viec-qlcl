@@ -19,7 +19,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { exportTasksToExcel, importTasksFromExcel, downloadSampleExcel } from './utils/excelUtils';
 
 // Import Firebase & Hooks
-import { auth, logout, db } from './lib/firebase';
+import { auth, logout, db, loginAnonymously } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useFirebaseData, useUserHeartbeat } from './hooks/useFirebaseData';
@@ -97,7 +97,7 @@ export default function App() {
     updateTask: firebaseUpdateTask,
     deleteTask: firebaseDeleteTask,
     sendMessage: firebaseSendMessage,
-    sendPrivateMessage: firebaseSendPrivateMessage,
+    sendPrivateMessage: firebaseSendPrivateMsg,
     updateStaff: firebaseUpdateStaff,
     deleteStaff: firebaseDeleteStaff,
     updateHeartbeat: firebaseUpdateHeartbeat,
@@ -109,9 +109,27 @@ export default function App() {
     clearAllTasks
   } = useFirebaseData(effectiveUser?.id);
 
+  const firebaseSendPrivateMessage = useCallback(async (content: string, senderId: string, receiverId: string) => {
+    if (!auth.currentUser) {
+      console.warn("Firebase Auth missing. Attempting auto-login...");
+      try {
+        await loginAnonymously();
+      } catch (err) {
+        console.error("Auth restoration failed:", err);
+      }
+    }
+    await firebaseSendPrivateMsg(content, senderId, receiverId);
+  }, [firebaseSendPrivateMsg]);
+
   // Firestore is the source of truth, but we use STAFF_LIST as base defaults
   const allUsers = React.useMemo(() => {
-    return users;
+    const uniqueUsers = new Map<string, UserType>();
+    // Sort so that UID-based IDs (long strings like 'abc-123...') come after legacy IDs (like 'mgr-01'), 
+    // ensuring they overwrite in the map if emails match.
+    [...users].sort((a,b) => a.id.length - b.id.length).forEach(u => {
+      uniqueUsers.set(u.companyEmail.toLowerCase(), u);
+    });
+    return Array.from(uniqueUsers.values());
   }, [users]);
 
   const { 
@@ -281,30 +299,52 @@ export default function App() {
 
   // Handle Authentication State (Restore Session & Sync)
   useEffect(() => {
-    const savedUser = localStorage.getItem('qc_user');
-    if (!savedUser) {
-      setAuthReady(true);
-      return;
-    }
-
-    const parsed = JSON.parse(savedUser);
-    const latestUser = users.find(u => u.id === parsed.id || u.companyEmail === parsed.companyEmail);
-    
-    if (latestUser) {
-      // Only update if the user data (excluding lastActive) has changed to avoid heartbeat-induced loops
-      const currentUserReduced = currentUser ? { ...currentUser, lastActive: 0 } : null;
-      const latestUserReduced = { ...latestUser, lastActive: 0 };
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      console.log("Auth state changed:", fbUser?.uid || "No user");
       
-      if (JSON.stringify(currentUserReduced) !== JSON.stringify(latestUserReduced)) {
-        setCurrentUser(latestUser);
-        localStorage.setItem('qc_user', JSON.stringify(latestUser));
+      if (fbUser) {
+        // Find staff in our list by UID or Email
+        let currentStaff = users.find(u => u.id === fbUser.uid);
+        
+        if (!currentStaff && fbUser.email) {
+          currentStaff = users.find(u => u.companyEmail.toLowerCase() === fbUser.email?.toLowerCase());
+          
+          if (currentStaff) {
+             const updatedStaff = { ...currentStaff, id: fbUser.uid };
+             await setDoc(doc(db, 'users', fbUser.uid), updatedStaff);
+             currentStaff = updatedStaff;
+          }
+        }
+
+        if (currentStaff) {
+          setCurrentUser(currentStaff);
+          localStorage.setItem('qc_user', JSON.stringify(currentStaff));
+        }
+      } else {
+        const savedUser = localStorage.getItem('qc_user');
+        if (savedUser) {
+          const parsed = JSON.parse(savedUser);
+          setCurrentUser(parsed);
+          // Auto-trigger anonymous login to restore Firebase session
+          try {
+            console.log("Restoring Firebase session anonymously for:", parsed.name);
+            await loginAnonymously();
+          } catch (err: any) {
+            if (err.code === 'auth/admin-restricted-operation') {
+              console.warn("Firebase Anonymous Auth is disabled. Real-time features might be restricted.");
+            } else {
+              console.error("Auto-auth restoration failed:", err);
+            }
+          }
+        } else {
+          setCurrentUser(null);
+        }
       }
-    } else if (!currentUser) {
-      setCurrentUser(parsed);
-    }
-    
-    setAuthReady(true);
-  }, [users]); // removed currentUser from inner logic dependency check to avoid loops, but it works
+      setAuthReady(true);
+    });
+
+    return () => unsubscribe();
+  }, [users]); 
 
   const handleLogin = (user: User) => {
     setCurrentUser(user);
@@ -499,7 +539,13 @@ export default function App() {
 
     // View scope filter
     if (viewScope === 'mine') {
-      return t.assigneeId === effectiveUser?.id;
+      const isMine = t.assigneeId === effectiveUser?.id;
+      // Also match if the assignee ID corresponds to the same email as current user (legacy match)
+      const assigneeByOldId = users.find(u => u.id === t.assigneeId);
+      const emailMatches = assigneeByOldId && effectiveUser?.companyEmail && 
+                           assigneeByOldId.companyEmail.toLowerCase() === effectiveUser.companyEmail.toLowerCase();
+      
+      return isMine || emailMatches;
     }
 
     // 'all' scope shows everything matching search
@@ -564,7 +610,7 @@ export default function App() {
             >
               <HolidayBanner />
               <Header 
-                title="TRUNG TÂM QUẢN LÝ CHẤT LƯỢNG TÂN PHÚ VIỆT NAM (V2)" 
+                title="TRUNG TÂM QUẢN LÝ CHẤT LƯỢNG TÂN PHÚ VIỆT NAM" 
                 badge={effectiveUser.role}
                 onAction={(effectiveUser.role !== 'Nhân Viên') ? () => setShowTaskModal(true) : undefined}
                 actionLabel="Giao việc mới"
@@ -572,12 +618,6 @@ export default function App() {
               />
               
               <div className="p-8 space-y-8">
-                <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-4 text-[11px] font-mono text-blue-700 flex flex-wrap gap-4">
-                   <div>BẠN ĐANG ĐĂNG NHẬP: <span className="font-black">{effectiveUser.name} ({effectiveUser.role})</span></div>
-                   <div>TỔNG TASK NHẬN TỪ FIREBASE: <span className="font-black">{tasks.length}</span></div>
-                   <div>TASK (ĐANG XEM): <span className="font-black">{filteredTasks.filter(t => t.status !== 'COMPLETED').length}</span></div>
-                </div>
-
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
                   <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
                     <button 

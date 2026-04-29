@@ -3,7 +3,7 @@ import { User } from '../types';
 import { SECURITY_QUESTIONS } from '../constants';
 import { LogIn, Phone, User as UserIcon, UserPlus, ArrowLeft, Mail, Shield, Hash, Type, CheckCircle2, HelpCircle, Lock, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db, loginWithGoogle } from '../lib/firebase';
+import { db, loginWithGoogle, loginAnonymously } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
 import { Avatar } from './common/Avatar';
@@ -95,24 +95,49 @@ export default function Login({ users, onLogin }: LoginProps) {
     }
   };
 
-  const handleFinalLogin = (e: React.FormEvent) => {
+  const handleFinalLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!foundUser) return;
 
     if (foundUser.securityAnswer?.toLowerCase().trim() === securityAnswer.toLowerCase().trim()) {
       if (foundUser.status === 'ACTIVE') {
-        if (rememberMe) {
-          localStorage.setItem('qc_remember_me', 'true');
-          localStorage.setItem('qc_remember_name', name);
-          localStorage.setItem('qc_remember_phone', phone);
-          localStorage.setItem('qc_remember_sec_answer', securityAnswer);
-        } else {
-          localStorage.removeItem('qc_remember_me');
-          localStorage.removeItem('qc_remember_name');
-          localStorage.removeItem('qc_remember_phone');
-          localStorage.removeItem('qc_remember_sec_answer');
+        setLoading(true);
+        try {
+          // Attempt sign in anonymously to get a UID for Firebase Rules
+          const fbUser = await loginAnonymously();
+          
+          let userToLogin = foundUser;
+
+          if (fbUser) {
+            // Sync the user record with the UID
+            userToLogin = { ...foundUser, id: fbUser.uid };
+            await setDoc(doc(db, 'users', fbUser.uid), userToLogin);
+          } else {
+            console.warn("Login proceeded WITHOUT Firebase Authentication. Real-time chat may be limited.");
+          }
+          
+          if (rememberMe) {
+            localStorage.setItem('qc_remember_me', 'true');
+            localStorage.setItem('qc_remember_name', name);
+            localStorage.setItem('qc_remember_phone', phone);
+            localStorage.setItem('qc_remember_sec_answer', securityAnswer);
+          } else {
+            localStorage.removeItem('qc_remember_me');
+            localStorage.removeItem('qc_remember_name');
+            localStorage.removeItem('qc_remember_phone');
+            localStorage.removeItem('qc_remember_sec_answer');
+          }
+          onLogin(userToLogin);
+        } catch (err: any) {
+          console.error("Auth error during regular login:", err);
+          if (err.code === 'auth/admin-restricted-operation') {
+            setError('Lỗi: Tính năng "Anonymous Auth" chưa được bật trên Firebase Console. Vui lòng liên hệ Admin.');
+          } else {
+            setError('Lỗi xác thực hệ thống: ' + err.message);
+          }
+        } finally {
+          setLoading(false);
         }
-        onLogin(foundUser);
       } else {
         setError('Tài khoản của bạn đang chờ quản trị viên phê duyệt.');
         setFoundUser(null);

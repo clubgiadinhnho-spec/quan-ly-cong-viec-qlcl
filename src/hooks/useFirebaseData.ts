@@ -82,11 +82,22 @@ export const useFirebaseData = (currentUserId?: string) => {
     const messagesUnsubscribe = onSnapshot(
       query(collection(db, 'messages'), orderBy('timestamp', 'asc')),
       (snapshot) => {
-        const messagesData = snapshot.docs.map(doc => ({
-          ...doc.data(),
-          id: doc.id,
-          timestamp: (doc.data().timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString()
-        } as TaskComment));
+        const messagesData = snapshot.docs.map(doc => {
+          const data = doc.data();
+          let ts: string;
+          if (data.timestamp?.toDate) {
+            ts = data.timestamp.toDate().toISOString();
+          } else if (typeof data.timestamp === 'string') {
+            ts = data.timestamp;
+          } else {
+            ts = new Date().toISOString();
+          }
+          return {
+            ...data,
+            id: doc.id,
+            timestamp: ts
+          } as TaskComment;
+        });
         setMessages(messagesData);
       },
       (error) => {
@@ -115,55 +126,44 @@ export const useFirebaseData = (currentUserId?: string) => {
       }
     );
 
-    // Listen to Private Messages (Using two separate listeners to ensure security rule compatibility)
-    let messagesFromMe: PrivateMessage[] = [];
-    let messagesToMe: PrivateMessage[] = [];
+    // Listen to Private Messages
+    // We use the Firebase UID if available, otherwise fallback to the provided internal ID
+    const firebaseUid = auth.currentUser?.uid || currentUserId;
+    
+    if (!firebaseUid) return;
 
-    const syncPrivateMessages = () => {
-      // Use a Map to de-duplicate by ID and then sort by timestamp
-      const allMessages = new Map<string, PrivateMessage>();
-      messagesFromMe.forEach(m => allMessages.set(m.id, m));
-      messagesToMe.forEach(m => allMessages.set(m.id, m));
+    const qPrivate = query(
+      collection(db, 'direct_messages'), 
+      or(
+        where('senderId', '==', firebaseUid),
+        where('receiverId', '==', firebaseUid)
+      )
+    );
+
+    const unsubPrivate = onSnapshot(qPrivate, (snapshot) => {
+      const messagesData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        let ts: string;
+        if (data.timestamp?.toDate) {
+          ts = data.timestamp.toDate().toISOString();
+        } else if (typeof data.timestamp === 'string') {
+          ts = data.timestamp;
+        } else {
+          ts = new Date().toISOString();
+        }
+        return {
+          ...data,
+          id: doc.id,
+          timestamp: ts
+        } as PrivateMessage;
+      }).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
       
-      const sortedMessages = Array.from(allMessages.values()).sort((a, b) => {
-        return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-      });
-      setPrivateMessages(sortedMessages);
-    };
-
-    const qFromMe = query(
-      collection(db, 'direct_messages'), 
-      where('senderId', '==', currentUserId)
-    );
-
-    const qToMe = query(
-      collection(db, 'direct_messages'), 
-      where('receiverId', '==', currentUserId)
-    );
-
-    const unsubFromMe = onSnapshot(qFromMe, (snapshot) => {
-      messagesFromMe = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id,
-        timestamp: (doc.data().timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString()
-      } as PrivateMessage));
-      syncPrivateMessages();
+      setPrivateMessages(messagesData);
     }, (error) => {
       if (error.code !== 'permission-denied') {
-        handleFirestoreError(error, OperationType.GET, 'direct_messages_from');
-      }
-    });
-
-    const unsubToMe = onSnapshot(qToMe, (snapshot) => {
-      messagesToMe = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id,
-        timestamp: (doc.data().timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString()
-      } as PrivateMessage));
-      syncPrivateMessages();
-    }, (error) => {
-      if (error.code !== 'permission-denied') {
-        handleFirestoreError(error, OperationType.GET, 'direct_messages_to');
+        handleFirestoreError(error, OperationType.GET, 'direct_messages');
+      } else {
+        console.warn("Permission denied for direct_messages listener. Auth ID:", firebaseUid);
       }
     });
 
@@ -172,10 +172,9 @@ export const useFirebaseData = (currentUserId?: string) => {
       tasksUnsubscribe();
       messagesUnsubscribe();
       reportsUnsubscribe();
-      unsubFromMe();
-      unsubToMe();
+      unsubPrivate();
     };
-  }, [currentUserId]);
+  }, [currentUserId, auth.currentUser?.uid]);
 
   const addTask = useCallback(async (task: Omit<Task, 'id'>) => {
     try {
@@ -234,8 +233,9 @@ export const useFirebaseData = (currentUserId?: string) => {
 
   const sendMessage = useCallback(async (content: string, authorId: string) => {
     try {
+      const realAuthorId = auth.currentUser?.uid || authorId;
       await addDoc(collection(db, 'messages'), {
-        authorId,
+        authorId: realAuthorId,
         content,
         timestamp: serverTimestamp()
       });
@@ -246,9 +246,12 @@ export const useFirebaseData = (currentUserId?: string) => {
 
   const sendPrivateMessage = useCallback(async (content: string, senderId: string, receiverId: string) => {
     try {
-      const chatId = [senderId, receiverId].sort().join('_');
+      // Use the actual Firebase UID for sending if available, otherwise use provided ID
+      const realSenderId = auth.currentUser?.uid || senderId;
+      const chatId = [realSenderId, receiverId].sort().join('_');
+      
       await addDoc(collection(db, 'direct_messages'), {
-        senderId,
+        senderId: realSenderId,
         receiverId,
         content,
         chatId,

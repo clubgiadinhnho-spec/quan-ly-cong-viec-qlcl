@@ -62,8 +62,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   return (
     <tr className={`group transition-all ${task.isHighlighted ? 'bg-red-50/50' : 'hover:bg-gray-50/50'}`}>
-      <td className={`p-4 text-center text-xs font-bold border-r border-gray-300 align-top ${task.isHighlighted ? 'text-red-300' : 'text-gray-300'}`}>{task.code}</td>
-      <td className={`p-4 border-r border-gray-300 align-top ${task.isHighlighted ? 'border-l-4 border-red-500' : ''}`}>
+      <td className={`p-4 text-center text-xs font-bold border-b border-r border-gray-300 align-top ${task.isHighlighted ? 'text-red-300' : 'text-gray-300'}`}>{task.code}</td>
+      <td className={`p-4 border-b border-r border-gray-300 align-top ${task.isHighlighted ? 'border-l-4 border-red-500' : ''}`}>
         <div className="flex items-center gap-3">
           <div className="relative">
             <Avatar src={assignee?.avatar} name={assignee?.name} />
@@ -121,7 +121,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           </div>
         </div>
       </td>
-      <td className="p-4 border-r border-gray-300 relative group align-top h-px">
+      <td className="p-4 border-b border-r border-gray-300 relative group align-top h-px">
         {task.attachmentUrl && (
           <a 
             href={task.attachmentUrl} 
@@ -178,12 +178,12 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           </div>
         </div>
       </td>
-      <td className="p-2 bg-gray-50/50 border-r border-gray-300 align-top h-px">
+      <td className="p-2 bg-gray-50/50 border-b border-r border-gray-300 align-top h-px">
         <div className="h-full min-h-[100px] text-[11px] text-gray-700 leading-relaxed px-3 py-3 bg-white/30 rounded-xl border border-gray-100/50 break-words whitespace-normal">
           {task.prevProgress || '—'}
         </div>
       </td>
-      <td className="p-2 border-r border-gray-300 align-top h-px">
+      <td className="p-2 border-b border-r border-gray-300 align-top h-px">
         <div className="flex flex-col gap-2 h-full min-h-[120px]">
           <textarea 
             className="flex-1 w-full text-[11px] font-medium p-3 bg-white border border-gray-200 rounded-xl shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-50 transition-all resize-none leading-relaxed min-h-[100px] disabled:bg-transparent disabled:border-transparent disabled:p-0 disabled:shadow-none placeholder:font-normal text-gray-800"
@@ -211,11 +211,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           )}
         </div>
       </td>
-      <td className="p-1 text-center border-r border-gray-300 align-top pt-4 text-gray-400 text-[10px]">
+      <td className="p-1 text-center border-b border-r border-gray-300 align-top pt-4 text-gray-400 text-[10px]">
         {task.priorityOrder || '—'}
       </td>
       {!isReadOnly && (
-        <td className="py-4 px-1 text-center border-r border-gray-300 align-top">
+        <td className="py-4 px-1 text-center border-b border-r border-gray-300 align-top">
           <div className="flex flex-col items-center gap-1.5">
              {task.status === 'PENDING_APPROVAL' && isManager && (
                <>

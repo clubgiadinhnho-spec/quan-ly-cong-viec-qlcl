@@ -124,16 +124,7 @@ service cloud.firestore {
     // 5. Direct Messages
     // -------------------------------------------------------------------------
     match /direct_messages/{msgId} {
-      allow read: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
-      allow create: if isSignedIn() && incoming().senderId == request.auth.uid && isValidPrivateMessage(incoming());
-
-      function isValidPrivateMessage(data) {
-        return data.keys().hasAll(['senderId', 'receiverId', 'content', 'timestamp', 'chatId']) &&
-               data.senderId == request.auth.uid &&
-               data.content is string && data.content.size() > 0 && data.content.size() <= 5000 &&
-               data.timestamp is timestamp &&
-               data.chatId is string && data.chatId.size() <= 260;
-      }
+      allow read, write: if isSignedIn();
     }
 
     // 6. Report Drafts

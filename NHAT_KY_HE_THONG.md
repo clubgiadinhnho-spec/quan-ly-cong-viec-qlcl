@@ -28,14 +28,14 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
 
 ## 📝 2. NHẬT KÝ THAY ĐỔI CHI TIẾT (CHANGELOG)
 
-### 📝 Cập nhật mới nhất: 29/04/2026 (Khôi phục giao diện Gốc & Tối ưu Lọc dữ liệu)
-- **Khôi phục Giao diện một bảng:** Loại bỏ bố cục 2 bảng tách rời, quay lại dùng nút chuyển đổi **Cá nhân / Phòng QLCL** để giao diện gọn gàng hơn.
-- **Cơ chế Read-only động:** 
-    - Khi xem "Cá nhân": Cho phép thao tác đầy đủ.
-    - Khi xem "Phòng QLCL" (đối với Nhân viên): Tự động ẩn cột Thao tác để bảo vệ dữ liệu chung.
-- **Thanh Debug chẩn đoán:** Giữ lại thanh thông số kỹ thuật (Số lượng task nhận từ Firebase) để hỗ trợ chẩn đoán nếu nhân viên vẫn báo "không thấy dữ liệu".
+### 📝 Cập nhật mới nhất: 29/04/2026 (Hoàn thiện Giao diện & Phân quyền)
+- **Giao diện Gọn gàng:** Loại bỏ các thanh thông tin kỹ thuật, khôi phục tiêu đề gốc.
+- **Cơ chế Bảo vệ Dữ liệu:** 
+    - Nhân viên Tú, Hùng... có thể xem toàn bộ 29 công việc của phòng qua nút chuyển đổi "Phòng QLCL".
+    - Hệ thống tự động ẩn cột "Thao tác" khi Nhân viên xem việc của người khác (chế độ Read-only) để tránh nhầm lẫn.
+- **Tiện ích:** Giữ nguyên các StatsSummary để theo dõi nhanh số lượng công việc.
 
-### Các cập nhật trước đó: 29/04/2026 (Fix triệt để vấn đề "Không thấy việc toàn phòng")
+### Các cập nhật trước đó: 29/04/2026 (Khôi phục giao diện Gốc & Tối ưu Lọc dữ liệu)
 
 ### Các cập nhật trước đó: 29/04/2026 (Tinh chỉnh Phân quyền & Tối ưu Giao diện)
 - **Thu hẹp quyền Nhân viên:** Giới hạn tài khoản "Nhân viên" chỉ còn quyền Xem dữ liệu và Ghi nhận tiến độ (currentUpdate). Loại bỏ hoàn toàn các nút "Gửi HT" và "Yêu cầu xóa" để đơn giản hóa giao diện và tránh thao tác nhầm.

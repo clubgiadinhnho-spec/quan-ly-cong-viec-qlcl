@@ -5,6 +5,7 @@ import { User, PrivateMessage } from '../../types';
 import { formatDateTime } from '../../lib/dateUtils';
 import { ReactionPicker, ReactionBadge } from '../common/ReactionPicker';
 import { Avatar } from '../common/Avatar';
+import { auth } from '../../lib/firebase';
 
 interface DirectChatProps {
   currentUser: User;
@@ -33,8 +34,19 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
     );
   }
 
-  const chatId = [currentUser.id, otherUser.id].sort().join('_');
-  const chatMessages = messages.filter(m => m.chatId === chatId);
+  // Use the Firebase UID as priority for identifying "Me", falling back to currentUser.id
+  const myRelevantId = auth.currentUser?.uid || currentUser.id;
+  const chatId = [myRelevantId, otherUser.id].sort().join('_');
+  
+  // Filter messages for this chat. We check both the strict chatId and 
+  // potentially messages sent during the ID transition.
+  const chatMessages = messages.filter(m => {
+    const isMainChat = m.chatId === chatId;
+    // Also include messages if they match the sender/receiver pair regardless of which ID was used for "me"
+    const isMeOther = (m.senderId === myRelevantId || m.senderId === currentUser.id) && m.receiverId === otherUser.id;
+    const isOtherMe = m.senderId === otherUser.id && (m.receiverId === myRelevantId || m.receiverId === currentUser.id);
+    return isMainChat || isMeOther || isOtherMe;
+  });
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -44,7 +56,7 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
 
   const handleSend = () => {
     if (!newMessage.trim()) return;
-    onSendMessage(newMessage, currentUser.id, otherUser.id);
+    onSendMessage(newMessage, myRelevantId, otherUser.id);
     setNewMessage('');
   };
 
@@ -137,7 +149,7 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
           </div>
         ) : (
           chatMessages.map((msg) => {
-            const isMe = msg.senderId === currentUser.id;
+            const isMe = msg.senderId === myRelevantId || msg.senderId === currentUser.id;
             
             return (
               <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>

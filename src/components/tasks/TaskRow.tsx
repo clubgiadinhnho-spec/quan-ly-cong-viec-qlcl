@@ -21,23 +21,29 @@ interface TaskRowProps {
   onEdit: (task: Task) => void;
   idx: number;
   setConfirmModal: (modal: any) => void;
+  isReadOnly?: boolean;
 }
 
 export const TaskRow: React.FC<TaskRowProps> = ({ 
   task, user, users, onUpdate, onDelete, onViewHistory, onOpenChat, 
-  isChatOpen, onSendMessage, onReact, onTogglePriority, onEdit, idx, setConfirmModal 
+  isChatOpen, onSendMessage, onReact, onTogglePriority, onEdit, idx, setConfirmModal,
+  isReadOnly = false
 }) => {
   const assignee = users.find(s => s.id === task.assigneeId);
   const isOwner = user.id === task.assigneeId;
-  const isManager = user.role === 'Admin' || user.role === 'Trưởng Phòng';
-  const canEditPriority = user.role === 'Admin' || user.role === 'Trưởng Phòng';
-  const isStaff = user.role === 'Nhân Viên' || user.role === 'Trưởng Nhóm';
+  const isAdminOrDirector = user.role === 'Admin' || user.role === 'Trưởng Phòng';
+  const isTeamLeader = user.role === 'Trưởng Nhóm';
+  const isManager = isAdminOrDirector || isTeamLeader;
+  const isEmployee = user.role === 'Nhân Viên';
+  
+  const canEditPriority = isAdminOrDirector;
   const hasUnread = false; // Placeholder for future logic
 
   const handleStatusAction = () => {
-    if (isStaff) {
+    // Team Leader or Employee (isOwner) can mark as pending approval
+    if (isEmployee || isTeamLeader) {
       onUpdate(task.id, { status: 'PENDING_APPROVAL' });
-    } else {
+    } else if (isAdminOrDirector) {
       setConfirmModal({
         show: true,
         title: 'XÁC NHẬN HOÀN THÀNH',
@@ -205,140 +211,125 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           )}
         </div>
       </td>
-      <td className="p-1 text-center border-r border-gray-300 align-top pt-4">
-        <button 
-          onClick={() => canEditPriority && onTogglePriority(task.id)}
-          disabled={!canEditPriority || task.isLocked}
-          style={{ 
-            backgroundColor: task.priorityOrder 
-              ? `rgba(220, 38, 38, ${Math.max(0.1, 1 - (task.priorityOrder - 1) * 0.2)})` 
-              : undefined,
-            color: task.priorityOrder 
-              ? (task.priorityOrder > 3 ? '#991b1b' : '#ffffff') 
-              : undefined
-          }}
-          className={`text-[10px] font-black w-8 h-8 rounded-full flex items-center justify-center mx-auto transition-all transition-all ${
-            !task.priorityOrder ? 'bg-gray-100 text-gray-400 hover:bg-gray-200' : ''
-          } ${!canEditPriority || task.isLocked ? 'cursor-default opacity-50' : 'hover:scale-110 active:scale-90 cursor-pointer'}`}
-          title={task.priorityOrder ? `Mức ưu tiên ${task.priorityOrder}` : 'Thêm mức ưu tiên'}
-        >
-          {task.priorityOrder || '+'}
-        </button>
+      <td className="p-1 text-center border-r border-gray-300 align-top pt-4 text-gray-400 text-[10px]">
+        {task.priorityOrder || '—'}
       </td>
-      <td className="py-4 px-1 text-center border-r border-gray-300 align-top">
-        <div className="flex flex-col items-center gap-1.5">
-           {task.status === 'PENDING_APPROVAL' && isManager && (
-             <>
+      {!isReadOnly && (
+        <td className="py-4 px-1 text-center border-r border-gray-300 align-top">
+          <div className="flex flex-col items-center gap-1.5">
+             {task.status === 'PENDING_APPROVAL' && isManager && (
+               <>
+                 <button 
+                    onClick={handleApprove}
+                    className="w-full px-2 py-1.5 text-[9px] bg-green-500 text-white rounded font-black hover:bg-green-600 transition-all uppercase tracking-tighter shadow-sm"
+                  >
+                    DUYỆT HT
+                  </button>
+                 <button 
+                    onClick={() => onUpdate(task.id, { status: 'IN_PROGRESS' })}
+                    className="w-full px-2 py-1.5 text-[9px] bg-red-100 text-red-700 border border-red-200 rounded font-black hover:bg-red-600 hover:text-white transition-all uppercase tracking-tighter shadow-sm"
+                  >
+                    TỪ CHỐI
+                  </button>
+               </>
+             )}
+             {task.status !== 'PENDING_APPROVAL' && (isOwner || isManager) && !task.isLocked && !task.requestDelete && (
                <button 
-                  onClick={handleApprove}
-                  className="w-full px-2 py-1.5 text-[9px] bg-green-500 text-white rounded font-black hover:bg-green-600 transition-all uppercase tracking-tighter shadow-sm"
+                  onClick={handleStatusAction}
+                  className="w-full px-2 py-1.5 text-[9px] bg-blue-600 text-white rounded font-black hover:bg-blue-700 transition-all uppercase tracking-tighter shadow-sm"
                 >
-                  DUYỆT HT
+                  {isAdminOrDirector ? 'XONG' : 'GỬI HT'}
                 </button>
+             )}
+             {(isManager || isOwner) && (
                <button 
-                  onClick={() => onUpdate(task.id, { status: 'IN_PROGRESS' })}
-                  className="w-full px-2 py-1.5 text-[9px] bg-red-100 text-red-700 border border-red-200 rounded font-black hover:bg-red-600 hover:text-white transition-all uppercase tracking-tighter shadow-sm"
+                  onClick={() => onUpdate(task.id, { isHighlighted: !task.isHighlighted })}
+                  className={`w-full px-2 py-1.5 text-[9px] border rounded font-black transition-all uppercase tracking-tighter ${task.isHighlighted ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-white text-gray-400 border-gray-200 hover:border-blue-500'}`}
                 >
-                  TỪ CHỐI
+                  LƯU Ý
                 </button>
-             </>
-           )}
-           {task.status !== 'PENDING_APPROVAL' && (isOwner || isManager) && !task.isLocked && !task.requestDelete && (
-             <button 
-                onClick={handleStatusAction}
-                className="w-full px-2 py-1.5 text-[9px] bg-blue-600 text-white rounded font-black hover:bg-blue-700 transition-all uppercase tracking-tighter shadow-sm"
-              >
-                {isStaff ? 'GỬI HT' : 'XONG'}
-              </button>
-           )}
-           {isManager && (
-             <button 
-                onClick={() => onUpdate(task.id, { isHighlighted: !task.isHighlighted })}
-                className={`w-full px-2 py-1.5 text-[9px] border rounded font-black transition-all uppercase tracking-tighter ${task.isHighlighted ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-white text-gray-400 border-gray-200 hover:border-blue-500'}`}
-              >
-                LƯU Ý
-              </button>
-           )}
-           {task.requestDelete && isManager && (
-              <>
+             )}
+             {task.requestDelete && isManager && (
+                <>
+                  <button 
+                    onClick={() => onDelete(task.id)}
+                    className="w-full px-2 py-1.5 text-[9px] bg-red-600 text-white rounded font-black hover:bg-red-700 transition-all uppercase tracking-tighter shadow-sm"
+                  >
+                    DUYỆT XÓA
+                  </button>
+                  <button 
+                    onClick={() => onUpdate(task.id, { requestDelete: false })}
+                    className="w-full px-2 py-1.5 text-[9px] bg-gray-100 text-gray-600 border border-gray-200 rounded font-black hover:bg-gray-200 transition-all uppercase tracking-tighter"
+                  >
+                    BỎ QUA XÓA
+                  </button>
+                </>
+              )}
+             {!task.requestDelete && isAdminOrDirector && (
                 <button 
-                  onClick={() => onDelete(task.id)}
-                  className="w-full px-2 py-1.5 text-[9px] bg-red-600 text-white rounded font-black hover:bg-red-700 transition-all uppercase tracking-tighter shadow-sm"
+                  onClick={() => {
+                    setConfirmModal({
+                      show: true,
+                      title: 'XÓA CÔNG VIỆC',
+                      message: 'Bạn có chắc chắn muốn xóa vĩnh viễn công việc này?',
+                      onConfirm: () => {
+                        onDelete(task.id);
+                        setConfirmModal((p: any) => ({ ...p, show: false }));
+                      }
+                    });
+                  }}
+                  className="w-full px-2 py-1.5 text-[9px] bg-white text-gray-400 border border-gray-200 rounded font-black hover:bg-red-500 hover:text-white transition-all uppercase tracking-tighter"
                 >
-                  DUYỆT XÓA
+                  XÓA
                 </button>
+             )}
+             {!isAdminOrDirector && isOwner && !task.requestDelete && !task.isLocked && (
                 <button 
-                  onClick={() => onUpdate(task.id, { requestDelete: false })}
-                  className="w-full px-2 py-1.5 text-[9px] bg-gray-100 text-gray-600 border border-gray-200 rounded font-black hover:bg-gray-200 transition-all uppercase tracking-tighter"
+                  onClick={() => {
+                    setConfirmModal({
+                      show: true,
+                      title: 'YÊU CẦU XÓA',
+                      message: 'Bạn muốn gửi yêu cầu xóa công việc này lên cấp trên?',
+                      onConfirm: () => {
+                        onUpdate(task.id, { requestDelete: true });
+                        setConfirmModal((p: any) => ({ ...p, show: false }));
+                      }
+                    });
+                  }}
+                  className="w-full px-2 py-1.5 text-[9px] bg-white text-red-400 border border-red-100 rounded font-black hover:bg-red-500 hover:text-white transition-all uppercase tracking-tighter"
                 >
-                  BỎ QUA XÓA
+                  YÊU CẦU XÓA
                 </button>
-              </>
-            )}
-           {!task.requestDelete && isManager && (
-              <button 
-                onClick={() => {
-                  setConfirmModal({
-                    show: true,
-                    title: 'XÓA CÔNG VIỆC',
-                    message: 'Bạn có chắc chắn muốn xóa vĩnh viễn công việc này?',
-                    onConfirm: () => {
-                      onDelete(task.id);
-                      setConfirmModal((p: any) => ({ ...p, show: false }));
-                    }
-                  });
-                }}
-                className="w-full px-2 py-1.5 text-[9px] bg-white text-gray-400 border border-gray-200 rounded font-black hover:bg-red-500 hover:text-white transition-all uppercase tracking-tighter"
-              >
-                XÓA
-              </button>
-           )}
-           {!isManager && isOwner && !task.requestDelete && !task.isLocked && (
-              <button 
-                onClick={() => {
-                  setConfirmModal({
-                    show: true,
-                    title: 'YÊU CẦU XÓA',
-                    message: 'Bạn muốn gửi yêu cầu xóa công việc này lên Trưởng Phòng?',
-                    onConfirm: () => {
-                      onUpdate(task.id, { requestDelete: true });
-                      setConfirmModal((p: any) => ({ ...p, show: false }));
-                    }
-                  });
-                }}
-                className="w-full px-2 py-1.5 text-[9px] bg-white text-red-400 border border-red-100 rounded font-black hover:bg-red-500 hover:text-white transition-all uppercase tracking-tighter"
-              >
-                YÊU CẦU XÓA
-              </button>
-            )}
-            {task.requestDelete && !isManager && (
-              <span className="text-[8px] font-black text-red-500 bg-red-50 px-2 py-1 rounded border border-red-200 uppercase tracking-tighter text-center">Chờ duyệt xóa</span>
-            )}
-           {task.status === 'COMPLETED' && isManager && (
-             <button 
-                onClick={() => {
-                  setConfirmModal({
-                    show: true,
-                    title: 'HOÀN TÁC CÔNG VIỆC',
-                    message: 'Bạn muốn chuyển công việc này quay lại bảng đang thực hiện?',
-                    onConfirm: () => {
-                      onUpdate(task.id, { 
-                        status: 'IN_PROGRESS', 
-                        actualEndDate: null, 
-                        isLocked: false,
-                        currentUpdate: '[HOÀN TÁC] Chuyển về bảng đang thực hiện'
-                      });
-                      setConfirmModal((p: any) => ({ ...p, show: false }));
-                    }
-                  });
-                }}
-                className="w-full px-2 py-1.5 text-[9px] bg-gray-100 text-gray-600 border border-gray-200 rounded font-black hover:bg-gray-200 transition-all uppercase tracking-tighter shadow-sm"
-              >
-                HOÀN TÁC
-              </button>
-           )}
-        </div>
-      </td>
+              )}
+              {task.requestDelete && !isManager && (
+                <span className="text-[8px] font-black text-red-500 bg-red-50 px-2 py-1 rounded border border-red-200 uppercase tracking-tighter text-center">Chờ duyệt xóa</span>
+              )}
+             {task.status === 'COMPLETED' && isManager && (
+               <button 
+                  onClick={() => {
+                    setConfirmModal({
+                      show: true,
+                      title: 'HOÀN TÁC CÔNG VIỆC',
+                      message: 'Bạn muốn chuyển công việc này quay lại bảng đang thực hiện?',
+                      onConfirm: () => {
+                        onUpdate(task.id, { 
+                          status: 'IN_PROGRESS', 
+                          actualEndDate: null, 
+                          isLocked: false,
+                          currentUpdate: '[HOÀN TÁC] Chuyển về bảng đang thực hiện'
+                        });
+                        setConfirmModal((p: any) => ({ ...p, show: false }));
+                      }
+                    });
+                  }}
+                  className="w-full px-2 py-1.5 text-[9px] bg-gray-100 text-gray-600 border border-gray-200 rounded font-black hover:bg-gray-200 transition-all uppercase tracking-tighter shadow-sm"
+                >
+                  HOÀN TÁC
+                </button>
+             )}
+          </div>
+        </td>
+      )}
     </tr>
   );
 };

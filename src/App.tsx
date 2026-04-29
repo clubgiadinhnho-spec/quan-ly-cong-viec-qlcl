@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Task, TaskComment } from './types';
+import { User as UserType, Task, TaskComment } from './types';
 import Login from './components/Login';
 import { STAFF_LIST } from './constants';
 import { 
@@ -9,7 +9,9 @@ import {
   LogOut,
   FileUp,
   FileDown,
-  Trash2
+  Trash2,
+  User as UserIcon,
+  Users as UsersIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -43,9 +45,17 @@ import { StaffListPage } from './pages/StaffListPage';
 // --- Main App ---
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [simulatedUser, setSimulatedUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserType | null>(null);
+  const [simulatedUser, setSimulatedUser] = useState<UserType | null>(null);
   const [activeTab, setActiveTab] = useState('tasks');
+  const [viewScope, setViewScope] = useState<'mine' | 'all'>('all');
+
+  // Ensure viewScope is always 'all' whenever currentUser changes (app starts or login)
+  useEffect(() => {
+    if (currentUser) {
+      setViewScope('all');
+    }
+  }, [currentUser?.id]);
 
   // The effectively active user (either original or simulated)
   const effectiveUser = simulatedUser || currentUser;
@@ -128,7 +138,7 @@ export default function App() {
     }
   }, [baseAddTask, updateTask, editingTask]);
 
-  const [showDirectChat, setShowDirectChat] = useState<User | null>(null);
+  const [showDirectChat, setShowDirectChat] = useState<UserType | null>(null);
   const lastPrivateMsgId = React.useRef<string | null>(null);
   const lastGroupMsgId = React.useRef<string | null>(null);
   const lastTaskCommentId = React.useRef<Record<string, string>>({});
@@ -299,6 +309,9 @@ export default function App() {
   const handleLogin = (user: User) => {
     setCurrentUser(user);
     localStorage.setItem('qc_user', JSON.stringify(user));
+    // Explicitly set view to all/department on login
+    setViewScope('all');
+    setActiveTab('tasks');
   };
 
   const handleLogout = async () => {
@@ -482,13 +495,15 @@ export default function App() {
     const matchesSearch = (t.title.toLowerCase().includes(search.toLowerCase()) || 
                           t.code.toLowerCase().includes(search.toLowerCase()));
     
-    // Role-based visibility filtering
-    if (effectiveUser.role === 'Admin' || effectiveUser.role === 'Trưởng Phòng') {
-      return matchesSearch;
+    if (!matchesSearch) return false;
+
+    // View scope filter
+    if (viewScope === 'mine') {
+      return t.assigneeId === effectiveUser?.id;
     }
-    
-    // Trưởng Nhóm and Nhân Viên only see tasks assigned to them
-    return matchesSearch && t.assigneeId === effectiveUser.id;
+
+    // 'all' scope shows everything matching search
+    return true;
   });
 
   const priorityWeight = { 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
@@ -549,20 +564,62 @@ export default function App() {
             >
               <HolidayBanner />
               <Header 
-                title="TRUNG TÂM QUẢN LÝ CHẤT LƯỢNG TÂN PHÚ VIỆT NAM" 
+                title="TRUNG TÂM QUẢN LÝ CHẤT LƯỢNG TÂN PHÚ VIỆT NAM (V2)" 
                 badge={effectiveUser.role}
-                onAction={(effectiveUser.role === 'Admin' || effectiveUser.role === 'Trưởng Phòng') ? () => setShowTaskModal(true) : undefined}
+                onAction={(effectiveUser.role !== 'Nhân Viên') ? () => setShowTaskModal(true) : undefined}
                 actionLabel="Giao việc mới"
                 actionIcon={Plus}
               />
               
               <div className="p-8 space-y-8">
-                <StatsSummary tasks={tasks} />
+                <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-4 text-[11px] font-mono text-blue-700 flex flex-wrap gap-4">
+                   <div>BẠN ĐANG ĐĂNG NHẬP: <span className="font-black">{effectiveUser.name} ({effectiveUser.role})</span></div>
+                   <div>TỔNG TASK NHẬN TỪ FIREBASE: <span className="font-black">{tasks.length}</span></div>
+                   <div>TASK (ĐANG XEM): <span className="font-black">{filteredTasks.filter(t => t.status !== 'COMPLETED').length}</span></div>
+                </div>
+
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+                  <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
+                    <button 
+                      onClick={() => setViewScope('mine')}
+                      className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                        viewScope === 'mine' 
+                          ? 'bg-white text-blue-600 shadow-sm' 
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      <UserIcon size={14} />
+                      Cá nhân ({tasks.filter(t => t.assigneeId === effectiveUser.id && t.status !== 'COMPLETED').length})
+                    </button>
+                    <button 
+                      onClick={() => setViewScope('all')}
+                      className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                        viewScope === 'all' 
+                          ? 'bg-white text-blue-600 shadow-sm' 
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      <UsersIcon size={14} />
+                      Phòng QLCL ({tasks.filter(t => t.status !== 'COMPLETED').length})
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full border border-blue-100">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                    <span className="text-[10px] text-blue-700 font-black uppercase tracking-widest">
+                      Đang xem: {viewScope === 'mine' ? 'Nhiệm vụ của bạn' : 'Toàn bộ phòng'}
+                    </span>
+                  </div>
+                </div>
+
+                <StatsSummary tasks={filteredTasks} />
 
                 <div className="flex items-center justify-between">
                    <div className="flex items-center gap-4">
-                    <h3 className="text-[13px] font-bold text-gray-500 uppercase tracking-widest">Danh sách công việc đang xử lý</h3>
-                     {(effectiveUser.role === 'Admin' || effectiveUser.role === 'Trưởng Phòng') && (
+                    <h3 className="text-[14px] font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+                       <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
+                       DANH SÁCH CÔNG VIỆC ĐANG XỬ LÝ
+                    </h3>
+                     {(effectiveUser.role !== 'Nhân Viên') && (
                        <div className="flex items-center gap-2">
                           <button 
                             onClick={downloadSampleExcel}
@@ -628,6 +685,7 @@ export default function App() {
                   onEdit={setEditingTask}
                   setConfirmModal={setConfirmModal}
                   type="active"
+                  isReadOnly={viewScope === 'all' && effectiveUser.role === 'Nhân Viên'}
                 />
 
                 {effectiveUser.role === 'Admin' && (
@@ -652,6 +710,41 @@ export default function App() {
                 title="Lịch sử công việc đã hoàn thành" 
               />
               <div className="p-8 space-y-8">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+                  <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
+                    <button 
+                      onClick={() => setViewScope('mine')}
+                      className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                        viewScope === 'mine' 
+                          ? 'bg-white text-green-600 shadow-sm' 
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      <UserIcon size={14} />
+                      Cá nhân ({tasks.filter(t => t.assigneeId === effectiveUser.id && t.status === 'COMPLETED').length})
+                    </button>
+                    <button 
+                      onClick={() => setViewScope('all')}
+                      className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                        viewScope === 'all' 
+                          ? 'bg-white text-green-600 shadow-sm' 
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      <UsersIcon size={14} />
+                      Phòng QLCL ({tasks.filter(t => t.status === 'COMPLETED').length})
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full border border-green-100">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-[10px] text-green-700 font-black uppercase tracking-widest">
+                      Đang xem: {viewScope === 'mine' ? 'Lịch sử cá nhân' : 'Lịch sử toàn phòng'}
+                    </span>
+                  </div>
+                </div>
+
+                <StatsSummary tasks={filteredTasks} />
+
                 <TaskList 
                   tasks={sortedTasks.filter(t => t.status === 'COMPLETED')}
                   user={effectiveUser}

@@ -28,9 +28,43 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
 
 ## 📝 2. NHẬT KÝ THAY ĐỔI CHI TIẾT (CHANGELOG)
 
-### 📝 Cập nhật mới nhất: 29/04/2026
+### 📝 Cập nhật mới nhất: 29/04/2026 (Khôi phục giao diện Gốc & Tối ưu Lọc dữ liệu)
+- **Khôi phục Giao diện một bảng:** Loại bỏ bố cục 2 bảng tách rời, quay lại dùng nút chuyển đổi **Cá nhân / Phòng QLCL** để giao diện gọn gàng hơn.
+- **Cơ chế Read-only động:** 
+    - Khi xem "Cá nhân": Cho phép thao tác đầy đủ.
+    - Khi xem "Phòng QLCL" (đối với Nhân viên): Tự động ẩn cột Thao tác để bảo vệ dữ liệu chung.
+- **Thanh Debug chẩn đoán:** Giữ lại thanh thông số kỹ thuật (Số lượng task nhận từ Firebase) để hỗ trợ chẩn đoán nếu nhân viên vẫn báo "không thấy dữ liệu".
 
-#### 🔹 Nâng cấp Hệ thống Báo cáo (Report Management)
+### Các cập nhật trước đó: 29/04/2026 (Fix triệt để vấn đề "Không thấy việc toàn phòng")
+
+### Các cập nhật trước đó: 29/04/2026 (Tinh chỉnh Phân quyền & Tối ưu Giao diện)
+- **Thu hẹp quyền Nhân viên:** Giới hạn tài khoản "Nhân viên" chỉ còn quyền Xem dữ liệu và Ghi nhận tiến độ (currentUpdate). Loại bỏ hoàn toàn các nút "Gửi HT" và "Yêu cầu xóa" để đơn giản hóa giao diện và tránh thao tác nhầm.
+- **Phát huy quyền Trưởng nhóm:** Khẳng định quyền của "Trưởng nhóm" trong việc quản lý cơ sở, bao gồm Giao việc mới, Nhập/Xuất Excel và quản lý vòng đời công việc của chính mình.
+- **Tối ưu Bảng công việc:** Khắc phục tình trạng giao diện bị "vướng" bởi các nút chức năng không cần thiết đối với cấp dưới, đảm bảo tính tập trung vào việc ghi nhận dữ liệu.
+- **Đồng bộ hóa Chế độ xem:** Đảm bảo 100% người dùng khi vào hệ thống đều mặc định ở chế độ "Toàn phòng QLCL".
+
+### Các cập nhật trước đó: 29/04/2026 (Tái thiết lập phân quyền & Mở rộng truy cập)
+- **Thu hồi & Cấp mới Quyền hạn:** Loại bỏ các ràng buộc cũ vốn hạn chế Nhân viên và Trưởng nhóm trong việc quan sát Bảng công việc.
+- **Mở rộng Phân quyền (Visibility):** Cho phép toàn bộ thành viên trong phòng (bao gồm cả Nhân viên) có quyền xem toàn bộ công việc của hệ thống khi chọn chế độ "Công việc cả phòng".
+- **Phân quyền Quản lý (Management):** Cấp quyền "Giao việc mới" và "Nhập/Xuất Excel" cho vị trí **Trưởng Nhóm**, giúp tăng tính linh hoạt trong quản lý cấp cơ sở. Nhân viên vẫn được giới hạn ở quyền ghi nhận và xem dữ liệu.
+- **Tinh gọn Logic:** Đơn giản hóa mã nguồn lọc dữ liệu, đảm bảo tính nhất quán giữa vai trò người dùng và phạm vi hiển thị.
+
+### Các cập nhật trước đó: 29/04/2026 (Mở rộng phân quyền xem công việc)
+- **Công bằng dữ liệu:** Cập nhật logic phân quyền cho phép tất cả các thành viên (Nhân viên, Trưởng nhóm) có thể xem toàn bộ Bảng công việc của phòng khi chọn chế độ "Công việc cả phòng".
+
+### 📝 Các cập nhật trước đó: 29/04/2026 (Tối ưu Bộ lọc & Fix bug)
+- **Đồng bộ hóa Dashboard:** Tích hợp bộ lọc "Cá nhân" vs "Toàn phòng" vào cả hai tab: Công việc đang làm và Công việc đã hoàn thành.
+- **Thống kê thời gian thực:** Thẻ thống kê (Stats Summary) giờ đây tự động cập nhật chính xác dựa trên phạm vi công việc người dùng đang chọn.
+- **Hiển thị số lượng:** Thêm badge đếm số lượng công việc trực tiếp trên các nút lọc để người dùng dễ dàng so sánh khối lượng công việc cá nhân vs tập thể.
+- **Fix lỗi hiển thị:** Đảm bảo các nút lọc luôn xuất hiện đối với mọi vai trò nhân sự (Nhân viên, Trưởng nhóm, Admin).
+
+### 📝 Các cập nhật trước đó: 29/04/2026 (Tính năng lọc công việc)
+- **Sao lưu & Bảo tồn:** Toàn bộ cấu hình `firebase-applet-config.json` và `firestore.rules` đã được duy trì để đảm bảo tính liên tục của dữ liệu.
+- **Phục hồi Logic PDF chuyên nghiệp:** Tái thiết lập mẫu in (Print Template) sử dụng cấu trúc `<table>` HTML truyền thống và hệ màu HEX hoàn toàn.
+- **Khắc phục lỗi Màu (oklch):** Tích hợp helper `cleanColors` để xóa bỏ triệt để các hệ màu oklch khỏi bản in PDF, đảm bảo tính tương thích với `html2canvas` trên môi trường mới.
+- **Xác minh Hệ thống:** Hoàn tất kiểm tra và sửa lỗi biên dịch, đảm bảo ứng dụng vận hành ổn định sau khi di chuyển nguồn.
+
+### 📝 Các cập nhật trước đó: 29/04/2026 (Nâng cấp Dashboard)
 - **Tích hợp Biểu đồ (Recharts):** Thêm biểu đồ tròn (Pie Chart) tình trạng công việc và biểu đồ cột (Bar Chart) hiệu suất nhân sự giúp trực quan hóa dữ liệu KPIs.
 - **Trí tuệ nhân tạo (Gemini AI):** Tích hợp AI để tự động phân tích dữ liệu công việc trong tháng, đưa ra nhận định khách quan và đề xuất cải tiến.
 - **Hệ thống Phê duyệt:** Thêm trạng thái `PENDING`, `APPROVED`, `REJECTED` cho báo cáo chính thức. Cho phép Trưởng phòng/Admin để lại nhận xét (Manager Comment) và duyệt báo cáo trực tiếp trên giao diện.

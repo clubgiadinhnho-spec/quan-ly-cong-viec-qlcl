@@ -17,6 +17,7 @@ interface TaskListProps {
   onEdit: (task: Task) => void;
   setConfirmModal: (modal: any) => void;
   type: 'active' | 'completed';
+  isReadOnly?: boolean;
 }
 
 export const TaskList: React.FC<TaskListProps> = ({ 
@@ -32,7 +33,8 @@ export const TaskList: React.FC<TaskListProps> = ({
   onReact,
   onEdit,
   setConfirmModal,
-  type 
+  type,
+  isReadOnly = false
 }) => {
   const sortedTasks = [...tasks].sort((a, b) => {
     // Luôn sắp xếp theo mã công việc giảm dần (mới nhất lên trên)
@@ -65,7 +67,7 @@ export const TaskList: React.FC<TaskListProps> = ({
             <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-60 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Diễn tiến trước đó</th>
             <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-60 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Cập nhật (2 tuần tiếp)</th>
             <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-14 text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Ưu tiên</th>
-            <th className="py-4 px-1 text-[13px] font-black text-gray-700 uppercase tracking-wider w-[72px] text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Thao tác</th>
+            {!isReadOnly && <th className="py-4 px-1 text-[13px] font-black text-gray-700 uppercase tracking-wider w-[72px] text-center border-r border-gray-300 sticky top-0 z-10 bg-[#FAFBFD]">Thao tác</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-300">
@@ -87,6 +89,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                 onEdit={onEdit}
                 setConfirmModal={setConfirmModal}
                 onTogglePriority={handleTogglePriority}
+                isReadOnly={isReadOnly}
               />
             ) : (
               <CompletedTaskRow 

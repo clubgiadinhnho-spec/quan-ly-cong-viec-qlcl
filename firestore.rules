@@ -75,8 +75,7 @@ service cloud.firestore {
     // 3. Tasks Collection
     // -------------------------------------------------------------------------
     match /tasks/{taskId} {
-      allow list: if isSignedIn() && resource.data.code is string;
-      allow get: if isSignedIn();
+      allow read: if isSignedIn();
       
       allow create: if (isAdmin() || isManager()) && isValidTask(incoming());
       

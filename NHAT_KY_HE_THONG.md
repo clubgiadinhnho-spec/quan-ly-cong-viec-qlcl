@@ -45,7 +45,30 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
 - **Hoạt động dựa trên sự kiện (Activity-based Chat):** Hệ thống hiển thị thông báo góc dưới màn hình khi có tin nhắn mới hoặc thảo luận công việc thay vì tự động mở khung Chat gây phiền toái.
 - **Tối ưu hóa Trang chủ:** Thiết lập Bảng công việc (Task Board) làm trọng tâm.
 
+#### 🔹 Tùy biến Nhắc nhở sức khỏe (Health Reminders)
+- **Quản lý linh hoạt:** Thêm trình quản lý nhắc nhở trực tiếp trong Hồ sơ cá nhân. Cho phép người dùng tự cấu hình: Bật/tắt, tần suất (phút), nội dung lời nhắn, thời gian tự đóng và tên cấu hình hiển thị.
+
+#### 🔹 Quản lý nhân sự & Báo cáo (HR Management)
+- **Hồ sơ năng lực (CV Highlights):** Bổ sung trường thông tin CV và kinh nghiệm làm việc cho từng nhân sự. Dữ liệu này giúp Gemini có cơ sở tư vấn chuyên môn sâu hơn khi giao việc hoặc xử lý sự cố.
+- **Xuất báo cáo nhân sự:** Tích hợp tính năng xuất danh sách nhân sự ra định dạng CSV (Excel tương thích), bao gồm đầy đủ thông tin liên hệ, chức vụ và tóm tắt năng lực để phục vụ quản lý ngoại tuyến.
+- **Hệ thống Avatar thông minh (Smart Avatar):** Chuyển đổi toàn bộ hệ thống sang sử dụng Component Avatar đồng nhất. Tự động khắc phục lỗi ảnh không tải được (broken image) bằng cơ chế fallback sang ảnh Procedural dựa trên tên người dùng. Fix lỗi hiển thị avatar cụ thể cho nhân sự Nguyễn Kiều Phan Tú.
+
+#### 🔹 Quy trình phê duyệt & Bảo mật (Approval Workflow)
+- **Cơ chế gửi yêu cầu (Staff):** Trưởng nhóm và nhân sự khi muốn chốt hoàn thành hoặc xóa công việc sẽ gửi yêu cầu thay vì thực hiện trực tiếp. Cột Thao tác hiện "Gửi Hoàn Thành" và "Yêu cầu Xóa".
+- **Hệ thống phê duyệt (Manager):** Trưởng phòng nhận thông báo tức thì khi có yêu cầu mới. Trên bảng công việc sẽ xuất hiện các nút "Duyệt HT", "Duyệt Xóa" hoặc "Từ chối" để kiểm soát chất lượng và dữ liệu.
+- **Minh bạch trạng thái:** Hiển thị nhãn "Chờ duyệt HT" hoặc "Chờ duyệt xóa" trên tác vụ để nhân viên theo dõi tiến độ phê duyệt.
+
+#### 🔹 Giao tiếp thời gian thực (Real-time Communication)
+- **Tự động mở khung Chat:** Cập nhật logic đồng bộ hóa tin nhắn. Khi có nhân sự nhắn tin trực tiếp (Direct Message) hoặc thảo luận trong công việc (Task Comment), khung chat sẽ tự động trượt ra để người dùng phản hồi ngay lập tức.
+- **Tự động dọn dẹp Thông báo:** Khi người dùng mở một khung chat (Trực tiếp, Nhóm, hoặc Công việc), các thông báo tương ứng ở góc màn hình sẽ tự động biến mất, không cần xóa thủ công.
+- **Khung chat phong cách Truyện tranh (Comic Style Chat):** Tái thiết kế khung chat trao đổi công việc theo phong cách bong bóng hội thoại, hiển thị ngay tại vị trí công việc. Cho phép người dùng kéo thả tự do 360 độ với phần "đuôi" (mũi tên chỉ điểm) luôn tự động hướng về điểm neo của công việc, giúp duy trì ngữ cảnh trao đổi mà không gây choán màn hình.
+
+#### 🔹 Tùy biến Hình ảnh & Avatar
+- **Cập nhật Avatar từ máy tính:** Thay thế cơ chế nhập link URL bằng chức năng tải ảnh trực tiếp. Tích hợp công cụ cắt ảnh (Crop) để đảm bảo avatar luôn vừa vặn, đồng nhất và tiết kiệm dung lượng lưu trữ (Base64 optimized).
+- **Đồng bộ hóa Avatar toàn hệ thống:** Đảm bảo khi người dùng thay đổi ảnh đại diện trong Hồ sơ, tất cả các vị trí hiển thị (Bảng công việc, Chat nhóm, Tin nhắn trực tiếp) đều được cập nhật tức thì.
+
 #### 🔹 Khắc phục lỗi kỹ thuật (Hotfixes)
+- **Đồng bộ hóa Bootstrap:** Tinh chỉnh logic khởi tạo trong `App.tsx` để tránh các vòng lặp cập nhật khi dữ liệu Firestore đã sẵn sàng.
 - **Chuẩn hóa định dạng Ngày/Tháng/Năm:** Đồng nhất định dạng `DD/MM/YYYY` trên toàn bộ hệ thống (Bảng CV, Excel, PDF).
 - **Sửa lỗi TypeError:** Khắc phục lỗi sập ứng dụng khi truy cập thuộc tính `undefined` trong lịch sử Task.
 - **Bảo mật & Tối ưu truy vấn (Direct Messages):** Khắc phục triệt để lỗi "Permission denied" và yêu cầu Index bằng cách:
@@ -74,6 +97,12 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
 
 **Người dùng (User):** "Tôi thấy nó vẫn báo lỗi mà" (kèm ảnh chụp console Warning).
 **AI:** Đã xác định nguyên nhân kép (Security Rules matching và Composite Index). Đã giải quyết bằng cách tách thành 2 listener đơn giản và thực hiện sort trên Client. Hệ thống hiện đã sạch lỗi console.
+
+**Người dùng (User):** "Tôi muốn tùy chỉnh thời gian nhắc nhở uống nước..."
+**AI:** Đã thiết kế lại toàn bộ nhắc nhở và thêm tính năng tùy biến trong Profile.
+
+**Người dùng (User):** "Tôi đã cho 2 bạn này đăng ký lại nhưng app vẫn nhớ thông tin cũ và tự sửa hiển thị như hình. Tuy nhiên vẫn đăng nhập được."
+**AI:** Xác định lỗi ghi đè dữ liệu mẫu do logic Bootstrap quá gắt. Đã sửa App.tsx để ưu tiên dữ liệu Firestore và cập nhật constants.ts với Avatar vui tươi hơn.
 
 ---
 *Ngày cập nhật cuối cùng: 29/04/2026*

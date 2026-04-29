@@ -300,6 +300,22 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
+  const updateMessageReactions = useCallback(async (msgId: string, reactions: any[]) => {
+    try {
+      await updateDoc(doc(db, 'messages', msgId), { reactions });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `messages/${msgId}`);
+    }
+  }, []);
+
+  const updatePrivateMessageReactions = useCallback(async (msgId: string, reactions: any[]) => {
+    try {
+      await updateDoc(doc(db, 'direct_messages', msgId), { reactions });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `direct_messages/${msgId}`);
+    }
+  }, []);
+
   return {
     tasks,
     users,
@@ -315,6 +331,8 @@ export const useFirebaseData = (currentUserId?: string) => {
     updateStaff,
     deleteStaff,
     updateHeartbeat,
+    updateMessageReactions,
+    updatePrivateMessageReactions,
     saveReportDraft,
     saveOfficialReport,
     clearAllTasks

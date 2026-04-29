@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { db, loginWithGoogle } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
+import { Avatar } from './common/Avatar';
+
 interface LoginProps {
   users: User[];
   onLogin: (user: User) => void;
@@ -25,7 +27,7 @@ export default function Login({ users, onLogin }: LoginProps) {
   // Registration states
   const [regData, setRegData] = useState<Partial<User>>({
     role: 'Nhân Viên',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + Math.random(),
+    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${Math.random()}&mouth=smile`,
     securityQuestion: SECURITY_QUESTIONS[0]
   });
 
@@ -407,11 +409,11 @@ export default function Login({ users, onLogin }: LoginProps) {
 
                   <div className="flex flex-col items-center gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
                     <div className="relative">
-                      <img 
-                        src={regData.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=new'} 
-                        alt="Preview" 
-                        className="w-16 h-16 rounded-2xl border-2 border-white shadow-md object-cover bg-white"
-                        onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=fallback')} 
+                      <Avatar 
+                        src={regData.avatar} 
+                        name={regData.name || 'new'} 
+                        size="xl"
+                        className="rounded-2xl"
                       />
                     </div>
                     <div className="w-full space-y-1">

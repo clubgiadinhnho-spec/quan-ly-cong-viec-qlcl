@@ -23,7 +23,14 @@ export const STAFF_LIST: User[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Truong',
     status: 'ACTIVE',
     securityQuestion: SECURITY_QUESTIONS[0],
-    securityAnswer: 'Dế Mèn Phiêu Lưu Ký'
+    securityAnswer: 'Dế Mèn Phiêu Lưu Ký',
+    reminderSettings: {
+      enabled: true,
+      intervalMinutes: 30,
+      message: 'Đã 30 phút rồi! Hãy uống một ngụm nước nhé.',
+      autoCloseSeconds: 25,
+      configName: 'Cấu hình mặc định (Đức Mu)'
+    }
   },
   {
     id: 'mgr-tp',
@@ -38,7 +45,14 @@ export const STAFF_LIST: User[] = [
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin',
     status: 'ACTIVE',
     securityQuestion: SECURITY_QUESTIONS[0],
-    securityAnswer: 'Tan Phu'
+    securityAnswer: 'Tan Phu',
+    reminderSettings: {
+      enabled: true,
+      intervalMinutes: 30,
+      message: 'Đã 30 phút rồi! Hãy uống một ngụm nước nhé.',
+      autoCloseSeconds: 25,
+      configName: 'Cấu hình mặc định (Đức Mu)'
+    }
   },
   {
     id: 'lead-01',
@@ -65,7 +79,7 @@ export const STAFF_LIST: User[] = [
     companyEmail: 'tan.vo@tanphuvietnam.vn',
     personalEmail: 'mytan@gmail.com',
     role: 'Trưởng Nhóm',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Tan',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Tan&mouth=smile&eyebrows=default',
     status: 'ACTIVE',
     securityQuestion: SECURITY_QUESTIONS[1],
     securityAnswer: 'Hoa'
@@ -80,7 +94,7 @@ export const STAFF_LIST: User[] = [
     companyEmail: 'tu.nguyen@tanphuvietnam.vn',
     personalEmail: 'phantu@gmail.com',
     role: 'Nhân Viên',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Tu',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=PhanTu',
     status: 'ACTIVE',
     securityQuestion: SECURITY_QUESTIONS[3],
     securityAnswer: 'Nguyễn Văn Trỗi'

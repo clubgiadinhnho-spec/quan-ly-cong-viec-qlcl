@@ -11,6 +11,9 @@ interface TaskListProps {
   onDelete: (id: string) => void;
   onViewHistory: (id: string) => void;
   onOpenChat: (id: string) => void;
+  showChatModal: string | null;
+  onSendMessage: (taskId: string, content: string) => void;
+  onReact?: (taskId: string, commentId: string, emoji: string) => void;
   onEdit: (task: Task) => void;
   setConfirmModal: (modal: any) => void;
   type: 'active' | 'completed';
@@ -24,6 +27,9 @@ export const TaskList: React.FC<TaskListProps> = ({
   onDelete, 
   onViewHistory, 
   onOpenChat, 
+  showChatModal,
+  onSendMessage,
+  onReact,
   onEdit,
   setConfirmModal,
   type 
@@ -75,6 +81,9 @@ export const TaskList: React.FC<TaskListProps> = ({
                 onDelete={onDelete}
                 onViewHistory={onViewHistory}
                 onOpenChat={onOpenChat}
+                isChatOpen={showChatModal === task.id}
+                onSendMessage={onSendMessage}
+                onReact={onReact}
                 onEdit={onEdit}
                 setConfirmModal={setConfirmModal}
                 onTogglePriority={handleTogglePriority}
@@ -83,10 +92,14 @@ export const TaskList: React.FC<TaskListProps> = ({
               <CompletedTaskRow 
                 key={task.id}
                 task={task}
+                user={user}
                 users={users}
                 idx={idx}
                 onViewHistory={onViewHistory}
                 onOpenChat={onOpenChat}
+                isChatOpen={showChatModal === task.id}
+                onSendMessage={onSendMessage}
+                onReact={onReact}
                 onUndo={(id) => onUpdate(id, { status: 'IN_PROGRESS', actualEndDate: null, isLocked: false })}
               />
             )

@@ -1,18 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Send, MessageSquare, User as UserIcon } from 'lucide-react';
+import { Send, MessageSquare, User as UserIcon, Smile } from 'lucide-react';
 import { User, TaskComment } from '../types';
 import { STAFF_LIST } from '../constants';
 import { formatDateTime } from '../lib/dateUtils';
+import { ReactionPicker, ReactionBadge } from '../components/common/ReactionPicker';
+import { Avatar } from '../components/common/Avatar';
 
 interface GroupChatPageProps {
   currentUser: User;
+  users: User[];
   messages: TaskComment[];
   onSendMessage: (content: string) => void;
+  onReact?: (msgId: string, emoji: string) => void;
 }
 
-export const GroupChatPage = ({ currentUser, messages, onSendMessage }: GroupChatPageProps) => {
+export const GroupChatPage = ({ currentUser, users, messages, onSendMessage, onReact }: GroupChatPageProps) => {
   const [newMessage, setNewMessage] = useState('');
+  const [showEmojiFor, setShowEmojiFor] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,13 +48,13 @@ export const GroupChatPage = ({ currentUser, messages, onSendMessage }: GroupCha
         ) : (
           messages.map((msg) => {
             const isMe = msg.authorId === currentUser.id;
-            const author = STAFF_LIST.find(s => s.id === msg.authorId);
+            const author = users.find(s => s.id === msg.authorId);
             
             return (
               <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                 <div className={`flex items-start gap-3 max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                   {!isMe && (
-                    <img src={author?.avatar} alt="avatar" className="w-8 h-8 rounded-lg border border-gray-200 shadow-sm sticky top-0" />
+                    <Avatar src={author?.avatar} name={author?.name} className="sticky top-0" />
                   )}
                   <div className="space-y-1">
                     {!isMe && (
@@ -57,13 +62,38 @@ export const GroupChatPage = ({ currentUser, messages, onSendMessage }: GroupCha
                         {author?.name} • <span className="text-[8px]">{author?.role}</span>
                       </p>
                     )}
-                    <div className={`p-4 rounded-2xl text-xs leading-relaxed shadow-sm ${
+                    <div className={`p-4 rounded-2xl text-xs leading-relaxed shadow-sm relative group/msg ${
                       isMe 
                         ? 'bg-blue-600 text-white rounded-tr-none' 
                         : 'bg-white text-gray-700 border border-gray-100 rounded-tl-none'
                     }`}>
                       {msg.content}
+
+                      {/* Reaction trigger */}
+                      <div className={`absolute top-0 opacity-0 group-hover/msg:opacity-100 transition-opacity flex gap-1 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full p-0.5 shadow-sm ${
+                        isMe ? '-left-8' : '-right-8'
+                      }`}>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowEmojiFor(msg.id);
+                          }}
+                          className="p-1 hover:bg-gray-100 rounded-full text-gray-500"
+                        >
+                          <Smile size={14} />
+                        </button>
+                      </div>
+
+                      <ReactionPicker 
+                        isOpen={showEmojiFor === msg.id}
+                        onClose={() => setShowEmojiFor(null)}
+                        onSelect={(emoji) => onReact?.(msg.id, emoji)}
+                        position="top"
+                      />
                     </div>
+                    
+                    <ReactionBadge reactions={msg.reactions} users={users} />
+
                     <p className={`text-[9px] text-gray-400 font-bold px-1 ${isMe ? 'text-right' : 'text-left'}`}>
                       {formatDateTime(msg.timestamp)}
                     </p>

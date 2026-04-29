@@ -2,25 +2,35 @@ import React from 'react';
 import { MessageSquare, Paperclip } from 'lucide-react';
 import { Task, User } from '../../types';
 import { formatDate } from '../../lib/dateUtils';
+import { TaskChat } from './TaskChat';
+import { AnimatePresence } from 'motion/react';
+
+import { Avatar } from '../common/Avatar';
 
 interface CompletedTaskRowProps {
   task: Task;
+  user: User;
   users: User[];
   idx: number;
   onViewHistory: (id: string) => void;
   onOpenChat: (id: string) => void;
+  isChatOpen: boolean;
+  onSendMessage: (taskId: string, content: string) => void;
+  onReact?: (taskId: string, commentId: string, emoji: string) => void;
   onUndo: (id: string) => void;
 }
 
-export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ task, users, idx, onViewHistory, onOpenChat, onUndo }) => {
+export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ 
+  task, user, users, idx, onViewHistory, onOpenChat, isChatOpen, onSendMessage, onReact, onUndo 
+}) => {
   const assignee = users.find(s => s.id === task.assigneeId);
 
   return (
     <tr className="hover:bg-gray-50/50 transition-all">
-      <td className="p-4 text-center text-xs font-bold text-gray-300 border-r border-gray-300">{task.code}</td>
-      <td className="p-4 border-r border-gray-300">
+      <td className="p-4 text-center text-xs font-bold text-gray-300 border-r border-gray-300 align-top">{task.code}</td>
+      <td className="p-4 border-r border-gray-300 align-top">
         <div className="flex items-center gap-3">
-          <img src={assignee?.avatar} alt={assignee?.name} className="w-8 h-8 rounded-full border border-gray-100" />
+          <Avatar src={assignee?.avatar} name={assignee?.name} />
           <div>
             <p className="text-sm font-bold text-gray-900 leading-none whitespace-nowrap">{assignee?.name}</p>
             <div className="flex flex-col gap-0.5 mt-1">
@@ -30,7 +40,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ task, users,
           </div>
         </div>
       </td>
-      <td className="p-4 border-r border-gray-300 relative group">
+      <td className="p-4 border-r border-gray-300 relative group align-top h-px">
         {task.attachmentUrl && (
           <a 
             href={task.attachmentUrl} 
@@ -42,30 +52,49 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ task, users,
             <Paperclip size={14} strokeWidth={3} />
           </a>
         )}
-        <p className="text-sm font-bold text-gray-900 pr-6">{task.title}</p>
-        <p className="text-[11px] text-gray-500 leading-relaxed mt-1 line-clamp-2">{task.objective}</p>
+        <div className="flex flex-col h-full">
+          <p className="text-sm font-black text-gray-900 pr-6 uppercase break-words whitespace-normal leading-tight">{task.title}</p>
+          <p className="text-[11px] font-black text-gray-900 leading-relaxed mt-1 break-words whitespace-normal flex-1">{task.objective}</p>
+        </div>
       </td>
-      <td className="p-4 text-center border-r border-gray-300">
-        <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg border border-green-100">
-          Xong: {formatDate(task.actualEndDate)}
-        </span>
+      <td className="p-4 text-center border-r border-gray-300 align-top h-px">
+        <div className="flex flex-col h-full justify-center">
+          <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg border border-green-100">
+            Xong: {formatDate(task.actualEndDate)}
+          </span>
+        </div>
       </td>
-      <td className="p-4 border-r border-gray-300">
-        <div className="flex flex-col gap-2">
-          <p className="text-xs text-gray-500 italic leading-relaxed">{task.currentUpdate}</p>
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-bold uppercase tracking-tighter">v{task.history.length}</span>
+      <td className="p-2 border-r border-gray-300 align-top h-px">
+        <div className="flex flex-col gap-2 h-full min-h-[100px] justify-between">
+          <div className="bg-gray-50/50 p-3 rounded-xl border border-gray-100 flex-1">
+            <p className="text-[11px] text-gray-700 leading-relaxed break-words whitespace-normal">{task.currentUpdate}</p>
+          </div>
+          <div className="flex items-center gap-2 relative mt-auto pt-1">
+            <span className="text-[8px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-black uppercase tracking-tighter">v{task.history.length}</span>
             <button 
-              onClick={() => onOpenChat(task.id)}
-              className="p-1 px-2 text-[9px] text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-full font-bold uppercase transition-all flex items-center gap-1"
+              onClick={() => onOpenChat(isChatOpen ? '' : task.id)}
+              className={`p-1 px-2 text-[9px] rounded-full font-black uppercase transition-all flex items-center gap-1 ${isChatOpen ? 'bg-blue-600 text-white shadow-lg' : 'text-blue-600 bg-blue-50 hover:bg-blue-100'}`}
             >
               <MessageSquare size={10} />
               Hội thoại {task.comments && task.comments.length > 0 && `(${task.comments.length})`}
             </button>
+
+            <AnimatePresence>
+              {isChatOpen && (
+                <TaskChat 
+                  task={task}
+                  currentUser={user}
+                  users={users}
+                  onSendMessage={onSendMessage}
+                  onReact={onReact}
+                  onClose={() => onOpenChat('')}
+                />
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </td>
-      <td className="p-1 text-center border-r border-gray-300">
+      <td className="p-1 text-center border-r border-gray-300 align-top pt-4">
         {task.priorityOrder ? (
           <span 
             style={{ 
@@ -80,7 +109,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ task, users,
           <span className="text-[10px] font-bold text-gray-300">-</span>
         )}
       </td>
-      <td className="py-4 px-1 text-center border-r border-gray-300">
+      <td className="py-4 px-1 text-center border-r border-gray-300 align-top">
         <div className="flex flex-col items-center gap-1">
           <button onClick={() => onViewHistory(task.id)} className="text-[10px] text-blue-600 font-bold hover:underline">CHI TIẾT</button>
           <button 

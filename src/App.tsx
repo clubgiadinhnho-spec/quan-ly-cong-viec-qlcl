@@ -26,6 +26,7 @@ import { useTaskActions } from './hooks/useTaskActions';
 // Import Components
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
+import { HolidayBanner } from './components/layout/HolidayBanner';
 import { StatsSummary } from './components/dashboard/StatsSummary';
 import { TaskList } from './components/tasks/TaskList';
 import { TaskModal } from './components/tasks/TaskModal';
@@ -33,6 +34,7 @@ import { HistoryModal } from './components/tasks/HistoryModal';
 import { TaskChat } from './components/tasks/TaskChat';
 import { DirectChat } from './components/tasks/DirectChat';
 import { ConfirmModal } from './components/common/ConfirmModal';
+import { HealthReminder } from './components/common/HealthReminder';
 import { ProfilePage } from './pages/ProfilePage';
 import { ReportPage } from './pages/ReportPage';
 import { GroupChatPage } from './pages/GroupChatPage';
@@ -42,13 +44,37 @@ import { StaffListPage } from './pages/StaffListPage';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [simulatedUser, setSimulatedUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('tasks');
+
+  // The effectively active user (either original or simulated)
+  const effectiveUser = simulatedUser || currentUser;
+
   const [search, setSearch] = useState('');
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState<string | null>(null);
   const [showChatModal, setShowChatModal] = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [showHealthReminder, setShowHealthReminder] = useState(false);
+  const lastReminderTime = React.useRef<number>(Date.now());
+
+  // Health Reminder Logic
+  useEffect(() => {
+    if (!effectiveUser || !effectiveUser.reminderSettings?.enabled) return;
+
+    const checkInterval = setInterval(() => {
+      const now = Date.now();
+      const intervalMs = (effectiveUser.reminderSettings?.intervalMinutes || 30) * 60 * 1000;
+      
+      if (now - lastReminderTime.current >= intervalMs) {
+        setShowHealthReminder(true);
+        lastReminderTime.current = now;
+      }
+    }, 10000); // Check every 10s
+
+    return () => clearInterval(checkInterval);
+  }, [effectiveUser]);
 
   // Use Firebase Hook
   const { 
@@ -65,11 +91,13 @@ export default function App() {
     updateStaff: firebaseUpdateStaff,
     deleteStaff: firebaseDeleteStaff,
     updateHeartbeat: firebaseUpdateHeartbeat,
+    updateMessageReactions: firebaseUpdateMessageReactions,
+    updatePrivateMessageReactions: firebaseUpdatePrivateMessageReactions,
     saveReportDraft: firebaseSaveReportDraft,
     saveOfficialReport: firebaseSaveOfficialReport,
     officialReports: firebaseOfficialReports,
     clearAllTasks
-  } = useFirebaseData(currentUser?.id);
+  } = useFirebaseData(effectiveUser?.id);
 
   // Firestore is the source of truth, but we use STAFF_LIST as base defaults
   const allUsers = React.useMemo(() => {
@@ -79,10 +107,11 @@ export default function App() {
   const { 
     addTask: baseAddTask,
     updateTask,
-    addTaskComment
+    addTaskComment,
+    updateTaskCommentReactions
   } = useTaskActions({
     tasks,
-    currentUser,
+    currentUser: effectiveUser,
     allUsers,
     firebaseAddTask,
     firebaseUpdateTask,
@@ -104,12 +133,13 @@ export default function App() {
   const lastGroupMsgId = React.useRef<string | null>(null);
   const lastTaskCommentId = React.useRef<Record<string, string>>({});
   const initialLoadDone = React.useRef(false);
+  const knownRequests = React.useRef<Set<string>>(new Set());
 
   // Auto-popup logic for chat (Refined to be non-intrusive)
   const [unreadNotifications, setUnreadNotifications] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!currentUser || !authReady || firebaseLoading) return;
+    if (!effectiveUser || !authReady || firebaseLoading) return;
 
     // Give some time for initial data to load completely
     if (!initialLoadDone.current) {
@@ -134,12 +164,8 @@ export default function App() {
       if (latestMsg.id !== lastPrivateMsgId.current && latestMsg.receiverId === currentUser.id) {
         const sender = allUsers.find(u => u.id === latestMsg.senderId);
         if (sender) {
-          // Add to notifications instead of popping up
-          setUnreadNotifications(prev => {
-            const exists = prev.find(n => n.type === 'direct' && n.senderId === sender.id);
-            if (exists) return prev;
-            return [...prev, { type: 'direct', senderId: sender.id, senderName: sender.name, msg: latestMsg.content }];
-          });
+          // Auto-open Direct Chat
+          setShowDirectChat(sender);
         }
         lastPrivateMsgId.current = latestMsg.id;
       } else if (latestMsg.id !== lastPrivateMsgId.current) {
@@ -171,18 +197,48 @@ export default function App() {
         if (latestComment.id !== lastId) {
           const isRelated = t.assigneeId === currentUser.id || t.history[0]?.authorId === currentUser.id;
           if (latestComment.authorId !== currentUser.id && isRelated) {
-             setUnreadNotifications(prev => {
-               const exists = prev.find(n => n.type === 'task' && n.taskId === t.id);
-               if (exists) return prev;
-               return [...prev, { type: 'task', taskId: t.id, taskTitle: t.title, msg: latestComment.content }];
-             });
+             // Auto-open Task Chat
+             setShowChatModal(t.id);
           }
           lastTaskCommentId.current[t.id] = latestComment.id;
         }
       }
     });
 
+    // 4. Check for task requests (Admin/Trưởng Phòng)
+    if (currentUser.role === 'Trưởng Phòng' || currentUser.role === 'Admin') {
+      tasks.forEach(t => {
+        const reqKey = `${t.id}-${t.status === 'PENDING_APPROVAL' ? 'HT' : ''}-${t.requestDelete ? 'XOA' : ''}`;
+        if ((t.status === 'PENDING_APPROVAL' || t.requestDelete) && !knownRequests.current.has(reqKey)) {
+           setUnreadNotifications(prev => {
+             const type = t.status === 'PENDING_APPROVAL' ? 'approve_ht' : 'approve_delete';
+             const exists = prev.find(n => n.taskId === t.id && n.type === type);
+             if (exists) return prev;
+             return [...prev, { 
+               type, 
+               taskId: t.id, 
+               taskTitle: t.title, 
+               msg: t.status === 'PENDING_APPROVAL' ? 'Yêu cầu chốt hoàn thành' : 'Yêu cầu xóa công việc' 
+             }];
+           });
+           knownRequests.current.add(reqKey);
+        }
+      });
+    }
+
   }, [privateMessages, tasks, currentUser, authReady, firebaseLoading, allUsers, activeTab]);
+
+  // Auto-clear notifications when chat is opened
+  useEffect(() => {
+    if (unreadNotifications.length === 0) return;
+
+    setUnreadNotifications(prev => prev.filter(notif => {
+      if (notif.type === 'direct' && showDirectChat && notif.senderId === showDirectChat.id) return false;
+      if (notif.type === 'group' && activeTab === 'group_chat') return false;
+      if (notif.type === 'task' && showChatModal === notif.taskId) return false;
+      return true;
+    }));
+  }, [showDirectChat, activeTab, showChatModal, unreadNotifications.length]);
 
   // Presence system
   useUserHeartbeat(currentUser?.id, firebaseUpdateHeartbeat);
@@ -193,21 +249,25 @@ export default function App() {
   
   useEffect(() => {
     const bootstrap = async () => {
-      if (!firebaseLoading && !bootstrapAttempted.current) {
+      if (!firebaseLoading && !bootstrapAttempted.current && users.length > 0) {
         bootstrapAttempted.current = true;
-        let addedCount = 0;
         for (const staff of STAFF_LIST) {
           const exists = users.find(u => u.id === staff.id || u.companyEmail === staff.companyEmail);
-          // If staff doesn't exist OR doesn't have a security question, sync them
-          if (!exists || !exists.securityQuestion) {
-            await firebaseUpdateStaff({ ...staff, status: (exists?.status || staff.status || 'ACTIVE') as any });
-            addedCount++;
+          // ONLY add if they don't exist at all on Firestore.
+          // Do NOT overwrite existing users even if they lack security questions.
+          if (!exists) {
+            await firebaseUpdateStaff({ ...staff, status: 'ACTIVE' });
+          } else if (staff.id === 'staff-02') {
+            // Force reset Tú's avatar if it was broken by encoding issues
+            if (exists.avatar && (exists.avatar.includes('%') || exists.avatar.includes('TuK'))) {
+               await firebaseUpdateStaff({ ...exists, avatar: staff.avatar });
+            }
           }
         }
       }
     };
     bootstrap();
-  }, [firebaseLoading]); // Only run when loading state changes
+  }, [firebaseLoading, users.length]); // Run when users are loaded
 
   // Handle Authentication State (Restore Session & Sync)
   useEffect(() => {
@@ -259,9 +319,9 @@ export default function App() {
   }>({ show: false, title: '', message: '', onConfirm: () => {} });
 
   const sendGeneralMessage = useCallback((content: string) => {
-    if (!currentUser) return;
-    firebaseSendMessage(content, currentUser.id);
-  }, [currentUser, firebaseSendMessage]);
+    if (!effectiveUser) return;
+    firebaseSendMessage(content, effectiveUser.id);
+  }, [effectiveUser, firebaseSendMessage]);
 
   const updateUserNote = useCallback((userId: string, note: string) => {
     const staff = users.find(u => u.id === userId) || STAFF_LIST.find(u => u.id === userId);
@@ -418,10 +478,18 @@ export default function App() {
     });
   }, [allUsers, firebaseDeleteStaff]);
 
-  const filteredTasks = tasks.filter(t => 
-    (t.title.toLowerCase().includes(search.toLowerCase()) || 
-     t.code.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredTasks = tasks.filter(t => {
+    const matchesSearch = (t.title.toLowerCase().includes(search.toLowerCase()) || 
+                          t.code.toLowerCase().includes(search.toLowerCase()));
+    
+    // Role-based visibility filtering
+    if (effectiveUser.role === 'Admin' || effectiveUser.role === 'Trưởng Phòng') {
+      return matchesSearch;
+    }
+    
+    // Trưởng Nhóm and Nhân Viên only see tasks assigned to them
+    return matchesSearch && t.assigneeId === effectiveUser.id;
+  });
 
   const priorityWeight = { 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 };
 
@@ -442,7 +510,7 @@ export default function App() {
   return (
     <div className="flex min-h-screen bg-[#F9FAFB]">
       <Sidebar 
-        user={currentUser} 
+        user={effectiveUser} 
         users={allUsers}
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
@@ -450,7 +518,26 @@ export default function App() {
         onUserClick={(user) => setShowDirectChat(user)}
       />
 
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto relative">
+        {simulatedUser && (
+          <div className="sticky top-0 z-[60] bg-amber-500 text-white px-6 py-2.5 flex items-center justify-between shadow-lg border-b border-amber-600 animate-in slide-in-from-top duration-300">
+            <div className="flex items-center gap-3">
+              <div className="bg-white/20 p-1.5 rounded-lg">
+                <Search size={18} className="animate-pulse" />
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase tracking-wider">CHẾ ĐỘ GIẢ LẬP NHÂN VIÊN</p>
+                <p className="text-[10px] opacity-90 font-bold italic">Bạn đang nhìn thấy hệ thống dưới góc nhìn của: {simulatedUser.name}</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setSimulatedUser(null)}
+              className="px-4 py-1.5 bg-white text-amber-600 rounded-full text-[10px] font-black uppercase hover:bg-amber-50 transition-colors shadow-sm"
+            >
+              Thoát Giả Lập
+            </button>
+          </div>
+        )}
         <AnimatePresence mode="wait">
           {activeTab === 'tasks' && (
             <motion.div 
@@ -460,10 +547,11 @@ export default function App() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
+              <HolidayBanner />
               <Header 
-                title="BẢNG THEO DÕI CÔNG VIỆC P.QLCL" 
-                badge={currentUser.role}
-                onAction={(currentUser.role === 'Admin' || currentUser.role === 'Trưởng Phòng') ? () => setShowTaskModal(true) : undefined}
+                title="TRUNG TÂM QUẢN LÝ CHẤT LƯỢNG TÂN PHÚ VIỆT NAM" 
+                badge={effectiveUser.role}
+                onAction={(effectiveUser.role === 'Admin' || effectiveUser.role === 'Trưởng Phòng') ? () => setShowTaskModal(true) : undefined}
                 actionLabel="Giao việc mới"
                 actionIcon={Plus}
               />
@@ -474,7 +562,7 @@ export default function App() {
                 <div className="flex items-center justify-between">
                    <div className="flex items-center gap-4">
                     <h3 className="text-[13px] font-bold text-gray-500 uppercase tracking-widest">Danh sách công việc đang xử lý</h3>
-                     {(currentUser.role === 'Admin' || currentUser.role === 'Trưởng Phòng') && (
+                     {(effectiveUser.role === 'Admin' || effectiveUser.role === 'Trưởng Phòng') && (
                        <div className="flex items-center gap-2">
                           <button 
                             onClick={downloadSampleExcel}
@@ -501,7 +589,7 @@ export default function App() {
                              onChange={handleImportExcel}
                            />
                          </label>
-                         {currentUser.role === 'Admin' && (
+                         {effectiveUser.role === 'Admin' && (
                            <button 
                              onClick={handleResetData}
                              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg text-[10px] font-bold hover:bg-red-100 transition-all uppercase"
@@ -528,18 +616,21 @@ export default function App() {
 
                 <TaskList 
                   tasks={sortedTasks.filter(t => t.status !== 'COMPLETED')}
-                  user={currentUser}
+                  user={effectiveUser}
                   users={allUsers}
                   onUpdate={updateTask}
                   onDelete={deleteTask}
                   onViewHistory={(id) => setShowHistoryModal(id)}
                   onOpenChat={(id) => setShowChatModal(id)}
+                  showChatModal={showChatModal}
+                  onSendMessage={addTaskComment}
+                  onReact={updateTaskCommentReactions}
                   onEdit={setEditingTask}
                   setConfirmModal={setConfirmModal}
                   type="active"
                 />
 
-                {currentUser.role === 'Admin' && (
+                {effectiveUser.role === 'Admin' && (
                    <div className="flex justify-end">
                       <button 
                         onClick={lockTasks}
@@ -556,18 +647,22 @@ export default function App() {
 
           {activeTab === 'completed_tasks' && (
             <motion.div key="completed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <HolidayBanner />
               <Header 
                 title="Lịch sử công việc đã hoàn thành" 
               />
               <div className="p-8 space-y-8">
                 <TaskList 
                   tasks={sortedTasks.filter(t => t.status === 'COMPLETED')}
-                  user={currentUser}
+                  user={effectiveUser}
                   users={allUsers}
                   onUpdate={updateTask}
                   onDelete={deleteTask}
                   onViewHistory={(id) => setShowHistoryModal(id)}
                   onOpenChat={(id) => setShowChatModal(id)}
+                  showChatModal={showChatModal}
+                  onSendMessage={addTaskComment}
+                  onReact={updateTaskCommentReactions}
                   onEdit={setEditingTask}
                   setConfirmModal={setConfirmModal}
                   type="completed"
@@ -578,14 +673,25 @@ export default function App() {
 
           {activeTab === 'group_chat' && (
             <motion.div key="group_chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <HolidayBanner />
               <Header 
                 title="Phòng thảo luận chung" 
               />
               <div className="p-8">
                 <GroupChatPage 
-                  currentUser={currentUser} 
+                  currentUser={effectiveUser} 
+                  users={allUsers}
                   messages={generalMessages} 
                   onSendMessage={sendGeneralMessage} 
+                  onReact={(msgId, emoji) => {
+                    const msg = generalMessages.find(m => m.id === msgId);
+                    if (!msg) return;
+                    const reactions = [...(msg.reactions || [])];
+                    const idx = reactions.findIndex(r => r.userId === effectiveUser.id && r.emoji === emoji);
+                    if (idx > -1) reactions.splice(idx, 1);
+                    else reactions.push({ userId: effectiveUser.id, emoji });
+                    firebaseUpdateMessageReactions(msgId, reactions);
+                  }}
                 />
               </div>
             </motion.div>
@@ -593,17 +699,18 @@ export default function App() {
 
           {activeTab === 'profile' && (
             <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <HolidayBanner />
               <Header 
                 title="Hồ sơ & Quản lý nhân sự" 
-                badge={currentUser.code} 
+                badge={effectiveUser.code} 
               />
               <div className="p-8">
                 <ProfilePage 
-                  currentUser={currentUser} 
+                  currentUser={effectiveUser} 
                   tasks={tasks} 
                   users={allUsers}
                   onUpdateNote={updateUserNote}
-                  onUpdateUser={onUpdateStaff}
+                  onUpdateUser={firebaseUpdateStaff}
                 />
               </div>
             </motion.div>
@@ -611,6 +718,7 @@ export default function App() {
 
           {activeTab === 'reports' && (
             <motion.div key="reports" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+               <HolidayBanner />
                <Header 
                 title="Báo cáo hiệu suất & Vấn đề" 
                />
@@ -619,7 +727,7 @@ export default function App() {
                     tasks={tasks} 
                     users={allUsers} 
                     onUpdateTask={updateTask}
-                    currentUser={currentUser!}
+                    currentUser={effectiveUser!}
                     officialReports={firebaseOfficialReports}
                     onSaveDraft={firebaseSaveReportDraft}
                     onSaveOfficialReport={firebaseSaveOfficialReport}
@@ -630,15 +738,17 @@ export default function App() {
 
           {activeTab === 'staff_list' && (currentUser.role === 'Admin' || currentUser.role === 'Trưởng Phòng') && (
             <motion.div key="staff_list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+               <HolidayBanner />
                <Header 
                 title="Quản lý Nhân sự" 
                />
                <div className="p-8">
                   <StaffListPage 
                     users={allUsers} 
-                    onUpdateStaff={onUpdateStaff} 
+                    onUpdateStaff={firebaseUpdateStaff} 
                     onDeleteStaff={handleStaffDelete}
-                    currentUser={currentUser} 
+                    currentUser={effectiveUser} 
+                    onSimulateStaff={setSimulatedUser}
                   />
                </div>
             </motion.div>
@@ -662,13 +772,20 @@ export default function App() {
                   if (notif.type === 'direct') setShowDirectChat(allUsers.find(u => u.id === notif.senderId)!);
                   if (notif.type === 'group') setActiveTab('group_chat');
                   if (notif.type === 'task') setShowChatModal(notif.taskId);
+                  if (notif.type === 'approve_ht' || notif.type === 'approve_delete') setActiveTab('tasks');
                   setUnreadNotifications(prev => prev.filter((_, i) => i !== idx));
                 }}
                 className="bg-white border border-blue-100 shadow-2xl rounded-2xl p-4 w-72 cursor-pointer hover:bg-blue-50 transition-all border-l-4 border-l-blue-600 group"
               >
                 <div className="flex justify-between items-start mb-1">
-                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-0.5 rounded">
-                    {notif.type === 'direct' ? 'Tin nhắn' : notif.type === 'group' ? 'Nhóm' : 'Nhiệm vụ'}
+                  <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
+                    notif.type.startsWith('approve') ? 'bg-amber-100 text-amber-700' : 'bg-blue-50 text-blue-600'
+                  }`}>
+                    {notif.type === 'direct' ? 'Tin nhắn' : 
+                     notif.type === 'group' ? 'Nhóm' : 
+                     notif.type === 'approve_ht' ? 'Phê duyệt HT' :
+                     notif.type === 'approve_delete' ? 'Phê duyệt Xóa' :
+                     'Nhiệm vụ'}
                   </span>
                   <button onClick={(e) => {
                     e.stopPropagation();
@@ -704,24 +821,23 @@ export default function App() {
       )}
       
       <AnimatePresence>
-        {showChatModal && (
-          <TaskChat 
-            task={tasks.find(t => t.id === showChatModal)!}
-            currentUser={currentUser!}
-            onSendMessage={addTaskComment}
-            onClose={() => setShowChatModal(null)}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
         {showDirectChat && (
           <DirectChat 
-            currentUser={currentUser}
-            otherUser={showDirectChat}
+            currentUser={effectiveUser!}
+            otherUser={allUsers.find(u => u.id === showDirectChat.id)!}
             messages={privateMessages}
             onSendMessage={firebaseSendPrivateMessage}
             onClose={() => setShowDirectChat(null)}
+            onReact={(msgId, emoji) => {
+              const msg = privateMessages.find(m => m.id === msgId);
+              if (!msg) return;
+              const reactions = [...(msg.reactions || [])];
+              const idx = reactions.findIndex(r => r.userId === effectiveUser.id && r.emoji === emoji);
+              if (idx > -1) reactions.splice(idx, 1);
+              else reactions.push({ userId: effectiveUser.id, emoji });
+              firebaseUpdatePrivateMessageReactions(msgId, reactions);
+            }}
+            allUsers={allUsers}
           />
         )}
       </AnimatePresence>
@@ -733,6 +849,15 @@ export default function App() {
         onConfirm={confirmModal.onConfirm}
         onClose={() => setConfirmModal(p => ({ ...p, show: false }))}
       />
+
+      <AnimatePresence>
+        {showHealthReminder && currentUser?.reminderSettings && (
+          <HealthReminder 
+            settings={currentUser.reminderSettings} 
+            onClose={() => setShowHealthReminder(false)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

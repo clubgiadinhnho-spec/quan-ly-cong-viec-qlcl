@@ -88,9 +88,36 @@ export const useTaskActions = ({
     firebaseUpdateTask(taskId, { comments: newComments });
   }, [tasks, currentUser, firebaseUpdateTask]);
 
+  const updateTaskCommentReactions = useCallback((taskId: string, commentId: string, emoji: string) => {
+    if (!currentUser) return;
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || !task.comments) return;
+
+    const newComments = task.comments.map(c => {
+      if (c.id === commentId) {
+        const reactions = [...(c.reactions || [])];
+        const existingIdx = reactions.findIndex(r => r.userId === currentUser.id && r.emoji === emoji);
+        
+        if (existingIdx > -1) {
+          reactions.splice(existingIdx, 1);
+        } else {
+          // Zalo style: typically one emoji per user? Or multiple?
+          // Let's do: clicking same emoji toggles it. 
+          // Optional: clicking different emoji replaces if we want single reaction per user, but let's allow multiple for now as "reactions".
+          reactions.push({ userId: currentUser.id, emoji });
+        }
+        return { ...c, reactions };
+      }
+      return c;
+    });
+
+    firebaseUpdateTask(taskId, { comments: newComments });
+  }, [tasks, currentUser, firebaseUpdateTask]);
+
   return {
     addTask,
     updateTask,
-    addTaskComment
+    addTaskComment,
+    updateTaskCommentReactions
   };
 };

@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import { User, UserRoleType } from '../types';
-import { Search, Mail, Phone, MessageCircle, MoreVertical, Filter, X, Save, Edit2, Trash2, Shield, HelpCircle, Lock } from 'lucide-react';
+import { Search, Mail, Phone, MessageCircle, X, Save, Edit2, Trash2, Shield, HelpCircle, Lock, Download, ClipboardList, FileText, Filter, Eye } from 'lucide-react';
 import { SECURITY_QUESTIONS } from '../constants';
+
+import { Avatar } from '../components/common/Avatar';
 
 interface StaffListPageProps {
   users: User[];
   onUpdateStaff: (staff: User) => void;
   onDeleteStaff: (id: string) => void;
   currentUser: User;
+  onSimulateStaff?: (user: User) => void;
+  originalUser?: User | null;
 }
 
-export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateStaff, onDeleteStaff, currentUser }) => {
+export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateStaff, onDeleteStaff, currentUser, onSimulateStaff, originalUser }) => {
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState<'All' | UserRoleType | 'PENDING'>('All');
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
@@ -66,6 +70,31 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
     setEditForm(null);
   };
 
+  const handleExport = () => {
+    const headers = ['Mã NV', 'Họ Tên', 'Viết tắt', 'Chức vụ', 'SĐT', 'Zalo', 'Email Cơ quan', 'Email Cá nhân', 'Kinh nghiệm/CV', 'Trạng thái'];
+    const csvContent = [
+      headers.join(','),
+      ...users.map(u => [
+        u.code,
+        `"${u.name}"`,
+        u.abbreviation,
+        u.role,
+        `'${u.phone}`,
+        `'${u.zalo || u.phone}`,
+        u.companyEmail,
+        u.personalEmail,
+        `"${(u.cvDetails || '').replace(/"/g, '""')}"`,
+        u.status
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Bao_cao_nhan_su_${new Date().toLocaleDateString('vi-VN').replace(/\//g, '-')}.csv`;
+    link.click();
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -73,6 +102,15 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
            <h1 className="text-2xl font-black text-gray-800 tracking-tight uppercase">DANH SÁCH CÁN BỘ CÔNG NHÂN VIÊN</h1>
            <p className="text-sm text-gray-500 mt-1">Quản lý thông tin liên hệ và chức vụ nhân sự</p>
         </div>
+        {isManagerOrAdmin && (
+          <button 
+            onClick={handleExport}
+            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 shrink-0"
+          >
+            <Download size={16} />
+            Xuất báo cáo
+          </button>
+        )}
       </div>
 
       <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
@@ -118,7 +156,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-4">
                     <div className="relative">
-                      <img src={staff.avatar} alt="" className="w-16 h-16 rounded-2xl object-cover border-2 border-gray-50" />
+                      <Avatar src={staff.avatar} name={staff.name} size="xl" className="rounded-2xl" />
                       {!isEditing && (
                         <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
                           staff.lastActive && (Date.now() - staff.lastActive < 120000) ? 'animate-pulse ring-2 ring-blue-400 ring-offset-2' : ''
@@ -189,6 +227,16 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                         </>
                       ) : (
                         <div className="flex items-center gap-1">
+                          {onSimulateStaff && staff.id !== (originalUser?.id || currentUser.id) && (
+                            <button 
+                              onClick={() => onSimulateStaff(staff)} 
+                              className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors flex items-center gap-1"
+                              title="Giả lập nhân viên"
+                            >
+                              <Eye size={18} />
+                              <span className="text-[10px] font-black uppercase hidden lg:inline">Giả lập</span>
+                            </button>
+                          )}
                           <button onClick={() => handleEdit(staff)} className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Chỉnh sửa">
                             <Edit2 size={18} />
                           </button>
@@ -267,6 +315,27 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                   </div>
                   {isEditing && (
                     <>
+                      <div className="pt-4 border-t border-blue-50 space-y-3">
+                        <div className="flex items-center gap-2">
+                           <ClipboardList size={14} className="text-blue-600" />
+                           <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Hồ sơ năng lực / CV</span>
+                        </div>
+                        <div className="space-y-2">
+                          <input 
+                            className="w-full text-xs font-medium bg-blue-50/20 border border-blue-100 rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                            value={editForm.cvUrl || ''}
+                            onChange={(e) => setEditForm({...editForm, cvUrl: e.target.value})}
+                            placeholder="Link CV (Google Drive, LinkedIn...)"
+                          />
+                          <textarea 
+                            className="w-full text-xs font-medium bg-blue-50/20 border border-blue-100 rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 min-h-[100px] resize-none"
+                            value={editForm.cvDetails || ''}
+                            onChange={(e) => setEditForm({...editForm, cvDetails: e.target.value})}
+                            placeholder="Chi tiết kinh nghiệm, chứng chỉ, đào tạo..."
+                          />
+                        </div>
+                      </div>
+
                       <div className="pt-4 border-t border-blue-50 space-y-3">
                         <div className="flex items-center gap-2">
                            <Shield size={14} className="text-blue-600" />
@@ -349,9 +418,23 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                       Phê duyệt ngay
                     </button>
                   ) : (
-                    <button className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:text-blue-700 transition-colors">
-                      Xem hồ sơ chi tiết
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => {
+                          if (staff.cvDetails || staff.cvUrl) {
+                            const details = staff.cvDetails || 'Chưa có thông tin chi tiết.';
+                            const url = staff.cvUrl ? `\nLink: ${staff.cvUrl}` : '';
+                            alert(`HỒ SƠ NĂNG LỰC: ${staff.name}\n\n${details}${url}`);
+                          } else {
+                            handleEdit(staff);
+                          }
+                        }}
+                        className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:text-blue-700 transition-colors flex items-center gap-1"
+                      >
+                        <FileText size={12} />
+                        Hồ sơ chi tiết
+                      </button>
+                    </div>
                   )}
                   <div className="flex gap-2">
                     <a href={`tel:${staff.phone}`} className="p-2 bg-white rounded-lg border border-gray-100 text-gray-400 hover:text-blue-600 hover:border-blue-100 transition-all">

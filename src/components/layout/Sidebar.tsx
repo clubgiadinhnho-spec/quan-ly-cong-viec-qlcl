@@ -2,6 +2,8 @@ import React from 'react';
 import { User } from '../../types';
 import { ClipboardList, User as UserIcon, CheckCircle2, BarChart3, LogOut, MessageSquare, Users, Database } from 'lucide-react';
 
+import { Avatar } from '../common/Avatar';
+
 interface SidebarProps {
   user: User;
   users: User[];
@@ -71,7 +73,7 @@ export const Sidebar = ({ user, users, activeTab, setActiveTab, onLogout, onUser
                   className="w-full flex items-center gap-2.5 px-2 group hover:bg-blue-50/50 py-1.5 rounded-lg transition-all"
                 >
                   <div className="relative flex-none">
-                    <img src={u.avatar} alt={u.name} className="w-7 h-7 rounded-full border border-gray-100 bg-gray-50 object-cover" />
+                    <Avatar src={u.avatar} name={u.name} size="sm" />
                     <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 border-2 border-white rounded-full"></div>
                   </div>
                   <div className="flex-1 min-w-0 text-left">
@@ -89,7 +91,7 @@ export const Sidebar = ({ user, users, activeTab, setActiveTab, onLogout, onUser
       
       <div className="mt-auto p-4 border-t border-gray-100 bg-gray-50/50">
         <div className="flex items-center gap-3 px-2">
-          <img src={user.avatar} alt="avatar" className="w-10 h-10 rounded-full border border-gray-200 bg-white" />
+          <Avatar src={user.avatar} name={user.name} size="lg" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-gray-900 truncate">{user.name}</p>
             <p className="text-[10px] text-gray-500 font-semibold uppercase">{user.role}</p>

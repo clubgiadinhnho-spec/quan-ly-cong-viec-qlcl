@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { User, Task } from '../types';
-import { User as UserIcon, FileText, MessageSquare, Send, Shield, Lock, Save, HelpCircle, CheckCircle2, ShieldCheck, Camera, Edit2 } from 'lucide-react';
+import { User as UserIcon, FileText, MessageSquare, Send, Shield, Lock, Save, HelpCircle, CheckCircle2, ShieldCheck, Camera, Edit2, Clock, Upload, Scissors, RefreshCw, X } from 'lucide-react';
 import { SECURITY_QUESTIONS } from '../constants';
 import { getPerformanceAdvice } from '../lib/gemini';
 import { formatDate } from '../lib/dateUtils';
 import { motion, AnimatePresence } from 'motion/react';
+import ReactCrop, { centerCrop, makeAspectCrop, Crop, PixelCrop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
+
+import { Avatar } from '../components/common/Avatar';
 
 interface ProfilePageProps {
   currentUser: User;
@@ -23,15 +27,102 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateNote, onUpdateU
 
   // Security editing states
   const [isEditingSecurity, setIsEditingSecurity] = useState(false);
+  // Avatar editing states
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const [tempAvatar, setTempAvatar] = useState(currentUser.avatar || '');
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [crop, setCrop] = useState<Crop>();
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
+  const [imgRef, setImgRef] = useState<HTMLImageElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [secData, setSecData] = useState({
     question: currentUser.securityQuestion || SECURITY_QUESTIONS[0],
     answer: currentUser.securityAnswer || ''
   });
+  
+  // Health Reminder settings
+  const [remData, setRemData] = useState(currentUser.reminderSettings || {
+    enabled: true,
+    intervalMinutes: 30,
+    message: 'Đã 30 phút rồi! Hãy uống một ngụm nước nhé.',
+    autoCloseSeconds: 25,
+    configName: 'Cấu hình mặc định (Đức Mu)'
+  });
+  const [isEditingReminder, setIsEditingReminder] = useState(false);
+
   const [saveSuccess, setSaveSuccess] = useState(false);
   
   const user = users.find(u => u.id === viewedUserId) || currentUser;
+
+  const handleUpdateReminder = () => {
+    if (!onUpdateUser) return;
+    onUpdateUser({ ...currentUser, reminderSettings: remData });
+    setIsEditingReminder(false);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 3000);
+  };
+
+  const onSelectFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const reader = new FileReader();
+      reader.addEventListener('load', () => setSelectedFile(reader.result?.toString() || null));
+      reader.readAsDataURL(e.target.files[0]);
+    }
+  };
+
+  const onImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const { width, height } = e.currentTarget;
+    setImgRef(e.currentTarget);
+    const initialCrop = centerCrop(
+      makeAspectCrop(
+        {
+          unit: '%',
+          width: 90,
+        },
+        1 / 1,
+        width,
+        height
+      ),
+      width,
+      height
+    );
+    setCrop(initialCrop);
+  };
+
+  const getCroppedImg = async () => {
+    if (!imgRef || !completedCrop) return;
+
+    const canvas = document.createElement('canvas');
+    const scaleX = imgRef.naturalWidth / imgRef.width;
+    const scaleY = imgRef.naturalHeight / imgRef.height;
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) return;
+
+    // Set preview canvas size to desired final size (e.g., 256x256)
+    const size = 256;
+    canvas.width = size;
+    canvas.height = size;
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    ctx.drawImage(
+      imgRef,
+      completedCrop.x * scaleX,
+      completedCrop.y * scaleY,
+      completedCrop.width * scaleX,
+      completedCrop.height * scaleY,
+      0,
+      0,
+      size,
+      size
+    );
+
+    const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+    setTempAvatar(base64Image);
+    setSelectedFile(null);
+  };
 
   const handleUpdateAvatar = () => {
     if (!onUpdateUser) return;
@@ -89,11 +180,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateNote, onUpdateU
     <div className="space-y-6">
       <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 flex flex-col md:flex-row items-start gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="relative group">
-          <img 
-            src={user.avatar} 
-            alt={user.name} 
-            className="w-32 h-32 rounded-3xl border-4 border-gray-100 shadow-xl bg-gray-50 object-cover" 
-          />
+          <Avatar src={user.avatar} name={user.name} size="xl" className="w-32 h-32 rounded-3xl border-4 border-gray-100 shadow-xl bg-gray-50 object-cover" />
           {viewedUserId === currentUser.id && (
             <button 
               onClick={() => {
@@ -161,7 +248,14 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateNote, onUpdateU
             </div>
             
             {viewedUserId === currentUser.id && (
-              <div className="flex-1 md:flex-none md:ml-auto">
+              <div className="flex-1 md:flex-none md:ml-auto flex flex-wrap gap-2">
+                 <button 
+                  onClick={() => setIsEditingReminder(true)}
+                  className="w-full md:w-auto px-4 py-2 bg-blue-50 text-blue-700 text-[10px] font-black rounded-xl flex items-center gap-2 hover:bg-blue-100 transition-all border border-blue-100 uppercase tracking-widest"
+                 >
+                   <Clock size={14} />
+                   Cài đặt nhắc nhở
+                 </button>
                  <button 
                   onClick={startEditingSecurity}
                   className="w-full md:w-auto px-4 py-2 bg-gray-900 text-white text-[10px] font-black rounded-xl flex items-center gap-2 hover:bg-black transition-all shadow-lg shadow-gray-200 uppercase tracking-widest"
@@ -190,41 +284,130 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateNote, onUpdateU
                  </div>
                  <div>
                     <h3 className="text-sm font-black text-gray-900 uppercase">Cập nhật ảnh đại diện</h3>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Nhập mã hạt giống (Dicebear) hoặc URL hình ảnh trực tiếp</p>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Tải lên hình ảnh từ máy tính và cắt gọn chuẩn khung hình</p>
                  </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                   Link hình ảnh (URL)
-                </label>
-                <div className="flex gap-3">
-                  <input 
-                    type="text"
-                    value={tempAvatar}
-                    onChange={(e) => setTempAvatar(e.target.value)}
-                    className="flex-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                    placeholder="https://..."
-                  />
-                  <div className="w-12 h-12 rounded-xl border border-gray-100 overflow-hidden bg-gray-50 flex-none self-center">
-                    <img src={tempAvatar} alt="preview" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=fallback')} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                      <Upload size={12} /> Chọn tập tin ảnh
+                    </label>
+                    <input 
+                      type="file"
+                      accept="image/*"
+                      ref={fileInputRef}
+                      onChange={onSelectFile}
+                      className="hidden"
+                    />
+                    <div 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full aspect-video border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-all group"
+                    >
+                      <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 group-hover:text-blue-500 group-hover:bg-blue-100 transition-all">
+                        <Upload size={20} />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-bold text-gray-700">Nhấn để tải ảnh lên</p>
+                        <p className="text-[9px] text-gray-400 uppercase font-black tracking-widest mt-1">PNG, JPG tối đa 2MB</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                       Hoặc dùng Link (URL)
+                    </label>
+                    <input 
+                      type="text"
+                      value={tempAvatar}
+                      onChange={(e) => setTempAvatar(e.target.value)}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                      placeholder="https://..."
+                    />
                   </div>
                 </div>
-                <p className="text-[9px] text-gray-400 italic">Mẹo: Bạn có thể nhập mã tùy chỉnh cho Dicebear, ví dụ: https://api.dicebear.com/7.x/avataaars/svg?seed=TenCuaBan</p>
+
+                <div className="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-2xl border border-gray-100 relative">
+                  <div className="text-[10px] font-black text-gray-300 uppercase tracking-widest absolute top-4 left-4">Xem trước</div>
+                  <div className="w-40 h-40 rounded-full border-4 border-white shadow-xl overflow-hidden bg-white">
+                    <img 
+                      src={tempAvatar} 
+                      alt="preview" 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=fallback')} 
+                    />
+                  </div>
+                  <p className="mt-4 text-[10px] text-gray-400 font-bold uppercase tracking-widest">Ảnh hiển thị trên hệ thống</p>
+                </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
+              {selectedFile && (
+                <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                  <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="bg-white p-6 rounded-3xl shadow-2xl max-w-2xl w-full space-y-4"
+                  >
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                      <h4 className="text-sm font-black text-gray-900 uppercase flex items-center gap-2">
+                        <Scissors size={16} className="text-blue-600" /> Cắt ảnh đại diện
+                      </h4>
+                      <button onClick={() => setSelectedFile(null)} className="text-gray-400 hover:text-gray-600">
+                        <X size={20} />
+                      </button>
+                    </div>
+
+                    <div className="max-h-[60vh] overflow-auto rounded-xl border border-gray-100 bg-gray-50 flex justify-center">
+                      <ReactCrop
+                        crop={crop}
+                        onChange={(c) => setCrop(c)}
+                        onComplete={(c) => setCompletedCrop(c)}
+                        aspect={1}
+                        circularCrop
+                      >
+                        <img src={selectedFile} onLoad={onImageLoad} alt="To crop" className="max-w-full" />
+                      </ReactCrop>
+                    </div>
+
+                    <div className="flex justify-between items-center gap-4 pt-2">
+                      <p className="text-[10px] text-gray-400 font-medium italic">Kéo thả khung để căn chỉnh chân dung của bạn</p>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => setSelectedFile(null)}
+                          className="px-6 py-2.5 text-[10px] font-black text-gray-500 uppercase tracking-widest hover:bg-gray-100 rounded-xl transition-all"
+                        >
+                          Hủy
+                        </button>
+                        <button 
+                          onClick={getCroppedImg}
+                          className="px-6 py-2.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-blue-100 flex items-center gap-2"
+                        >
+                          <CheckCircle2 size={14} /> Xong
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-50">
                 <button 
-                  onClick={() => setIsEditingAvatar(false)}
+                  onClick={() => {
+                    setIsEditingAvatar(false);
+                    setSelectedFile(null);
+                  }}
                   className="px-6 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:bg-gray-50 rounded-xl transition-all"
                 >
-                  Hủy bỏ
+                  Đóng
                 </button>
                 <button 
                   onClick={handleUpdateAvatar}
-                  className="px-6 py-2.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-blue-100 flex items-center gap-2"
+                  disabled={!!selectedFile}
+                  className="px-6 py-2.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-blue-100 flex items-center gap-2 disabled:opacity-50"
                 >
-                  <Save size={14} /> Cập nhật hình ảnh
+                  <Save size={14} /> Lưu thay đổi
                 </button>
               </div>
             </div>
@@ -290,6 +473,104 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateNote, onUpdateU
                   className="px-6 py-2.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-blue-100 flex items-center gap-2"
                 >
                   <Save size={14} /> Lưu cài đặt
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isEditingReminder && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden mb-6"
+          >
+            <div className="bg-white p-8 rounded-2xl shadow-xl border-2 border-blue-100 space-y-6">
+              <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
+                 <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                    <Clock size={20} />
+                 </div>
+                 <div>
+                    <h3 className="text-sm font-black text-gray-900 uppercase">Cấu hình nhắc nhở sức khỏe</h3>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Hệ thống sẽ nhắc nhở bạn sau mỗi khoảng thời gian nhất định</p>
+                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Trạng thái</label>
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <div className="relative w-12 h-6 flex items-center">
+                      <input 
+                        type="checkbox" 
+                        checked={remData.enabled}
+                        onChange={(e) => setRemData({...remData, enabled: e.target.checked})}
+                        className="sr-only peer" 
+                      />
+                      <div className="w-full h-full bg-gray-200 rounded-full peer peer-checked:bg-blue-600 transition-all"></div>
+                      <div className="absolute left-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-6"></div>
+                    </div>
+                    <span className="text-xs font-bold text-gray-700">{remData.enabled ? 'Đang bật' : 'Đang tắt'}</span>
+                  </label>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Khoảng cách nhắc (Phút)</label>
+                  <input 
+                    type="number"
+                    value={remData.intervalMinutes}
+                    onChange={(e) => setRemData({...remData, intervalMinutes: parseInt(e.target.value) || 1})}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tên cấu hình hiển thị</label>
+                   <input 
+                    type="text"
+                    value={remData.configName}
+                    onChange={(e) => setRemData({...remData, configName: e.target.value})}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                    placeholder="Ví dụ: Đức Mu"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Thời gian tự đóng (Giây)</label>
+                   <input 
+                    type="number"
+                    value={remData.autoCloseSeconds}
+                    onChange={(e) => setRemData({...remData, autoCloseSeconds: parseInt(e.target.value) || 5})}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="md:col-span-2 space-y-2">
+                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nội dung nhắc nhở</label>
+                   <textarea 
+                    value={remData.message}
+                    onChange={(e) => setRemData({...remData, message: e.target.value})}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 h-20 resize-none"
+                    placeholder="Nhập nội dung nhắc nhở..."
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button 
+                  onClick={() => setIsEditingReminder(false)}
+                  className="px-6 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:bg-gray-50 rounded-xl transition-all"
+                >
+                  Hủy bỏ
+                </button>
+                <button 
+                  onClick={handleUpdateReminder}
+                  className="px-6 py-2.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-blue-100 flex items-center gap-2"
+                >
+                  <Save size={14} /> Lưu cấu hình
                 </button>
               </div>
             </div>

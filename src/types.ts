@@ -1,5 +1,13 @@
 export type UserRoleType = 'Nhân Viên' | 'Trưởng Nhóm' | 'Trưởng Phòng' | 'Admin';
 
+export interface HealthReminder {
+  enabled: boolean;
+  intervalMinutes: number;
+  message: string;
+  autoCloseSeconds: number;
+  configName: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -16,6 +24,9 @@ export interface User {
   securityQuestion?: string;
   securityAnswer?: string;
   lastActive?: number;
+  cvUrl?: string;
+  cvDetails?: string;
+  reminderSettings?: HealthReminder;
 }
 
 export interface ProgressUpdate {
@@ -27,11 +38,17 @@ export interface ProgressUpdate {
 
 export type TaskStatus = 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'COMPLETED' | 'CANCELLED' | 'ON_HOLD';
 
+export interface MessageReaction {
+  userId: string;
+  emoji: string;
+}
+
 export interface TaskComment {
   id: string;
   authorId: string;
   content: string;
   timestamp: string;
+  reactions?: MessageReaction[];
 }
 
 export interface PrivateMessage {
@@ -41,6 +58,7 @@ export interface PrivateMessage {
   content: string;
   timestamp: string;
   chatId: string;
+  reactions?: MessageReaction[];
 }
 
 export interface Task {
@@ -65,6 +83,7 @@ export interface Task {
   attachmentName?: string;
   updatedAt: string;
   comments?: TaskComment[];
+  requestDelete?: boolean;
   reportExplanation?: string;
   reportAttachments?: string[];
 }

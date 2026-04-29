@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessageCircle, Send, X, Minus, ChevronUp } from 'lucide-react';
+import { MessageCircle, Send, X, Minus, ChevronUp, Smile } from 'lucide-react';
 import { User, PrivateMessage } from '../../types';
 import { formatDateTime } from '../../lib/dateUtils';
+import { ReactionPicker, ReactionBadge } from '../common/ReactionPicker';
+import { Avatar } from '../common/Avatar';
 
 interface DirectChatProps {
   currentUser: User;
@@ -10,11 +12,14 @@ interface DirectChatProps {
   messages: PrivateMessage[];
   onSendMessage: (content: string, senderId: string, receiverId: string) => void;
   onClose: () => void;
+  onReact?: (msgId: string, emoji: string) => void;
+  allUsers: User[];
 }
 
-export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, onClose }: DirectChatProps) => {
+export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, onClose, onReact, allUsers }: DirectChatProps) => {
   const [newMessage, setNewMessage] = useState('');
   const [isMinimized, setIsMinimized] = useState(false);
+  const [showEmojiFor, setShowEmojiFor] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   if (!currentUser?.id || !otherUser?.id) {
@@ -74,10 +79,11 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
       <div className={`p-4 ${isMinimized ? 'h-full' : 'border-b border-gray-100 bg-gray-50'} flex items-center justify-between cursor-pointer`} onClick={() => isMinimized && setIsMinimized(false)}>
         <div className="flex items-center gap-3">
           <div className="relative">
-            <img 
+            <Avatar 
               src={otherUser.avatar} 
-              alt={otherUser.name} 
-              className={`${isMinimized ? 'w-6 h-6' : 'w-10 h-10'} rounded-full border-2 border-white shadow-sm transition-all`}
+              name={otherUser.name} 
+              size={isMinimized ? 'sm' : 'lg'}
+              className="border-2 border-white shadow-sm transition-all"
             />
             {otherUser.lastActive && Date.now() - otherUser.lastActive < 60000 && (
               <span className={`absolute bottom-0 right-0 ${isMinimized ? 'w-2 h-2' : 'w-3 h-3'} bg-green-500 border-2 border-white rounded-full`}></span>
@@ -135,11 +141,33 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
             
             return (
               <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                <div className={`p-3 rounded-2xl text-xs leading-relaxed shadow-sm w-full ${
+                <div className={`p-3 rounded-2xl text-xs leading-relaxed shadow-sm w-full relative group/msg ${
                   isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-none'
                 }`}>
                   {msg.content}
+                  
+                  {/* Reaction trigger */}
+                  <div className={`absolute top-0 opacity-0 group-hover/msg:opacity-100 transition-opacity flex gap-1 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full p-0.5 shadow-sm ${
+                    isMe ? '-left-8' : '-right-8'
+                  }`}>
+                    <button 
+                      onClick={() => setShowEmojiFor(msg.id)}
+                      className="p-1 hover:bg-gray-100 rounded-full text-gray-500"
+                    >
+                      <Smile size={14} />
+                    </button>
+                  </div>
+
+                  <ReactionPicker 
+                    isOpen={showEmojiFor === msg.id}
+                    onClose={() => setShowEmojiFor(null)}
+                    onSelect={(emoji) => onReact?.(msg.id, emoji)}
+                    position="top"
+                  />
                 </div>
+                
+                <ReactionBadge reactions={msg.reactions} users={allUsers} />
+
                 <div className="mt-1 flex items-center gap-2 px-1">
                   <span className="text-[9px] text-gray-400 font-bold">{formatDateTime(msg.timestamp)}</span>
                 </div>

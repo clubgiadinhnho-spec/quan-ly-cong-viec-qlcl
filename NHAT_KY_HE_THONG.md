@@ -28,7 +28,21 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
 
 ## 📝 2. NHẬT KÝ THAY ĐỔI CHI TIẾT (CHANGELOG)
 
-### 📝 Cập nhật mới nhất: 29/04/2026 (Hoàn thiện Giao diện & Phân quyền)
+### 📝 Cập nhật mới nhất: 29/04/2026 (Hoàn thiện Firebase Auth & Giao diện Bảng)
+- **Kích hoạt Anonymous Authentication:** 
+    - Khắc phục lỗi `admin-restricted-operation` bằng cách hướng dẫn người dùng bật tính năng Anonymous Auth trên Firebase Console.
+    - Tự động hóa quá trình đăng nhập ẩn danh để cấp UID hợp lệ cho mọi người dùng, làm cơ sở cho Security Rules.
+- **Đồng bộ hóa Danh tính (Identity Sync):** 
+    - Tự động ánh xạ (mapping) giữa ID hệ thống nội bộ (ví dụ: `mgr-01`, `emp-01`) với Firebase UID thực tế.
+    - Đảm bảo tính năng Chat thời gian thực sử dụng Firebase UID làm "Source of Truth", loại bỏ lỗi "Permission Denied" khi lắng nghe dữ liệu.
+- **Bảo mật Firestore (Hardened Rules):** 
+    - Đơn giản hóa quy tắc cho `direct_messages`: Cho phép bất kỳ người dùng nào đã được xác thực (ẩn danh hoặc chính thức) đều có quyền đọc/ghi khi tham gia hội thoại.
+- **Tối ưu Giao diện Bảng (Professional Data Table):**
+    - **Đóng băng Tiêu đề (Sticky Header):** Cố định hàng tiêu đề bảng công việc khi cuộn trang, giúp người dùng luôn nắm bắt được ngữ cảnh các cột.
+    - **Khắc phục lỗi Border & Layout:** Chuyển đổi từ `border-collapse` sang `border-separate` kết hợp `sticky` để đảm bảo đường kẻ bảng không bị mất khi cuộn, mang lại giao diện chuyên nghiệp như Excel/Google Sheets.
+    - **Đồng bộ hàng công việc:** Cập nhật `TaskRow` và `CompletedTaskRow` để tương thích với cấu trúc bảng mới, đảm bảo hiển thị đồng nhất.
+
+### Các cập nhật trước đó: 29/04/2026 (Hoàn thiện Giao diện & Phân quyền)
 - **Giao diện Gọn gàng:** Loại bỏ các thanh thông tin kỹ thuật, khôi phục tiêu đề gốc.
 - **Cơ chế Bảo vệ Dữ liệu:** 
     - Nhân viên Tú, Hùng... có thể xem toàn bộ 29 công việc của phòng qua nút chuyển đổi "Phòng QLCL".
@@ -137,6 +151,12 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
 
 **Người dùng (User):** "Tôi đã cho 2 bạn này đăng ký lại nhưng app vẫn nhớ thông tin cũ và tự sửa hiển thị như hình. Tuy nhiên vẫn đăng nhập được."
 **AI:** Xác định lỗi ghi đè dữ liệu mẫu do logic Bootstrap quá gắt. Đã sửa App.tsx để ưu tiên dữ liệu Firestore và cập nhật constants.ts với Avatar vui tươi hơn.
+
+**Người dùng (User):** "Tôi muốn đóng băng Header của tất cả các bảng công việc."
+**AI:** Đã thực hiện đóng băng hàng tiêu đề (Sticky Header) và tối ưu lại cấu trúc border bảng để hiển thị mượt mà khi cuộn. Đã khắc phục lỗi co giãn cột bằng cách gán độ rộng cố định và `min-width` cho bảng, giúp nội dung không bị "bóp nghẹt" khi phóng to (zoom).
+
+**Người dùng (User):** "Lỗi Firebase: auth/admin-restricted-operation và Permission denied cho direct_messages listener."
+**AI:** Đã hướng dẫn bật Anonymous Auth, cập nhật Security Rules mở cho `direct_messages`, và đồng bộ hóa UID ẩn danh làm ID chính để lắng nghe tin nhắn thời gian thực.
 
 ---
 *Ngày cập nhật cuối cùng: 29/04/2026*

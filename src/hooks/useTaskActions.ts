@@ -9,6 +9,7 @@ interface UseTaskActionsProps {
   firebaseAddTask: (task: Omit<Task, 'id'>) => Promise<void>;
   firebaseUpdateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   firebaseDeleteTask: (id: string) => Promise<void>;
+  firebaseAddLog?: (log: any) => Promise<void>;
 }
 
 export const useTaskActions = ({
@@ -17,7 +18,8 @@ export const useTaskActions = ({
   allUsers,
   firebaseAddTask,
   firebaseUpdateTask,
-  firebaseDeleteTask
+  firebaseDeleteTask,
+  firebaseAddLog
 }: UseTaskActionsProps) => {
 
   const addTask = useCallback(async (taskData: any) => {
@@ -39,6 +41,15 @@ export const useTaskActions = ({
     }
 
     const isManagement = currentUser?.role === 'Admin' || currentUser?.role === 'Leader' || !!currentUser?.delegatedPermissions?.canCreateTask;
+
+    if (currentUser?.role === 'Staff' && !!currentUser?.delegatedPermissions?.canCreateTask && firebaseAddLog) {
+      await firebaseAddLog({
+        type: 'DELEGATED_ACTION',
+        userId: currentUser.id,
+        details: `Nhân viên ${currentUser.name} sử dụng quyền ủy quyền để khởi tạo công việc mới: ${taskData.title}`,
+        metadata: { taskId: taskData.id }
+      });
+    }
 
     const newTask: Omit<Task, 'id'> = {
       code: `C${String(lastNum + 1).padStart(4, '0')}`,

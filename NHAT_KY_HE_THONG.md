@@ -89,7 +89,9 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
 ### 📝 Các cập nhật trước đó: 29/04/2026 (Tính năng lọc công việc)
 - **Sao lưu & Bảo tồn:** Toàn bộ cấu hình `firebase-applet-config.json` và `firestore.rules` đã được duy trì để đảm bảo tính liên tục của dữ liệu.
 - **Phục hồi Logic PDF chuyên nghiệp:** Tái thiết lập mẫu in (Print Template) sử dụng cấu trúc `<table>` HTML truyền thống và hệ màu HEX hoàn toàn.
-- **Khắc phục lỗi Màu (oklch):** Tích hợp helper `cleanColors` để xóa bỏ triệt để các hệ màu oklch khỏi bản in PDF, đảm bảo tính tương thích với `html2canvas` trên môi trường mới.
+- **Khắc phục lỗi Màu (oklch/oklab):** Tích hợp helper `cleanModernColors` trong `src/lib/colorUtils.ts` để xóa bỏ triệt để các hệ màu oklch/oklab khỏi bản in PDF và Thẻ bài ủy quyền, đảm bảo tính tương thích với `html2canvas`.
+- **Cấu hình Trình duyệt:** Thêm `browserslist` vào `package.json` để ép Tailwind v4 transpile các màu hiện đại sang định dạng tương thích cao hơn.
+- **Dọn dẹp code:** Chuẩn hóa logic xử lý màu sắc và loại bỏ các đoạn code dư thừa.
 - **Xác minh Hệ thống:** Hoàn tất kiểm tra và sửa lỗi biên dịch, đảm bảo ứng dụng vận hành ổn định sau khi di chuyển nguồn.
 
 ### 📝 Các cập nhật trước đó: 29/04/2026 (Nâng cấp Dashboard)
@@ -172,7 +174,20 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
 **Người dùng (User):** "Lỗi Firebase: auth/admin-restricted-operation và Permission denied cho direct_messages listener."
 **AI:** Đã hướng dẫn bật Anonymous Auth, cập nhật Security Rules mở cho `direct_messages`, và đồng bộ hóa UID ẩn danh làm ID chính để lắng nghe tin nhắn thời gian thực.
 
-### 📝 Cập nhật mới nhất: 30/04/2026 (Triển khai Phân quyền RBAC & Single Source of Truth)
+### 📝 Cập nhật mới nhất: 30/04/2026 (Tối ưu Giao diện Sidebar & Khôi phục Quyền Quản trị)
+- **Chuẩn hóa Thuật ngữ Sidebar:** 
+    - Đổi tên "Bảng công việc" thành **"CÔNG VIỆC PHÁT SINH"**.
+    - Đổi tên "Đề xuất mới" thành **"ĐỀ XUẤT KS PHÁT SINH"**.
+    - Đổi tên "CV đã hoàn thành" thành **"XỬ LÝ HOÀN THÀNH"**.
+- **Cải thiện Phân cấp Thị giác:** 
+    - Thực hiện thụt lề (Indentation) cho các mục con trong Sidebar để tạo cấu trúc phân cấp rõ ràng hơn.
+    - Mở rộng chiều rộng Sidebar lên `w-72` để đảm bảo các nhãn dài không bị ngắt dòng.
+- **Khôi phục Quyền Quản trị & Trang Nhân sự:**
+    - Cấp lại quyền **Admin** cho tài khoản `adminnutifood@gmail.com` và các email quản trị hệ thống khác.
+    - Đảm bảo trang **Nhân sự** và **Nhật ký hệ thống** luôn hiển thị đối với cấp bậc Quản trị viên, khắc phục lỗi mất hiển thị trang do thiếu vai trò (Role).
+    - Tự động gán vai trò `Admin` cho các email đặc thù (System Admins) ngay khi đăng nhập để đảm bảo công việc quản lý không bị gián đoạn.
+
+### 📝 Các cập nhật trước đó: 30/04/2026 (Triển khai Phân quyền RBAC & Single Source of Truth)
 - **Hệ thống Phân quyền mới (RBAC):**
     - Thiết lập 3 vai trò chính: **Admin**, **Leader**, **Staff**.
     - **Admin:** Toàn quyền quản trị hệ thống, nhân sự, dự án, báo cáo và xuất nhập dữ liệu.

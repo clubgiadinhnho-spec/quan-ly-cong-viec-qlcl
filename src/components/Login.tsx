@@ -4,7 +4,7 @@ import { SECURITY_QUESTIONS } from '../constants';
 import { LogIn, Phone, User as UserIcon, UserPlus, ArrowLeft, Mail, Shield, Hash, Type, CheckCircle2, HelpCircle, Lock, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, loginWithGoogle, loginAnonymously } from '../lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 import { Avatar } from './common/Avatar';
 
@@ -39,9 +39,9 @@ export default function Login({ users, onLogin }: LoginProps) {
     const cleanPhone = phone.replace(/\D/g, ''); 
     
     const user = users.find(u => {
-      const uName = u.name.trim().toLowerCase().replace(/\s+/g, ' ');
-      const uEmail = u.companyEmail.trim().toLowerCase();
-      const uPhone = u.phone.replace(/\D/g, '');
+      const uName = (u.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const uEmail = (u.companyEmail || '').trim().toLowerCase();
+      const uPhone = (u.phone || '').replace(/\D/g, '');
       
       return (uName === cleanName && uPhone === cleanPhone) ||
              (uEmail === cleanName && uPhone === cleanPhone);
@@ -77,8 +77,23 @@ export default function Login({ users, onLogin }: LoginProps) {
 
           if (fbUser) {
             // Sync the user record with the UID
-            userToLogin = { ...foundUser, id: fbUser.uid };
-            await setDoc(doc(db, 'users', fbUser.uid), userToLogin);
+            const userToLoginData = { 
+              ...foundUser, 
+              id: fbUser.uid,
+              lastActive: serverTimestamp() 
+            };
+            
+            // Explicitly remove any remaining undefined fields
+            const cleanUser: any = {};
+            Object.entries(userToLoginData).forEach(([key, value]) => {
+              if (value !== undefined) {
+                cleanUser[key] = value;
+              }
+            });
+
+            await setDoc(doc(db, 'users', fbUser.uid), cleanUser);
+            // For the local state, we need a number
+            userToLogin = { ...userToLoginData, lastActive: Date.now() } as User;
           } else {
             console.warn("Login proceeded WITHOUT Firebase Authentication. Real-time chat may be limited.");
           }
@@ -129,7 +144,7 @@ export default function Login({ users, onLogin }: LoginProps) {
     try {
       // Check if user already exists
       const existingUser = users.find(u => 
-        u.companyEmail.toLowerCase() === regData.companyEmail?.toLowerCase() || 
+        (u.companyEmail && u.companyEmail.toLowerCase() === regData.companyEmail?.toLowerCase()) || 
         u.phone === regData.phone ||
         u.code === regData.code
       );

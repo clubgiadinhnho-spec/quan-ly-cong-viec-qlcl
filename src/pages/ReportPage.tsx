@@ -9,6 +9,8 @@ import html2canvas from 'html2canvas';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
+import { cleanModernColors } from '../lib/colorUtils';
+
 interface ReportPageProps {
   tasks: Task[];
   users: User[];
@@ -78,22 +80,6 @@ export const ReportPage = ({
     }
   };
 
-  const cleanColors = (el: HTMLElement) => {
-    const walker = document.createTreeWalker(el, NodeFilter.SHOW_ELEMENT);
-    let node = walker.nextNode() as HTMLElement;
-    while (node) {
-      const style = window.getComputedStyle(node);
-      const bg = style.backgroundColor;
-      const tc = style.color;
-      const bc = style.borderColor;
-      
-      if (bg.includes('oklch')) node.style.backgroundColor = '#ffffff';
-      if (tc.includes('oklch')) node.style.color = '#111827';
-      if (bc.includes('oklch')) node.style.borderColor = '#e5e7eb';
-      node = walker.nextNode() as HTMLElement;
-    }
-  };
-
   const handleExportPDF = async () => {
     const confirmed = window.confirm("BẠN CÓ MUỐN CHỐT BÁO CÁO? \n\nHành động này sẽ tải file PDF và lưu bản sao chính thức vào hệ thống.");
     if (!confirmed) return;
@@ -133,7 +119,7 @@ export const ReportPage = ({
       element.style.width = '210mm';
       element.style.backgroundColor = '#ffffff';
       
-      cleanColors(element);
+      cleanModernColors(element);
 
       const canvas = await html2canvas(element, {
         scale: 2,

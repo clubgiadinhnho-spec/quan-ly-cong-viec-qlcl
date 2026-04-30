@@ -31,11 +31,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 }) => {
   const assignee = users.find(s => s.id === task.assigneeId);
   const isOwner = user.id === task.assigneeId;
-  const isEmployee = user.role === 'Nhân Viên';
   const isAdminOrDirector = user.role === 'Admin' || user.role === 'Trưởng Phòng';
   const isTeamLeader = user.role === 'Trưởng Nhóm';
   const isManager = isAdminOrDirector || isTeamLeader;
-  const isEditable = !isReadOnly || (task.status === 'PENDING_REVIEW' && isOwner);
+  const isEmployee = user.role === 'Nhân Viên';
   
   const canEditPriority = isAdminOrDirector;
   const hasUnread = false; // Placeholder for future logic
@@ -68,7 +67,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         <div className="flex items-center gap-3">
           <div className="relative">
             <Avatar src={assignee?.avatar} name={assignee?.name} />
-            {(isManager || isEditable) && (
+            {isManager && (
               <button 
                 onClick={() => onEdit(task)}
                 className="absolute -top-1 -left-1 w-4 h-4 bg-blue-600 text-white rounded-full flex items-center justify-center border border-white hover:scale-110 transition-all shadow-sm"
@@ -81,7 +80,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           <div>
             <div className="flex items-center gap-1.5">
               <p className="text-sm font-bold text-gray-900 leading-none whitespace-nowrap">{assignee?.name}</p>
-              {(isManager || isEditable) && (
+              {isManager && (
                 <button 
                   onClick={() => onEdit(task)} 
                   className="text-[9px] text-blue-500 hover:underline font-black uppercase opacity-0 group-hover:opacity-100 transition-opacity"
@@ -135,7 +134,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           </a>
         )}
         <div className="flex flex-col h-full">
-          {(isManager || isEditable) ? (
+          {isManager ? (
              <div className="relative">
               <textarea 
                 className="text-sm font-black text-gray-900 bg-transparent border-b border-transparent focus:border-blue-400 outline-none w-full py-0 pr-6 uppercase break-words resize-none overflow-hidden leading-tight min-h-[1.5rem]"
@@ -175,9 +174,6 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               <button onClick={() => onViewHistory(task.id)} className="text-[9px] text-blue-500 hover:underline font-bold">Lịch sử</button>
               {task.status === 'PENDING_APPROVAL' && (
                 <span className="text-[9px] font-black text-amber-500 bg-amber-50 px-2 py-0.5 rounded animate-pulse border border-amber-200 uppercase tracking-tighter">Chờ duyệt HT</span>
-              )}
-              {task.status === 'PENDING_REVIEW' && (
-                <span className="text-[9px] font-black text-purple-600 bg-purple-50 px-2 py-0.5 rounded animate-pulse border border-purple-200 uppercase tracking-tighter">Chờ Admin duyệt</span>
               )}
           </div>
         </div>
@@ -221,14 +217,6 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       {!isReadOnly && (
         <td className="py-4 px-1 text-center border-b border-r border-gray-300 align-top">
           <div className="flex flex-col items-center gap-1.5">
-             {task.status === 'PENDING_REVIEW' && isManager && (
-               <button 
-                  onClick={() => onUpdate(task.id, { status: 'TODO' })}
-                  className="w-full px-2 py-1.5 text-[9px] bg-indigo-600 text-white rounded font-black hover:bg-indigo-700 transition-all uppercase tracking-tighter shadow-sm"
-                >
-                  XÁC NHẬN CV
-                </button>
-             )}
              {task.status === 'PENDING_APPROVAL' && isManager && (
                <>
                  <button 

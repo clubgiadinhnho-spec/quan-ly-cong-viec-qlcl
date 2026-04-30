@@ -103,31 +103,13 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
            <p className="text-sm text-gray-500 mt-1">Quản lý thông tin liên hệ và chức vụ nhân sự</p>
         </div>
         {isManagerOrAdmin && (
-          <div className="flex gap-2">
-            {currentUser.role === 'Admin' && (
-              <button 
-                onClick={() => {
-                  if (confirm('Bạn có chắc chắn muốn XÓA TOÀN BỘ nhân sự hiện tại và khôi phục lại 5 nhân sự mặc định? Hành động này sẽ yêu cầu mọi người đăng nhập lại.')) {
-                    // This logic would be handled in App.tsx via a new prop
-                    if (window.confirm('CẢNH BÁO LẦN CUỐI: Toàn bộ dữ liệu tài khoản sẽ bị xóa sạch!')) {
-                      (window as any).resetStaffList?.();
-                    }
-                  }
-                }}
-                className="flex items-center gap-2 px-6 py-3 bg-red-50 text-red-600 border border-red-100 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-red-100 transition-all shadow-lg shadow-red-50"
-              >
-                <Trash2 size={16} />
-                Khôi phục gốc
-              </button>
-            )}
-            <button 
-              onClick={handleExport}
-              className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 shrink-0"
-            >
-              <Download size={16} />
-              Xuất báo cáo
-            </button>
-          </div>
+          <button 
+            onClick={handleExport}
+            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 shrink-0"
+          >
+            <Download size={16} />
+            Xuất báo cáo
+          </button>
         )}
       </div>
 

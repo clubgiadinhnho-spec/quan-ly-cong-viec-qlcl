@@ -97,7 +97,7 @@ export const DirectChat = ({ currentUser, otherUser, messages, onSendMessage, on
               size={isMinimized ? 'sm' : 'lg'}
               className="border-2 border-white shadow-sm transition-all"
             />
-            {otherUser.lastActive && Date.now() - otherUser.lastActive < 120000 && (
+            {otherUser.lastActive && Date.now() - otherUser.lastActive < 60000 && (
               <span className={`absolute bottom-0 right-0 ${isMinimized ? 'w-2 h-2' : 'w-3 h-3'} bg-green-500 border-2 border-white rounded-full`}></span>
             )}
           </div>

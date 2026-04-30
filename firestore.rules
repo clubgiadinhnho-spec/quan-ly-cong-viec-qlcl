@@ -49,7 +49,7 @@ service cloud.firestore {
       allow list: if true;
       allow get: if true;
       allow create: if (isAdmin() || isOwner(userId)) && isValidUser(incoming());
-      allow update: if (isAdmin() || (isOwner(userId) && isSelfUpdate()));
+      allow update: if ((isAdmin() || (isOwner(userId) && isSelfUpdate())) && isValidUser(incoming()));
       allow delete: if isAdmin();
 
       function isValidUser(data) {
@@ -63,7 +63,9 @@ service cloud.firestore {
                data.personalEmail is string && data.personalEmail.size() <= 150 &&
                data.avatar is string && data.avatar.size() <= 1000 &&
                data.code is string && data.code.size() <= 20 &&
-               data.abbreviation is string && data.abbreviation.size() <= 10;
+               data.abbreviation is string && data.abbreviation.size() <= 10 &&
+               (data.keys().hasAny(['securityQuestion']) ? (data.securityQuestion is string && data.securityQuestion.size() <= 200) : true) &&
+               (data.keys().hasAny(['securityAnswer']) ? (data.securityAnswer is string && data.securityAnswer.size() <= 100) : true);
       }
 
       function isSelfUpdate() {
@@ -76,7 +78,7 @@ service cloud.firestore {
     match /tasks/{taskId} {
       allow read: if isSignedIn();
       
-      allow create: if isSignedIn() && isValidTask(incoming());
+      allow create: if isSignedIn() && (isAdmin() || isManager()) && isValidTask(incoming());
       
       allow update: if (
         isSignedIn() && (

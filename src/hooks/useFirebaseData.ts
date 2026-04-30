@@ -291,12 +291,9 @@ export const useFirebaseData = (currentUserId?: string) => {
       await updateDoc(userRef, {
         lastActive: Date.now()
       });
-    } catch (error: any) {
+    } catch (error) {
       // Silently fail for heartbeat to avoid UI noise
-      // Only log if it's not a "document missing" error (common during cleanup or first login)
-      if (error?.code !== 'not-found' && !error?.message?.includes('No document to update')) {
-        console.error("Heartbeat error:", error);
-      }
+      console.error("Heartbeat error:", error);
     }
   }, []);
 

@@ -28,17 +28,7 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
 
 ## 📝 2. NHẬT KÝ THAY ĐỔI CHI TIẾT (CHANGELOG)
 
-### 📝 Cập nhật mới nhất: 30/04/2026 (Quy trình Duyệt công việc mới)
-- **Cơ chế Duyệt công việc (Review Flow):** 
-    - Nhân viên nhập công việc mới sẽ chuyển vào trạng thái **"Chờ Admin duyệt"** (`PENDING_REVIEW`).
-    - Các công việc này sẽ **tạm thời chưa xuất hiện** trong Bảng công việc chính thức để tránh gây nhiễu dữ liệu.
-    - Admin/Trưởng phòng có thêm mục **"Duyệt công việc"** trong Sidebar để kiểm tra và nhấn **"XÁC NHẬN CV"** trước khi đưa vào bảng chính.
-- **Thắt chặt quyền hạn:** 
-    - Nhân viên chỉ có quyền sửa thông tin công việc do chính mình nhập khi nó còn đang chờ duyệt.
-    - Khi công việc đã được Admin xác nhận (vào bảng chính), nhân viên không còn quyền sửa Tên/Mục tiêu trực tiếp, đảm bảo tính nhất quán của dữ liệu đã phê duyệt.
-- **Đồng bộ hóa trạng thái Đã đọc:** Triệt để lỗi hiện lại thông báo cũ khi người dùng tải lại trang (F5).
-
-### 📝 Cập nhật trước đó: 30/04/2026 (Triệt để lỗi Thông báo lặp)
+### 📝 Cập nhật mới nhất: 29/04/2026 (Bảo vệ Dữ liệu Thực tế)
 - **Vô hiệu hóa Tự động Bootstrap:** 
     - Đã gỡ bỏ hoàn toàn logic tự động cập nhật/so khớp nhân sự từ file `constants.ts` vào Firestore.
     - **Lý do:** Đảm bảo các chỉnh sửa thủ công của người dùng đối với nhân sự (Trường, Quản Trị Viên, Tân, Tú...) không bao giờ bị ghi đè bởi dữ liệu mẫu cũ trong mã nguồn.

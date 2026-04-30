@@ -28,7 +28,26 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
 
 ## 📝 2. NHẬT KÝ THAY ĐỔI CHI TIẾT (CHANGELOG)
 
-### 📝 Cập nhật mới nhất: 29/04/2026 (Hoàn thiện Firebase Auth & Giao diện Bảng)
+### 📝 Cập nhật mới nhất: 30/04/2026 (Quy trình Duyệt công việc mới)
+- **Cơ chế Duyệt công việc (Review Flow):** 
+    - Nhân viên nhập công việc mới sẽ chuyển vào trạng thái **"Chờ Admin duyệt"** (`PENDING_REVIEW`).
+    - Các công việc này sẽ **tạm thời chưa xuất hiện** trong Bảng công việc chính thức để tránh gây nhiễu dữ liệu.
+    - Admin/Trưởng phòng có thêm mục **"Duyệt công việc"** trong Sidebar để kiểm tra và nhấn **"XÁC NHẬN CV"** trước khi đưa vào bảng chính.
+- **Thắt chặt quyền hạn:** 
+    - Nhân viên chỉ có quyền sửa thông tin công việc do chính mình nhập khi nó còn đang chờ duyệt.
+    - Khi công việc đã được Admin xác nhận (vào bảng chính), nhân viên không còn quyền sửa Tên/Mục tiêu trực tiếp, đảm bảo tính nhất quán của dữ liệu đã phê duyệt.
+- **Đồng bộ hóa trạng thái Đã đọc:** Triệt để lỗi hiện lại thông báo cũ khi người dùng tải lại trang (F5).
+
+### 📝 Cập nhật trước đó: 30/04/2026 (Triệt để lỗi Thông báo lặp)
+- **Vô hiệu hóa Tự động Bootstrap:** 
+    - Đã gỡ bỏ hoàn toàn logic tự động cập nhật/so khớp nhân sự từ file `constants.ts` vào Firestore.
+    - **Lý do:** Đảm bảo các chỉnh sửa thủ công của người dùng đối với nhân sự (Trường, Quản Trị Viên, Tân, Tú...) không bao giờ bị ghi đè bởi dữ liệu mẫu cũ trong mã nguồn.
+    - Từ nay, Firestore là **nguồn dữ liệu duy nhất và chính xác nhất**.
+- **Khóa Dữ liệu Nhân sự:** 
+    - Hệ thống sẽ không tự ý phát lệnh `updateStaff` trừ khi có thao tác trực tiếp từ trang Quản lý nhân sự hoặc Trang cá nhân.
+- **Phản hồi Tiếng Việt:** Chuyển đổi hoàn toàn ngôn ngữ giao tiếp sang Tiếng Việt theo yêu cầu của người dùng.
+
+### 📝 Cập nhật trước đó: 29/04/2026 (Bảo trì Dữ liệu & Tối ưu Bootstrap)
 - **Kích hoạt Anonymous Authentication:** 
     - Khắc phục lỗi `admin-restricted-operation` bằng cách hướng dẫn người dùng bật tính năng Anonymous Auth trên Firebase Console.
     - Tự động hóa quá trình đăng nhập ẩn danh để cấp UID hợp lệ cho mọi người dùng, làm cơ sở cho Security Rules.
@@ -41,6 +60,11 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
     - **Đóng băng Tiêu đề (Sticky Header):** Cố định hàng tiêu đề bảng công việc khi cuộn trang, giúp người dùng luôn nắm bắt được ngữ cảnh các cột.
     - **Khắc phục lỗi Border & Layout:** Chuyển đổi từ `border-collapse` sang `border-separate` kết hợp `sticky` để đảm bảo đường kẻ bảng không bị mất khi cuộn, mang lại giao diện chuyên nghiệp như Excel/Google Sheets.
     - **Đồng bộ hàng công việc:** Cập nhật `TaskRow` và `CompletedTaskRow` để tương thích với cấu trúc bảng mới, đảm bảo hiển thị đồng nhất.
+- **Cập nhật chức năng Nhập Công Việc:**
+    - Đổi tên nút "Giao việc mới" thành **"NHẬP CÔNG VIỆC"**.
+    - Mở quyền cho **tất cả Nhân viên** đều có thể chủ động nhập công việc cá nhân của mình thay vì chỉ Trưởng nhóm/Quản lý.
+- **Tái cấu trúc Giao diện (UI Layout):**
+    - Di chuyển thanh chuyển đổi "Cá nhân / Phòng QLCL" xuống phía dưới các thẻ thống kê số liệu, giúp quy trình làm việc từ tổng quan đến chi tiết trở nên tự nhiên hơn.
 
 ### Các cập nhật trước đó: 29/04/2026 (Hoàn thiện Giao diện & Phân quyền)
 - **Giao diện Gọn gàng:** Loại bỏ các thanh thông tin kỹ thuật, khôi phục tiêu đề gốc.
@@ -53,14 +77,14 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
 
 ### Các cập nhật trước đó: 29/04/2026 (Tinh chỉnh Phân quyền & Tối ưu Giao diện)
 - **Thu hẹp quyền Nhân viên:** Giới hạn tài khoản "Nhân viên" chỉ còn quyền Xem dữ liệu và Ghi nhận tiến độ (currentUpdate). Loại bỏ hoàn toàn các nút "Gửi HT" và "Yêu cầu xóa" để đơn giản hóa giao diện và tránh thao tác nhầm.
-- **Phát huy quyền Trưởng nhóm:** Khẳng định quyền của "Trưởng nhóm" trong việc quản lý cơ sở, bao gồm Giao việc mới, Nhập/Xuất Excel và quản lý vòng đời công việc của chính mình.
+- **Phát huy quyền Trưởng nhóm:** Khẳng định quyền của "Trưởng nhóm" trong việc quản lý cơ sở, bao gồm Nhập công việc, Nhập/Xuất Excel và quản lý vòng đời công việc của chính mình.
 - **Tối ưu Bảng công việc:** Khắc phục tình trạng giao diện bị "vướng" bởi các nút chức năng không cần thiết đối với cấp dưới, đảm bảo tính tập trung vào việc ghi nhận dữ liệu.
 - **Đồng bộ hóa Chế độ xem:** Đảm bảo 100% người dùng khi vào hệ thống đều mặc định ở chế độ "Toàn phòng QLCL".
 
 ### Các cập nhật trước đó: 29/04/2026 (Tái thiết lập phân quyền & Mở rộng truy cập)
 - **Thu hồi & Cấp mới Quyền hạn:** Loại bỏ các ràng buộc cũ vốn hạn chế Nhân viên và Trưởng nhóm trong việc quan sát Bảng công việc.
 - **Mở rộng Phân quyền (Visibility):** Cho phép toàn bộ thành viên trong phòng (bao gồm cả Nhân viên) có quyền xem toàn bộ công việc của hệ thống khi chọn chế độ "Công việc cả phòng".
-- **Phân quyền Quản lý (Management):** Cấp quyền "Giao việc mới" và "Nhập/Xuất Excel" cho vị trí **Trưởng Nhóm**, giúp tăng tính linh hoạt trong quản lý cấp cơ sở. Nhân viên vẫn được giới hạn ở quyền ghi nhận và xem dữ liệu.
+- **Phân quyền Quản lý (Management):** Cấp quyền "Nhập công việc" và "Nhập/Xuất Excel" cho vị trí **Trưởng Nhóm**, giúp tăng tính linh hoạt trong quản lý cấp cơ sở. Nhân viên vẫn được giới hạn ở quyền ghi nhận và xem dữ liệu.
 - **Tinh gọn Logic:** Đơn giản hóa mã nguồn lọc dữ liệu, đảm bảo tính nhất quán giữa vai trò người dùng và phạm vi hiển thị.
 
 ### Các cập nhật trước đó: 29/04/2026 (Mở rộng phân quyền xem công việc)

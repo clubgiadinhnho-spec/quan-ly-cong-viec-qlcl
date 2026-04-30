@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Send, MessageSquare, User as UserIcon, Smile } from 'lucide-react';
 import { User, TaskComment } from '../types';
-import { STAFF_LIST } from '../constants';
 import { formatDateTime } from '../lib/dateUtils';
 import { ReactionPicker, ReactionBadge } from '../components/common/ReactionPicker';
 import { Avatar } from '../components/common/Avatar';

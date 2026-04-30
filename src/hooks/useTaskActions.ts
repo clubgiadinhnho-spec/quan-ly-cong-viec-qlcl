@@ -54,7 +54,7 @@ export const useTaskActions = ({
         timestamp: new Date().toISOString(), 
         authorId: currentUser?.id || '' 
       }],
-      status: 'IN_PROGRESS',
+      status: (currentUser?.role === 'Admin' || currentUser?.role === 'Trưởng Phòng') ? 'TODO' : 'PENDING_REVIEW',
       priority: taskData.priority || 'MEDIUM',
       isHighlighted: false,
       isLocked: false,

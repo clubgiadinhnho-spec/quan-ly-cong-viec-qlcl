@@ -11,9 +11,10 @@ interface SidebarProps {
   setActiveTab: (tab: string) => void;
   onLogout: () => void;
   onUserClick?: (user: User) => void;
+  onAddTask?: () => void;
 }
 
-export const Sidebar = ({ user, users, activeTab, setActiveTab, onLogout, onUserClick }: SidebarProps) => {
+export const Sidebar = ({ user, users, activeTab, setActiveTab, onLogout, onUserClick, onAddTask }: SidebarProps) => {
   const activeUsers = users
     .filter(u => u.id !== user.id && u.lastActive && (Date.now() - u.lastActive < 120000))
     .sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0));
@@ -31,7 +32,10 @@ export const Sidebar = ({ user, users, activeTab, setActiveTab, onLogout, onUser
             { id: 'tasks', label: 'Bảng công việc', icon: ClipboardList },
             { id: 'completed_tasks', label: 'CV đã hoàn thành', icon: CheckCircle2 },
             ...(user.role === 'Admin' || user.role === 'Trưởng Phòng' 
-              ? [{ id: 'staff_list', label: 'Nhân sự', icon: Users }] 
+              ? [
+                  { id: 'review_tasks', label: 'Duyệt công việc', icon: ClipboardList },
+                  { id: 'staff_list', label: 'Nhân sự', icon: Users }
+                ] 
               : []),
             { id: 'group_chat', label: 'Chat nhóm', icon: MessageSquare },
             { id: 'profile', label: 'Trang cá nhân', icon: UserIcon },
@@ -51,6 +55,17 @@ export const Sidebar = ({ user, users, activeTab, setActiveTab, onLogout, onUser
             </button>
           ))}
         </nav>
+
+        <button 
+          onClick={() => {
+            setActiveTab('tasks');
+            onAddTask?.();
+          }}
+          className="w-full py-3 mb-6 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+        >
+          <ClipboardList size={16} />
+          Nhập công việc
+        </button>
 
         {/* Active Users Section */}
         <div className="flex-1 overflow-y-auto no-scrollbar pb-6">

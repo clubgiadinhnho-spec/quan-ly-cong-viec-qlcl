@@ -39,10 +39,11 @@ export const useFirebaseData = (currentUserId?: string) => {
           ...doc.data(),
           id: doc.id
         } as unknown as User));
+        console.log(`Loaded ${usersData.length} users from Firestore`);
         setUsers(usersData);
       },
       (error) => {
-        console.warn("Users listener permission/error:", error.message);
+        handleFirestoreError(error, OperationType.GET, 'users');
       }
     );
 
@@ -70,15 +71,12 @@ export const useFirebaseData = (currentUserId?: string) => {
         setLoading(false);
       },
       (error) => {
-        if (error.code !== 'permission-denied') {
-          handleFirestoreError(error, OperationType.GET, 'tasks');
-        } else {
-          console.warn("Permission denied for tasks listener. You might not have the correct role.");
-        }
+        handleFirestoreError(error, OperationType.GET, 'tasks');
       }
     );
 
-    // Listen to Messages
+    // Listen to Messages (Global Chat)
+    // We use a broader query to match the rules more easily
     const messagesUnsubscribe = onSnapshot(
       query(collection(db, 'messages'), orderBy('timestamp', 'asc')),
       (snapshot) => {
@@ -101,11 +99,7 @@ export const useFirebaseData = (currentUserId?: string) => {
         setMessages(messagesData);
       },
       (error) => {
-        if (error.code !== 'permission-denied') {
-          handleFirestoreError(error, OperationType.GET, 'messages');
-        } else {
-          console.warn("Permission denied for messages listener.");
-        }
+        handleFirestoreError(error, OperationType.GET, 'messages');
       }
     );
 

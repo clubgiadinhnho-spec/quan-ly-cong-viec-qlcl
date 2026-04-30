@@ -1,17 +1,17 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { History } from 'lucide-react';
-import { Task } from '../../types';
-import { STAFF_LIST } from '../../constants';
+import { Task, User } from '../../types';
 import { formatDateTime } from '../../lib/dateUtils';
 
 interface HistoryModalProps {
   taskId: string;
   tasks: Task[];
+  users: User[];
   onClose: () => void;
 }
 
-export const HistoryModal = ({ taskId, tasks, onClose }: HistoryModalProps) => {
+export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProps) => {
   const task = tasks.find((t) => t.id === taskId);
   if (!task) return null;
 
@@ -42,7 +42,7 @@ export const HistoryModal = ({ taskId, tasks, onClose }: HistoryModalProps) => {
                 <p className="text-sm text-gray-700 font-medium leading-relaxed bg-gray-50 p-3 rounded-lg border border-gray-100">
                   {h.content}
                 </p>
-                <p className="text-[9px] text-gray-400 mt-1 italic">Cập nhật bởi: {STAFF_LIST.find(s => s.id === h.authorId)?.name}</p>
+                <p className="text-[9px] text-gray-400 mt-1 italic">Cập nhật bởi: {users.find(s => s.id === h.authorId)?.name || 'Người dùng hệ thống'}</p>
               </div>
             ))}
           </div>

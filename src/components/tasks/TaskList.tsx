@@ -57,7 +57,7 @@ export const TaskList: React.FC<TaskListProps> = ({
   };
 
   return (
-    <div className="overflow-x-auto ring-1 ring-gray-200 rounded-xl">
+    <div className="overflow-auto max-h-[780px] ring-1 ring-gray-200 rounded-xl scrollbar-thin scrollbar-thumb-gray-300">
       <table className="w-full min-w-[1200px] text-left border-separate border-spacing-0">
         <thead className="bg-[#FAFBFD] sticky top-0 z-20 shadow-sm">
           <tr>

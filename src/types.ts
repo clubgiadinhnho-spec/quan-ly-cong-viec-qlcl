@@ -36,7 +36,7 @@ export interface ProgressUpdate {
   authorId: string;
 }
 
-export type TaskStatus = 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'COMPLETED' | 'CANCELLED' | 'ON_HOLD';
+export type TaskStatus = 'PENDING_REVIEW' | 'TODO' | 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'COMPLETED' | 'CANCELLED' | 'ON_HOLD';
 
 export interface MessageReaction {
   userId: string;

@@ -69,17 +69,7 @@ export default function App() {
   }, [currentUser?.id]);
 
   // The effectively active user (either original or simulated)
-  const effectiveUser = React.useMemo(() => {
-    const user = simulatedUser || currentUser;
-    if (!user) return null;
-    
-    // Safety check: if they belong to any system admin emails, force Admin role
-    const systemAdmins = ['adminnutifood@gmail.com', 'lenhattruong.tpp@gmail.com', 'club.nhuatanphu@gmail.com', 'tanphuvietnam.tpp@gmail.com'];
-    if (user.companyEmail && systemAdmins.includes(user.companyEmail.toLowerCase())) {
-       return { ...user, role: 'Admin' as any };
-    }
-    return user;
-  }, [simulatedUser, currentUser]);
+  const effectiveUser = simulatedUser || currentUser;
 
   const [search, setSearch] = useState('');
   const [showTaskModal, setShowTaskModal] = useState(false);
@@ -113,8 +103,6 @@ export default function App() {
     users, 
     messages: generalMessages, 
     privateMessages,
-    officialReports,
-    logs,
     loading: firebaseLoading,
     addTask: firebaseAddTask,
     updateTask: firebaseUpdateTask,
@@ -126,9 +114,9 @@ export default function App() {
     updateHeartbeat: firebaseUpdateHeartbeat,
     updateMessageReactions: firebaseUpdateMessageReactions,
     updatePrivateMessageReactions: firebaseUpdatePrivateMessageReactions,
-    addLog: firebaseAddLog,
     saveReportDraft: firebaseSaveReportDraft,
     saveOfficialReport: firebaseSaveOfficialReport,
+    officialReports: firebaseOfficialReports,
     clearAllTasks
   } = useFirebaseData(effectiveUser?.id);
 
@@ -148,43 +136,19 @@ export default function App() {
   const allUsers = React.useMemo(() => {
     const uniqueUsers = new Map<string, UserType>();
     
-    // 1. Add from STAFF_LIST first - use id as primary key for internal staff
+    // 1. Add from STAFF_LIST first
     STAFF_LIST.forEach(u => {
-      uniqueUsers.set(u.id, { ...u });
+      uniqueUsers.set(u.companyEmail.toLowerCase(), u);
     });
 
     // 2. Overwrite with Firestore data
-    users.forEach(u => {
-      // Find matching user from STAFF_LIST by email or internal ID
-      let matchedId = u.id;
-      
-      // If the Firestore user has an email, try to find the corresponding STAFF_LIST entry
-      if (u.companyEmail) {
-        const emailMatch = STAFF_LIST.find(s => s.companyEmail?.toLowerCase() === u.companyEmail?.toLowerCase());
-        if (emailMatch) {
-          matchedId = emailMatch.id;
-        }
-      }
-
-      // Merge data
-      const existing = uniqueUsers.get(matchedId);
-      const systemAdmins = ['adminnutifood@gmail.com', 'lenhattruong.tpp@gmail.com', 'club.nhuatanphu@gmail.com', 'tanphuvietnam.tpp@gmail.com'];
-      
-      const updatedUser = { 
-        ...(existing || {}),
-        ...u, 
-        role: (u.companyEmail && systemAdmins.includes(u.companyEmail.toLowerCase())) ? 'Admin' : (u.role || existing?.role || 'Staff')
-      } as UserType;
-
-      uniqueUsers.set(matchedId, updatedUser);
+    // Sort so that UID-based IDs (long strings like 'abc-123...') come after legacy IDs (like 'mgr-01'), 
+    // ensuring they overwrite in the map if emails match.
+    [...users].sort((a,b) => a.id.length - b.id.length).forEach(u => {
+      uniqueUsers.set(u.companyEmail.toLowerCase(), u);
     });
     
-    return Array.from(uniqueUsers.values()).filter(u => {
-      if ((u as any).status === 'DELETED') return false;
-      // Specific fix for duplicate/placeholder 'Lê Nhật Trường' accounts
-      if (u.name === 'Lê Nhật Trường' && u.companyEmail && !u.companyEmail.includes('truong.le@tanphuvietnam.vn')) return false;
-      return true;
-    });
+    return Array.from(uniqueUsers.values());
   }, [users]);
 
   const { 
@@ -198,8 +162,7 @@ export default function App() {
     allUsers,
     firebaseAddTask,
     firebaseUpdateTask,
-    firebaseDeleteTask,
-    firebaseAddLog
+    firebaseDeleteTask
   });
 
   const addTask = useCallback(async (taskData: any) => {
@@ -313,7 +276,7 @@ export default function App() {
     });
 
     // 4. Check for task requests (Admin or delegated approval power)
-    if (effectiveUser && (effectiveUser.role === 'Admin' || effectiveUser.delegatedPermissions?.canApproveTask)) {
+    if (currentUser.role === 'Admin' || currentUser.delegatedPermissions?.canApproveTask) {
       tasks.forEach(t => {
         const reqKey = `${t.id}-${t.status === 'PENDING_APPROVAL' ? 'HT' : ''}-${t.requestDelete ? 'XOA' : ''}`;
         if ((t.status === 'PENDING_APPROVAL' || t.requestDelete) && !knownRequests.current.has(reqKey)) {
@@ -346,32 +309,13 @@ export default function App() {
     }));
   }, [showDirectChat, activeTab, showChatModal, unreadNotifications.length]);
 
-  // Presence heartbeat
-  useEffect(() => {
-    if (!currentUser?.id || !authReady) return;
-    
-    // 1. Immediate update on login/mount
-    console.log("Heartbeat: Updating lastActive for", currentUser.id);
-    firebaseUpdateHeartbeat(currentUser.id);
-
-    // 2. Periodic update every 30 seconds
-    const interval = setInterval(() => {
-      firebaseUpdateHeartbeat(currentUser.id);
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [currentUser?.id, authReady]);
-
-  // Presence system (Syncing with hook)
-  // useUserHeartbeat(currentUser?.id, firebaseUpdateHeartbeat); // Already covered above with more direct control if needed, or we can use the hook. 
-  // Let's stick to one. The hook useUserHeartbeat actually does exactly this.
-  // I will just make sure it follows the 30s rule.
+  // Presence system
+  useUserHeartbeat(currentUser?.id, firebaseUpdateHeartbeat);
 
   // Ensure minimal staff data is present in Firestore
   useEffect(() => {
     const syncStaff = async () => {
-      // Only Admins should attempt to sync essential staff to Firestore
-      if (!firebaseLoading && authReady && effectiveUser?.role === 'Admin') {
+      if (!firebaseLoading && authReady) {
         // Always ensure the first few essential staff (Admins/Managers) are in Firestore
         // This acts as a safety net for login
         const essentialStaff = STAFF_LIST.slice(0, 2); 
@@ -379,15 +323,7 @@ export default function App() {
           const exists = users.find(u => u.id === staff.id || u.companyEmail === staff.companyEmail);
           if (!exists) {
             try {
-              // Explicitly remove any undefined fields
-              const cleanStaff: any = {};
-              Object.entries(staff).forEach(([key, value]) => {
-                if (value !== undefined) {
-                  cleanStaff[key] = value;
-                }
-              });
-              
-              await setDoc(doc(db, 'users', staff.id), cleanStaff);
+              await setDoc(doc(db, 'users', staff.id), staff);
             } catch (err) {
               console.error(`Failed to sync essential user ${staff.id}:`, err);
             }
@@ -396,7 +332,7 @@ export default function App() {
       }
     };
     syncStaff();
-  }, [users.length, firebaseLoading, authReady, effectiveUser?.role]); 
+  }, [users.length, firebaseLoading, authReady]); 
 
   // Handle Authentication State (Restore Session & Sync)
   useEffect(() => {
@@ -414,16 +350,12 @@ export default function App() {
           // If Firestore doesn't have the UID yet, use localStorage user
           setCurrentUser(savedUser);
         }
+      } else if (savedUser) {
+        // No Firebase session, but we have local user - restore anonymously
+        setCurrentUser(savedUser);
+        loginAnonymously().catch(err => console.error("Anonymous login error during restoration:", err));
       } else {
-        if (savedUser) {
-          // No Firebase session, but we have local user - restore anonymously
-          setCurrentUser(savedUser);
-          loginAnonymously().catch(err => console.error("Anonymous login error during restoration:", err));
-        } else {
-          setCurrentUser(null);
-          // NEW: Even if no saved user, log in anonymously to allow public listeners (like users list) to function
-          loginAnonymously().catch(err => console.error("Initial anonymous login failed:", err));
-        }
+        setCurrentUser(null);
       }
       setAuthReady(true);
     });
@@ -514,52 +446,9 @@ export default function App() {
     });
   }, [tasks, clearAllTasks]);
 
-  const onUpdateStaff = useCallback(async (updatedStaff: UserType) => {
-    // Detect delegation changes to log them
-    const originalStaff = users.find(u => u.id === updatedStaff.id);
-    const hasPermsChanged = JSON.stringify(originalStaff?.delegatedPermissions) !== JSON.stringify(updatedStaff.delegatedPermissions);
-    
-    if (originalStaff && hasPermsChanged) {
-      const activePerms = updatedStaff.delegatedPermissions ? 
-        Object.entries(updatedStaff.delegatedPermissions)
-          .filter(([_, v]) => v)
-          .map(([k]) => k) : [];
-      
-      const count = activePerms.length;
-
-      // Log the change
-      await firebaseAddLog({
-        type: 'DELEGATION_CHANGE',
-        userId: currentUser?.id || 'system',
-        targetId: updatedStaff.id,
-        details: `Cập nhật quyền ủy quyền cho ${updatedStaff.name}: ${count > 0 ? activePerms.join(', ') : 'Thu hồi toàn bộ quyền'}`,
-        metadata: { perms: updatedStaff.delegatedPermissions }
-      });
-
-      // Send announcement to Group Chat if there are permissions
-      if (count > 0) {
-        const adminName = currentUser?.name || 'Trưởng phòng';
-        const msg = `🛡️ [THÔNG BÁO ỦY QUYỀN TRỌNG YẾU]\n\n` +
-                    `Trưởng phòng ${adminName} chính thức ủy quyền cho ${updatedStaff.name} (${count}/6 quyền) để điều hành và kiểm soát công việc tại Phòng QLCL.\n\n` +
-                    `Phạm vi ủy quyền bao gồm:\n` +
-                    activePerms.map(p => {
-                      const labels: Record<string, string> = {
-                        canCreateTask: '• Soạn thảo & Nhập liệu',
-                        canApproveTask: '• Phê duyệt & Chốt báo cáo',
-                        canDeleteTask: '• Xóa & Hủy dự án',
-                        canExportExcel: '• Trích xuất dữ liệu',
-                        canImportExcel: '• Nhập dữ liệu hàng loạt',
-                        canManageStaff: '• Quản trị nhân sự'
-                      };
-                      return labels[p] || p;
-                    }).join('\n') +
-                    `\n\nHệ thống đã cập nhật thẻ bài quyền hạn. Đề nghị các thành viên phối hợp thực hiện.`;
-
-        await firebaseSendMessage(msg, 'system');
-      }
-    }
+  const onUpdateStaff = useCallback((updatedStaff: UserType) => {
     firebaseUpdateStaff(updatedStaff);
-  }, [users, firebaseUpdateStaff, firebaseAddLog, firebaseSendMessage, currentUser]);
+  }, [firebaseUpdateStaff]);
 
   const handleExportExcel = () => {
     if (currentUser?.role !== 'Admin' && !currentUser?.delegatedPermissions?.canExportExcel) return;
@@ -597,11 +486,11 @@ export default function App() {
             // Find user by email or name string from Excel
             let assigneeId = currentUser?.id || '';
             if (tData.assigneeId) {
-              const searchStr = (tData.assigneeId?.toString() || '').toLowerCase();
+              const searchStr = tData.assigneeId.toString().toLowerCase();
               const matchedUser = allUsers.find(u => 
-                ((u.companyEmail || '').toLowerCase() === searchStr) || 
-                ((u.personalEmail || '').toLowerCase() === searchStr) || 
-                ((u.name || '').toLowerCase().includes(searchStr))
+                (u.companyEmail && u.companyEmail.toLowerCase() === searchStr) || 
+                (u.personalEmail && u.personalEmail.toLowerCase() === searchStr) || 
+                (u.name && u.name.toLowerCase().includes(searchStr))
               );
               if (matchedUser) {
                 assigneeId = matchedUser.id;
@@ -652,34 +541,16 @@ export default function App() {
       show: true,
       title: 'XÁC NHẬN XÓA NHÂN SỰ',
       message: `Bạn có chắc chắn muốn xóa nhân sự "${staff.name}" khỏi hệ thống? Dữ liệu này sẽ mất vĩnh viễn.`,
-      onConfirm: async () => {
-        try {
-          // Soft delete by updating status to 'DELETED'
-          // This also masks the STAFF_LIST entry because the Firestore record with the same email
-          // will overwrite it in the uniqueUsers map.
-          await firebaseUpdateStaff({ ...staff, status: 'DELETED' as any });
-          setConfirmModal(p => ({ ...p, show: false }));
-        } catch (error) {
-          console.error("Delete staff error:", error);
-          // Fallback: try hard delete if soft delete failed (maybe rule restriction)
-          try {
-            await firebaseDeleteStaff(userId);
-            setConfirmModal(p => ({ ...p, show: false }));
-          } catch (err) {
-            console.error("Hard delete also failed:", err);
-            alert("Lỗi: Không thể xóa nhân sự này. Vui lòng thử lại sau.");
-          }
-        }
+      onConfirm: () => {
+        firebaseDeleteStaff(userId);
+        setConfirmModal(p => ({ ...p, show: false }));
       }
     });
-  }, [allUsers, firebaseUpdateStaff, firebaseDeleteStaff]);
+  }, [allUsers, firebaseDeleteStaff]);
 
   const filteredTasks = tasks.filter(t => {
-    const safeTitle = (t.title || '').toLowerCase();
-    const safeCode = (t.code || '').toLowerCase();
-    const safeSearch = (search || '').toLowerCase();
-
-    const matchesSearch = safeTitle.includes(safeSearch) || safeCode.includes(safeSearch);
+    const matchesSearch = (t.title.toLowerCase().includes(search.toLowerCase()) || 
+                          t.code.toLowerCase().includes(search.toLowerCase()));
     
     if (!matchesSearch) return false;
 
@@ -688,8 +559,8 @@ export default function App() {
       const isMine = t.assigneeId === effectiveUser?.id;
       // Also match if the assignee ID corresponds to the same email as current user (legacy match)
       const assigneeByOldId = users.find(u => u.id === t.assigneeId);
-      const emailMatches = !!(assigneeByOldId?.companyEmail && effectiveUser?.companyEmail && 
-                           assigneeByOldId.companyEmail.toLowerCase() === effectiveUser.companyEmail.toLowerCase());
+      const emailMatches = assigneeByOldId && effectiveUser?.companyEmail && 
+                           assigneeByOldId.companyEmail.toLowerCase() === effectiveUser.companyEmail.toLowerCase();
       
       return isMine || emailMatches;
     }
@@ -712,7 +583,7 @@ export default function App() {
   });
 
   if (!authReady) return <div className="min-h-screen flex items-center justify-center font-black text-blue-600">ĐANG TẢI DỮ LIỆU...</div>;
-  if (!currentUser || (!currentUser.name && !currentUser.companyEmail)) return <Login users={allUsers} onLogin={handleLogin} />;
+  if (!currentUser) return <Login users={allUsers} onLogin={handleLogin} />;
 
   return (
     <div className="flex min-h-screen bg-[#F9FAFB]">
@@ -782,9 +653,9 @@ export default function App() {
               <Header 
                 title="TRUNG TÂM QUẢN LÝ CHẤT LƯỢNG TÂN PHÚ VIỆT NAM" 
                 badge={effectiveUser.role}
-                onAction={effectiveUser.role !== 'Staff' || effectiveUser.delegatedPermissions?.canCreateTask ? () => setShowTaskModal(true) : undefined}
-                actionLabel={effectiveUser.role !== 'Staff' || effectiveUser.delegatedPermissions?.canCreateTask ? "Nhập công việc mới" : "Xem thông tin"}
-                actionIcon={effectiveUser.role !== 'Staff' || effectiveUser.delegatedPermissions?.canCreateTask ? Plus : Search}
+                onAction={() => setShowTaskModal(true)}
+                actionLabel="Nhập công việc mới"
+                actionIcon={Plus}
               />
               
               <div className="p-6 space-y-6">
@@ -827,7 +698,7 @@ export default function App() {
                    <div className="flex items-center gap-4">
                     <h3 className="text-[14px] font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
                        <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
-                       DANH SÁCH BẢNG CÔNG VIỆC
+                       DANH SÁCH CÔNG VIỆC ĐANG XỬ LÝ
                     </h3>
                      {(effectiveUser.role !== 'Staff' || effectiveUser.delegatedPermissions?.canExportExcel || effectiveUser.delegatedPermissions?.canImportExcel) && (
                        <div className="flex items-center gap-2">
@@ -921,7 +792,7 @@ export default function App() {
             <motion.div key="pending_confirmation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <HolidayBanner />
               <Header 
-                title="ĐỀ XUẤT MỚI" 
+                title="Đề xuất công việc mới" 
               />
               <div className="p-6">
                 <PendingConfirmationPage 
@@ -946,7 +817,7 @@ export default function App() {
             <motion.div key="completed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <HolidayBanner />
               <Header 
-                title="CV HOÀN THÀNH" 
+                title="Lịch sử công việc đã hoàn thành" 
               />
               <div className="p-6 space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
@@ -1033,7 +904,7 @@ export default function App() {
             <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <HolidayBanner />
               <Header 
-                title="Hồ sơ & Thông tin nhân sự" 
+                title="Hồ sơ & Quản lý nhân sự" 
                 badge={effectiveUser.code} 
               />
               <div className="p-6">
@@ -1060,7 +931,7 @@ export default function App() {
                     users={allUsers} 
                     onUpdateTask={updateTask}
                     currentUser={effectiveUser!}
-                    officialReports={officialReports}
+                    officialReports={firebaseOfficialReports}
                     onSaveDraft={firebaseSaveReportDraft}
                     onSaveOfficialReport={firebaseSaveOfficialReport}
                   />
@@ -1068,7 +939,7 @@ export default function App() {
             </motion.div>
           )}
 
-          {activeTab === 'staff_list' && effectiveUser?.role === 'Admin' && (
+          {activeTab === 'staff_list' && (currentUser.role === 'Admin') && (
             <motion.div key="staff_list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                <HolidayBanner />
                <Header 
@@ -1077,72 +948,11 @@ export default function App() {
                <div className="p-8">
                   <StaffListPage 
                     users={allUsers} 
-                    onUpdateStaff={onUpdateStaff} 
+                    onUpdateStaff={firebaseUpdateStaff} 
                     onDeleteStaff={handleStaffDelete}
                     currentUser={effectiveUser} 
                     onSimulateStaff={setSimulatedUser}
-                    onSendToUser={async (msg, targetId) => {
-                      await firebaseSendPrivateMsg(msg, currentUser.id, targetId);
-                    }}
-                    onSendToGroup={async (msg) => {
-                      await firebaseSendMessage(msg, 'system');
-                    }}
                   />
-               </div>
-            </motion.div>
-          )}
-
-          {activeTab === 'system_history' && effectiveUser?.role === 'Admin' && (
-            <motion.div key="system_history" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-               <HolidayBanner />
-               <Header 
-                title="Lịch sử Hoạt động Hệ thống" 
-               />
-               <div className="p-8">
-                  <div className="max-w-4xl mx-auto space-y-6">
-                    <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden">
-                      <div className="p-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
-                            <Search size={20} />
-                          </div>
-                          <div>
-                            <h2 className="text-sm font-black uppercase tracking-widest text-gray-900">Nhật ký hệ thống</h2>
-                            <p className="text-[10px] text-gray-400 font-bold">Ghi nhận các thay đổi quan trọng</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="divide-y divide-gray-50">
-                        {logs.length > 0 ? logs.map(log => {
-                          const actor = allUsers.find(u => u.id === log.userId);
-                          const target = allUsers.find(u => u.id === log.targetId);
-                          return (
-                            <div key={log.id} className="p-6 hover:bg-gray-50 transition-colors">
-                              <div className="flex items-start gap-4">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                                  log.type === 'DELEGATION_CHANGE' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
-                                }`}>
-                                  {log.type === 'DELEGATION_CHANGE' ? <Lock size={20} /> : <Search size={20} />}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-xs font-black text-gray-900">{log.details}</span>
-                                    <span className="text-[10px] text-gray-400 font-bold">{new Date(log.timestamp).toLocaleString('vi-VN')}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-widest text-red-500">
-                                    <span>Tác nhân: {actor?.name || 'Hệ thống'}</span>
-                                    {target && <span>• Đối tượng: {target.name}</span>}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        }) : (
-                          <div className="p-20 text-center text-gray-400 italic">Chưa có bản ghi hoạt động nào.</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
                </div>
             </motion.div>
           )}

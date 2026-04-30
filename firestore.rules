@@ -23,11 +23,8 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        (request.auth.token.keys().contains('email') && (
-          request.auth.token.email == 'lenhattruong.tpp@gmail.com' ||
-          request.auth.token.email == 'club.nhuatanphu@gmail.com' ||
-          request.auth.token.email == 'adminnutifood@gmail.com'
-        )) ||
+        request.auth.token.email == 'lenhattruong.tpp@gmail.com' ||
+        request.auth.token.email == 'club.nhuatanphu@gmail.com' ||
         (userExists() && getUserData().role == 'Admin')
       );
     }
@@ -61,7 +58,7 @@ service cloud.firestore {
                isValidId(data.id) &&
                data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
                data.role in ['Staff', 'Leader', 'Admin'] &&
-               data.status in ['PENDING', 'ACTIVE', 'INACTIVE', 'DELETED'] &&
+               data.status in ['PENDING', 'ACTIVE', 'INACTIVE'] &&
                data.companyEmail is string && data.companyEmail.size() <= 150 &&
                data.personalEmail is string && data.personalEmail.size() <= 150 &&
                data.avatar is string && data.avatar.size() <= 1000 &&
@@ -118,15 +115,12 @@ service cloud.firestore {
       allow list: if isSignedIn();
       allow get: if isSignedIn();
       
-      allow create: if isSignedIn() && (
-        incoming().authorId == request.auth.uid || 
-        (isAdmin() && incoming().authorId == 'system')
-      ) && isValidMessage(incoming());
+      allow create: if isSignedIn() && incoming().authorId == request.auth.uid && isValidMessage(incoming());
       allow delete: if isAdmin();
 
       function isValidMessage(data) {
         return data.keys().hasAll(['authorId', 'content', 'timestamp']) &&
-               (data.authorId == request.auth.uid || (isAdmin() && data.authorId == 'system')) &&
+               data.authorId == request.auth.uid &&
                data.content is string && data.content.size() > 0 && data.content.size() <= 2000 &&
                data.timestamp is timestamp;
       }
@@ -172,13 +166,6 @@ service cloud.firestore {
                data.isOfficial == true &&
                data.createdAt is timestamp;
       }
-    }
-
-    // 8. System Logs
-    // -------------------------------------------------------------------------
-    match /system_logs/{logId} {
-      allow read: if isAdmin();
-      allow create: if isSignedIn();
     }
 
     // Default Deny

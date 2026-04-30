@@ -17,16 +17,6 @@ export interface UserPermissions {
   canManageStaff: boolean;
 }
 
-export interface LogEntry {
-  id: string;
-  timestamp: string;
-  type: 'DELEGATION_CHANGE' | 'DELEGATED_ACTION' | 'SYSTEM';
-  userId: string; // The person who performed the action
-  targetId?: string; // The person who was the target (e.g. delegated to)
-  details: string;
-  metadata?: any;
-}
-
 export interface User {
   id: string;
   name: string;

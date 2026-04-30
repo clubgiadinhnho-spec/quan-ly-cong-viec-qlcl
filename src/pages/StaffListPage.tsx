@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { User, UserRoleType, UserPermissions } from '../types';
-import { Search, Mail, Phone, MessageCircle, X, Save, Edit2, Trash2, Shield, HelpCircle, Lock, Download, ClipboardList, FileText, Filter, Eye, Award } from 'lucide-react';
+import { Search, Mail, Phone, MessageCircle, X, Save, Edit2, Trash2, Shield, HelpCircle, Lock, Download, ClipboardList, FileText, Filter, Eye } from 'lucide-react';
 import { SECURITY_QUESTIONS } from '../constants';
 
 import { Avatar } from '../components/common/Avatar';
 import { PermissionMatrixModal } from '../components/staff/PermissionMatrixModal';
-import { DelegationLetterModal } from '../components/staff/DelegationLetterModal';
 
 interface StaffListPageProps {
   users: User[];
@@ -14,26 +13,14 @@ interface StaffListPageProps {
   currentUser: User;
   onSimulateStaff?: (user: User) => void;
   originalUser?: User | null;
-  onSendToUser?: (msg: string, targetId: string) => void;
-  onSendToGroup?: (msg: string) => void;
 }
 
-export const StaffListPage: React.FC<StaffListPageProps> = ({ 
-  users, 
-  onUpdateStaff, 
-  onDeleteStaff, 
-  currentUser, 
-  onSimulateStaff, 
-  originalUser,
-  onSendToUser,
-  onSendToGroup
-}) => {
+export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateStaff, onDeleteStaff, currentUser, onSimulateStaff, originalUser }) => {
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState<'All' | UserRoleType | 'PENDING'>('All');
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<User | null>(null);
   const [permissionMatrixUser, setPermissionMatrixUser] = useState<User | null>(null);
-  const [delegationLetterUser, setDelegationLetterUser] = useState<User | null>(null);
 
   const isManagerOrAdmin = currentUser.role === 'Admin';
 // ... rest of filtering logic ...
@@ -87,16 +74,11 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
 
   const handleUpdatePermissions = (permissions: UserPermissions) => {
     if (permissionMatrixUser) {
-      const updated = {
+      onUpdateStaff({
         ...permissionMatrixUser,
         delegatedPermissions: permissions
-      };
-      onUpdateStaff(updated);
+      });
       setPermissionMatrixUser(null);
-      // Auto show delegation card if any permission is granted
-      if (permissions && Object.values(permissions).some(v => v)) {
-        setDelegationLetterUser(updated);
-      }
     }
   };
 
@@ -136,144 +118,171 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
         />
       )}
 
-      {delegationLetterUser && (
-        <DelegationLetterModal 
-          user={delegationLetterUser}
-          manager={currentUser}
-          onClose={() => setDelegationLetterUser(null)}
-          onSendToUser={(msg) => onSendToUser?.(msg, delegationLetterUser.id)}
-          onSendToGroup={onSendToGroup}
-        />
-      )}
-
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
-              <ClipboardList size={18} />
-            </div>
-            <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">Hệ thống quản lý</span>
-          </div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight uppercase leading-none">THÔNG TIN NHÂN SỰ</h1>
-          <p className="text-sm text-gray-500 mt-2 font-medium">Quản lý thông tin liên hệ và chức vụ nhân sự trong đơn vị</p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-col items-end px-4 py-2 bg-white border border-gray-100 rounded-2xl shadow-sm">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tổng nhân sự</span>
-            <span className="text-xl font-black text-gray-900">{users.length}</span>
-          </div>
-          {users.filter(u => u.status === 'PENDING').length > 0 && (
-            <div className="flex flex-col items-end px-4 py-2 bg-amber-50 border border-amber-100 rounded-2xl shadow-sm">
-              <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Chờ duyệt</span>
-              <span className="text-xl font-black text-amber-600">{users.filter(u => u.status === 'PENDING').length}</span>
-            </div>
-          )}
-          {isManagerOrAdmin && (
-            <button 
-              onClick={handleExport}
-              className="flex items-center gap-2 px-6 py-4 bg-gray-900 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-gray-200 active:scale-95"
-            >
-              <Download size={16} />
-              Xuất báo cáo
-            </button>
-          )}
-        </div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+// ... Header ...
+         <div>
+            <h1 className="text-2xl font-black text-gray-800 tracking-tight uppercase">DANH SÁCH CÁN BỘ CÔNG NHÂN VIÊN</h1>
+            <p className="text-sm text-gray-500 mt-1">Quản lý thông tin liên hệ và chức vụ nhân sự</p>
+         </div>
+         {isManagerOrAdmin && (
+           <button 
+             onClick={handleExport}
+             className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 shrink-0"
+           >
+             <Download size={16} />
+             Xuất báo cáo
+           </button>
+         )}
       </div>
 
-      <div className="bg-white p-2 rounded-[24px] border border-gray-100 shadow-sm flex flex-col md:flex-row gap-2">
+      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
+// ... Filter controls ...
         <div className="flex-1 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input 
             type="text" 
             placeholder="Tìm theo tên, SĐT, mã NV, tên viết tắt..."
-            className="w-full pl-12 pr-4 py-4 bg-transparent outline-none text-sm font-medium placeholder:text-gray-300"
+            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/10 focus:bg-white transition-all text-sm font-medium"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-3 bg-gray-50 rounded-[20px] px-3 py-2">
-          <Filter size={14} className="text-gray-400 ml-1 shrink-0" />
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
+          <Filter size={16} className="text-gray-400 shrink-0" />
           <div className="flex gap-1 shrink-0">
             {roles.map(role => (
               <button
                 key={role}
                 onClick={() => setFilterRole(role)}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
                   filterRole === role 
-                    ? 'bg-white text-blue-600 shadow-sm' 
-                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                 }`}
               >
-                {role === 'All' ? 'TẤT CẢ' : role === 'PENDING' ? 'CHỜ DUYỆT' : role}
+                {role === 'All' ? 'TẤT CẢ' : role}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredStaff.map((staff) => {
           const isEditing = editingStaffId === staff.id && editForm;
+          const hasDelegatedPermissions = staff.delegatedPermissions && Object.values(staff.delegatedPermissions).some(v => v);
           
           return (
-            <div key={staff.id} className={`group bg-white rounded-[24px] border-2 transition-all relative flex flex-col ${
-              isEditing ? 'border-blue-500 shadow-2xl z-10' : 'border-gray-100 shadow-sm hover:shadow-xl hover:border-blue-200 shadow-indigo-100/10'
+            <div key={staff.id} className={`bg-white rounded-2xl border-2 transition-all overflow-hidden group ${
+              isEditing ? 'border-blue-500 shadow-xl' : 'border-gray-100 shadow-sm hover:shadow-md'
             }`}>
-              <div className="p-6 flex flex-row gap-6 flex-1 min-h-[280px]">
-                {/* Left Column: Avatar & Action Buttons */}
-                <div className="flex flex-col items-center gap-4 shrink-0">
-                  <div className="relative">
-                    <div className={`p-1 rounded-[22px] transition-all ${isEditing ? 'ring-4 ring-blue-500/20' : 'group-hover:ring-4 group-hover:ring-gray-100'}`}>
-                      <Avatar src={staff.avatar} name={staff.name} size="xl" className="rounded-2xl w-20 h-20 md:w-24 md:h-24" />
-                    </div>
-                    {!isEditing && (
-                      <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-4 border-white ${
-                        staff.lastActive && (Date.now() - staff.lastActive < 300000) ? '' : 'grayscale'
-                      } ${
-                        staff.lastActive && (Date.now() - staff.lastActive < 300000) ? 'animate-pulse' : 'bg-gray-300'
-                      } ${
-                        staff.lastActive && (Date.now() - staff.lastActive < 300000) ? (
+              <div className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-4">
+                    <div className="relative">
+                      <Avatar src={staff.avatar} name={staff.name} size="xl" className="rounded-2xl" />
+                      {!isEditing && (
+                        <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
+                          staff.lastActive && (Date.now() - staff.lastActive < 120000) ? 'animate-pulse ring-2 ring-blue-400 ring-offset-2' : ''
+                        } ${
                           staff.status === 'PENDING' ? 'bg-amber-400' :
                           staff.role === 'Admin' ? 'bg-red-500' : 
                           staff.role === 'Leader' ? 'bg-amber-500' : 'bg-green-500'
-                        ) : 'bg-gray-300'
-                      }`} />
+                        }`} title={staff.lastActive && (Date.now() - staff.lastActive < 120000) ? 'Đang trực tuyến' : 'Ngoại tuyến'} />
+                      )}
+                    </div>
+                    {isEditing ? (
+// ... Edit name fields ...
+                      <div className="space-y-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[8px] font-black text-gray-400 uppercase ml-1">Tên & Viết tắt</label>
+                          <input 
+                            className="text-sm font-bold border-b border-blue-200 outline-none w-full bg-blue-50/20 px-1"
+                            value={editForm.name}
+                            onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                            placeholder="Họ và tên"
+                          />
+                          <input 
+                            className="text-[10px] uppercase font-black text-blue-600 border-b border-blue-100 outline-none w-full bg-blue-50/20 px-1"
+                            value={editForm.abbreviation}
+                            onChange={(e) => setEditForm({...editForm, abbreviation: e.target.value})}
+                            placeholder="Tên viết tắt"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1 pt-1">
+                          <label className="text-[8px] font-black text-gray-400 uppercase ml-1">Link Ảnh đại diện</label>
+                          <input 
+                            className="text-[10px] border-b border-blue-100 outline-none w-full bg-blue-50/20 px-1 py-1"
+                            value={editForm.avatar}
+                            onChange={(e) => setEditForm({...editForm, avatar: e.target.value})}
+                            placeholder="URL hình ảnh..."
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-center gap-2 text-wrap">
+                          <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{staff.name}</h3>
+                          {staff.status === 'PENDING' && (
+                            <span className="text-[8px] font-black bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded tracking-widest uppercase">Chờ duyệt</span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
+                          <p className={`text-[10px] font-black uppercase tracking-widest ${hasDelegatedPermissions ? 'text-amber-600' : 'text-gray-400'}`}>
+                            {staff.role} {hasDelegatedPermissions && <span className="text-amber-500 font-black ml-0.5 underline decoration-double decoration-amber-200 underline-offset-2">(QUYỀN TP)</span>}
+                          </p>
+                          <span className="text-[10px] font-black text-blue-400 px-1.5 py-0.5 bg-blue-50 rounded italic">{staff.abbreviation}</span>
+                          {staff.securityQuestion && (
+                            <Shield size={10} className="text-blue-400" title="Đã thiết lập bảo mật" />
+                          )}
+                        </div>
+                        <p className="text-[10px] font-bold text-blue-600 mt-1">Mã NV: {staff.code}</p>
+                      </div>
                     )}
                   </div>
-
-                  {/* Move Action Buttons below Avatar */}
+// ... Action buttons ...
                   {isManagerOrAdmin && (
-                    <div className="flex flex-col gap-2 w-full">
+                    <div className="flex gap-1">
                       {isEditing ? (
                         <>
-                          <button onClick={handleSave} className="w-full h-9 flex items-center justify-center bg-green-500 text-white rounded-xl hover:bg-green-600 transition-all shadow-lg shadow-green-100" title="Lưu">
-                            <Save size={16} />
+                          <button onClick={handleSave} className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Lưu">
+                            <Save size={18} />
                           </button>
-                          <button onClick={handleCancel} className="w-full h-9 flex items-center justify-center bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200 transition-all" title="Hủy">
-                            <X size={16} />
+                          <button onClick={handleCancel} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Hủy">
+                            <X size={18} />
                           </button>
                         </>
                       ) : (
-                        <div className="flex flex-col gap-2 w-full">
-                          <button onClick={() => handleEdit(staff)} className="w-full h-9 flex items-center justify-center bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm" title="Chỉnh sửa">
-                            <Edit2 size={16} />
-                          </button>
-                          <button 
-                            onClick={() => setPermissionMatrixUser(staff)}
-                            className="w-full h-9 flex items-center justify-center bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-600 hover:text-white transition-all shadow-sm"
-                            title="Phân quyền bảo mật"
-                          >
-                            <Shield size={16} />
-                          </button>
+                        <div className="flex items-center gap-1">
                           {onSimulateStaff && staff.id !== (originalUser?.id || currentUser.id) && (
-                            <button onClick={() => onSimulateStaff(staff)} className="w-full h-9 flex items-center justify-center bg-amber-50 text-amber-500 rounded-xl hover:bg-amber-500 hover:text-white transition-all shadow-sm" title="Giả lập">
-                              <Eye size={16} />
+                            <button 
+                              onClick={() => onSimulateStaff(staff)} 
+                              className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors flex items-center gap-1"
+                              title="Giả lập nhân viên"
+                            >
+                              <Eye size={18} />
+                              <span className="text-[10px] font-black uppercase hidden lg:inline">Giả lập</span>
                             </button>
                           )}
                           {currentUser.role === 'Admin' && staff.id !== currentUser.id && (
-                            <button onClick={() => onDeleteStaff(staff.id)} className="w-full h-9 flex items-center justify-center bg-red-50 text-red-500 rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-sm" title="Xóa">
-                              <Trash2 size={16} />
+                             <button 
+                                onClick={() => setPermissionMatrixUser(staff)}
+                                className={`p-2 rounded-lg transition-all ${hasDelegatedPermissions ? 'text-amber-600 bg-amber-50' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`} 
+                                title="Phân quyền Ma trận"
+                             >
+                                <Shield size={18} />
+                             </button>
+                          )}
+                          <button onClick={() => handleEdit(staff)} className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Chỉnh sửa">
+                            <Edit2 size={18} />
+                          </button>
+                          {currentUser.role === 'Admin' && staff.id !== currentUser.id && (
+                            <button 
+                              onClick={() => onDeleteStaff(staff.id)}
+                              className="p-2 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" 
+                              title="Xóa nhân sự"
+                            >
+                              <Trash2 size={18} />
                             </button>
                           )}
                         </div>
@@ -281,204 +290,191 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                     </div>
                   )}
                 </div>
-
-                {/* Right Column: Detailed Info */}
-                <div className="flex-1 min-w-0 pt-1">
-                  {isEditing ? (
-                    <div className="space-y-4">
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Họ tên nhân sự</label>
+// ... rest of the card ...
+                <div className="space-y-3 pt-4 border-t border-gray-50">
+                  <div className="flex items-center gap-3 text-xs text-gray-600">
+                    <Phone size={14} className="text-gray-400 shrink-0" />
+                    {isEditing ? (
+                      <input 
+                        className="font-medium bg-blue-50/50 rounded px-2 py-0.5 w-full outline-none"
+                        value={editForm.phone}
+                        onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+                      />
+                    ) : (
+                      <span className="font-medium">{staff.phone}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-600">
+                    <MessageCircle size={14} className="text-green-500 shrink-0" />
+                    {isEditing ? (
+                      <div className="flex items-center gap-1 w-full">
+                        <span className="text-[10px] text-gray-400">Zalo:</span>
                         <input 
-                          className="w-full text-base font-black bg-blue-50/50 border border-blue-100 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                          value={editForm.name}
-                          onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                          className="font-medium bg-blue-50/50 rounded px-2 py-0.5 w-full outline-none"
+                          value={editForm.zalo || ''}
+                          onChange={(e) => setEditForm({...editForm, zalo: e.target.value})}
                         />
                       </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Chức vụ</label>
-                          <select 
-                            className="w-full text-[10px] font-black bg-white border border-gray-100 rounded-xl px-2 py-2 outline-none appearance-none"
-                            value={editForm.role}
-                            onChange={(e) => setEditForm({...editForm, role: e.target.value as UserRoleType})}
-                          >
-                            <option value="Admin">Admin</option>
-                            <option value="Leader">Leader</option>
-                            <option value="Staff">Staff</option>
-                          </select>
+                    ) : (
+                      <span className="font-medium">Zalo: {staff.zalo || staff.phone}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-600">
+                    <Mail size={14} className="text-gray-400 shrink-0" />
+                    <div className="flex flex-col flex-1">
+                      <span className="text-[10px] font-black text-gray-300 uppercase leading-none mb-1">Cơ quan</span>
+                      {isEditing ? (
+                        <input 
+                          className="font-medium bg-blue-50/50 rounded px-2 py-0.5 w-full outline-none"
+                          value={editForm.companyEmail}
+                          onChange={(e) => setEditForm({...editForm, companyEmail: e.target.value})}
+                        />
+                      ) : (
+                        <span className="font-medium truncate">{staff.companyEmail}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-600">
+                    <Mail size={14} className="text-gray-400 opacity-50 shrink-0" />
+                    <div className="flex flex-col flex-1">
+                      <span className="text-[10px] font-black text-gray-300 uppercase leading-none mb-1">Cá nhân</span>
+                      {isEditing ? (
+                        <input 
+                          className="font-medium bg-blue-50/50 rounded px-2 py-0.5 w-full outline-none"
+                          value={editForm.personalEmail}
+                          onChange={(e) => setEditForm({...editForm, personalEmail: e.target.value})}
+                        />
+                      ) : (
+                        <span className="font-medium truncate">{staff.personalEmail}</span>
+                      )}
+                    </div>
+                  </div>
+                  {isEditing && (
+                    <>
+                      <div className="pt-4 border-t border-blue-50 space-y-3">
+                        <div className="flex items-center gap-2">
+                           <ClipboardList size={14} className="text-blue-600" />
+                           <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Hồ sơ năng lực / CV</span>
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Số điện thoại</label>
+                        <div className="space-y-2">
                           <input 
-                            className="w-full text-[10px] font-black bg-white border border-gray-100 rounded-xl px-2 py-2 outline-none"
-                            value={editForm.phone}
-                            onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+                            className="w-full text-xs font-medium bg-blue-50/20 border border-blue-100 rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                            value={editForm.cvUrl || ''}
+                            onChange={(e) => setEditForm({...editForm, cvUrl: e.target.value})}
+                            placeholder="Link CV (Google Drive, LinkedIn...)"
+                          />
+                          <textarea 
+                            className="w-full text-xs font-medium bg-blue-50/20 border border-blue-100 rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 min-h-[100px] resize-none"
+                            value={editForm.cvDetails || ''}
+                            onChange={(e) => setEditForm({...editForm, cvDetails: e.target.value})}
+                            placeholder="Chi tiết kinh nghiệm, chứng chỉ, đào tạo..."
                           />
                         </div>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Câu hỏi bảo mật</label>
-                        <select 
-                          className="w-full text-[10px] font-black bg-white border border-gray-100 rounded-xl px-2 py-2 outline-none"
-                          value={editForm.securityQuestion}
-                          onChange={(e) => setEditForm({...editForm, securityQuestion: e.target.value})}
-                        >
-                          <option value="">-- Chọn câu hỏi --</option>
-                          {SECURITY_QUESTIONS.map(q => <option key={q} value={q}>{q}</option>)}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Câu trả lời</label>
-                        <input 
-                          className="w-full text-[10px] font-black bg-white border border-gray-100 rounded-xl px-2 py-2 outline-none"
-                          value={editForm.securityAnswer}
-                          onChange={(e) => setEditForm({...editForm, securityAnswer: e.target.value})}
-                          placeholder="Nhập câu trả lời..."
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="mb-4">
-                      <h3 className="text-xl font-black text-gray-900 tracking-tight leading-tight mb-2 break-words">
-                        {staff.name}
-                      </h3>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex flex-col">
-                          <span className="text-[7px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1 ml-0.5">Chức danh</span>
-                          <span className={`text-[9px] font-black uppercase tracking-[0.1em] px-2 py-1 rounded-lg border shadow-sm ${
-                            staff.role === 'Admin' ? 'bg-red-50 text-red-600 border-red-100' : 
-                            staff.role === 'Leader' ? 'bg-amber-50 text-amber-600 border-amber-100' : 
-                            'bg-blue-50 text-blue-600 border-blue-100'
-                          }`}>
-                            {staff.role}
-                          </span>
+                      <div className="pt-4 border-t border-blue-50 space-y-3">
+                        <div className="flex items-center gap-2">
+                           <Shield size={14} className="text-blue-600" />
+                           <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block">Thiết lập bảo mật</span>
                         </div>
-                        {staff.delegatedPermissions && (() => {
-                          const count = Object.values(staff.delegatedPermissions).filter(Boolean).length;
-                          if (count === 0) return null;
-                          return (
-                            <button 
-                              onClick={() => setDelegationLetterUser(staff)}
-                              className="flex flex-col items-start hover:opacity-80 transition-opacity"
-                            >
-                              <span className="text-[7px] font-black text-amber-600 uppercase tracking-widest leading-none mb-1 ml-0.5">Phụ trách</span>
-                              <span className={`text-[9px] font-black bg-amber-100 text-amber-700 px-2 py-1 rounded-lg border border-amber-200 uppercase tracking-tighter`}>
-                                {count === 6 ? 'QUYỀN TP' : `ỦY QUYỀN ${count}/6`}
-                              </span>
-                            </button>
-                          );
-                        })()}
-                        <div className="flex flex-col">
-                           <span className="text-[7px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1 ml-0.5">Mã NV</span>
-                           <span className="text-[10px] font-black text-gray-600 font-mono italic bg-gray-50 border border-gray-100 px-2 py-1 rounded-lg shadow-sm">#{staff.code}</span>
+                        <div className="space-y-3">
+                           <div className="space-y-1">
+                              <label className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1.5 ml-1">
+                                 <HelpCircle size={10} /> Câu hỏi bảo mật
+                              </label>
+                              <select 
+                                className="w-full text-xs font-bold bg-blue-50/20 border border-blue-100 rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                value={editForm.securityQuestion || SECURITY_QUESTIONS[0]}
+                                onChange={(e) => setEditForm({...editForm, securityQuestion: e.target.value})}
+                              >
+                                {SECURITY_QUESTIONS.map(q => <option key={q} value={q}>{q}</option>)}
+                                <option value="custom">-- Câu hỏi khác --</option>
+                              </select>
+                              {(editForm.securityQuestion === 'custom' || !SECURITY_QUESTIONS.includes(editForm.securityQuestion || '')) && (
+                                <input 
+                                  className="w-full mt-2 text-xs font-bold bg-gray-50 border border-gray-100 rounded-lg px-2 py-2 outline-none focus:bg-white"
+                                  value={editForm.securityQuestion || ''}
+                                  onChange={(e) => setEditForm({...editForm, securityQuestion: e.target.value})}
+                                  placeholder="Nhập câu hỏi tự chọn..."
+                                />
+                              )}
+                           </div>
+                           <div className="space-y-1">
+                              <label className="text-[9px] font-black text-gray-400 uppercase flex items-center gap-1.5 ml-1">
+                                 <Lock size={10} /> Câu trả lời bí mật
+                              </label>
+                              <input 
+                                className="w-full text-xs font-bold bg-blue-50/20 border border-blue-100 rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                value={editForm.securityAnswer || ''}
+                                onChange={(e) => setEditForm({...editForm, securityAnswer: e.target.value})}
+                                placeholder="Nhập câu trả lời..."
+                              />
+                           </div>
                         </div>
-                        {staff.status === 'PENDING' && (
-                          <div className="flex flex-col">
-                            <span className="text-[7px] font-black text-transparent leading-none mb-1">.</span>
-                            <span className="text-[9px] font-black bg-amber-500 text-white px-2 py-1 rounded-lg tracking-widest uppercase shadow-sm">MỚI</span>
-                          </div>
-                        )}
                       </div>
-                    </div>
+                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-50 mt-4">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-black text-gray-300 uppercase">Chức vụ</span>
+                          <select 
+                            className="text-xs font-bold bg-blue-50/50 rounded px-2 py-1 outline-none"
+                            value={editForm.role}
+                            onChange={(e) => setEditForm({...editForm, role: e.target.value as UserRoleType})}
+                          >
+                            {['Admin', 'Leader', 'Staff'].map(r => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-black text-gray-300 uppercase">Trạng thái</span>
+                          <select 
+                            className="text-xs font-bold bg-blue-50/50 rounded px-2 py-1 outline-none"
+                            value={editForm.status}
+                            onChange={(e) => setEditForm({...editForm, status: e.target.value as any})}
+                          >
+                            <option value="PENDING">Chờ duyệt</option>
+                            <option value="ACTIVE">Hoạt động</option>
+                            <option value="INACTIVE">Khóa</option>
+                          </select>
+                        </div>
+                      </div>
+                    </>
                   )}
-
-                  <div className="space-y-2 mt-4">
-                    <div className="flex items-center gap-3 group/info">
-                      <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0 group-hover/info:bg-blue-600 group-hover/info:text-white transition-all">
-                        <Phone size={12} />
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[7.5px] font-extrabold text-gray-400 uppercase tracking-widest leading-tight">Điện thoại</span>
-                        <span className="text-sm font-bold text-gray-700 leading-none">{staff.phone}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 group/info">
-                      <div className="w-8 h-8 rounded-xl bg-green-50 flex items-center justify-center text-green-600 shrink-0 group-hover/info:bg-green-600 group-hover/info:text-white transition-all">
-                        <MessageCircle size={12} />
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[7.5px] font-extrabold text-gray-400 uppercase tracking-widest leading-tight">Zalo / Chat</span>
-                        <span className="text-sm font-bold text-gray-700 leading-none">{staff.zalo || staff.phone}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 group/info">
-                      <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 shrink-0 group-hover/info:bg-purple-600 group-hover/info:text-white transition-all">
-                        <Mail size={12} />
-                      </div>
-                      <div className="flex flex-col min-w-0 overflow-hidden">
-                        <span className="text-[7.5px] font-extrabold text-gray-400 uppercase tracking-widest leading-tight">Email công ty</span>
-                        <span className="text-[11px] font-semibold text-gray-700 leading-none truncate">{staff.companyEmail}</span>
-                      </div>
-                    </div>
-
-                    {isManagerOrAdmin && staff.securityQuestion && !isEditing && (
-                      <div className="space-y-2 mt-1">
-                        <div className="flex items-center gap-3 group/info">
-                          <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0 group-hover/info:bg-amber-600 group-hover/info:text-white transition-all">
-                            <HelpCircle size={12} />
-                          </div>
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-[7.5px] font-extrabold text-gray-400 uppercase tracking-widest leading-tight">Câu hỏi bảo mật</span>
-                            <span className="text-[9px] font-bold text-gray-700 leading-tight truncate" title={staff.securityQuestion}>{staff.securityQuestion}</span>
-                          </div>
-                        </div>
-                        {staff.securityAnswer && (
-                          <div className="flex items-center gap-3 group/info">
-                            <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center text-red-600 shrink-0 group-hover/info:bg-red-600 group-hover/info:text-white transition-all">
-                              <Lock size={12} />
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-[7.5px] font-extrabold text-gray-400 uppercase tracking-widest leading-tight">Câu trả lời</span>
-                              <span className="text-[9px] font-black text-gray-900 leading-tight truncate bg-gray-50 px-1 inline-block">{staff.securityAnswer}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
-
+// ... Footer ...
               {!isEditing && (
-                <div className="px-5 py-4 bg-gray-50/50 flex items-center justify-between border-t border-gray-100 rounded-b-[24px]">
-                  <div className="flex items-center gap-2">
-                    {staff.delegatedPermissions && Object.values(staff.delegatedPermissions).some(v => v) && (
+                <div className="px-6 py-3 bg-gray-50 flex items-center justify-between">
+                  {staff.status === 'PENDING' && isManagerOrAdmin ? (
+                    <button 
+                      onClick={() => handleApprove(staff)}
+                      className="flex items-center gap-1.5 px-3 py-1 bg-green-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-green-700 transition-all shadow-md shadow-green-100"
+                    >
+                      <Save size={12} />
+                      Phê duyệt ngay
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2">
                       <button 
-                        onClick={() => setDelegationLetterUser(staff)}
-                        className="h-10 px-4 bg-white border border-indigo-100 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center gap-2"
+                        onClick={() => {
+                          if (staff.cvDetails || staff.cvUrl) {
+                            const details = staff.cvDetails || 'Chưa có thông tin chi tiết.';
+                            const url = staff.cvUrl ? `\nLink: ${staff.cvUrl}` : '';
+                            alert(`HỒ SƠ NĂNG LỰC: ${staff.name}\n\n${details}${url}`);
+                          } else {
+                            handleEdit(staff);
+                          }
+                        }}
+                        className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:text-blue-700 transition-colors flex items-center gap-1"
                       >
-                        <Award size={14} />
-                        Giấy ủy quyền
+                        <FileText size={12} />
+                        Hồ sơ chi tiết
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                   <div className="flex gap-2">
-                    <a 
-                      href={`zalo://chat?phone=${staff.phone?.replace(/^0/, '84')}`}
-                      className={`w-10 h-10 bg-white rounded-xl border border-green-100 text-green-500 flex items-center justify-center shadow-sm transition-all active:scale-95 group/zalo ${!staff.phone ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-500 hover:text-white'}`}
-                      title={staff.phone ? "Mở Zalo PC / App" : "Không có số điện thoại"}
-                      onClick={(e) => {
-                        if (!staff.phone) {
-                          e.preventDefault();
-                          return;
-                        }
-                        // Giao thức zalo:// có thể không hoạt động trên một số trình duyệt nếu không có app
-                        // Chúng ta có thể để nó tự xử lý hoặc fallback nếu cần
-                      }}
-                    >
-                      <MessageCircle size={18} className="group-hover/zalo:scale-110 transition-transform" />
-                    </a>
-                    <a 
-                      href={`tel:${staff.phone}`}
-                      className="w-10 h-10 bg-white rounded-xl border border-blue-100 text-blue-500 flex items-center justify-center hover:bg-blue-500 hover:text-white shadow-sm transition-all active:scale-95 group/phone"
-                      title="Gọi điện"
-                    >
-                      <Phone size={18} className="group-hover/phone:scale-110 transition-transform" />
+                    <a href={`tel:${staff.phone}`} className="p-2 bg-white rounded-lg border border-gray-100 text-gray-400 hover:text-blue-600 hover:border-blue-100 transition-all">
+                      <Phone size={14} />
                     </a>
                   </div>
                 </div>

@@ -49,7 +49,7 @@ export const PendingConfirmationPage = ({
           </div>
           <div>
             <h1 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-              ĐỀ XUẤT MỚI
+              ĐỀ XUẤT CÔNG VIỆC MỚI
               <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full">{visibleTasks.length}</span>
             </h1>
             <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">
@@ -93,7 +93,7 @@ export const PendingConfirmationPage = ({
             <div className="text-sm text-blue-800 leading-relaxed font-medium">
               <p className="mb-1 font-bold">Lưu ý cho nhân viên:</p>
               Các công việc sau khi bạn nhấn "Nhập công việc mới" sẽ nằm ở trạng thái <span className="text-blue-600 font-bold uppercase">Chờ xác nhận</span>. 
-              Sau khi Quản lý xác nhận, nó mới chính thức được đưa vào danh sách xử lý và xuất hiện tại DANH SÁCH BẢNG CÔNG VIỆC.
+              Sau khi Quản lý xác nhận, nó mới chính thức được đưa vào danh sách xử lý và xuất hiện tại Bảng công việc chính.
             </div>
           </div>
         </div>

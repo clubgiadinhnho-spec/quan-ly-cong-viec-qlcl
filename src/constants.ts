@@ -63,7 +63,7 @@ export const STAFF_LIST: User[] = [
     zalo: '0907654321',
     companyEmail: 'hung.banh@tanphuvietnam.vn',
     personalEmail: 'nhuthung@gmail.com',
-    role: 'Staff',
+    role: 'Leader',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hung',
     status: 'ACTIVE',
     securityQuestion: SECURITY_QUESTIONS[2],

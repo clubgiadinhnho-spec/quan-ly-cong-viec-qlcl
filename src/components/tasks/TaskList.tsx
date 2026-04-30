@@ -37,22 +37,8 @@ export const TaskList: React.FC<TaskListProps> = ({
   isReadOnly = false
 }) => {
   const sortedTasks = [...tasks].sort((a, b) => {
-    // 1. Phê duyệt (Dành cho cấp quản lý xác nhận lính mới) - nếu có status AWAITING_CONFIRMATION
-    if (a.status === 'AWAITING_CONFIRMATION' && b.status !== 'AWAITING_CONFIRMATION') return -1;
-    if (b.status === 'AWAITING_CONFIRMATION' && a.status !== 'AWAITING_CONFIRMATION') return 1;
-
-    // 2. Lính mới xác nhận (Ưu tiên nhảy lên trên cùng của danh sách xử lý)
-    if (type === 'active') {
-      if (a.isNewSoldier && !b.isNewSoldier) return -1;
-      if (b.isNewSoldier && !a.isNewSoldier) return 1;
-    }
-
-    // 3. Ưu tiên do người dùng gán (Priority Order)
-    if (a.priorityOrder && !b.priorityOrder) return -1;
-    if (b.priorityOrder && !a.priorityOrder) return 1;
-    if (a.priorityOrder && b.priorityOrder) return a.priorityOrder - b.priorityOrder;
-
-    // 4. Mã công việc (Mới nhất lên trên)
+    // Luôn sắp xếp theo mã công việc giảm dần (mới nhất lên trên)
+    // Người dùng yêu cầu không tự động đẩy ưu tiên lên đầu
     return b.code.localeCompare(a.code);
   });
 

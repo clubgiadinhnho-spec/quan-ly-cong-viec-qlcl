@@ -29,7 +29,7 @@ export const TaskModal = ({ onClose, onSave, users, task }: TaskModalProps) => {
       >
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
           {isEdit ? <Edit2 className="text-blue-600" /> : <Plus className="text-blue-600" />}
-          {isEdit ? 'CẬP NHẬT CÔNG VIỆC' : 'NHẬP CÔNG VIỆC MỚI'}
+          {isEdit ? 'CẬP NHẬT CÔNG VIỆC' : 'KHỞI TẠO CÔNG VIỆC MỚI'}
         </h2>
         
         <div className="space-y-4">

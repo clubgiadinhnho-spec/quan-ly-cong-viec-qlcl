@@ -4,7 +4,7 @@
 - A User must have a unique ID matching their Firebase Auth UID (if applicable, but here we use manual IDs for the staff list, so we map them).
 - A Message must have an `authorId` that matches the `request.auth.uid`.
 - A Message `timestamp` must be the server time.
-- Tasks can only be created or modified by users with 'Admin' or 'Leader' roles.
+- Tasks can only be created or modified by users with 'Admin' or 'Trưởng Phòng' roles.
 
 ## 2. The "Dirty Dozen" Payloads
 
@@ -12,7 +12,7 @@
 2. **Identity Spoofing (Message)**: Attempt to send a message with `authorId` pointing to someone else.
 3. **Resource Poisoning (User)**: Attempt to inject a 1MB string into the `name` field of a User.
 4. **State Shortcutting (Task)**: Attempt to set a task status to 'COMPLETED' without being the assignee or manager.
-5. **Privilege Escalation (User)**: A regular 'Staff' attempting to update their own `role` to 'Admin'.
+5. **Privilege Escalation (User)**: A regular 'Nhân Viên' attempting to update their own `role` to 'Admin'.
 6. **Orphaned Message**: Creating a message with an `authorId` that does not exist in the `users` collection.
 7. **Timestamp Fraud**: Sending a message with a manually specified `timestamp` far in the past/future.
 8. **Shadow Field (Task)**: Adding a `isVerified: true` field to a Task document that isn't in the schema.

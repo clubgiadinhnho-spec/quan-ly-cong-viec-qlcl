@@ -28,7 +28,17 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
 
 ## 📝 2. NHẬT KÝ THAY ĐỔI CHI TIẾT (CHANGELOG)
 
-### 📝 Cập nhật mới nhất: 29/04/2026 (Bảo vệ Dữ liệu Thực tế)
+### 📝 Cập nhật mới nhất: 30/04/2026 (Quy trình Duyệt công việc mới)
+- **Cơ chế Duyệt công việc (Review Flow):** 
+    - Nhân viên nhập công việc mới sẽ chuyển vào trạng thái **"Chờ Admin duyệt"** (`PENDING_REVIEW`).
+    - Các công việc này sẽ **tạm thời chưa xuất hiện** trong Bảng công việc chính thức để tránh gây nhiễu dữ liệu.
+    - Admin/Trưởng phòng có thêm mục **"Duyệt công việc"** trong Sidebar để kiểm tra và nhấn **"XÁC NHẬN CV"** trước khi đưa vào bảng chính.
+- **Thắt chặt quyền hạn:** 
+    - Nhân viên chỉ có quyền sửa thông tin công việc do chính mình nhập khi nó còn đang chờ duyệt.
+    - Khi công việc đã được Admin xác nhận (vào bảng chính), nhân viên không còn quyền sửa Tên/Mục tiêu trực tiếp, đảm bảo tính nhất quán của dữ liệu đã phê duyệt.
+- **Đồng bộ hóa trạng thái Đã đọc:** Triệt để lỗi hiện lại thông báo cũ khi người dùng tải lại trang (F5).
+
+### 📝 Cập nhật trước đó: 30/04/2026 (Triệt để lỗi Thông báo lặp)
 - **Vô hiệu hóa Tự động Bootstrap:** 
     - Đã gỡ bỏ hoàn toàn logic tự động cập nhật/so khớp nhân sự từ file `constants.ts` vào Firestore.
     - **Lý do:** Đảm bảo các chỉnh sửa thủ công của người dùng đối với nhân sự (Trường, Quản Trị Viên, Tân, Tú...) không bao giờ bị ghi đè bởi dữ liệu mẫu cũ trong mã nguồn.
@@ -172,20 +182,5 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
 **Người dùng (User):** "Lỗi Firebase: auth/admin-restricted-operation và Permission denied cho direct_messages listener."
 **AI:** Đã hướng dẫn bật Anonymous Auth, cập nhật Security Rules mở cho `direct_messages`, và đồng bộ hóa UID ẩn danh làm ID chính để lắng nghe tin nhắn thời gian thực.
 
-### 📝 Cập nhật mới nhất: 30/04/2026 (Triển khai Phân quyền RBAC & Single Source of Truth)
-- **Hệ thống Phân quyền mới (RBAC):**
-    - Thiết lập 3 vai trò chính: **Admin**, **Leader**, **Staff**.
-    - **Admin:** Toàn quyền quản trị hệ thống, nhân sự, dự án, báo cáo và xuất nhập dữ liệu.
-    - **Leader:** Quản lý đội nhóm, phê duyệt công việc của nhân viên và nhập liệu Excel.
-    - **Staff:** Quản lý công việc cá nhân và cập nhật thông tin hồ sơ.
-- **Single Source of Truth (SSOT):**
-    - Chuyển đổi toàn bộ cơ chế lưu trữ nhân sự sang Firestore tập trung. 
-    - Mọi thay đổi tại Trang cá nhân (Avatar, SĐT, Email...) sẽ tự động cập nhật vào danh sách Nhân sự toàn phòng.
-- **Cập nhật Security Rules:**
-    - Nâng cấp `firestore.rules` để bảo vệ dữ liệu theo 3 vai trò mới. 
-    - Áp dụng kiểm tra kiểu dữ liệu (Validation) nghiêm ngặt cho mỗi lần ghi vào database.
-- **Đồng bộ hóa giao diện:** Cập nhật Sidebar, TaskRow, StaffList và ProfilePage để hiển thị và xử lý logic theo bộ phân quyền mới.
-
 ---
-
-*Ngày cập nhật cuối cùng: 30/04/2026*
+*Ngày cập nhật cuối cùng: 29/04/2026*

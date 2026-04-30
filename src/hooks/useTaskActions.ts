@@ -38,8 +38,6 @@ export const useTaskActions = ({
       });
     }
 
-    const isManagement = currentUser?.role === 'Admin' || currentUser?.role === 'Leader' || !!currentUser?.delegatedPermissions?.canCreateTask;
-
     const newTask: Omit<Task, 'id'> = {
       code: `C${String(lastNum + 1).padStart(4, '0')}`,
       issueDate: new Date().toISOString().split('T')[0],
@@ -52,19 +50,17 @@ export const useTaskActions = ({
       currentUpdate: '',
       history: [{ 
         version: 1, 
-        content: isManagement ? 'Khởi tạo công việc.' : 'Khởi tạo công việc (Chờ xác nhận).', 
+        content: 'Khởi tạo công việc.', 
         timestamp: new Date().toISOString(), 
         authorId: currentUser?.id || '' 
       }],
-      status: isManagement ? 'IN_PROGRESS' : 'AWAITING_CONFIRMATION',
+      status: (currentUser?.role === 'Admin' || currentUser?.role === 'Trưởng Phòng') ? 'TODO' : 'PENDING_REVIEW',
       priority: taskData.priority || 'MEDIUM',
       isHighlighted: false,
       isLocked: false,
       attachmentUrl,
       attachmentName,
       updatedAt: new Date().toISOString(),
-      isNewSoldier: false,
-      authorId: currentUser?.id || '',
     };
     await firebaseAddTask(newTask);
   }, [tasks, currentUser, firebaseAddTask]);

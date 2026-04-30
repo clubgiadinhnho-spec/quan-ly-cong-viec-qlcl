@@ -172,5 +172,20 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
 **Người dùng (User):** "Lỗi Firebase: auth/admin-restricted-operation và Permission denied cho direct_messages listener."
 **AI:** Đã hướng dẫn bật Anonymous Auth, cập nhật Security Rules mở cho `direct_messages`, và đồng bộ hóa UID ẩn danh làm ID chính để lắng nghe tin nhắn thời gian thực.
 
+### 📝 Cập nhật mới nhất: 30/04/2026 (Triển khai Phân quyền RBAC & Single Source of Truth)
+- **Hệ thống Phân quyền mới (RBAC):**
+    - Thiết lập 3 vai trò chính: **Admin**, **Leader**, **Staff**.
+    - **Admin:** Toàn quyền quản trị hệ thống, nhân sự, dự án, báo cáo và xuất nhập dữ liệu.
+    - **Leader:** Quản lý đội nhóm, phê duyệt công việc của nhân viên và nhập liệu Excel.
+    - **Staff:** Quản lý công việc cá nhân và cập nhật thông tin hồ sơ.
+- **Single Source of Truth (SSOT):**
+    - Chuyển đổi toàn bộ cơ chế lưu trữ nhân sự sang Firestore tập trung. 
+    - Mọi thay đổi tại Trang cá nhân (Avatar, SĐT, Email...) sẽ tự động cập nhật vào danh sách Nhân sự toàn phòng.
+- **Cập nhật Security Rules:**
+    - Nâng cấp `firestore.rules` để bảo vệ dữ liệu theo 3 vai trò mới. 
+    - Áp dụng kiểm tra kiểu dữ liệu (Validation) nghiêm ngặt cho mỗi lần ghi vào database.
+- **Đồng bộ hóa giao diện:** Cập nhật Sidebar, TaskRow, StaffList và ProfilePage để hiển thị và xử lý logic theo bộ phân quyền mới.
+
 ---
-*Ngày cập nhật cuối cùng: 29/04/2026*
+
+*Ngày cập nhật cuối cùng: 30/04/2026*

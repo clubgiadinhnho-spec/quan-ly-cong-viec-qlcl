@@ -26,62 +26,26 @@ export default function Login({ users, onLogin }: LoginProps) {
 
   // Registration states
   const [regData, setRegData] = useState<Partial<User>>({
-    role: 'Nhân Viên',
+    role: 'Staff',
     avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${Math.random()}&mouth=smile`,
     securityQuestion: SECURITY_QUESTIONS[0]
   });
 
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const fbUser = await loginWithGoogle();
-      if (!fbUser) return;
-
-      // Find staff in our list by email
-      const staffMember = users.find(u => 
-        u.companyEmail.toLowerCase() === fbUser.email?.toLowerCase() ||
-        u.personalEmail.toLowerCase() === fbUser.email?.toLowerCase()
-      );
-
-      if (staffMember) {
-        // Sync the staff member with the Firebase UID for rules to work perfectly
-        const updatedStaff = { ...staffMember, id: fbUser.uid };
-        await setDoc(doc(db, 'users', fbUser.uid), updatedStaff);
-        onLogin(updatedStaff);
-      } else {
-        // Create a new staff record for this Google user if not found
-        const newUser: User = {
-          id: fbUser.uid,
-          name: fbUser.displayName || 'Thành viên mới',
-          phone: '',
-          zalo: '',
-          companyEmail: fbUser.email || '',
-          personalEmail: fbUser.email || '',
-          role: 'Nhân Viên',
-          avatar: fbUser.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${fbUser.uid}`,
-          code: 'G-' + fbUser.uid.substring(0, 4).toUpperCase(),
-          abbreviation: (fbUser.displayName || 'NEW').substring(0, 3).toUpperCase(),
-          status: 'ACTIVE',
-        };
-        await setDoc(doc(db, 'users', fbUser.uid), newUser);
-        onLogin(newUser);
-      }
-    } catch (err: any) {
-      console.error("Google Login error:", err);
-      setError('Đăng nhập Google thất bại: ' + (err.message || 'Lỗi kết nối.'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleInitialLoginAttempt = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const user = users.find(
-      u => (u.name.toLowerCase() === name.toLowerCase() && u.phone === phone) ||
-           (u.companyEmail.toLowerCase() === name.toLowerCase() && u.phone === phone)
-    );
+    // Normalize inputs: trim, lowercase name, and remove formatting from phone
+    const cleanName = name.trim().toLowerCase().replace(/\s+/g, ' ');
+    const cleanPhone = phone.replace(/\D/g, ''); 
+    
+    const user = users.find(u => {
+      const uName = u.name.trim().toLowerCase().replace(/\s+/g, ' ');
+      const uEmail = u.companyEmail.trim().toLowerCase();
+      const uPhone = u.phone.replace(/\D/g, '');
+      
+      return (uName === cleanName && uPhone === cleanPhone) ||
+             (uEmail === cleanName && uPhone === cleanPhone);
+    });
 
     if (user) {
       if (user.status !== 'ACTIVE' && user.status !== 'PENDING') {
@@ -99,7 +63,10 @@ export default function Login({ users, onLogin }: LoginProps) {
     e.preventDefault();
     if (!foundUser) return;
 
-    if (foundUser.securityAnswer?.toLowerCase().trim() === securityAnswer.toLowerCase().trim()) {
+    const normalizedExisting = (foundUser.securityAnswer || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    const normalizedInput = securityAnswer.toLowerCase().trim().replace(/\s+/g, ' ');
+
+    if (normalizedExisting === normalizedInput) {
       if (foundUser.status === 'ACTIVE') {
         setLoading(true);
         try {
@@ -180,7 +147,7 @@ export default function Login({ users, onLogin }: LoginProps) {
         zalo: regData.zalo || regData.phone!,
         companyEmail: regData.companyEmail!,
         personalEmail: regData.personalEmail || regData.companyEmail!,
-        role: regData.role as any || 'Nhân Viên',
+        role: regData.role as any || 'Staff',
         avatar: regData.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(regData.name!)}&background=random`,
         code: regData.code!,
         abbreviation: regData.abbreviation!,
@@ -303,16 +270,6 @@ export default function Login({ users, onLogin }: LoginProps) {
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-50 uppercase tracking-widest text-xs"
                     >
                       TIẾP TỤC <LogIn size={16} />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleGoogleLogin}
-                      disabled={loading}
-                      className="w-full bg-white border border-gray-200 text-gray-700 font-bold py-3.5 rounded-xl flex items-center justify-center gap-3 transition-all hover:bg-gray-50 shadow-sm uppercase tracking-widest text-[10px]"
-                    >
-                      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-4 h-4" />
-                      {loading ? 'Đang xử lý...' : 'Đăng nhập Google (Dành cho Quản trị)'}
                     </button>
                     
                     <div className="relative py-2">
@@ -526,9 +483,9 @@ export default function Login({ users, onLogin }: LoginProps) {
                       onChange={(e) => setRegData({...regData, role: e.target.value as any})}
                       className="w-full px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-xs font-medium outline-none focus:ring-1 focus:ring-blue-500"
                     >
-                      <option value="Nhân Viên">Nhân Viên</option>
-                      <option value="Trưởng Nhóm">Trưởng Nhóm</option>
-                      <option value="Trưởng Phòng">Trưởng Phòng</option>
+                      <option value="Staff">Nhân Viên</option>
+                      <option value="Leader">Trưởng Nhóm</option>
+                      <option value="Admin">Admin</option>
                     </select>
                   </div>
 

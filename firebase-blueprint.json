@@ -9,7 +9,7 @@
         "name": { "type": "string" },
         "phone": { "type": "string" },
         "zalo": { "type": "string" },
-        "role": { "type": "string", "enum": ["Nhân Viên", "Trưởng Nhóm", "Trưởng Phòng", "Admin"] },
+        "role": { "type": "string", "enum": ["Staff", "Leader", "Admin"] },
         "companyEmail": { "type": "string" },
         "personalEmail": { "type": "string" },
         "avatar": { "type": "string" },
@@ -18,7 +18,18 @@
         "personalNote": { "type": "string" },
         "status": { "type": "string", "enum": ["PENDING", "ACTIVE", "INACTIVE"] },
         "securityQuestion": { "type": "string" },
-        "securityAnswer": { "type": "string" }
+        "securityAnswer": { "type": "string" },
+        "delegatedPermissions": {
+          "type": "object",
+          "properties": {
+            "canCreateTask": { "type": "boolean" },
+            "canApproveTask": { "type": "boolean" },
+            "canDeleteTask": { "type": "boolean" },
+            "canExportExcel": { "type": "boolean" },
+            "canImportExcel": { "type": "boolean" },
+            "canManageStaff": { "type": "boolean" }
+          }
+        }
       },
       "required": ["id", "name", "phone", "role", "companyEmail", "personalEmail", "avatar", "code", "abbreviation", "status", "securityQuestion", "securityAnswer"]
     },

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { User, UserRoleType } from '../types';
+import { User, UserRoleType, UserPermissions } from '../types';
 import { Search, Mail, Phone, MessageCircle, X, Save, Edit2, Trash2, Shield, HelpCircle, Lock, Download, ClipboardList, FileText, Filter, Eye } from 'lucide-react';
 import { SECURITY_QUESTIONS } from '../constants';
 
 import { Avatar } from '../components/common/Avatar';
+import { PermissionMatrixModal } from '../components/staff/PermissionMatrixModal';
 
 interface StaffListPageProps {
   users: User[];
@@ -19,9 +20,10 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
   const [filterRole, setFilterRole] = useState<'All' | UserRoleType | 'PENDING'>('All');
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<User | null>(null);
+  const [permissionMatrixUser, setPermissionMatrixUser] = useState<User | null>(null);
 
-  const isManagerOrAdmin = currentUser.role === 'Admin' || currentUser.role === 'Trưởng Phòng';
-
+  const isManagerOrAdmin = currentUser.role === 'Admin';
+// ... rest of filtering logic ...
   const filteredStaff = users.filter(s => {
     if (!s) return false;
     const name = s.name || '';
@@ -46,7 +48,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
     return matchesSearch && matchesRole;
   });
 
-  const roles: (UserRoleType | 'All' | 'PENDING')[] = ['All', 'PENDING', 'Admin', 'Trưởng Phòng', 'Trưởng Nhóm', 'Nhân Viên'];
+  const roles: (UserRoleType | 'All' | 'PENDING')[] = ['All', 'PENDING', 'Admin', 'Leader', 'Staff'];
 
   const handleApprove = (staff: User) => {
     onUpdateStaff({ ...staff, status: 'ACTIVE' });
@@ -70,7 +72,18 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
     setEditForm(null);
   };
 
+  const handleUpdatePermissions = (permissions: UserPermissions) => {
+    if (permissionMatrixUser) {
+      onUpdateStaff({
+        ...permissionMatrixUser,
+        delegatedPermissions: permissions
+      });
+      setPermissionMatrixUser(null);
+    }
+  };
+
   const handleExport = () => {
+// ... export logic ...
     const headers = ['Mã NV', 'Họ Tên', 'Viết tắt', 'Chức vụ', 'SĐT', 'Zalo', 'Email Cơ quan', 'Email Cá nhân', 'Kinh nghiệm/CV', 'Trạng thái'];
     const csvContent = [
       headers.join(','),
@@ -97,23 +110,33 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      {permissionMatrixUser && (
+        <PermissionMatrixModal 
+          user={permissionMatrixUser} 
+          onClose={() => setPermissionMatrixUser(null)} 
+          onSave={handleUpdatePermissions} 
+        />
+      )}
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-           <h1 className="text-2xl font-black text-gray-800 tracking-tight uppercase">DANH SÁCH CÁN BỘ CÔNG NHÂN VIÊN</h1>
-           <p className="text-sm text-gray-500 mt-1">Quản lý thông tin liên hệ và chức vụ nhân sự</p>
-        </div>
-        {isManagerOrAdmin && (
-          <button 
-            onClick={handleExport}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 shrink-0"
-          >
-            <Download size={16} />
-            Xuất báo cáo
-          </button>
-        )}
+// ... Header ...
+         <div>
+            <h1 className="text-2xl font-black text-gray-800 tracking-tight uppercase">DANH SÁCH CÁN BỘ CÔNG NHÂN VIÊN</h1>
+            <p className="text-sm text-gray-500 mt-1">Quản lý thông tin liên hệ và chức vụ nhân sự</p>
+         </div>
+         {isManagerOrAdmin && (
+           <button 
+             onClick={handleExport}
+             className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 shrink-0"
+           >
+             <Download size={16} />
+             Xuất báo cáo
+           </button>
+         )}
       </div>
 
       <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
+// ... Filter controls ...
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input 
@@ -147,6 +170,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredStaff.map((staff) => {
           const isEditing = editingStaffId === staff.id && editForm;
+          const hasDelegatedPermissions = staff.delegatedPermissions && Object.values(staff.delegatedPermissions).some(v => v);
           
           return (
             <div key={staff.id} className={`bg-white rounded-2xl border-2 transition-all overflow-hidden group ${
@@ -163,12 +187,12 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                         } ${
                           staff.status === 'PENDING' ? 'bg-amber-400' :
                           staff.role === 'Admin' ? 'bg-red-500' : 
-                          staff.role === 'Trưởng Phòng' ? 'bg-indigo-500' : 
-                          staff.role === 'Trưởng Nhóm' ? 'bg-amber-500' : 'bg-green-500'
+                          staff.role === 'Leader' ? 'bg-amber-500' : 'bg-green-500'
                         }`} title={staff.lastActive && (Date.now() - staff.lastActive < 120000) ? 'Đang trực tuyến' : 'Ngoại tuyến'} />
                       )}
                     </div>
                     {isEditing ? (
+// ... Edit name fields ...
                       <div className="space-y-3">
                         <div className="flex flex-col gap-1">
                           <label className="text-[8px] font-black text-gray-400 uppercase ml-1">Tên & Viết tắt</label>
@@ -197,14 +221,16 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                       </div>
                     ) : (
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 text-wrap">
                           <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{staff.name}</h3>
                           {staff.status === 'PENDING' && (
                             <span className="text-[8px] font-black bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded tracking-widest uppercase">Chờ duyệt</span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{staff.role}</p>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
+                          <p className={`text-[10px] font-black uppercase tracking-widest ${hasDelegatedPermissions ? 'text-amber-600' : 'text-gray-400'}`}>
+                            {staff.role} {hasDelegatedPermissions && <span className="text-amber-500 font-black ml-0.5 underline decoration-double decoration-amber-200 underline-offset-2">(QUYỀN TP)</span>}
+                          </p>
                           <span className="text-[10px] font-black text-blue-400 px-1.5 py-0.5 bg-blue-50 rounded italic">{staff.abbreviation}</span>
                           {staff.securityQuestion && (
                             <Shield size={10} className="text-blue-400" title="Đã thiết lập bảo mật" />
@@ -214,6 +240,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                       </div>
                     )}
                   </div>
+// ... Action buttons ...
                   {isManagerOrAdmin && (
                     <div className="flex gap-1">
                       {isEditing ? (
@@ -237,6 +264,15 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                               <span className="text-[10px] font-black uppercase hidden lg:inline">Giả lập</span>
                             </button>
                           )}
+                          {currentUser.role === 'Admin' && staff.id !== currentUser.id && (
+                             <button 
+                                onClick={() => setPermissionMatrixUser(staff)}
+                                className={`p-2 rounded-lg transition-all ${hasDelegatedPermissions ? 'text-amber-600 bg-amber-50' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`} 
+                                title="Phân quyền Ma trận"
+                             >
+                                <Shield size={18} />
+                             </button>
+                          )}
                           <button onClick={() => handleEdit(staff)} className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Chỉnh sửa">
                             <Edit2 size={18} />
                           </button>
@@ -254,7 +290,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                     </div>
                   )}
                 </div>
-
+// ... rest of the card ...
                 <div className="space-y-3 pt-4 border-t border-gray-50">
                   <div className="flex items-center gap-3 text-xs text-gray-600">
                     <Phone size={14} className="text-gray-400 shrink-0" />
@@ -384,7 +420,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                             value={editForm.role}
                             onChange={(e) => setEditForm({...editForm, role: e.target.value as UserRoleType})}
                           >
-                            {['Admin', 'Trưởng Phòng', 'Trưởng Nhóm', 'Nhân Viên'].map(r => (
+                            {['Admin', 'Leader', 'Staff'].map(r => (
                               <option key={r} value={r}>{r}</option>
                             ))}
                           </select>
@@ -406,7 +442,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({ users, onUpdateSta
                   )}
                 </div>
               </div>
-              
+// ... Footer ...
               {!isEditing && (
                 <div className="px-6 py-3 bg-gray-50 flex items-center justify-between">
                   {staff.status === 'PENDING' && isManagerOrAdmin ? (

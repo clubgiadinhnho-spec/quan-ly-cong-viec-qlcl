@@ -41,6 +41,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { ReportPage } from './pages/ReportPage';
 import { GroupChatPage } from './pages/GroupChatPage';
 import { StaffListPage } from './pages/StaffListPage';
+import { PendingConfirmationPage } from './pages/PendingConfirmationPage';
 
 // --- Main App ---
 
@@ -49,6 +50,16 @@ export default function App() {
   const [simulatedUser, setSimulatedUser] = useState<UserType | null>(null);
   const [activeTab, setActiveTab] = useState('tasks');
   const [viewScope, setViewScope] = useState<'mine' | 'all'>('all');
+
+  // Track last read timestamps for each chat
+  const [lastReadChatTimestamps, setLastReadChatTimestamps] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem('qc_last_read_chats');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  useEffect(() => {
+    localStorage.setItem('qc_last_read_chats', JSON.stringify(lastReadChatTimestamps));
+  }, [lastReadChatTimestamps]);
 
   // Ensure viewScope is always 'all' whenever currentUser changes (app starts or login)
   useEffect(() => {
@@ -124,11 +135,19 @@ export default function App() {
   // Firestore is the source of truth, but we use STAFF_LIST as base defaults
   const allUsers = React.useMemo(() => {
     const uniqueUsers = new Map<string, UserType>();
+    
+    // 1. Add from STAFF_LIST first
+    STAFF_LIST.forEach(u => {
+      uniqueUsers.set(u.companyEmail.toLowerCase(), u);
+    });
+
+    // 2. Overwrite with Firestore data
     // Sort so that UID-based IDs (long strings like 'abc-123...') come after legacy IDs (like 'mgr-01'), 
     // ensuring they overwrite in the map if emails match.
     [...users].sort((a,b) => a.id.length - b.id.length).forEach(u => {
       uniqueUsers.set(u.companyEmail.toLowerCase(), u);
     });
+    
     return Array.from(uniqueUsers.values());
   }, [users]);
 
@@ -157,6 +176,52 @@ export default function App() {
   }, [baseAddTask, updateTask, editingTask]);
 
   const [showDirectChat, setShowDirectChat] = useState<UserType | null>(null);
+  const [isChatMinimized, setIsChatMinimized] = useState(false);
+  const [chatTop, setChatTop] = useState(0);
+
+  // Mark chat as read when shown
+  useEffect(() => {
+    if (showDirectChat) {
+      setLastReadChatTimestamps(prev => ({
+        ...prev,
+        [showDirectChat.id]: Date.now()
+      }));
+    }
+  }, [showDirectChat?.id]);
+
+  useEffect(() => {
+    if (activeTab === 'group_chat') {
+      setLastReadChatTimestamps(prev => ({
+        ...prev,
+        'group_chat': Date.now()
+      }));
+    }
+  }, [activeTab]);
+
+  const unreadCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    privateMessages.forEach(m => {
+      if (m.receiverId === currentUser?.id) {
+        const lastRead = lastReadChatTimestamps[m.senderId] || 0;
+        if (new Date(m.timestamp).getTime() > lastRead) {
+          counts[m.senderId] = (counts[m.senderId] || 0) + 1;
+        }
+      }
+    });
+    return counts;
+  }, [privateMessages, currentUser?.id, lastReadChatTimestamps]);
+
+  const groupUnreadCount = React.useMemo(() => {
+    if (!currentUser) return 0;
+    const lastRead = lastReadChatTimestamps['group_chat'] || 0;
+    return generalMessages.filter(m => 
+      m.senderId !== currentUser.id && 
+      new Date(m.timestamp).getTime() > lastRead
+    ).length;
+  }, [generalMessages, currentUser, lastReadChatTimestamps]);
+
+  const unreadUserIds = React.useMemo(() => Object.keys(unreadCounts), [unreadCounts]);
+
   const lastPrivateMsgId = React.useRef<string | null>(null);
   const lastGroupMsgId = React.useRef<string | null>(null);
   const lastTaskCommentId = React.useRef<Record<string, string>>({});
@@ -189,14 +254,7 @@ export default function App() {
     // 1. Check for new private messages
     if (privateMessages.length > 0) {
       const latestMsg = privateMessages[privateMessages.length - 1];
-      if (latestMsg.id !== lastPrivateMsgId.current && latestMsg.receiverId === currentUser.id) {
-        const sender = allUsers.find(u => u.id === latestMsg.senderId);
-        if (sender) {
-          // Auto-open Direct Chat
-          setShowDirectChat(sender);
-        }
-        lastPrivateMsgId.current = latestMsg.id;
-      } else if (latestMsg.id !== lastPrivateMsgId.current) {
+      if (latestMsg.id !== lastPrivateMsgId.current) {
         lastPrivateMsgId.current = latestMsg.id;
       }
     }
@@ -205,13 +263,6 @@ export default function App() {
     if (generalMessages.length > 0) {
       const latestGroupMsg = generalMessages[generalMessages.length - 1];
       if (latestGroupMsg.id !== lastGroupMsgId.current) {
-        if (latestGroupMsg.senderId !== currentUser.id && activeTab !== 'group_chat') {
-           setUnreadNotifications(prev => {
-             const exists = prev.find(n => n.type === 'group');
-             if (exists) return prev;
-             return [...prev, { type: 'group', msg: latestGroupMsg.content }];
-           });
-        }
         lastGroupMsgId.current = latestGroupMsg.id;
       }
     }
@@ -220,21 +271,12 @@ export default function App() {
     tasks.forEach(t => {
       if (t.comments && t.comments.length > 0) {
         const latestComment = t.comments[t.comments.length - 1];
-        const lastId = lastTaskCommentId.current[t.id];
-        
-        if (latestComment.id !== lastId) {
-          const isRelated = t.assigneeId === currentUser.id || t.history[0]?.authorId === currentUser.id;
-          if (latestComment.authorId !== currentUser.id && isRelated) {
-             // Auto-open Task Chat
-             setShowChatModal(t.id);
-          }
-          lastTaskCommentId.current[t.id] = latestComment.id;
-        }
+        lastTaskCommentId.current[t.id] = latestComment.id;
       }
     });
 
-    // 4. Check for task requests (Admin/Trưởng Phòng)
-    if (currentUser.role === 'Trưởng Phòng' || currentUser.role === 'Admin') {
+    // 4. Check for task requests (Admin or delegated approval power)
+    if (currentUser.role === 'Admin' || currentUser.delegatedPermissions?.canApproveTask) {
       tasks.forEach(t => {
         const reqKey = `${t.id}-${t.status === 'PENDING_APPROVAL' ? 'HT' : ''}-${t.requestDelete ? 'XOA' : ''}`;
         if ((t.status === 'PENDING_APPROVAL' || t.requestDelete) && !knownRequests.current.has(reqKey)) {
@@ -262,7 +304,6 @@ export default function App() {
 
     setUnreadNotifications(prev => prev.filter(notif => {
       if (notif.type === 'direct' && showDirectChat && notif.senderId === showDirectChat.id) return false;
-      if (notif.type === 'group' && activeTab === 'group_chat') return false;
       if (notif.type === 'task' && showChatModal === notif.taskId) return false;
       return true;
     }));
@@ -271,84 +312,58 @@ export default function App() {
   // Presence system
   useUserHeartbeat(currentUser?.id, firebaseUpdateHeartbeat);
 
-  // Auto-bootstrap STAFF_LIST to Firestore is DISABLED to prevent overwriting user changes.
-  // We only read from Firestore now.
+  // Ensure minimal staff data is present in Firestore
   useEffect(() => {
-    // Bootstrap logic removed to protect manual adjustments to Trường, Quản Trị Viên, Tân, Tú, etc.
-  }, []); 
+    const syncStaff = async () => {
+      if (!firebaseLoading && authReady) {
+        // Always ensure the first few essential staff (Admins/Managers) are in Firestore
+        // This acts as a safety net for login
+        const essentialStaff = STAFF_LIST.slice(0, 2); 
+        for (const staff of essentialStaff) {
+          const exists = users.find(u => u.id === staff.id || u.companyEmail === staff.companyEmail);
+          if (!exists) {
+            try {
+              await setDoc(doc(db, 'users', staff.id), staff);
+            } catch (err) {
+              console.error(`Failed to sync essential user ${staff.id}:`, err);
+            }
+          }
+        }
+      }
+    };
+    syncStaff();
+  }, [users.length, firebaseLoading, authReady]); 
 
   // Handle Authentication State (Restore Session & Sync)
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      console.log("Auth state changed:", fbUser?.uid || "No user", fbUser?.email || "No email");
-      
-      if (fbUser) {
-        // 1. Try to find user by UID first
-        let currentStaff = users.find(u => u.id === fbUser.uid);
-        
-        // 2. If not found by UID, try to find by Email
-        if (!currentStaff && fbUser.email) {
-          currentStaff = users.find(u => u.companyEmail.toLowerCase() === fbUser.email?.toLowerCase());
-          
-          if (currentStaff) {
-             console.log("Mapping user by email to new UID:", fbUser.uid);
-             const updatedStaff = { ...currentStaff, id: fbUser.uid };
-             // Use setDoc to associate the current Firestore user data with this new UID
-             await setDoc(doc(db, 'users', fbUser.uid), updatedStaff);
-             currentStaff = updatedStaff;
-          }
-        }
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      const savedUserStr = localStorage.getItem('qc_user');
+      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
 
-        if (currentStaff) {
-          console.log("User identified as:", currentStaff.name, currentStaff.role);
-          setCurrentUser(currentStaff);
-          localStorage.setItem('qc_user', JSON.stringify(currentStaff));
-        } else if (!firebaseLoading) {
-          // AUTO-REGISTRATION: Nếu không tìm thấy, tạo một tài khoản Admin mặc định (Lê Nhật Trường)
-          console.log("Auto-registering unrecognized user as Admin:", fbUser.uid);
-          const newAdmin: User = {
-            id: fbUser.uid,
-            name: "Lê Nhật Trường",
-            role: "Admin",
-            companyEmail: fbUser.email || `user_${fbUser.uid.slice(0, 5)}@qlcl.vn`,
-            avatar: "https://ui-avatars.com/api/?name=Le+Nhat+Truong&background=0284c7&color=fff",
-            status: 'ACTIVE',
-            personalNote: "Tài khoản quản trị tự động khởi tạo",
-            lastActive: new Date().toISOString()
-          };
-          
-          try {
-            await setDoc(doc(db, 'users', fbUser.uid), newAdmin);
-            setCurrentUser(newAdmin);
-            localStorage.setItem('qc_user', JSON.stringify(newAdmin));
-            console.log("Successfully auto-registered Admin.");
-          } catch (error) {
-            console.error("Auto-registration failed:", error);
-          }
+      if (fbUser) {
+        // Try to find user by UID in Firestore
+        const fbStaff = users.find(u => u.id === fbUser.uid);
+        if (fbStaff) {
+          setCurrentUser(fbStaff);
+          localStorage.setItem('qc_user', JSON.stringify(fbStaff));
+        } else if (savedUser) {
+          // If Firestore doesn't have the UID yet, use localStorage user
+          setCurrentUser(savedUser);
         }
+      } else if (savedUser) {
+        // No Firebase session, but we have local user - restore anonymously
+        setCurrentUser(savedUser);
+        loginAnonymously().catch(err => console.error("Anonymous login error during restoration:", err));
       } else {
-        const savedUser = localStorage.getItem('qc_user');
-        if (savedUser) {
-          const parsed = JSON.parse(savedUser);
-          setCurrentUser(parsed);
-          // Auto-trigger anonymous login to restore Firebase session if no Google user
-          try {
-            console.log("Restoring Firebase session anonymously for:", parsed.name);
-            await loginAnonymously();
-          } catch (err: any) {
-            console.error("Auto-auth restoration failed:", err);
-          }
-        } else {
-          setCurrentUser(null);
-        }
+        setCurrentUser(null);
       }
       setAuthReady(true);
     });
 
     return () => unsubscribe();
-  }, [users.length, firebaseLoading, authReady]); 
+  }, [users.length, firebaseLoading]); 
 
-  const handleLogin = (user: User) => {
+  const handleLogin = (user: UserType) => {
     setCurrentUser(user);
     localStorage.setItem('qc_user', JSON.stringify(user));
     // Explicitly set view to all/department on login
@@ -431,17 +446,17 @@ export default function App() {
     });
   }, [tasks, clearAllTasks]);
 
-  const onUpdateStaff = useCallback((updatedStaff: User) => {
+  const onUpdateStaff = useCallback((updatedStaff: UserType) => {
     firebaseUpdateStaff(updatedStaff);
   }, [firebaseUpdateStaff]);
 
   const handleExportExcel = () => {
-    if (currentUser?.role !== 'Admin' && currentUser?.role !== 'Trưởng Phòng') return;
+    if (currentUser?.role !== 'Admin' && !currentUser?.delegatedPermissions?.canExportExcel) return;
     exportTasksToExcel(tasks, users);
   };
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (currentUser?.role !== 'Admin' && currentUser?.role !== 'Trưởng Phòng') return;
+    if (currentUser?.role !== 'Admin' && !currentUser?.delegatedPermissions?.canImportExcel) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -578,7 +593,31 @@ export default function App() {
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         onLogout={handleLogout}
-        onUserClick={(user) => setShowDirectChat(user)}
+        onUserClick={(user, top) => {
+          if (top !== undefined) setChatTop(top);
+          setIsChatMinimized(false);
+          setShowDirectChat(user);
+        }}
+        pendingTasksCount={tasks.filter(t => t.status === 'AWAITING_CONFIRMATION').length}
+        activeTasksCount={tasks.filter(t => t.status !== 'COMPLETED' && t.status !== 'AWAITING_CONFIRMATION').length}
+        completedTasksCount={tasks.filter(t => t.status === 'COMPLETED').length}
+        totalStaffCount={allUsers.length}
+        groupUnreadCount={groupUnreadCount}
+        unreadUserIds={unreadUserIds}
+        unreadCounts={unreadCounts}
+        activeChatUser={showDirectChat || undefined}
+        isChatMinimized={isChatMinimized}
+        privateMessages={privateMessages}
+        onSendPrivateMessage={firebaseSendPrivateMessage}
+        onReactToPrivateMessage={(msgId, emoji) => {
+          const msg = privateMessages.find(m => m.id === msgId);
+          if (!msg) return;
+          const reactions = [...(msg.reactions || [])];
+          const idx = reactions.findIndex(r => r.userId === effectiveUser.id && r.emoji === emoji);
+          if (idx > -1) reactions.splice(idx, 1);
+          else reactions.push({ userId: effectiveUser.id, emoji });
+          firebaseUpdatePrivateMessageReactions(msgId, reactions);
+        }}
       />
 
       <main className="flex-1 overflow-y-auto relative">
@@ -615,11 +654,11 @@ export default function App() {
                 title="TRUNG TÂM QUẢN LÝ CHẤT LƯỢNG TÂN PHÚ VIỆT NAM" 
                 badge={effectiveUser.role}
                 onAction={() => setShowTaskModal(true)}
-                actionLabel="Nhập công việc"
+                actionLabel="Nhập công việc mới"
                 actionIcon={Plus}
               />
               
-              <div className="p-8 space-y-8">
+              <div className="p-6 space-y-6">
                 <StatsSummary tasks={filteredTasks} />
 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm transition-all duration-300">
@@ -661,7 +700,7 @@ export default function App() {
                        <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
                        DANH SÁCH CÔNG VIỆC ĐANG XỬ LÝ
                     </h3>
-                     {(effectiveUser.role !== 'Nhân Viên') && (
+                     {(effectiveUser.role !== 'Staff' || effectiveUser.delegatedPermissions?.canExportExcel || effectiveUser.delegatedPermissions?.canImportExcel) && (
                        <div className="flex items-center gap-2">
                           <button 
                             onClick={downloadSampleExcel}
@@ -671,23 +710,27 @@ export default function App() {
                             <FileDown size={12} />
                             File Mẫu
                           </button>
-                          <button 
-                            onClick={handleExportExcel}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-all uppercase"
-                          >
-                            <FileDown size={12} />
-                            Xuất Excel
-                          </button>
-                         <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-all uppercase cursor-pointer">
-                           <FileUp size={12} />
-                           Nhập từ Excel
-                           <input 
-                             type="file" 
-                             accept=".xlsx, .xls" 
-                             className="hidden" 
-                             onChange={handleImportExcel}
-                           />
-                         </label>
+                          {(effectiveUser.role === 'Admin' || effectiveUser.delegatedPermissions?.canExportExcel) && (
+                            <button 
+                              onClick={handleExportExcel}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-all uppercase"
+                            >
+                              <FileDown size={12} />
+                              Xuất Excel
+                            </button>
+                          )}
+                         {(effectiveUser.role === 'Admin' || effectiveUser.delegatedPermissions?.canImportExcel) && (
+                           <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-all uppercase cursor-pointer">
+                             <FileUp size={12} />
+                             Nhập từ Excel
+                             <input 
+                               type="file" 
+                               accept=".xlsx, .xls" 
+                               className="hidden" 
+                               onChange={handleImportExcel}
+                             />
+                           </label>
+                         )}
                          {effectiveUser.role === 'Admin' && (
                            <button 
                              onClick={handleResetData}
@@ -714,7 +757,7 @@ export default function App() {
                 </div>
 
                 <TaskList 
-                  tasks={sortedTasks.filter(t => t.status !== 'COMPLETED')}
+                  tasks={sortedTasks.filter(t => t.status !== 'COMPLETED' && t.status !== 'AWAITING_CONFIRMATION')}
                   user={effectiveUser}
                   users={allUsers}
                   onUpdate={updateTask}
@@ -727,7 +770,7 @@ export default function App() {
                   onEdit={setEditingTask}
                   setConfirmModal={setConfirmModal}
                   type="active"
-                  isReadOnly={viewScope === 'all' && effectiveUser.role === 'Nhân Viên'}
+                  isReadOnly={viewScope === 'all' && effectiveUser.role === 'Staff'}
                 />
 
                 {effectiveUser.role === 'Admin' && (
@@ -745,13 +788,38 @@ export default function App() {
             </motion.div>
           )}
 
+          {activeTab === 'pending_confirmation' && (
+            <motion.div key="pending_confirmation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <HolidayBanner />
+              <Header 
+                title="Đề xuất công việc mới" 
+              />
+              <div className="p-6">
+                <PendingConfirmationPage 
+                  tasks={tasks}
+                  currentUser={effectiveUser}
+                  allUsers={allUsers}
+                  updateTask={updateTask}
+                  deleteTask={deleteTask}
+                  setShowHistoryModal={setShowHistoryModal}
+                  setShowChatModal={setShowChatModal}
+                  showChatModal={showChatModal}
+                  addTaskComment={addTaskComment}
+                  updateTaskCommentReactions={updateTaskCommentReactions}
+                  setEditingTask={setEditingTask}
+                  setConfirmModal={setConfirmModal}
+                />
+              </div>
+            </motion.div>
+          )}
+
           {activeTab === 'completed_tasks' && (
             <motion.div key="completed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <HolidayBanner />
               <Header 
                 title="Lịch sử công việc đã hoàn thành" 
               />
-              <div className="p-8 space-y-8">
+              <div className="p-6 space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
                   <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
                     <button 
@@ -812,7 +880,7 @@ export default function App() {
               <Header 
                 title="Phòng thảo luận chung" 
               />
-              <div className="p-8">
+              <div className="p-6">
                 <GroupChatPage 
                   currentUser={effectiveUser} 
                   users={allUsers}
@@ -839,7 +907,7 @@ export default function App() {
                 title="Hồ sơ & Quản lý nhân sự" 
                 badge={effectiveUser.code} 
               />
-              <div className="p-8">
+              <div className="p-6">
                 <ProfilePage 
                   currentUser={effectiveUser} 
                   tasks={tasks} 
@@ -857,7 +925,7 @@ export default function App() {
                <Header 
                 title="Báo cáo hiệu suất & Vấn đề" 
                />
-               <div className="p-8">
+               <div className="p-6">
                   <ReportPage 
                     tasks={tasks} 
                     users={allUsers} 
@@ -871,7 +939,7 @@ export default function App() {
             </motion.div>
           )}
 
-          {activeTab === 'staff_list' && (currentUser.role === 'Admin' || currentUser.role === 'Trưởng Phòng') && (
+          {activeTab === 'staff_list' && (currentUser.role === 'Admin') && (
             <motion.div key="staff_list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                <HolidayBanner />
                <Header 
@@ -905,7 +973,6 @@ export default function App() {
                 key={idx}
                 onClick={() => {
                   if (notif.type === 'direct') setShowDirectChat(allUsers.find(u => u.id === notif.senderId)!);
-                  if (notif.type === 'group') setActiveTab('group_chat');
                   if (notif.type === 'task') setShowChatModal(notif.taskId);
                   if (notif.type === 'approve_ht' || notif.type === 'approve_delete') setActiveTab('tasks');
                   setUnreadNotifications(prev => prev.filter((_, i) => i !== idx));
@@ -917,7 +984,6 @@ export default function App() {
                     notif.type.startsWith('approve') ? 'bg-amber-100 text-amber-700' : 'bg-blue-50 text-blue-600'
                   }`}>
                     {notif.type === 'direct' ? 'Tin nhắn' : 
-                     notif.type === 'group' ? 'Nhóm' : 
                      notif.type === 'approve_ht' ? 'Phê duyệt HT' :
                      notif.type === 'approve_delete' ? 'Phê duyệt Xóa' :
                      'Nhiệm vụ'}
@@ -928,7 +994,7 @@ export default function App() {
                   }} className="text-gray-300 hover:text-gray-500"><Plus size={14} className="rotate-45" /></button>
                 </div>
                 <p className="text-xs font-bold text-gray-900 truncate">
-                  {notif.type === 'direct' ? notif.senderName : notif.type === 'group' ? 'Phòng thảo luận' : notif.taskTitle}
+                  {notif.type === 'direct' ? notif.senderName : notif.taskTitle}
                 </p>
                 <p className="text-[11px] text-gray-500 line-clamp-1 italic">"{notif.msg}"</p>
               </div>
@@ -963,6 +1029,10 @@ export default function App() {
       <AnimatePresence>
         {showDirectChat && (
           <DirectChat 
+            variant="bubble"
+            top={chatTop}
+            isMinimized={isChatMinimized}
+            onMinimizeChange={setIsChatMinimized}
             currentUser={effectiveUser!}
             otherUser={allUsers.find(u => u.id === showDirectChat.id)!}
             messages={privateMessages}

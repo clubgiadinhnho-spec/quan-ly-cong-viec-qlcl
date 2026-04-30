@@ -1,4 +1,4 @@
-export type UserRoleType = 'Nhân Viên' | 'Trưởng Nhóm' | 'Trưởng Phòng' | 'Admin';
+export type UserRoleType = 'Staff' | 'Leader' | 'Admin';
 
 export interface HealthReminder {
   enabled: boolean;
@@ -6,6 +6,15 @@ export interface HealthReminder {
   message: string;
   autoCloseSeconds: number;
   configName: string;
+}
+
+export interface UserPermissions {
+  canCreateTask: boolean;
+  canApproveTask: boolean;
+  canDeleteTask: boolean;
+  canExportExcel: boolean;
+  canImportExcel: boolean;
+  canManageStaff: boolean;
 }
 
 export interface User {
@@ -27,6 +36,7 @@ export interface User {
   cvUrl?: string;
   cvDetails?: string;
   reminderSettings?: HealthReminder;
+  delegatedPermissions?: UserPermissions;
 }
 
 export interface ProgressUpdate {
@@ -36,7 +46,7 @@ export interface ProgressUpdate {
   authorId: string;
 }
 
-export type TaskStatus = 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'COMPLETED' | 'CANCELLED' | 'ON_HOLD';
+export type TaskStatus = 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'COMPLETED' | 'CANCELLED' | 'ON_HOLD' | 'AWAITING_CONFIRMATION';
 
 export interface MessageReaction {
   userId: string;
@@ -86,6 +96,8 @@ export interface Task {
   requestDelete?: boolean;
   reportExplanation?: string;
   reportAttachments?: string[];
+  isNewSoldier?: boolean;
+  authorId?: string;
 }
 
 export interface ReportDraft {

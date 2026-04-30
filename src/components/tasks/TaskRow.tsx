@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Paperclip, X } from 'lucide-react';
+import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles } from 'lucide-react';
 import { Task, User } from '../../types';
 import { formatDate } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
@@ -31,19 +31,33 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 }) => {
   const assignee = users.find(s => s.id === task.assigneeId);
   const isOwner = user.id === task.assigneeId;
-  const isAdminOrDirector = user.role === 'Admin' || user.role === 'Trưởng Phòng';
-  const isTeamLeader = user.role === 'Trưởng Nhóm';
-  const isManager = isAdminOrDirector || isTeamLeader;
-  const isEmployee = user.role === 'Nhân Viên';
+  const isAdmin = user.role === 'Admin';
+  const isTeamLeader = user.role === 'Leader';
+  const canApprove = isAdmin || !!user.delegatedPermissions?.canApproveTask;
+  const canDelete = isAdmin || !!user.delegatedPermissions?.canDeleteTask;
+  const isManager = isAdmin || isTeamLeader || !!user.delegatedPermissions?.canCreateTask;
+  const isEmployee = user.role === 'Staff';
   
-  const canEditPriority = isAdminOrDirector;
+  const canEditPriority = isAdmin;
   const hasUnread = false; // Placeholder for future logic
 
+  const handleConfirmTask = (approve: boolean) => {
+    if (approve) {
+      onUpdate(task.id, { 
+        status: 'IN_PROGRESS', 
+        isNewSoldier: true,
+        updatedAt: new Date().toISOString()
+      });
+    } else {
+      onDelete(task.id);
+    }
+  };
+
   const handleStatusAction = () => {
-    // Team Leader or Employee (isOwner) can mark as pending approval
-    if (isEmployee || isTeamLeader) {
+    // Managers/Owners can mark as pending approval
+    if (!canApprove) {
       onUpdate(task.id, { status: 'PENDING_APPROVAL' });
-    } else if (isAdminOrDirector) {
+    } else if (canApprove) {
       setConfirmModal({
         show: true,
         title: 'XÁC NHẬN HOÀN THÀNH',
@@ -62,7 +76,16 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   return (
     <tr className={`group transition-all ${task.isHighlighted ? 'bg-red-50/50' : 'hover:bg-gray-50/50'}`}>
-      <td className={`p-4 text-center text-xs font-bold border-b border-r border-gray-300 align-top ${task.isHighlighted ? 'text-red-300' : 'text-gray-300'}`}>{task.code}</td>
+      <td className={`p-4 text-center text-xs font-bold border-b border-r border-gray-300 align-top relative ${task.isHighlighted ? 'text-red-300' : 'text-gray-300'}`}>
+        <div className="flex flex-col items-center gap-1">
+          {task.code}
+          {task.isNewSoldier && (
+            <div className="bg-amber-100 text-amber-600 p-0.5 rounded-full animate-bounce" title="Lính mới / Việc mới xác nhận">
+              <Sparkles size={10} strokeWidth={3} />
+            </div>
+          )}
+        </div>
+      </td>
       <td className={`p-4 border-b border-r border-gray-300 align-top ${task.isHighlighted ? 'border-l-4 border-red-500' : ''}`}>
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -175,6 +198,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               {task.status === 'PENDING_APPROVAL' && (
                 <span className="text-[9px] font-black text-amber-500 bg-amber-50 px-2 py-0.5 rounded animate-pulse border border-amber-200 uppercase tracking-tighter">Chờ duyệt HT</span>
               )}
+              {task.status === 'AWAITING_CONFIRMATION' && (
+                <span className="text-[9px] font-black text-blue-500 bg-blue-50 px-2 py-0.5 rounded animate-pulse border border-blue-200 uppercase tracking-tighter">Chờ xác nhận mới</span>
+              )}
           </div>
         </div>
       </td>
@@ -217,7 +243,26 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       {!isReadOnly && (
         <td className="py-4 px-1 text-center border-b border-r border-gray-300 align-top">
           <div className="flex flex-col items-center gap-1.5">
-             {task.status === 'PENDING_APPROVAL' && isManager && (
+             {task.status === 'AWAITING_CONFIRMATION' && isManager && (
+               <>
+                 <button 
+                    onClick={() => handleConfirmTask(true)}
+                    className="w-full flex items-center justify-center gap-1 px-2 py-1.5 text-[9px] bg-blue-600 text-white rounded font-black hover:bg-blue-700 transition-all uppercase tracking-tighter shadow-sm"
+                  >
+                    <CheckCircle size={10} /> XÁC NHẬN
+                  </button>
+                 <button 
+                    onClick={() => handleConfirmTask(false)}
+                    className="w-full flex items-center justify-center gap-1 px-2 py-1.5 text-[9px] bg-gray-100 text-gray-600 border border-gray-200 rounded font-black hover:bg-red-500 hover:text-white hover:border-red-500 transition-all uppercase tracking-tighter shadow-sm"
+                  >
+                    <XCircle size={10} /> TỪ CHỐI
+                  </button>
+               </>
+             )}
+             {task.status === 'AWAITING_CONFIRMATION' && !isManager && (
+               <span className="text-[8px] font-black text-blue-500 bg-blue-50 px-2 py-1 rounded border border-blue-200 uppercase tracking-tighter text-center">Đang chờ sếp duyệt...</span>
+             )}
+             {task.status === 'PENDING_APPROVAL' && canApprove && (
                <>
                  <button 
                     onClick={handleApprove}
@@ -233,15 +278,15 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   </button>
                </>
              )}
-             {task.status !== 'PENDING_APPROVAL' && (isOwner || isManager) && !task.isLocked && !task.requestDelete && (
+             {task.status !== 'PENDING_APPROVAL' && (isOwner || isManager || canApprove) && !task.isLocked && !task.requestDelete && (
                <button 
                   onClick={handleStatusAction}
                   className="w-full px-2 py-1.5 text-[9px] bg-blue-600 text-white rounded font-black hover:bg-blue-700 transition-all uppercase tracking-tighter shadow-sm"
                 >
-                  {isAdminOrDirector ? 'XONG' : 'GỬI HT'}
+                  {canApprove ? 'XONG' : 'GỬI HT'}
                 </button>
              )}
-             {(isManager || isOwner) && (
+             {(isManager || isOwner || canApprove) && (
                <button 
                   onClick={() => onUpdate(task.id, { isHighlighted: !task.isHighlighted })}
                   className={`w-full px-2 py-1.5 text-[9px] border rounded font-black transition-all uppercase tracking-tighter ${task.isHighlighted ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-white text-gray-400 border-gray-200 hover:border-blue-500'}`}
@@ -249,7 +294,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   LƯU Ý
                 </button>
              )}
-             {task.requestDelete && isManager && (
+             {task.requestDelete && canDelete && (
                 <>
                   <button 
                     onClick={() => onDelete(task.id)}
@@ -265,7 +310,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   </button>
                 </>
               )}
-             {!task.requestDelete && isAdminOrDirector && (
+             {!task.requestDelete && canDelete && (
                 <button 
                   onClick={() => {
                     setConfirmModal({
@@ -283,7 +328,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   XÓA
                 </button>
              )}
-             {!isAdminOrDirector && isOwner && !task.requestDelete && !task.isLocked && (
+             {!canDelete && isOwner && !task.requestDelete && !task.isLocked && (
                 <button 
                   onClick={() => {
                     setConfirmModal({
@@ -301,10 +346,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   YÊU CẦU XÓA
                 </button>
               )}
-              {task.requestDelete && !isManager && (
+              {task.requestDelete && !canDelete && (
                 <span className="text-[8px] font-black text-red-500 bg-red-50 px-2 py-1 rounded border border-red-200 uppercase tracking-tighter text-center">Chờ duyệt xóa</span>
               )}
-             {task.status === 'COMPLETED' && isManager && (
+             {task.status === 'COMPLETED' && canApprove && (
                <button 
                   onClick={() => {
                     setConfirmModal({

@@ -6,28 +6,32 @@ interface StatsSummaryProps {
 }
 
 export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
-  const total = tasks.length;
-  const inProgress = tasks.filter(t => t.status === 'IN_PROGRESS').length;
-  const highlighted = tasks.filter(t => t.isHighlighted).length;
-  const completed = tasks.filter(t => t.status === 'COMPLETED').length;
+  const activeTasks = tasks.filter(t => t.status !== 'AWAITING_CONFIRMATION');
+  const total = activeTasks.length;
+  const inProgress = activeTasks.filter(t => t.status === 'IN_PROGRESS').length;
+  const highlighted = activeTasks.filter(t => t.isHighlighted || t.priority === 'HIGH').length;
+  const completed = activeTasks.filter(t => t.status === 'COMPLETED').length;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-        <p className="text-[12px] text-gray-400 font-bold uppercase tracking-wider mb-1">Tổng cộng dự án</p>
-        <p className="text-2xl font-black">{total}</p>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm transition-all hover:shadow-md">
+        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Tổng dự án</p>
+        <p className="text-xl font-black text-gray-900">{total}</p>
       </div>
-      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm text-blue-600">
-        <p className="text-[12px] text-blue-500 font-bold uppercase tracking-wider mb-1">Đang thực hiện</p>
-        <p className="text-2xl font-black">{inProgress}</p>
+
+      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm transition-all hover:shadow-md text-indigo-600">
+        <p className="text-[9px] text-indigo-400 font-bold uppercase tracking-wider mb-0.5">Đang xử lý</p>
+        <p className="text-xl font-black">{inProgress}</p>
       </div>
-      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-        <p className="text-[12px] text-red-500 font-bold uppercase tracking-wider mb-1">Vấn đề nổi cộm</p>
-        <p className="text-2xl font-black">{highlighted}</p>
+
+      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm transition-all hover:shadow-md text-red-600">
+        <p className="text-[9px] text-red-400 font-bold uppercase tracking-wider mb-0.5">Vấn đề gấp</p>
+        <p className="text-xl font-black">{highlighted}</p>
       </div>
-      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm text-green-600">
-        <p className="text-[12px] text-green-500 font-bold uppercase tracking-wider mb-1">Đã hoàn thành</p>
-        <p className="text-2xl font-black">{completed}</p>
+
+      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm transition-all hover:shadow-md text-green-600">
+        <p className="text-[9px] text-green-400 font-bold uppercase tracking-wider mb-0.5">Hoàn thành</p>
+        <p className="text-xl font-black">{completed}</p>
       </div>
     </div>
   );

@@ -30,7 +30,7 @@ service cloud.firestore {
     }
     
     function isManager() {
-      return isAdmin() || (isSignedIn() && userExists() && (getUserData().role == 'Trưởng Phòng'));
+      return isAdmin() || (isSignedIn() && userExists() && (getUserData().role == 'Leader'));
     }
 
     function isOwner(userId) {
@@ -57,7 +57,7 @@ service cloud.firestore {
                data.id == userId &&
                isValidId(data.id) &&
                data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
-               data.role in ['Nhân Viên', 'Trưởng Nhóm', 'Trưởng Phòng', 'Admin'] &&
+               data.role in ['Staff', 'Leader', 'Admin'] &&
                data.status in ['PENDING', 'ACTIVE', 'INACTIVE'] &&
                data.companyEmail is string && data.companyEmail.size() <= 150 &&
                data.personalEmail is string && data.personalEmail.size() <= 150 &&
@@ -78,7 +78,11 @@ service cloud.firestore {
     match /tasks/{taskId} {
       allow read: if isSignedIn();
       
-      allow create: if isSignedIn() && (isAdmin() || isManager()) && isValidTask(incoming());
+      allow create: if isSignedIn() && (
+        isAdmin() || 
+        isManager() || 
+        incoming().status == 'AWAITING_CONFIRMATION'
+      ) && isValidTask(incoming());
       
       allow update: if (
         isSignedIn() && (
@@ -96,12 +100,12 @@ service cloud.firestore {
                data.code is string && data.code.size() <= 20 &&
                data.title is string && data.title.size() > 0 && data.title.size() <= 2000 &&
                data.assigneeId is string && data.assigneeId.size() <= 128 &&
-               data.status in ['IN_PROGRESS', 'PENDING_APPROVAL', 'COMPLETED', 'CANCELLED', 'ON_HOLD'] &&
+               data.status in ['IN_PROGRESS', 'PENDING_APPROVAL', 'COMPLETED', 'CANCELLED', 'ON_HOLD', 'AWAITING_CONFIRMATION'] &&
                data.priority in ['LOW', 'MEDIUM', 'HIGH'];
       }
 
       function isProgressUpdate() {
-        return incoming().diff(existing()).affectedKeys().hasOnly(['currentUpdate', 'status', 'updatedAt', 'prevProgress']);
+        return incoming().diff(existing()).affectedKeys().hasOnly(['currentUpdate', 'status', 'updatedAt', 'prevProgress', 'isNewSoldier']);
       }
     }
 

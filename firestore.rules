@@ -78,7 +78,7 @@ service cloud.firestore {
     match /tasks/{taskId} {
       allow read: if isSignedIn();
       
-      allow create: if isSignedIn() && isValidTask(incoming());
+      allow create: if isSignedIn() && (isAdmin() || isManager()) && isValidTask(incoming());
       
       allow update: if (
         isSignedIn() && (

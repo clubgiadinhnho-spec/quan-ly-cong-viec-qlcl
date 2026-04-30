@@ -157,8 +157,8 @@ export default function App() {
   }, [baseAddTask, updateTask, editingTask]);
 
   const [showDirectChat, setShowDirectChat] = useState<UserType | null>(null);
-  const lastPrivateMsgId = React.useRef<string | null>(localStorage.getItem('qc_last_pvt_msg'));
-  const lastGroupMsgId = React.useRef<string | null>(localStorage.getItem('qc_last_group_msg'));
+  const lastPrivateMsgId = React.useRef<string | null>(null);
+  const lastGroupMsgId = React.useRef<string | null>(null);
   const lastTaskCommentId = React.useRef<Record<string, string>>({});
   const initialLoadDone = React.useRef(false);
   const knownRequests = React.useRef<Set<string>>(new Set());
@@ -171,13 +171,11 @@ export default function App() {
 
     // Give some time for initial data to load completely
     if (!initialLoadDone.current) {
-      if (generalMessages.length > 0 && !lastGroupMsgId.current) {
-        lastGroupMsgId.current = generalMessages[generalMessages.length - 1].id;
-        localStorage.setItem('qc_last_group_msg', lastGroupMsgId.current);
-      }
-      if (privateMessages.length > 0 && !lastPrivateMsgId.current) {
+      if (privateMessages.length > 0) {
         lastPrivateMsgId.current = privateMessages[privateMessages.length - 1].id;
-        localStorage.setItem('qc_last_pvt_msg', lastPrivateMsgId.current);
+      }
+      if (generalMessages.length > 0) {
+        lastGroupMsgId.current = generalMessages[generalMessages.length - 1].id;
       }
       tasks.forEach(t => {
         if (t.comments && t.comments.length > 0) {
@@ -214,16 +212,7 @@ export default function App() {
              return [...prev, { type: 'group', msg: latestGroupMsg.content }];
            });
         }
-        
-        // Only update Ref and localStorage if it's a NEW message that we've "seen" by being in the tab
-        if (activeTab === 'group_chat') {
-          lastGroupMsgId.current = latestGroupMsg.id;
-          localStorage.setItem('qc_last_group_msg', latestGroupMsg.id);
-        } else {
-          // If not in tab, we update Ref so we don't trigger multiple notifications for the same message,
-          // but we only persist to localStorage if the user explicitly opens the chat or sees the toast
-          lastGroupMsgId.current = latestGroupMsg.id;
-        }
+        lastGroupMsgId.current = latestGroupMsg.id;
       }
     }
 
@@ -265,54 +254,19 @@ export default function App() {
       });
     }
 
-  }, [generalMessages, privateMessages, tasks, currentUser, authReady, firebaseLoading, allUsers, activeTab]);
-
-  // Sync "Read" state when tabs are active
-  useEffect(() => {
-    if (activeTab === 'group_chat' && generalMessages.length > 0) {
-      const latestId = generalMessages[generalMessages.length - 1].id;
-      if (lastGroupMsgId.current !== latestId) {
-        lastGroupMsgId.current = latestId;
-        localStorage.setItem('qc_last_group_msg', latestId);
-      }
-    }
-  }, [activeTab, generalMessages]);
-
-  useEffect(() => {
-    if (showDirectChat && privateMessages.length > 0) {
-      const latestId = privateMessages[privateMessages.length - 1].id;
-      if (lastPrivateMsgId.current !== latestId) {
-        lastPrivateMsgId.current = latestId;
-        localStorage.setItem('qc_last_pvt_msg', latestId);
-      }
-    }
-  }, [showDirectChat, privateMessages]);
+  }, [privateMessages, tasks, currentUser, authReady, firebaseLoading, allUsers, activeTab]);
 
   // Auto-clear notifications when chat is opened
   useEffect(() => {
     if (unreadNotifications.length === 0) return;
 
     setUnreadNotifications(prev => prev.filter(notif => {
-      if (notif.type === 'direct' && showDirectChat && notif.senderId === showDirectChat.id) {
-        if (privateMessages.length > 0) {
-          const lastId = privateMessages[privateMessages.length - 1].id;
-          lastPrivateMsgId.current = lastId;
-          localStorage.setItem('qc_last_pvt_msg', lastId);
-        }
-        return false;
-      }
-      if (notif.type === 'group' && activeTab === 'group_chat') {
-        if (generalMessages.length > 0) {
-          const lastId = generalMessages[generalMessages.length - 1].id;
-          lastGroupMsgId.current = lastId;
-          localStorage.setItem('qc_last_group_msg', lastId);
-        }
-        return false;
-      }
+      if (notif.type === 'direct' && showDirectChat && notif.senderId === showDirectChat.id) return false;
+      if (notif.type === 'group' && activeTab === 'group_chat') return false;
       if (notif.type === 'task' && showChatModal === notif.taskId) return false;
       return true;
     }));
-  }, [showDirectChat, activeTab, showChatModal, unreadNotifications.length, generalMessages, privateMessages]);
+  }, [showDirectChat, activeTab, showChatModal, unreadNotifications.length]);
 
   // Presence system
   useUserHeartbeat(currentUser?.id, firebaseUpdateHeartbeat);
@@ -585,14 +539,6 @@ export default function App() {
     
     if (!matchesSearch) return false;
 
-    // Filter out pending review tasks from the main list unless specifically viewing them
-    if (t.status === 'PENDING_REVIEW' && activeTab !== 'review_tasks') return false;
-    if (t.status !== 'PENDING_REVIEW' && activeTab === 'review_tasks') return false;
-
-    // CV đã hoàn thành filter
-    if (activeTab === 'completed_tasks' && t.status !== 'COMPLETED') return false;
-    if (activeTab === 'tasks' && t.status === 'COMPLETED') return false;
-
     // View scope filter
     if (viewScope === 'mine') {
       const isMine = t.assigneeId === effectiveUser?.id;
@@ -633,7 +579,6 @@ export default function App() {
         setActiveTab={setActiveTab} 
         onLogout={handleLogout}
         onUserClick={(user) => setShowDirectChat(user)}
-        onAddTask={() => setShowTaskModal(true)}
       />
 
       <main className="flex-1 overflow-y-auto relative">
@@ -782,7 +727,7 @@ export default function App() {
                   onEdit={setEditingTask}
                   setConfirmModal={setConfirmModal}
                   type="active"
-                  isReadOnly={activeTab === 'tasks' && effectiveUser.role === 'Nhân Viên'}
+                  isReadOnly={viewScope === 'all' && effectiveUser.role === 'Nhân Viên'}
                 />
 
                 {effectiveUser.role === 'Admin' && (
@@ -979,13 +924,6 @@ export default function App() {
                   </span>
                   <button onClick={(e) => {
                     e.stopPropagation();
-                    const notif = unreadNotifications[idx];
-                    if (notif.type === 'group' && generalMessages.length > 0) {
-                      localStorage.setItem('qc_last_group_msg', generalMessages[generalMessages.length - 1].id);
-                    }
-                    if (notif.type === 'direct' && privateMessages.length > 0) {
-                      localStorage.setItem('qc_last_pvt_msg', privateMessages[privateMessages.length - 1].id);
-                    }
                     setUnreadNotifications(prev => prev.filter((_, i) => i !== idx));
                   }} className="text-gray-300 hover:text-gray-500"><Plus size={14} className="rotate-45" /></button>
                 </div>

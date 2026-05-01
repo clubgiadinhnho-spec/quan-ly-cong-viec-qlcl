@@ -99,6 +99,7 @@ export interface Task {
   assigneeName?: string; // Tên nhân viên từ Excel hoặc hệ thống
   startDate: string;
   expectedEndDate: string;
+  extensionDate?: string;
   dueDate?: string; // Alias cho expectedEndDate
   actualEndDate?: string;
   prevProgress: string; // Diễn tiến tuần trước

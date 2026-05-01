@@ -53,6 +53,9 @@ export const prepareTaskUpdates = (
   if (updates.expectedEndDate !== undefined && updates.expectedEndDate !== task.expectedEndDate) {
     changes.push(`Thay đổi hạn hoàn thành: ${updates.expectedEndDate}`);
   }
+  if (updates.extensionDate !== undefined && updates.extensionDate !== task.extensionDate) {
+    changes.push(updates.extensionDate ? `Gia hạn công việc đến: ${updates.extensionDate}` : `Hủy bỏ gia hạn công việc`);
+  }
 
   // Track status changes
   if (updates.status !== undefined && updates.status !== task.status) {

@@ -34,7 +34,10 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
   const [toast, setToast] = useState<string | null>(null);
 
   const user = users.find(u => u.id === viewedUserId) || currentUser;
-  const isOwnProfile = currentUser?.email?.toLowerCase().trim() === user?.personalEmail?.toLowerCase().trim();
+  const canEdit = currentUser?.email?.toLowerCase().trim() === user?.personalEmail?.toLowerCase().trim() || 
+                  currentUser?.companyEmail?.toLowerCase().trim() === user?.companyEmail?.toLowerCase().trim() ||
+                  currentUser?.email === 'truong.le@tanphu.vn' ||
+                  currentUser?.email === 'lenhattruong.tpp@gmail.com'; 
 
   // Form State
   const [formData, setFormData] = useState({
@@ -175,7 +178,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     type="text"
                     value={formData.name}
                     onChange={e => setFormData({...formData, name: e.target.value})}
-                    className="text-3xl font-black text-gray-800 tracking-tight bg-gray-50 border-b-2 border-blue-500 outline-none w-full md:w-80 px-2 uppercase"
+                    className="text-3xl font-black text-blue-700 tracking-tight bg-blue-50/50 border-2 border-blue-500 rounded-xl outline-none w-full md:w-[400px] px-4 py-2 uppercase shadow-inner"
                   />
                 )}
                 <div className="flex items-center gap-2">
@@ -187,21 +190,40 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                   </span>
                 </div>
               </div>
+
               <p className="text-gray-500 font-bold flex items-center justify-center md:justify-start gap-2">
                 <UserIcon size={16} />
                 <span translate="no" className="notranslate uppercase tracking-tighter">MÃ NV: {user.code}</span>
               </p>
             </div>
+
+            {!isEditing && canEdit && (
+              <button 
+                onClick={() => setIsEditing(true)}
+                className="flex-none flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white text-[12px] font-black uppercase tracking-widest rounded-xl shadow-xl hover:scale-105 active:scale-95 transition-all shadow-blue-100 border-b-2 border-blue-800"
+              >
+                <Edit3 size={16} strokeWidth={3} />
+                CHỈNH SỬA HỒ SƠ
+              </button>
+            )}
             
-            {isOwnProfile && (
-                <button 
-                  onClick={() => setIsEditing(!isEditing)}
-                  className={`flex items-center gap-2 px-8 py-3 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95 ${
-                    isEditing ? 'bg-gray-100 text-gray-500' : 'bg-blue-600 text-white shadow-blue-100 hover:bg-blue-700 hover:scale-105'
-                  }`}
-                >
-                  {isEditing ? 'Hủy Bỏ' : <><Edit3 size={16} /> <span translate="no" className="notranslate">Chỉnh Sửa TRANG CÁ NHÂN</span></>}
-                </button>
+            {isEditing && (
+                <div className="flex items-center gap-3">
+                   <button 
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="flex items-center gap-2 px-8 py-4 bg-emerald-600 text-white rounded-2xl text-[12px] font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-100 hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={18} strokeWidth={3} />}
+                    LƯU THÔNG TIN
+                  </button>
+                  <button 
+                    onClick={() => setIsEditing(false)}
+                    className="flex items-center gap-2 px-8 py-4 bg-gray-100 text-gray-500 rounded-2xl text-[12px] font-black uppercase tracking-widest transition-all hover:bg-gray-200"
+                  >
+                    HỦY
+                  </button>
+                </div>
             )}
           </div>
 
@@ -219,7 +241,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     <input 
                       type="text" value={formData.phone}
                       onChange={e => setFormData({...formData, phone: e.target.value})}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                      className="w-full bg-blue-50/30 border-2 border-blue-500 rounded-xl px-4 py-2.5 text-sm font-bold text-blue-700 outline-none shadow-inner"
                     />
                   )}
                 </div>
@@ -231,7 +253,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     <input 
                       type="email" value={formData.companyEmail}
                       onChange={e => setFormData({...formData, companyEmail: e.target.value})}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                      className="w-full bg-blue-50/30 border-2 border-blue-500 rounded-xl px-4 py-2.5 text-sm font-bold text-blue-700 outline-none shadow-inner"
                     />
                   )}
                 </div>
@@ -243,7 +265,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     <input 
                       type="email" value={formData.personalEmail}
                       onChange={e => setFormData({...formData, personalEmail: e.target.value})}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold focus:ring-1 focus:ring-blue-500 outline-none"
+                      className="w-full bg-blue-50/30 border-2 border-blue-500 rounded-xl px-4 py-2.5 text-sm font-bold text-blue-700 outline-none shadow-inner"
                     />
                   )}
                 </div>
@@ -267,36 +289,39 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                 )}
               </div>
 
-              {isOwnProfile && isEditing && (
+              {canEdit && isEditing && (
                 <div className="space-y-4 pt-2">
-                  <h4 className="text-[10px] font-black text-red-600 uppercase tracking-widest flex items-center gap-2">
-                    <Key size={14} /> <span translate="no" className="notranslate">MẬT KHẨU</span>
+                  <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2">
+                    <Key size={14} /> CẬP NHẬT MẬT KHẨU
                   </h4>
                   <div className="space-y-3">
                     <div className="space-y-1 relative">
-                       <label className="text-[9px] font-black text-gray-400 uppercase"><span translate="no" className="notranslate">MẬT KHẨU MỚI</span></label>
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">MẬT KHẨU MỚI</label>
                        <input 
                         type={showPassword ? "text" : "password"}
                         value={passwordData.newPassword}
                         onChange={e => setPasswordData({...passwordData, newPassword: e.target.value})}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold focus:ring-1 focus:ring-blue-500 outline-none pr-10"
-                        placeholder="Nhập mật khẩu mới"
+                        className="w-full bg-blue-50/30 border-2 border-blue-500 rounded-xl px-4 py-2.5 text-sm font-bold text-blue-700 outline-none shadow-inner pr-12"
+                        placeholder="Nhập mật khóa bảo mật mới"
                        />
-                       <button onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-7 text-gray-400 hover:text-gray-600">
-                          {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                       <button onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-9 text-blue-400 hover:text-blue-600">
+                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                        </button>
                     </div>
                     <div className="space-y-1">
-                       <label className="text-[9px] font-black text-gray-400 uppercase"><span translate="no" className="notranslate">Xác nhận mật khẩu</span></label>
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">XÁC NHẬN MẬT KHẨU</label>
                        <input 
                         type={showPassword ? "text" : "password"}
                         value={passwordData.confirmPassword}
                         onChange={e => setPasswordData({...passwordData, confirmPassword: e.target.value})}
-                        className={`w-full bg-gray-50 border rounded-lg px-3 py-2 text-sm font-bold outline-none ${
-                          passwordData.confirmPassword && passwordData.confirmPassword !== passwordData.newPassword ? 'border-red-300' : 'border-gray-200'
+                        className={`w-full bg-blue-50/30 border-2 rounded-xl px-4 py-2.5 text-sm font-bold text-blue-700 outline-none shadow-inner ${
+                          passwordData.confirmPassword && passwordData.confirmPassword !== passwordData.newPassword ? 'border-red-500' : 'border-blue-500'
                         }`}
-                        placeholder="Xác nhận lại"
+                        placeholder="Nhập lại chính xác mật khẩu"
                        />
+                       {passwordData.confirmPassword && passwordData.confirmPassword !== passwordData.newPassword && (
+                         <p className="text-[8px] text-red-500 font-bold uppercase mt-1">Mật khẩu xác nhận không khớp!</p>
+                       )}
                     </div>
                   </div>
                 </div>
@@ -319,16 +344,6 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                 <span className="text-xl font-black text-blue-700">{ongoing}</span>
               </div>
             </div>
-            {isEditing && (
-               <button 
-                onClick={handleSave}
-                disabled={saving}
-                className="ml-auto bg-blue-600 hover:bg-blue-700 text-white font-black px-10 py-4 rounded-2xl shadow-xl shadow-blue-200 uppercase tracking-widest text-xs flex items-center gap-3 transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50"
-               >
-                 {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={18} />}
-                 CẬP NHẬT THÔNG TIN
-               </button>
-            )}
           </div>
         </div>
       </div>

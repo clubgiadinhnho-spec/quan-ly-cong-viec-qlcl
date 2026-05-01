@@ -17,67 +17,67 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm transition-all hover:shadow-md border-l-4 border-l-blue-500 relative overflow-hidden group">
-        <div className="absolute right-[-10px] top-[-10px] opacity-5 transition-transform group-hover:scale-110">
+      <div className="bg-amber-500 p-5 rounded-2xl border border-amber-600 shadow-md transition-all hover:shadow-lg relative overflow-hidden group text-white">
+        <div className="absolute right-[-10px] top-[-10px] opacity-20 transition-transform group-hover:scale-110 text-white">
           <Activity size={80} />
         </div>
         <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+          <div className="p-2 bg-white/20 rounded-lg text-white">
             <Activity size={18} strokeWidth={2.5} />
           </div>
-          <p className="text-[10px] text-blue-500 font-black uppercase tracking-widest">Tổng dự án</p>
+          <p className="text-[10px] text-white font-black uppercase tracking-widest">Tổng dự án</p>
         </div>
         <div className="flex items-end gap-2">
-          <p className="text-3xl font-black text-gray-900 leading-none">{totalProcessing}</p>
-          <span className="text-[10px] text-gray-400 font-bold mb-1 uppercase">Đang xử lý</span>
+          <p className="text-3xl font-black text-white leading-none">{totalProcessing}</p>
+          <span className="text-[10px] text-amber-100 font-bold mb-1 uppercase">Đang xử lý</span>
         </div>
       </div>
 
-      <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm transition-all hover:shadow-md border-l-4 border-l-emerald-500 relative overflow-hidden group">
-        <div className="absolute right-[-10px] top-[-10px] opacity-5 transition-transform group-hover:scale-110 text-emerald-500">
+      <div className="bg-emerald-500 p-5 rounded-2xl border border-emerald-600 shadow-md transition-all hover:shadow-lg relative overflow-hidden group text-white">
+        <div className="absolute right-[-10px] top-[-10px] opacity-20 transition-transform group-hover:scale-110 text-white">
           <Shield size={80} />
         </div>
         <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
+          <div className="p-2 bg-white/20 rounded-lg text-white">
             <Shield size={18} strokeWidth={2.5} />
           </div>
-          <p className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">Bình thường</p>
+          <p className="text-[10px] text-white font-black uppercase tracking-widest">Bình thường</p>
         </div>
         <div className="flex items-end gap-2">
-          <p className="text-3xl font-black text-gray-900 leading-none">{normalTasks.length}</p>
-          <span className="text-[10px] text-gray-400 font-bold mb-1 uppercase">Ổn định</span>
+          <p className="text-3xl font-black text-white leading-none">{normalTasks.length}</p>
+          <span className="text-[10px] text-emerald-100 font-bold mb-1 uppercase">Ổn định</span>
         </div>
       </div>
 
-      <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm transition-all hover:shadow-md border-l-4 border-l-red-500 relative overflow-hidden group">
-        <div className="absolute right-[-10px] top-[-10px] opacity-5 transition-transform group-hover:scale-110 text-red-500">
+      <div className="bg-red-500 p-5 rounded-2xl border border-red-600 shadow-md transition-all hover:shadow-lg relative overflow-hidden group text-white">
+        <div className="absolute right-[-10px] top-[-10px] opacity-20 transition-transform group-hover:scale-110 text-white">
           <Zap size={80} />
         </div>
         <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-red-50 rounded-lg text-red-500">
+          <div className="p-2 bg-white/20 rounded-lg text-white">
             <Zap size={18} strokeWidth={2.5} />
           </div>
-          <p className="text-[10px] text-red-500 font-black uppercase tracking-widest">Ưu tiên / Gấp</p>
+          <p className="text-[10px] text-white font-black uppercase tracking-widest">Ưu tiên / Gấp</p>
         </div>
         <div className="flex items-end gap-2">
-          <p className="text-3xl font-black text-gray-900 leading-none">{priorityTasks.length}</p>
-          <span className="text-[10px] text-gray-400 font-bold mb-1 uppercase">Cần chú ý</span>
+          <p className="text-3xl font-black text-white leading-none">{priorityTasks.length}</p>
+          <span className="text-[10px] text-red-100 font-bold mb-1 uppercase">Cần chú ý</span>
         </div>
       </div>
 
-      <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm transition-all hover:shadow-md border-l-4 border-l-indigo-500 relative overflow-hidden group">
-        <div className="absolute right-[-10px] top-[-10px] opacity-5 transition-transform group-hover:scale-110 text-indigo-500">
+      <div className="bg-blue-600 p-5 rounded-2xl border border-blue-700 shadow-md transition-all hover:shadow-lg relative overflow-hidden group text-white">
+        <div className="absolute right-[-10px] top-[-10px] opacity-20 transition-transform group-hover:scale-110 text-white">
           <CheckCircle size={80} />
         </div>
         <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+          <div className="p-2 bg-white/20 rounded-lg text-white">
             <CheckCircle size={18} strokeWidth={2.5} />
           </div>
-          <p className="text-[10px] text-indigo-500 font-black uppercase tracking-widest">Hoàn thành</p>
+          <p className="text-[10px] text-white font-black uppercase tracking-widest">Hoàn thành</p>
         </div>
         <div className="flex items-end gap-2">
-          <p className="text-3xl font-black text-gray-900 leading-none">{completedCount}</p>
-          <span className="text-[10px] text-gray-400 font-bold mb-1 uppercase">Kết quả</span>
+          <p className="text-3xl font-black text-white leading-none">{completedCount}</p>
+          <span className="text-[10px] text-blue-100 font-bold mb-1 uppercase">Kết quả</span>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-# 📓 NHẬT KÝ HỆ THỐNG - QC MANAGEMENT SYSTEM (TÂN PHÚ VIỆT NAM)
+# 📓 NHẬT KÝ HỆ THỐNG - QUALITY MANAGEMENT SYSTEM (TÂN PHÚ VIỆT NAM)
 
 Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhật ký Thay đổi của hệ thống, ghi lại toàn bộ lộ trình phát triển, các yêu cầu kỹ thuật và lịch sử tương tác.
 

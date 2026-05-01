@@ -15,6 +15,7 @@ export const TaskModal = ({ onClose, onSave, users, task }: TaskModalProps) => {
   const [objective, setObjective] = useState(task?.objective || '');
   const [assigneeId, setAssigneeId] = useState(task?.assigneeId || '');
   const [expectedDate, setExpectedDate] = useState(task?.expectedEndDate || '');
+  const [extensionDate, setExtensionDate] = useState(task?.extensionDate || '');
   const [attachment, setAttachment] = useState<File | null>(null);
 
   const isEdit = !!task;
@@ -67,11 +68,23 @@ export const TaskModal = ({ onClose, onSave, users, task }: TaskModalProps) => {
               <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Hạn hoàn thành</label>
               <input 
                 type="date"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
                 value={expectedDate}
                 onChange={(e) => setExpectedDate(e.target.value)}
               />
             </div>
+            {isEdit && (
+              <div>
+                <label className="block text-xs font-bold text-emerald-600 mb-1 uppercase">Gia hạn (nếu có)</label>
+                <input 
+                  type="date"
+                  className="w-full px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-emerald-700 font-bold"
+                  value={extensionDate}
+                  onChange={(e) => setExtensionDate(e.target.value)}
+                  min={expectedDate}
+                />
+              </div>
+            )}
           </div>
           
           {!isEdit && (
@@ -112,7 +125,8 @@ export const TaskModal = ({ onClose, onSave, users, task }: TaskModalProps) => {
                 objective, 
                 assigneeId, 
                 assignedTo: assignee?.name || '',
-                expectedEndDate: expectedDate, 
+                expectedEndDate: expectedDate,
+                extensionDate: extensionDate || null,
                 attachment 
               });
             }}

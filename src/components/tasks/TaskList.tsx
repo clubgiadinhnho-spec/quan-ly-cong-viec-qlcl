@@ -56,10 +56,51 @@ export const TaskList: React.FC<TaskListProps> = ({
 
     // 4. Mã công việc (Mới nhất lên trên)
     return b.code.localeCompare(a.code);
-  });
+  }).slice(0, 15);
+
+  const handleUpdateTask = (id: string, updates: Partial<Task>) => {
+    const taskData = tasks.find(t => t.id === id);
+    if (!taskData) return;
+
+    // Handle priority shifting when a task is completed
+    if (updates.status === 'COMPLETED' && taskData.priorityOrder) {
+      const removedOrder = taskData.priorityOrder;
+      
+      // Update the completed task first
+      onUpdate(id, { ...updates, priorityOrder: null as any });
+      
+      // Shift all others up
+      tasks.forEach(t => {
+        if (t.priorityOrder && t.id !== id && t.priorityOrder > removedOrder) {
+          onUpdate(t.id, { priorityOrder: t.priorityOrder - 1 });
+        }
+      });
+      return;
+    }
+
+    onUpdate(id, updates);
+  };
 
   const handleSetPriority = (taskId: string, order: number | null) => {
-    onUpdate(taskId, { priorityOrder: order as any });
+    const taskData = tasks.find(t => t.id === taskId);
+    if (!taskData) return;
+
+    const oldOrder = taskData.priorityOrder;
+
+    if (order === null) {
+      // Removing priority
+      if (oldOrder) {
+        onUpdate(taskId, { priorityOrder: null as any });
+        tasks.forEach(t => {
+          if (t.priorityOrder && t.id !== taskId && t.priorityOrder > oldOrder) {
+            onUpdate(t.id, { priorityOrder: t.priorityOrder - 1 });
+          }
+        });
+      }
+    } else {
+      // Setting a new priority (could be reordering or new assignment)
+      onUpdate(taskId, { priorityOrder: order as any });
+    }
   };
 
   const handleTogglePriority = (taskId: string) => {
@@ -78,16 +119,16 @@ export const TaskList: React.FC<TaskListProps> = ({
     <div className="overflow-auto max-h-[1500px] ring-1 ring-gray-200 rounded-xl scrollbar-thin scrollbar-thumb-gray-300 bg-white shadow-sm">
       <table className="w-full text-left border-separate border-spacing-0 table-fixed min-w-full">
         <thead>
-          <tr className="bg-[#FAFBFD]">
-            <th className="p-3 text-[10px] font-black text-gray-700 uppercase tracking-wider w-[5%] text-center border-b border-l border-r border-gray-300 bg-[#FAFBFD] sticky top-0 z-40 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Mã</th>
-            <th className="p-3 text-[10px] font-black text-gray-700 uppercase tracking-wider w-[12%] text-center border-b border-r border-gray-300 bg-[#FAFBFD] sticky top-0 z-40 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">
+          <tr className="bg-blue-600">
+            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[5%] text-center border-b border-l border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Mã</th>
+            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[16%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">
               <span translate="no" className="notranslate">Nhân sự</span>
             </th>
-            <th className="p-3 text-[10px] font-black text-gray-700 uppercase tracking-wider text-center border-b border-r border-gray-300 bg-[#FAFBFD] sticky top-0 z-40 shadow-[0_1px_0_0_rgba(0,0,0,0.1)] w-[38%]">Nội dung & Mục tiêu</th>
-            <th className="p-3 text-[10px] font-black text-gray-700 uppercase tracking-wider w-[18%] text-center border-b border-r border-gray-300 bg-[#FAFBFD] sticky top-0 z-40 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Diễn tiến trước đó</th>
-            <th className="p-3 text-[10px] font-black text-gray-700 uppercase tracking-wider w-[18%] text-center border-b border-r border-gray-300 bg-[#FAFBFD] sticky top-0 z-40 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Cập nhật (2 tuần tiếp)</th>
-            <th className="p-3 text-[11px] font-black text-red-600 uppercase tracking-tighter w-[6%] text-center border-b border-r border-gray-300 bg-red-50/30 sticky top-0 z-40 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">ƯU TIÊN</th>
-            {!isReadOnly && <th className="p-3 text-[10px] font-black text-gray-700 uppercase tracking-wider w-[6%] text-center border-b border-r border-gray-300 bg-[#FAFBFD] sticky top-0 z-40 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Thao tác</th>}
+            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)] w-[34%]">Nội dung & Mục tiêu</th>
+            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[18%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Diễn tiến trước đó</th>
+            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[18%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Cập nhật (2 tuần tiếp)</th>
+            <th className="p-3 text-[11px] font-black text-white uppercase tracking-tighter w-[6%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">ƯU TIÊN</th>
+            {!isReadOnly && <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[6%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Thao tác</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-300">
@@ -99,7 +140,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                 user={user} 
                 users={users} 
                 idx={idx}
-                onUpdate={onUpdate}
+                onUpdate={handleUpdateTask}
                 onDelete={onDelete}
                 onViewHistory={onViewHistory}
                 onOpenChat={onOpenChat}
@@ -120,7 +161,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                 user={user} 
                 users={users} 
                 idx={idx}
-                onUpdate={onUpdate}
+                onUpdate={handleUpdateTask}
                 onDelete={onDelete}
                 onViewHistory={onViewHistory}
                 onOpenChat={onOpenChat}
@@ -146,6 +187,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                 onSendMessage={onSendMessage}
                 onReact={onReact}
                 onUndo={(id) => onUpdate(id, { status: 'IN_PROGRESS', actualEndDate: null, isLocked: false })}
+                onUpdate={onUpdate}
               />
             )
           ))}

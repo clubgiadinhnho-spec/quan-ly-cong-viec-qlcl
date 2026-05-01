@@ -59,6 +59,7 @@ export const useTaskActions = ({
       assigneeId: taskData.assigneeId || currentUser?.id || '',
       startDate: taskData.startDate || new Date().toISOString().split('T')[0],
       expectedEndDate: taskData.expectedEndDate || '',
+      extensionDate: taskData.extensionDate || null,
       prevProgress: '',
       currentUpdate: '',
       history: [{ 

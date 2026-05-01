@@ -23,6 +23,7 @@ import { auth, logout, db } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useFirebaseData } from './hooks/useFirebaseData';
 import { useTaskActions } from './hooks/useTaskActions';
+import { useStaff } from './hooks/useStaff';
 
 // Import Components
 import { Sidebar } from './components/layout/Sidebar';
@@ -36,6 +37,7 @@ import { TaskChat } from './components/tasks/TaskChat';
 import { DirectChat } from './components/tasks/DirectChat';
 import { ConfirmModal } from './components/common/ConfirmModal';
 import { HealthReminder } from './components/common/HealthReminder';
+import { isUserTask } from './utils/userUtils';
 import { ProfilePage } from './pages/ProfilePage';
 import { ReportPage } from './pages/ReportPage';
 import { GroupChatPage } from './pages/GroupChatPage';
@@ -113,7 +115,7 @@ export default function App() {
     privateMessages,
     officialReports,
     logs,
-    extraUsers,
+    presence,
     loading: firebaseLoading,
     addTask: firebaseAddTask,
     updateTask: firebaseUpdateTask,
@@ -126,12 +128,32 @@ export default function App() {
     saveReportDraft: firebaseSaveReportDraft,
     saveOfficialReport: firebaseSaveOfficialReport,
     clearAllTasks,
-    addExtraUser,
-    updateExtraUser,
-    deleteExtraUser,
-    presence,
     updatePresence
   } = useFirebaseData(effectiveUser?.id);
+
+  const { allStaff, loading: staffLoading, updateProfile, deleteProfile } = useStaff();
+  const allUsers = allStaff;
+
+  const { 
+    all: allActiveCount,
+    mine: myActiveCount,
+    pending: pendingTasksCount,
+    active: activeSidebarCount,
+    completed: completedTasksCount,
+    trash: trashTasksCount
+  } = React.useMemo(() => {
+    const nonDeleted = tasks.filter(t => !t.deletedAt);
+    const activeForStats = nonDeleted.filter(t => t.status !== 'AWAITING_CONFIRMATION');
+
+    return {
+      all: activeForStats.filter(t => t.status !== 'COMPLETED').length,
+      mine: activeForStats.filter(t => t.status !== 'COMPLETED' && isUserTask(t, effectiveUser)).length,
+      pending: nonDeleted.filter(t => t.status === 'PENDING_APPROVAL' || t.status === 'AWAITING_CONFIRMATION').length,
+      active: nonDeleted.filter(t => t.status !== 'COMPLETED' && t.status !== 'AWAITING_CONFIRMATION' && t.status !== 'PENDING_APPROVAL').length,
+      completed: nonDeleted.filter(t => t.status === 'COMPLETED').length,
+      trash: tasks.filter(t => !!t.deletedAt).length
+    };
+  }, [tasks, effectiveUser]);
 
   // Presence Heartbeat
   useEffect(() => {
@@ -150,22 +172,6 @@ export default function App() {
   const firebaseSendPrivateMessage = useCallback(async (content: string, senderId: string, receiverId: string) => {
     await firebaseSendPrivateMsg(content, senderId, receiverId);
   }, [firebaseSendPrivateMsg]);
-
-  // Merge FIXED_STAFF with extraUsers from Firestore and deduplicate by uniqueKey
-  const allUsers = React.useMemo(() => {
-    const merged = [...FIXED_STAFF, ...extraUsers];
-    const uniqueMap = new Map();
-    merged.forEach(u => {
-      // Normalize uniqueKey if exists, otherwise generate one for safety
-      const key = u.uniqueKey || `${(u.name || '').replace(/\s+/g, '')}${u.phone || ''}`;
-      // Firestore extra_users might have higher priority for updates? 
-      // Actually, order matters. Let's keep the first occurrence or latest if from Firestore.
-      if (!uniqueMap.has(key)) {
-        uniqueMap.set(key, u);
-      }
-    });
-    return Array.from(uniqueMap.values());
-  }, [extraUsers]);
 
   const { 
     addTask: baseAddTask,
@@ -570,8 +576,8 @@ export default function App() {
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
   });
 
-  if (!authReady) return <div className="min-h-screen flex items-center justify-center font-black text-blue-600">ĐANG TẢI DỮ LIỆU...</div>;
-  if (!currentUser || (!currentUser.name && !currentUser.companyEmail)) return <Login users={allUsers} onLogin={handleLogin} onAddStaff={addExtraUser} />;
+  if (!authReady || staffLoading) return <div className="min-h-screen flex items-center justify-center font-black text-blue-600 uppercase tracking-widest bg-white animate-pulse">ĐANG TẢI DỮ LIỆU HỆ THỐNG...</div>;
+  if (!currentUser || (!currentUser.name && !currentUser.companyEmail)) return <Login users={allUsers} onLogin={handleLogin} onAddStaff={(u) => updateProfile(u.personalEmail, u)} />;
 
   return (
     <div className="flex min-h-screen bg-[#F9FAFB]">
@@ -580,12 +586,12 @@ export default function App() {
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         onLogout={handleLogout}
-        pendingTasksCount={tasks.filter(t => !t.deletedAt && (t.status === 'PENDING_APPROVAL' || t.status === 'AWAITING_CONFIRMATION')).length}
-        activeTasksCount={tasks.filter(t => !t.deletedAt && t.status !== 'COMPLETED' && t.status !== 'AWAITING_CONFIRMATION' && t.status !== 'PENDING_APPROVAL').length}
-        completedTasksCount={tasks.filter(t => !t.deletedAt && t.status === 'COMPLETED').length}
+        pendingTasksCount={pendingTasksCount}
+        activeTasksCount={activeSidebarCount}
+        completedTasksCount={completedTasksCount}
         totalStaffCount={allUsers.length}
         groupUnreadCount={groupUnreadCount}
-        trashTasksCount={tasks.filter(t => !!t.deletedAt).length}
+        trashTasksCount={trashTasksCount}
       />
 
       <main className="flex-1 overflow-y-auto relative py-6">
@@ -617,19 +623,22 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
+              className="flex flex-col h-full"
             >
               <HolidayBanner />
-              <Header 
-                title="PHÒNG QUẢN LÝ CHẤT LƯỢNG TÂN PHÚ VIỆT NAM" 
-                badge={effectiveUser.role}
-                onAction={effectiveUser.role !== 'Staff' || effectiveUser.delegatedPermissions?.canCreateTask ? () => setShowTaskModal(true) : undefined}
-                actionLabel={effectiveUser.role !== 'Staff' || effectiveUser.delegatedPermissions?.canCreateTask ? "Nhập công việc mới" : "Xem thông tin"}
-                actionIcon={effectiveUser.role !== 'Staff' || effectiveUser.delegatedPermissions?.canCreateTask ? Plus : Search}
-                onlineUsers={presence}
-                currentUserId={effectiveUser.id}
-              />
+              <div className="sticky top-0 z-50">
+                <Header 
+                  title="PHÒNG QUẢN LÝ CHẤT LƯỢNG TÂN PHÚ VIỆT NAM" 
+                  badge={effectiveUser.role}
+                  onAction={() => setShowTaskModal(true)}
+                  actionLabel="Nhập công việc mới"
+                  actionIcon={Plus}
+                  onlineUsers={presence}
+                  currentUserId={effectiveUser.id}
+                />
+              </div>
               
-              <div className="p-6 space-y-6">
+              <div className="p-6 space-y-6 overflow-y-auto min-h-0 flex-1">
                 <StatsSummary tasks={filteredTasks} />
 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm transition-all duration-300">
@@ -643,7 +652,7 @@ export default function App() {
                       }`}
                     >
                       <UserIcon size={14} />
-                      Cá nhân ({tasks.filter(t => t.assigneeId === effectiveUser.id && t.status !== 'COMPLETED').length})
+                      Cá nhân ({myActiveCount})
                     </button>
                     <button 
                       onClick={() => setViewScope('all')}
@@ -654,7 +663,7 @@ export default function App() {
                       }`}
                     >
                       <UsersIcon size={14} />
-                      Phòng QLCL ({tasks.filter(t => t.status !== 'COMPLETED').length})
+                      Phòng QLCL ({allActiveCount})
                     </button>
                   </div>
                   <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full border border-blue-100">
@@ -760,14 +769,16 @@ export default function App() {
           )}
 
           {activeTab === 'pending_confirmation' && (
-            <motion.div key="pending_confirmation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div key="pending_confirmation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col h-full">
               <HolidayBanner />
-              <Header 
-                title="ĐỀ XUẤT MỚI" 
-                onlineUsers={presence}
-                currentUserId={effectiveUser.id}
-              />
-              <div className="p-6">
+              <div className="sticky top-0 z-50">
+                <Header 
+                  title="ĐỀ XUẤT MỚI" 
+                  onlineUsers={presence}
+                  currentUserId={effectiveUser.id}
+                />
+              </div>
+              <div className="p-6 overflow-y-auto min-h-0 flex-1">
                 <PendingConfirmationPage 
                   tasks={tasks}
                   currentUser={effectiveUser}
@@ -787,14 +798,16 @@ export default function App() {
           )}
 
           {activeTab === 'completed_tasks' && (
-            <motion.div key="completed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div key="completed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col h-full">
               <HolidayBanner />
-              <Header 
-                title="CV HOÀN THÀNH" 
-                onlineUsers={presence}
-                currentUserId={effectiveUser.id}
-              />
-              <div className="p-6 space-y-6">
+              <div className="sticky top-0 z-50">
+                <Header 
+                  title="CV HOÀN THÀNH" 
+                  onlineUsers={presence}
+                  currentUserId={effectiveUser.id}
+                />
+              </div>
+              <div className="p-6 space-y-6 overflow-y-auto min-h-0 flex-1">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
                   <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
                     <button 
@@ -891,6 +904,7 @@ export default function App() {
                   currentUser={effectiveUser} 
                   tasks={tasks} 
                   users={allUsers}
+                  onUpdateProfile={(email, updates) => updateProfile(email, updates)}
                 />
               </div>
             </motion.div>
@@ -976,9 +990,19 @@ export default function App() {
                     onSendToGroup={async (msg) => {
                       await firebaseSendMessage(msg, 'system');
                     }}
-                    onAddStaff={addExtraUser}
-                    onUpdateStaff={updateExtraUser}
-                    onDeleteStaff={deleteExtraUser}
+                    onAddStaff={(user) => updateProfile(user.personalEmail, user)}
+                    onUpdateStaff={(userId, updates) => {
+                      const staff = allUsers.find(u => u.id === userId);
+                      if (staff) {
+                        updateProfile(staff.personalEmail, updates);
+                      }
+                    }}
+                    onDeleteStaff={(userId) => {
+                      const staff = allUsers.find(u => u.id === userId);
+                      if (staff) {
+                        deleteProfile(staff.personalEmail);
+                      }
+                    }}
                   />
                </div>
             </motion.div>

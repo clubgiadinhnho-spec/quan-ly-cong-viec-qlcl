@@ -10,6 +10,9 @@ import 'react-image-crop/dist/ReactCrop.css';
 
 import { Avatar } from '../components/common/Avatar';
 
+import { getSafeNameProps } from '../utils/userUtils';
+import { FIXED_STAFF } from '../constants/staff';
+
 interface ProfilePageProps {
   currentUser: User;
   tasks: Task[];
@@ -53,6 +56,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateNote, onUpdateU
   const [saveSuccess, setSaveSuccess] = useState(false);
   
   const user = users.find(u => u.id === viewedUserId) || currentUser;
+  const hasDelegatedPermissions = (u: User) => u.delegatedPermissions && Object.values(u.delegatedPermissions).some(v => v);
 
   const handleUpdateReminder = () => {
     if (!onUpdateUser) return;
@@ -61,6 +65,8 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateNote, onUpdateU
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
   };
+
+  const isFixedStaff = FIXED_STAFF.some(fs => fs.id === user.id);
 
   const onSelectFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -136,7 +142,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateNote, onUpdateU
   const ongoing = myTasks.filter((t) => t.status === 'IN_PROGRESS').length;
   const efficiency = myTasks.length > 0 ? Math.round((completed / myTasks.length) * 100) : 0;
 
-  const isManagerOrAdmin = currentUser.role === 'Admin' || currentUser.role === 'Trưởng Phòng' || currentUser.role === 'Trưởng Nhóm';
+  const isManagerOrAdmin = currentUser.role === 'Admin' || currentUser.role === 'Leader' || !!currentUser.delegatedPermissions?.canApproveTask;
 
   const getAdvice = async () => {
     setLoadingAdvice(true);
@@ -202,14 +208,13 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateNote, onUpdateU
         <div className="text-center md:text-left flex-1 space-y-4">
           <div>
             <div className="flex flex-col md:flex-row md:items-center gap-3 mb-2">
-              <h1 className="text-3xl font-black text-gray-800 tracking-tight">{user.name}</h1>
+              <h1 {...getSafeNameProps()} className="text-3xl font-black text-gray-800 tracking-tight notranslate">{user.name}</h1>
               <div className="flex items-center gap-2">
                 <span className={`w-fit mx-auto md:mx-0 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                   user.role === 'Admin' ? 'bg-red-100 text-red-600' : 
-                  user.role === 'Trưởng Phòng' ? 'bg-indigo-100 text-indigo-600' : 
-                  user.role === 'Trưởng Nhóm' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
+                  user.role === 'Leader' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
                 }`}>
-                  {user.role}
+                  {user.role} {hasDelegatedPermissions(user) && '(QUYỀN TP)'}
                 </span>
                 <span className="text-[10px] font-black text-blue-400 px-2 py-1 bg-blue-50 rounded-lg italic border border-blue-100">
                   {user.abbreviation}
@@ -601,7 +606,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateNote, onUpdateU
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-black text-gray-800 flex items-center gap-2 uppercase tracking-tighter">
                   <MessageSquare size={18} className="text-amber-500" />
-                  LỜI NHẮC - GÓP Ý TỪ TRƯỞNG PHÒNG
+                  LỜI NHẮC - GÓP Ý TỪ QUẢN LÝ
                 </h3>
                 {isManagerOrAdmin && !isEditingNote && (
                   <button 
@@ -675,7 +680,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateNote, onUpdateU
             AI PERFORMANCE ADVISOR
           </h3>
           <p className="text-xs text-gray-500 mb-6 leading-relaxed italic">
-            Hệ thống AI sẽ phân tích toàn bộ dữ liệu công việc của <span className="font-bold text-gray-700">{user.name}</span> để đưa ra đánh giá khách quan.
+            Hệ thống AI sẽ phân tích toàn bộ dữ liệu công việc của <span {...getSafeNameProps()} className="font-bold text-gray-700 notranslate">{user.name}</span> để đưa ra đánh giá khách quan.
           </p>
           
           {advice ? (

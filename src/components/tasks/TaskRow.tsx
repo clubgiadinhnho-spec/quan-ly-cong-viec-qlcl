@@ -1,10 +1,12 @@
 import React from 'react';
-import { MessageSquare, Paperclip, X } from 'lucide-react';
+import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw, Trash2 } from 'lucide-react';
 import { Task, User } from '../../types';
 import { formatDate } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
 import { AnimatePresence } from 'motion/react';
 import { Avatar } from '../common/Avatar';
+
+import { getUserById, getSafeNameProps, getTaskAssigneeName } from '../../utils/userUtils';
 
 interface TaskRowProps {
   task: Task;
@@ -22,28 +24,44 @@ interface TaskRowProps {
   idx: number;
   setConfirmModal: (modal: any) => void;
   isReadOnly?: boolean;
+  onRestore?: (id: string) => void;
 }
 
 export const TaskRow: React.FC<TaskRowProps> = ({ 
   task, user, users, onUpdate, onDelete, onViewHistory, onOpenChat, 
   isChatOpen, onSendMessage, onReact, onTogglePriority, onEdit, idx, setConfirmModal,
-  isReadOnly = false
+  isReadOnly = false, onRestore
 }) => {
-  const assignee = users.find(s => s.id === task.assigneeId);
+  const assigneeName = getTaskAssigneeName(task, users);
+  const assignee = getUserById(assigneeName, users) || getUserById(task.assigneeId, users);
   const isOwner = user.id === task.assigneeId;
-  const isAdminOrDirector = user.role === 'Admin' || user.role === 'Trưởng Phòng';
-  const isTeamLeader = user.role === 'Trưởng Nhóm';
-  const isManager = isAdminOrDirector || isTeamLeader;
-  const isEmployee = user.role === 'Nhân Viên';
+  const isAdmin = user.role === 'Admin';
+  const isTeamLeader = user.role === 'Leader';
+  const canApprove = isAdmin || !!user.delegatedPermissions?.canApproveTask;
+  const canDelete = isAdmin || !!user.delegatedPermissions?.canDeleteTask;
+  const isManager = isAdmin || isTeamLeader || !!user.delegatedPermissions?.canCreateTask;
+  const isEmployee = user.role === 'Staff';
   
-  const canEditPriority = isAdminOrDirector;
+  const canEditPriority = isAdmin;
   const hasUnread = false; // Placeholder for future logic
 
+  const handleConfirmTask = (approve: boolean) => {
+    if (approve) {
+      onUpdate(task.id, { 
+        status: 'IN_PROGRESS', 
+        isNewSoldier: true,
+        updatedAt: new Date().toISOString()
+      });
+    } else {
+      onDelete(task.id);
+    }
+  };
+
   const handleStatusAction = () => {
-    // Team Leader or Employee (isOwner) can mark as pending approval
-    if (isEmployee || isTeamLeader) {
+    // Managers/Owners can mark as pending approval
+    if (!canApprove) {
       onUpdate(task.id, { status: 'PENDING_APPROVAL' });
-    } else if (isAdminOrDirector) {
+    } else if (canApprove) {
       setConfirmModal({
         show: true,
         title: 'XÁC NHẬN HOÀN THÀNH',
@@ -62,11 +80,20 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   return (
     <tr className={`group transition-all ${task.isHighlighted ? 'bg-red-50/50' : 'hover:bg-gray-50/50'}`}>
-      <td className={`p-4 text-center text-xs font-bold border-b border-r border-gray-300 align-top ${task.isHighlighted ? 'text-red-300' : 'text-gray-300'}`}>{task.code}</td>
+      <td className={`p-4 text-center text-xs font-bold border-b border-r border-gray-300 align-top relative ${task.isHighlighted ? 'text-red-300' : 'text-gray-300'}`}>
+        <div className="flex flex-col items-center gap-1">
+          {task.code}
+          {task.isNewSoldier && (
+            <div className="bg-amber-100 text-amber-600 p-0.5 rounded-full animate-bounce" title="Lính mới / Việc mới xác nhận">
+              <Sparkles size={10} strokeWidth={3} />
+            </div>
+          )}
+        </div>
+      </td>
       <td className={`p-4 border-b border-r border-gray-300 align-top ${task.isHighlighted ? 'border-l-4 border-red-500' : ''}`}>
         <div className="flex items-center gap-3">
           <div className="relative">
-            <Avatar src={assignee?.avatar} name={assignee?.name} />
+            <Avatar src={assignee?.avatar} name={assigneeName} />
             {isManager && (
               <button 
                 onClick={() => onEdit(task)}
@@ -79,7 +106,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <p className="text-sm font-bold text-gray-900 leading-none whitespace-nowrap">{assignee?.name}</p>
+              <p {...getSafeNameProps()} className="text-sm font-bold text-gray-900 leading-none whitespace-nowrap notranslate">{assigneeName}</p>
               {isManager && (
                 <button 
                   onClick={() => onEdit(task)} 
@@ -133,11 +160,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             <Paperclip size={14} strokeWidth={3} />
           </a>
         )}
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full font-sans">
           {isManager ? (
              <div className="relative">
               <textarea 
-                className="text-sm font-black text-gray-900 bg-transparent border-b border-transparent focus:border-blue-400 outline-none w-full py-0 pr-6 uppercase break-words resize-none overflow-hidden leading-tight min-h-[1.5rem]"
+                className="text-sm font-black text-gray-900 bg-transparent border-b border-transparent focus:border-blue-400 outline-none w-full py-0 pr-6 uppercase break-words resize-none overflow-hidden leading-tight min-h-[1.5rem] font-sans"
                 defaultValue={task.title}
                 rows={1}
                 ref={(el) => {
@@ -165,15 +192,18 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               </button>
              </div>
           ) : (
-            <p className="text-sm font-black text-gray-900 leading-tight pr-6 uppercase break-words whitespace-normal">{task.title}</p>
+            <p className="text-sm font-black text-gray-900 leading-tight pr-6 uppercase break-words whitespace-normal font-sans">{task.title}</p>
           )}
-          <p className="text-[11px] font-black text-gray-900 leading-relaxed mt-2 break-words whitespace-normal flex-1">{task.objective}</p>
+          <p className="text-[11px] font-black text-gray-900 leading-relaxed mt-2 break-words whitespace-normal flex-1 font-sans">{task.objective}</p>
 
           <div className="mt-2 flex items-center gap-2">
               <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-bold uppercase tracking-tighter">v{task.history.length}</span>
               <button onClick={() => onViewHistory(task.id)} className="text-[9px] text-blue-500 hover:underline font-bold">Lịch sử</button>
               {task.status === 'PENDING_APPROVAL' && (
                 <span className="text-[9px] font-black text-amber-500 bg-amber-50 px-2 py-0.5 rounded animate-pulse border border-amber-200 uppercase tracking-tighter">Chờ duyệt HT</span>
+              )}
+              {task.status === 'AWAITING_CONFIRMATION' && (
+                <span className="text-[9px] font-black text-blue-500 bg-blue-50 px-2 py-0.5 rounded animate-pulse border border-blue-200 uppercase tracking-tighter">Chờ xác nhận mới</span>
               )}
           </div>
         </div>
@@ -211,122 +241,156 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           )}
         </div>
       </td>
-      <td className="p-1 text-center border-b border-r border-gray-300 align-top pt-4 text-gray-400 text-[10px]">
-        {task.priorityOrder || '—'}
+      <td className="p-0 text-center border-b border-r border-gray-300 align-top">
+        <button 
+          onClick={() => onTogglePriority(task.id)}
+          className={`w-full h-full min-h-[40px] py-4 flex items-center justify-center font-black transition-all ${task.priorityOrder ? 'text-blue-600 bg-blue-50/20' : 'text-gray-300 hover:text-blue-400'}`}
+          title="Nhấn để gán/xóa thứ tự ưu tiên"
+        >
+          {task.priorityOrder || '—'}
+        </button>
       </td>
       {!isReadOnly && (
         <td className="py-4 px-1 text-center border-b border-r border-gray-300 align-top">
           <div className="flex flex-col items-center gap-1.5">
-             {task.status === 'PENDING_APPROVAL' && isManager && (
-               <>
-                 <button 
-                    onClick={handleApprove}
-                    className="w-full px-2 py-1.5 text-[9px] bg-green-500 text-white rounded font-black hover:bg-green-600 transition-all uppercase tracking-tighter shadow-sm"
-                  >
-                    DUYỆT HT
-                  </button>
-                 <button 
-                    onClick={() => onUpdate(task.id, { status: 'IN_PROGRESS' })}
-                    className="w-full px-2 py-1.5 text-[9px] bg-red-100 text-red-700 border border-red-200 rounded font-black hover:bg-red-600 hover:text-white transition-all uppercase tracking-tighter shadow-sm"
-                  >
-                    TỪ CHỐI
-                  </button>
-               </>
-             )}
-             {task.status !== 'PENDING_APPROVAL' && (isOwner || isManager) && !task.isLocked && !task.requestDelete && (
-               <button 
-                  onClick={handleStatusAction}
-                  className="w-full px-2 py-1.5 text-[9px] bg-blue-600 text-white rounded font-black hover:bg-blue-700 transition-all uppercase tracking-tighter shadow-sm"
-                >
-                  {isAdminOrDirector ? 'XONG' : 'GỬI HT'}
-                </button>
-             )}
-             {(isManager || isOwner) && (
-               <button 
-                  onClick={() => onUpdate(task.id, { isHighlighted: !task.isHighlighted })}
-                  className={`w-full px-2 py-1.5 text-[9px] border rounded font-black transition-all uppercase tracking-tighter ${task.isHighlighted ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-white text-gray-400 border-gray-200 hover:border-blue-500'}`}
-                >
-                  LƯU Ý
-                </button>
-             )}
-             {task.requestDelete && isManager && (
-                <>
-                  <button 
-                    onClick={() => onDelete(task.id)}
-                    className="w-full px-2 py-1.5 text-[9px] bg-red-600 text-white rounded font-black hover:bg-red-700 transition-all uppercase tracking-tighter shadow-sm"
-                  >
-                    DUYỆT XÓA
-                  </button>
-                  <button 
-                    onClick={() => onUpdate(task.id, { requestDelete: false })}
-                    className="w-full px-2 py-1.5 text-[9px] bg-gray-100 text-gray-600 border border-gray-200 rounded font-black hover:bg-gray-200 transition-all uppercase tracking-tighter"
-                  >
-                    BỎ QUA XÓA
-                  </button>
-                </>
-              )}
-             {!task.requestDelete && isAdminOrDirector && (
+            {task.deletedAt ? (
+              <>
                 <button 
-                  onClick={() => {
-                    setConfirmModal({
-                      show: true,
-                      title: 'XÓA CÔNG VIỆC',
-                      message: 'Bạn có chắc chắn muốn xóa vĩnh viễn công việc này?',
-                      onConfirm: () => {
-                        onDelete(task.id);
-                        setConfirmModal((p: any) => ({ ...p, show: false }));
-                      }
-                    });
-                  }}
-                  className="w-full px-2 py-1.5 text-[9px] bg-white text-gray-400 border border-gray-200 rounded font-black hover:bg-red-500 hover:text-white transition-all uppercase tracking-tighter"
+                  onClick={() => onRestore && onRestore(task.id)}
+                  className="w-full flex items-center justify-center gap-1 px-2 py-1.5 text-[9px] bg-green-600 text-white rounded font-black hover:bg-green-700 transition-all uppercase tracking-tighter shadow-sm"
                 >
-                  XÓA
+                  <RotateCcw size={10} /> KHÔI PHỤC
                 </button>
-             )}
-             {!isAdminOrDirector && isOwner && !task.requestDelete && !task.isLocked && (
                 <button 
-                  onClick={() => {
-                    setConfirmModal({
-                      show: true,
-                      title: 'YÊU CẦU XÓA',
-                      message: 'Bạn muốn gửi yêu cầu xóa công việc này lên cấp trên?',
-                      onConfirm: () => {
-                        onUpdate(task.id, { requestDelete: true });
-                        setConfirmModal((p: any) => ({ ...p, show: false }));
-                      }
-                    });
-                  }}
-                  className="w-full px-2 py-1.5 text-[9px] bg-white text-red-400 border border-red-100 rounded font-black hover:bg-red-500 hover:text-white transition-all uppercase tracking-tighter"
+                  onClick={() => onDelete(task.id)}
+                  className="w-full flex items-center justify-center gap-1 px-2 py-1.5 text-[9px] bg-red-600 text-white rounded font-black hover:bg-red-700 transition-all uppercase tracking-tighter shadow-sm"
                 >
-                  YÊU CẦU XÓA
+                  <Trash2 size={10} /> XÓA VĨNH VIỄN
                 </button>
-              )}
-              {task.requestDelete && !isManager && (
-                <span className="text-[8px] font-black text-red-500 bg-red-50 px-2 py-1 rounded border border-red-200 uppercase tracking-tighter text-center">Chờ duyệt xóa</span>
-              )}
-             {task.status === 'COMPLETED' && isManager && (
-               <button 
-                  onClick={() => {
-                    setConfirmModal({
-                      show: true,
-                      title: 'HOÀN TÁC CÔNG VIỆC',
-                      message: 'Bạn muốn chuyển công việc này quay lại bảng đang thực hiện?',
-                      onConfirm: () => {
-                        onUpdate(task.id, { 
-                          status: 'IN_PROGRESS', 
-                          actualEndDate: null, 
-                          isLocked: false,
-                          currentUpdate: '[HOÀN TÁC] Chuyển về bảng đang thực hiện'
-                        });
-                        setConfirmModal((p: any) => ({ ...p, show: false }));
-                      }
-                    });
-                  }}
-                  className="w-full px-2 py-1.5 text-[9px] bg-gray-100 text-gray-600 border border-gray-200 rounded font-black hover:bg-gray-200 transition-all uppercase tracking-tighter shadow-sm"
-                >
-                  HOÀN TÁC
-                </button>
-             )}
+              </>
+            ) : (
+              <>
+                {task.status === 'AWAITING_CONFIRMATION' && isManager && (
+                  <>
+                    <button 
+                       onClick={() => handleConfirmTask(true)}
+                       className="w-full flex items-center justify-center gap-1 px-2 py-1.5 text-[9px] bg-blue-600 text-white rounded font-black hover:bg-blue-700 transition-all uppercase tracking-tighter shadow-sm"
+                     >
+                       <CheckCircle size={10} /> XÁC NHẬN
+                     </button>
+                    <button 
+                       onClick={() => handleConfirmTask(false)}
+                       className="w-full flex items-center justify-center gap-1 px-2 py-1.5 text-[9px] bg-gray-100 text-gray-600 border border-gray-200 rounded font-black hover:bg-red-500 hover:text-white hover:border-red-500 transition-all uppercase tracking-tighter shadow-sm"
+                     >
+                       <XCircle size={10} /> TỪ CHỐI
+                     </button>
+                  </>
+                )}
+                {task.status === 'AWAITING_CONFIRMATION' && !isManager && (
+                  <span className="text-[8px] font-black text-blue-500 bg-blue-50 px-2 py-1 rounded border border-blue-200 uppercase tracking-tighter text-center">Đang chờ sếp duyệt...</span>
+                )}
+                {task.status === 'PENDING_APPROVAL' && canApprove && (
+                  <>
+                    <button 
+                       onClick={handleApprove}
+                       className="w-full px-2 py-1.5 text-[9px] bg-green-500 text-white rounded font-black hover:bg-green-600 transition-all uppercase tracking-tighter shadow-sm"
+                     >
+                       DUYỆT HT
+                     </button>
+                    <button 
+                       onClick={() => onUpdate(task.id, { status: 'IN_PROGRESS' })}
+                       className="w-full px-2 py-1.5 text-[9px] bg-red-100 text-red-700 border border-red-200 rounded font-black hover:bg-red-600 hover:text-white transition-all uppercase tracking-tighter shadow-sm"
+                     >
+                       TỪ CHỐI
+                     </button>
+                  </>
+                )}
+                {task.status !== 'PENDING_APPROVAL' && (isOwner || isManager || canApprove) && !task.isLocked && !task.requestDelete && task.status !== 'COMPLETED' && task.status !== 'AWAITING_CONFIRMATION' && (
+                  <button 
+                     onClick={handleStatusAction}
+                     className="w-full px-2 py-1.5 text-[9px] bg-blue-600 text-white rounded font-black hover:bg-blue-700 transition-all uppercase tracking-tighter shadow-sm"
+                   >
+                     {canApprove ? 'XONG' : 'GỬI HT'}
+                   </button>
+                )}
+                {(isManager || isOwner || canApprove) && (
+                  <button 
+                     onClick={() => onUpdate(task.id, { isHighlighted: !task.isHighlighted })}
+                     className={`w-full px-2 py-1.5 text-[9px] border rounded font-black transition-all uppercase tracking-tighter ${task.isHighlighted ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-white text-gray-400 border-gray-200 hover:border-blue-500'}`}
+                   >
+                     LƯU Ý
+                   </button>
+                )}
+                {task.requestDelete && canDelete && (
+                   <>
+                     <button 
+                       onClick={() => onDelete(task.id)}
+                       className="w-full px-2 py-1.5 text-[9px] bg-red-600 text-white rounded font-black hover:bg-red-700 transition-all uppercase tracking-tighter shadow-sm"
+                     >
+                       DUYỆT XÓA
+                     </button>
+                     <button 
+                       onClick={() => onUpdate(task.id, { requestDelete: false })}
+                       className="w-full px-2 py-1.5 text-[9px] bg-gray-100 text-gray-600 border border-gray-200 rounded font-black hover:bg-gray-200 transition-all uppercase tracking-tighter"
+                     >
+                       BỎ QUA XÓA
+                     </button>
+                   </>
+                 )}
+                {!task.requestDelete && canDelete && (
+                   <button 
+                     onClick={() => onDelete(task.id)}
+                     className="w-full px-2 py-1.5 text-[9px] bg-white text-gray-400 border border-gray-200 rounded font-black hover:bg-red-500 hover:text-white transition-all uppercase tracking-tighter"
+                   >
+                     XÓA
+                   </button>
+                )}
+                {!canDelete && isOwner && !task.requestDelete && !task.isLocked && (
+                   <button 
+                     onClick={() => {
+                       setConfirmModal({
+                         show: true,
+                         title: 'YÊU CẦU XÓA',
+                         message: 'Bạn muốn gửi yêu cầu xóa công việc này lên cấp trên?',
+                         onConfirm: () => {
+                           onUpdate(task.id, { requestDelete: true });
+                           setConfirmModal((p: any) => ({ ...p, show: false }));
+                         }
+                       });
+                     }}
+                     className="w-full px-2 py-1.5 text-[9px] bg-white text-red-400 border border-red-100 rounded font-black hover:bg-red-500 hover:text-white transition-all uppercase tracking-tighter"
+                   >
+                     YÊU CẦU XÓA
+                   </button>
+                 )}
+                 {task.requestDelete && !canDelete && (
+                   <span className="text-[8px] font-black text-red-500 bg-red-50 px-2 py-1 rounded border border-red-200 uppercase tracking-tighter text-center">Chờ duyệt xóa</span>
+                 )}
+                {task.status === 'COMPLETED' && canApprove && (
+                  <button 
+                     onClick={() => {
+                       setConfirmModal({
+                         show: true,
+                         title: 'HOÀN TÁC CÔNG VIỆC',
+                         message: 'Bạn muốn chuyển công việc này quay lại bảng đang thực hiện?',
+                         onConfirm: () => {
+                           onUpdate(task.id, { 
+                             status: 'IN_PROGRESS', 
+                             actualEndDate: null, 
+                             isLocked: false,
+                             currentUpdate: '[HOÀN TÁC] Chuyển về bảng đang thực hiện'
+                           });
+                           setConfirmModal((p: any) => ({ ...p, show: false }));
+                         }
+                       });
+                     }}
+                     className="w-full px-2 py-1.5 text-[9px] bg-gray-100 text-gray-600 border border-gray-200 rounded font-black hover:bg-gray-200 transition-all uppercase tracking-tighter shadow-sm"
+                   >
+                     HOÀN TÁC
+                   </button>
+                )}
+              </>
+            )}
           </div>
         </td>
       )}

@@ -24,9 +24,10 @@ export const Avatar: React.FC<AvatarProps> = ({ src, name, className = '', size 
   return (
     <div className={`${currentSizeClass} flex-none relative bg-gray-50 rounded-full overflow-hidden border border-gray-100 shadow-sm`}>
       <img 
+        translate="no"
         src={displaySrc}
         alt={name || 'Avatar'}
-        className="w-full h-full object-cover transition-opacity duration-300 opacity-0"
+        className="notranslate w-full h-full object-cover transition-opacity duration-300 opacity-0"
         onLoad={(e) => {
           e.currentTarget.style.opacity = '1';
         }}

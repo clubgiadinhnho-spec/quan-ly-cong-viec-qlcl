@@ -1,4 +1,4 @@
-export type UserRoleType = 'Nhân Viên' | 'Trưởng Nhóm' | 'Trưởng Phòng' | 'Admin';
+export type UserRoleType = 'Staff' | 'Leader' | 'Admin';
 
 export interface HealthReminder {
   enabled: boolean;
@@ -6,6 +6,25 @@ export interface HealthReminder {
   message: string;
   autoCloseSeconds: number;
   configName: string;
+}
+
+export interface UserPermissions {
+  canCreateTask: boolean;
+  canApproveTask: boolean;
+  canDeleteTask: boolean;
+  canExportExcel: boolean;
+  canImportExcel: boolean;
+  canManageStaff: boolean;
+}
+
+export interface LogEntry {
+  id: string;
+  timestamp: string;
+  type: 'DELEGATION_CHANGE' | 'DELEGATED_ACTION' | 'SYSTEM';
+  userId: string; // The person who performed the action
+  targetId?: string; // The person who was the target (e.g. delegated to)
+  details: string;
+  metadata?: any;
 }
 
 export interface User {
@@ -27,6 +46,7 @@ export interface User {
   cvUrl?: string;
   cvDetails?: string;
   reminderSettings?: HealthReminder;
+  delegatedPermissions?: UserPermissions;
 }
 
 export interface ProgressUpdate {
@@ -36,7 +56,9 @@ export interface ProgressUpdate {
   authorId: string;
 }
 
-export type TaskStatus = 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'COMPLETED' | 'CANCELLED' | 'ON_HOLD';
+export type TaskStatus = 'Chưa bắt đầu' | 'Đang thực hiện' | 'Hoàn thành' | 'Tạm dừng' | 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'COMPLETED' | 'CANCELLED' | 'ON_HOLD' | 'AWAITING_CONFIRMATION';
+
+export type TaskPriority = 'Thấp' | 'Trung bình' | 'Cao' | 'Khẩn cấp' | 'LOW' | 'MEDIUM' | 'HIGH';
 
 export interface MessageReaction {
   userId: string;
@@ -67,15 +89,19 @@ export interface Task {
   issueDate: string;
   title: string;
   objective: string;
+  description?: string; // Tên cũ hoặc mô tả bổ sung
   assigneeId: string;
+  assignedTo?: string; // Tên người phụ trách (hiển thị)
+  assigneeName?: string; // Tên nhân viên từ Excel hoặc hệ thống
   startDate: string;
   expectedEndDate: string;
+  dueDate?: string; // Alias cho expectedEndDate
   actualEndDate?: string;
   prevProgress: string; // Diễn tiến tuần trước
   currentUpdate: string; // Cập nhật nội dung trong 2 tuần tiếp theo
   history: ProgressUpdate[];
   status: TaskStatus;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  priority: TaskPriority;
   priorityOrder?: number;
   isHighlighted: boolean;
   isLocked: boolean; // Chốt 2 tuần/lần
@@ -86,6 +112,9 @@ export interface Task {
   requestDelete?: boolean;
   reportExplanation?: string;
   reportAttachments?: string[];
+  isNewSoldier?: boolean;
+  authorId?: string;
+  deletedAt?: string;
 }
 
 export interface ReportDraft {

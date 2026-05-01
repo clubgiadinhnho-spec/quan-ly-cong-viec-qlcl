@@ -23,14 +23,19 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == 'lenhattruong.tpp@gmail.com' ||
-        request.auth.token.email == 'club.nhuatanphu@gmail.com' ||
+        ('email' in request.auth.token && (
+          request.auth.token.email == 'lenhattruong.tpp@gmail.com' ||
+          request.auth.token.email == 'club.nhuatanphu@gmail.com' ||
+          request.auth.token.email == 'adminnutifood@gmail.com' ||
+          request.auth.token.email == 'tanphuvietnam.tpp@gmail.com' ||
+          request.auth.token.email == 'club.giadinhnho@gmail.com'
+        )) ||
         (userExists() && getUserData().role == 'Admin')
       );
     }
     
     function isManager() {
-      return isAdmin() || (isSignedIn() && userExists() && (getUserData().role == 'Trưởng Phòng'));
+      return isAdmin() || (isSignedIn() && userExists() && (getUserData().role == 'Leader'));
     }
 
     function isOwner(userId) {
@@ -46,10 +51,9 @@ service cloud.firestore {
 
     // 2. Users Collection
     match /users/{userId} {
-      allow list: if true;
-      allow get: if true;
-      allow create: if (isAdmin() || isOwner(userId)) && isValidUser(incoming());
-      allow update: if ((isAdmin() || (isOwner(userId) && isSelfUpdate())) && isValidUser(incoming()));
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (isAdmin() || getUserData().delegatedPermissions.canManageStaff == true || isOwner(userId)) && isValidUser(incoming());
+      allow update: if isSignedIn() && (isAdmin() || getUserData().delegatedPermissions.canManageStaff == true || (isOwner(userId) && isSelfUpdate())) && isValidUser(incoming());
       allow delete: if isAdmin();
 
       function isValidUser(data) {
@@ -57,8 +61,8 @@ service cloud.firestore {
                data.id == userId &&
                isValidId(data.id) &&
                data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
-               data.role in ['Nhân Viên', 'Trưởng Nhóm', 'Trưởng Phòng', 'Admin'] &&
-               data.status in ['PENDING', 'ACTIVE', 'INACTIVE'] &&
+               data.role in ['Staff', 'Leader', 'Admin'] &&
+               data.status in ['PENDING', 'ACTIVE', 'INACTIVE', 'DELETED'] &&
                data.companyEmail is string && data.companyEmail.size() <= 150 &&
                data.personalEmail is string && data.personalEmail.size() <= 150 &&
                data.avatar is string && data.avatar.size() <= 1000 &&
@@ -78,7 +82,11 @@ service cloud.firestore {
     match /tasks/{taskId} {
       allow read: if isSignedIn();
       
-      allow create: if isSignedIn() && (isAdmin() || isManager()) && isValidTask(incoming());
+      allow create: if isSignedIn() && (
+        isAdmin() || 
+        isManager() || 
+        incoming().status == 'AWAITING_CONFIRMATION'
+      ) && isValidTask(incoming());
       
       allow update: if (
         isSignedIn() && (
@@ -92,16 +100,24 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (isAdmin() || isManager());
 
       function isValidTask(data) {
-        return data.keys().hasAll(['code', 'title', 'assigneeId', 'status', 'priority']) &&
+        let requiredKeys = ['code', 'title', 'objective', 'assigneeId', 'startDate', 'expectedEndDate', 'status', 'priority', 'prevProgress', 'currentUpdate', 'isHighlighted', 'isLocked', 'updatedAt'];
+        return data.keys().hasAll(requiredKeys) &&
                data.code is string && data.code.size() <= 20 &&
                data.title is string && data.title.size() > 0 && data.title.size() <= 2000 &&
+               data.objective is string && data.objective.size() <= 5000 &&
                data.assigneeId is string && data.assigneeId.size() <= 128 &&
-               data.status in ['IN_PROGRESS', 'PENDING_APPROVAL', 'COMPLETED', 'CANCELLED', 'ON_HOLD'] &&
-               data.priority in ['LOW', 'MEDIUM', 'HIGH'];
+               data.startDate is string &&
+               data.expectedEndDate is string &&
+               data.status in ['Chưa bắt đầu', 'Đang thực hiện', 'Hoàn thành', 'Tạm dừng', 'IN_PROGRESS', 'PENDING_APPROVAL', 'COMPLETED', 'CANCELLED', 'ON_HOLD', 'AWAITING_CONFIRMATION'] &&
+               data.priority in ['Thấp', 'Trung bình', 'Cao', 'Khẩn cấp', 'LOW', 'MEDIUM', 'HIGH'] &&
+               data.prevProgress is string &&
+               data.currentUpdate is string &&
+               data.isHighlighted is bool &&
+               data.isLocked is bool;
       }
 
       function isProgressUpdate() {
-        return incoming().diff(existing()).affectedKeys().hasOnly(['currentUpdate', 'status', 'updatedAt', 'prevProgress']);
+        return incoming().diff(existing()).affectedKeys().hasOnly(['currentUpdate', 'status', 'updatedAt', 'prevProgress', 'isNewSoldier']);
       }
     }
 
@@ -111,12 +127,15 @@ service cloud.firestore {
       allow list: if isSignedIn();
       allow get: if isSignedIn();
       
-      allow create: if isSignedIn() && incoming().authorId == request.auth.uid && isValidMessage(incoming());
+      allow create: if isSignedIn() && (
+        incoming().authorId == request.auth.uid || 
+        (isAdmin() && incoming().authorId == 'system')
+      ) && isValidMessage(incoming());
       allow delete: if isAdmin();
 
       function isValidMessage(data) {
         return data.keys().hasAll(['authorId', 'content', 'timestamp']) &&
-               data.authorId == request.auth.uid &&
+               (data.authorId == request.auth.uid || (isAdmin() && data.authorId == 'system')) &&
                data.content is string && data.content.size() > 0 && data.content.size() <= 2000 &&
                data.timestamp is timestamp;
       }
@@ -162,6 +181,13 @@ service cloud.firestore {
                data.isOfficial == true &&
                data.createdAt is timestamp;
       }
+    }
+
+    // 8. System Logs
+    // -------------------------------------------------------------------------
+    match /system_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
     }
 
     // Default Deny

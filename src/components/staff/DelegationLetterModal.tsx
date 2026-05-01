@@ -132,7 +132,7 @@ export const DelegationLetterModal: React.FC<DelegationLetterModalProps> = ({
 
                   <div>
                     <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1">Cho cán bộ:</p>
-                    <p className="text-lg font-black text-blue-950 uppercase tracking-tight">{user.name}</p>
+                    <p translate="no" className="text-lg font-black text-blue-950 uppercase tracking-tight notranslate">{user.name}</p>
                     <p className="text-[9px] font-bold text-blue-800 uppercase tracking-tight leading-none">MÃ NHÂN SỰ: {user.code}</p>
                   </div>
                 </div>

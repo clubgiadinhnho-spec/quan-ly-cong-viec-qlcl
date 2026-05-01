@@ -15,44 +15,34 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { User, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport } from '../types';
+import { User, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport, LogEntry } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
 export const useFirebaseData = (currentUserId?: string) => {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [messages, setMessages] = useState<TaskComment[]>([]);
   const [privateMessages, setPrivateMessages] = useState<PrivateMessage[]>([]);
   const [officialReports, setOfficialReports] = useState<OfficialReport[]>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // If no user ID is provided, it means we're on the login screen or auth is still initializing.
-    // We only listen to public data like 'users' at the beginning, others wait for auth.
-    
-    // Listen to Users (needed for login and bootstrap)
-    console.log("Starting users listener...");
-    const usersUnsubscribe = onSnapshot(
-      collection(db, 'users'),
-      (snapshot) => {
-        const usersData = snapshot.docs.map(doc => ({
-          ...doc.data(),
-          id: doc.id
-        } as unknown as User));
-        console.log(`Loaded ${usersData.length} users from Firestore`);
-        setUsers(usersData);
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.GET, 'users');
-      }
-    );
-
     if (!currentUserId) {
       setLoading(false);
-      return () => {
-        usersUnsubscribe();
-      };
+      return;
     }
+
+    // Listen to Users (Staff)
+    const usersUnsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const usersData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      } as User));
+      setUsers(usersData);
+    }, (error) => {
+      console.warn("Users listener error or permission denied:", error.message);
+    });
 
     // Listen to Tasks
     const tasksUnsubscribe = onSnapshot(
@@ -120,6 +110,24 @@ export const useFirebaseData = (currentUserId?: string) => {
       }
     );
 
+    // Listen to System Logs
+    const logsUnsubscribe = onSnapshot(
+      query(collection(db, 'system_logs'), orderBy('timestamp', 'desc')),
+      (snapshot) => {
+        const logsData = snapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id,
+          timestamp: doc.data().timestamp?.toDate ? doc.data().timestamp.toDate().toISOString() : doc.data().timestamp
+        } as LogEntry));
+        setLogs(logsData);
+      },
+      (error) => {
+        if (error.code !== 'permission-denied') {
+          console.warn("Logs error:", error.message);
+        }
+      }
+    );
+
     // Listen to Private Messages
     // We use the Firebase UID if available, otherwise fallback to the provided internal ID
     const firebaseUid = auth.currentUser?.uid || currentUserId;
@@ -162,10 +170,11 @@ export const useFirebaseData = (currentUserId?: string) => {
     });
 
     return () => {
-      usersUnsubscribe();
       tasksUnsubscribe();
+      usersUnsubscribe();
       messagesUnsubscribe();
       reportsUnsubscribe();
+      logsUnsubscribe();
       unsubPrivate();
     };
   }, [currentUserId, auth.currentUser?.uid]);
@@ -285,18 +294,6 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
-  const updateHeartbeat = useCallback(async (userId: string) => {
-    try {
-      const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, {
-        lastActive: Date.now()
-      });
-    } catch (error) {
-      // Silently fail for heartbeat to avoid UI noise
-      console.error("Heartbeat error:", error);
-    }
-  }, []);
-
   const updateMessageReactions = useCallback(async (msgId: string, reactions: any[]) => {
     try {
       await updateDoc(doc(db, 'messages', msgId), { reactions });
@@ -313,12 +310,24 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
+  const addLog = useCallback(async (log: Omit<LogEntry, 'id' | 'timestamp'>) => {
+    try {
+      await addDoc(collection(db, 'system_logs'), {
+        ...log,
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Failed to add log:", error);
+    }
+  }, []);
+
   return {
     tasks,
     users,
     messages,
     privateMessages,
     officialReports,
+    logs,
     loading,
     addTask,
     updateTask,
@@ -327,26 +336,11 @@ export const useFirebaseData = (currentUserId?: string) => {
     sendPrivateMessage,
     updateStaff,
     deleteStaff,
-    updateHeartbeat,
     updateMessageReactions,
     updatePrivateMessageReactions,
+    addLog,
     saveReportDraft,
     saveOfficialReport,
     clearAllTasks
   };
-};
-
-export const useUserHeartbeat = (userId: string | undefined, updateHeartbeat: (id: string) => Promise<void>) => {
-  useEffect(() => {
-    if (!userId) return;
-
-    // Initial heartbeat
-    updateHeartbeat(userId);
-
-    const interval = setInterval(() => {
-      updateHeartbeat(userId);
-    }, 30000); // 30 seconds
-
-    return () => clearInterval(interval);
-  }, [userId, updateHeartbeat]);
 };

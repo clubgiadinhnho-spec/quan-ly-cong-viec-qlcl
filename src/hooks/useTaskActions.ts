@@ -9,6 +9,7 @@ interface UseTaskActionsProps {
   firebaseAddTask: (task: Omit<Task, 'id'>) => Promise<void>;
   firebaseUpdateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   firebaseDeleteTask: (id: string) => Promise<void>;
+  firebaseAddLog?: (log: any) => Promise<void>;
 }
 
 export const useTaskActions = ({
@@ -17,7 +18,8 @@ export const useTaskActions = ({
   allUsers,
   firebaseAddTask,
   firebaseUpdateTask,
-  firebaseDeleteTask
+  firebaseDeleteTask,
+  firebaseAddLog
 }: UseTaskActionsProps) => {
 
   const addTask = useCallback(async (taskData: any) => {
@@ -38,6 +40,17 @@ export const useTaskActions = ({
       });
     }
 
+    const isManagement = currentUser?.role === 'Admin' || currentUser?.role === 'Leader' || !!currentUser?.delegatedPermissions?.canCreateTask;
+
+    if (currentUser?.role === 'Staff' && !!currentUser?.delegatedPermissions?.canCreateTask && firebaseAddLog) {
+      await firebaseAddLog({
+        type: 'DELEGATED_ACTION',
+        userId: currentUser.id,
+        details: `Nhân viên ${currentUser.name} sử dụng quyền ủy quyền để khởi tạo công việc mới: ${taskData.title}`,
+        metadata: { taskId: taskData.id }
+      });
+    }
+
     const newTask: Omit<Task, 'id'> = {
       code: `C${String(lastNum + 1).padStart(4, '0')}`,
       issueDate: new Date().toISOString().split('T')[0],
@@ -50,17 +63,19 @@ export const useTaskActions = ({
       currentUpdate: '',
       history: [{ 
         version: 1, 
-        content: 'Khởi tạo công việc.', 
+        content: isManagement ? 'Khởi tạo công việc.' : 'Khởi tạo công việc (Chờ xác nhận).', 
         timestamp: new Date().toISOString(), 
         authorId: currentUser?.id || '' 
       }],
-      status: 'IN_PROGRESS',
+      status: isManagement ? 'IN_PROGRESS' : 'AWAITING_CONFIRMATION',
       priority: taskData.priority || 'MEDIUM',
       isHighlighted: false,
       isLocked: false,
       attachmentUrl,
       attachmentName,
       updatedAt: new Date().toISOString(),
+      isNewSoldier: false,
+      authorId: currentUser?.id || '',
     };
     await firebaseAddTask(newTask);
   }, [tasks, currentUser, firebaseAddTask]);

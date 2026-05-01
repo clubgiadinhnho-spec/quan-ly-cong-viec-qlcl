@@ -5,6 +5,8 @@ import { formatDate } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
 import { AnimatePresence } from 'motion/react';
 
+import { getUserById, getSafeNameProps, getTaskAssigneeName } from '../../utils/userUtils';
+
 import { Avatar } from '../common/Avatar';
 
 interface CompletedTaskRowProps {
@@ -23,16 +25,17 @@ interface CompletedTaskRowProps {
 export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ 
   task, user, users, idx, onViewHistory, onOpenChat, isChatOpen, onSendMessage, onReact, onUndo 
 }) => {
-  const assignee = users.find(s => s.id === task.assigneeId);
+  const assigneeName = getTaskAssigneeName(task, users);
+  const assignee = getUserById(assigneeName, users) || getUserById(task.assigneeId, users);
 
   return (
     <tr className="hover:bg-gray-50/50 transition-all">
       <td className="p-4 text-center text-xs font-bold text-gray-300 border-b border-r border-gray-300 align-top">{task.code}</td>
       <td className="p-4 border-b border-r border-gray-300 align-top">
         <div className="flex items-center gap-3">
-          <Avatar src={assignee?.avatar} name={assignee?.name} />
+          <Avatar src={assignee?.avatar} name={assigneeName} />
           <div>
-            <p className="text-sm font-bold text-gray-900 leading-none whitespace-nowrap">{assignee?.name}</p>
+            <p {...getSafeNameProps()} className="text-sm font-bold text-gray-900 leading-none whitespace-nowrap notranslate">{assigneeName}</p>
             <div className="flex flex-col gap-0.5 mt-1">
               <p className="text-[10px] text-gray-500 font-medium italic opacity-70 leading-none">Giao việc: {formatDate(task.issueDate)}</p>
               <p className="text-[10px] text-blue-600 font-black italic leading-none">Hạn: {formatDate(task.expectedEndDate)}</p>
@@ -52,9 +55,9 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
             <Paperclip size={14} strokeWidth={3} />
           </a>
         )}
-        <div className="flex flex-col h-full">
-          <p className="text-sm font-black text-gray-900 pr-6 uppercase break-words whitespace-normal leading-tight">{task.title}</p>
-          <p className="text-[11px] font-black text-gray-900 leading-relaxed mt-1 break-words whitespace-normal flex-1">{task.objective}</p>
+        <div className="flex flex-col h-full font-sans">
+          <p className="text-sm font-black text-gray-900 pr-6 uppercase break-words whitespace-normal leading-tight font-sans">{task.title}</p>
+          <p className="text-[11px] font-black text-gray-900 leading-relaxed mt-1 break-words whitespace-normal flex-1 font-sans">{task.objective}</p>
         </div>
       </td>
       <td className="p-4 text-center border-b border-r border-gray-300 align-top h-px">

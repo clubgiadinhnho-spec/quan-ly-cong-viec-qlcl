@@ -1,91 +1,120 @@
 import React from 'react';
-import { User } from '../../types';
-import { ClipboardList, User as UserIcon, CheckCircle2, BarChart3, LogOut, MessageSquare, Users, Database } from 'lucide-react';
+import { User, PrivateMessage } from '../../types';
+import { ClipboardList, User as UserIcon, CheckCircle2, BarChart3, LogOut, MessageSquare, Users, Database, Sparkles, Trash2 } from 'lucide-react';
 
 import { Avatar } from '../common/Avatar';
+import { GroupChatIcon, GroupDiscussionIcon } from '../common/Icons';
 
 interface SidebarProps {
   user: User;
-  users: User[];
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onLogout: () => void;
-  onUserClick?: (user: User) => void;
+  pendingTasksCount?: number;
+  activeTasksCount?: number;
+  completedTasksCount?: number;
+  totalStaffCount?: number;
+  groupUnreadCount?: number;
+  trashTasksCount?: number;
 }
 
-export const Sidebar = ({ user, users, activeTab, setActiveTab, onLogout, onUserClick }: SidebarProps) => {
-  const activeUsers = users
-    .filter(u => u.id !== user.id && u.lastActive && (Date.now() - u.lastActive < 120000))
-    .sort((a, b) => (b.lastActive || 0) - (a.lastActive || 0));
+export const Sidebar = ({ 
+  user, 
+  activeTab, 
+  setActiveTab, 
+  onLogout, 
+  pendingTasksCount = 0, 
+  activeTasksCount = 0,
+  completedTasksCount = 0,
+  totalStaffCount = 0,
+  groupUnreadCount = 0,
+  trashTasksCount = 0,
+}: SidebarProps) => {
+  const isManager = user.role === 'Admin' || user.role === 'Leader' || !!user.delegatedPermissions?.canApproveTask;
+
+  const hasDelegatedPermissions = (u: User) => u.delegatedPermissions && Object.values(u.delegatedPermissions).some(v => v);
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0">
+    <aside className="w-72 bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0">
       <div className="p-6 flex flex-col h-full">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-blue-200">Q</div>
-          <h1 className="text-lg font-bold tracking-tight text-gray-900 uppercase">QLCL HUB</h1>
+        <div className="flex flex-col gap-1 mb-6 px-0.5">
+          <div className="flex items-center gap-3 p-3 bg-gradient-to-br from-blue-50 to-indigo-50/50 rounded-2xl border border-blue-100/50 shadow-sm relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-12 h-12 bg-blue-400/5 rounded-full blur-xl -mr-6 -mt-6" />
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center text-white text-sm font-black shadow-lg shadow-blue-200 ring-2 ring-white flex-none">Q</div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[7px] font-black text-blue-500 uppercase tracking-[0.3em] leading-none mb-1">Systems Unit</span>
+              <h1 className="text-[14px] font-black tracking-tighter text-gray-900 uppercase leading-none truncate bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">PHÒNG QLCL</h1>
+            </div>
+          </div>
         </div>
         
-        <nav className="space-y-1.5 flex-none mb-8">
+        <nav className="space-y-1 flex-none mb-4">
           {[
-            { id: 'tasks', label: 'Bảng công việc', icon: ClipboardList },
-            { id: 'completed_tasks', label: 'CV đã hoàn thành', icon: CheckCircle2 },
-            ...(user.role === 'Admin' || user.role === 'Trưởng Phòng' 
-              ? [{ id: 'staff_list', label: 'Nhân sự', icon: Users }] 
+            { id: 'tasks', label: 'BẢNG CÔNG VIỆC', icon: ClipboardList, count: activeTasksCount, color: 'bg-blue-500 text-white shadow-blue-100' },
+            { id: 'pending_confirmation', label: 'ĐỀ XUẤT MỚI', icon: Sparkles, count: pendingTasksCount, color: 'bg-emerald-500 text-white shadow-emerald-200', isAlert: true, isSubItem: true },
+            { id: 'completed_tasks', label: 'CV HOÀN THÀNH', icon: CheckCircle2, count: completedTasksCount, color: 'bg-indigo-500 text-white shadow-indigo-100', isSubItem: true },
+            ...(user.role === 'Admin' || user.delegatedPermissions?.canManageStaff
+              ? [{ id: 'staff_list', label: 'THÔNG TIN NHÂN SỰ', icon: Users, count: totalStaffCount, color: 'bg-amber-500 text-white shadow-amber-100' }] 
               : []),
-            { id: 'group_chat', label: 'Chat nhóm', icon: MessageSquare },
             { id: 'profile', label: 'Trang cá nhân', icon: UserIcon },
             { id: 'reports', label: 'Báo cáo tháng', icon: BarChart3 },
-          ].map((item) => (
+            ...(user.role === 'Admin'
+              ? [
+                  { id: 'trash', label: 'TRUNG TÂM XÓA', icon: Trash2, count: trashTasksCount, color: 'bg-red-500 text-white shadow-red-200' },
+                  { id: 'system_history', label: 'NHẬT KÝ HỆ THỐNG', icon: Database, color: 'bg-indigo-600 text-white shadow-indigo-100' }
+                ]
+              : []),
+          ].map((item: any) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-all ${
+              className={`w-full flex items-center gap-2.5 py-2 text-lg font-medium rounded-xl transition-all relative px-3.5 ${
                 activeTab === item.id 
                   ? 'bg-blue-50 text-blue-700 shadow-sm' 
                   : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
               }`}
             >
-              <item.icon size={18} />
-              {item.label}
+              <item.icon size={20} />
+              <span className="flex-1 text-left uppercase text-sm font-black whitespace-nowrap">{item.label}</span>
+              {item.count !== undefined && item.count > 0 && (
+                <span className={`text-[11px] font-black min-w-[22px] h-5.5 px-1.5 rounded-full flex items-center justify-center border-2 border-white shadow-md ${
+                  item.color || 'bg-gray-500 text-white'
+                } ${(item.isAlert && isManager) ? 'animate-bounce' : ''}`}>
+                  {item.count}
+                </span>
+              )}
             </button>
           ))}
         </nav>
 
-        {/* Active Users Section */}
-        <div className="flex-1 overflow-y-auto no-scrollbar pb-6">
-          <div className="flex items-center justify-between mb-4 px-1">
-             <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <Users size={12} className="text-blue-500" /> Đang hoạt động
-             </h3>
-             <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-             </span>
-          </div>
-          
-          <div className="space-y-3">
-            {activeUsers.length > 0 ? (
-              activeUsers.map(u => (
-                <button 
-                  key={u.id} 
-                  onClick={() => onUserClick?.(u)}
-                  className="w-full flex items-center gap-2.5 px-2 group hover:bg-blue-50/50 py-1.5 rounded-lg transition-all"
-                >
-                  <div className="relative flex-none">
-                    <Avatar src={u.avatar} name={u.name} size="sm" />
-                    <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 border-2 border-white rounded-full"></div>
-                  </div>
-                  <div className="flex-1 min-w-0 text-left">
-                    <p className="text-[11px] font-bold text-gray-700 truncate group-hover:text-blue-600 transition-colors">{u.name}</p>
-                    <p className="text-[8px] text-gray-400 font-black uppercase tracking-tighter truncate">{u.role}</p>
-                  </div>
-                </button>
-              ))
-            ) : (
-              <p className="text-[10px] text-gray-400 italic px-2">Không có ai trực tuyến</p>
-            )}
-          </div>
+        {/* Group Chat Moved Below Nav */}
+        <div className="flex-1 overflow-y-auto no-scrollbar pb-6 pt-4">
+          <button 
+            onClick={() => setActiveTab('group_chat')}
+            className={`w-full flex items-center gap-2.5 px-3.5 group hover:bg-rose-50/50 py-3 rounded-xl transition-all ${activeTab === 'group_chat' ? 'bg-rose-50/50 ring-1 ring-rose-100' : ''}`}
+          >
+            <div className="relative flex-none">
+              <div className="p-2 bg-gradient-to-br from-rose-500 to-rose-600 rounded-xl shadow-sm border border-rose-400/20">
+                 <GroupChatIcon className="w-5 h-5 text-white" />
+              </div>
+            </div>
+            <div className="flex-1 min-w-0 text-left flex items-center justify-between gap-1">
+              <div className="min-w-0">
+                <p className={`text-sm font-black uppercase truncate transition-colors ${activeTab === 'group_chat' ? 'text-rose-600' : 'text-gray-700 group-hover:text-rose-600'}`}>Room Thảo Luận</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest truncate">Cộng đồng QLCL</p>
+              </div>
+              <div className="flex items-center gap-2 flex-none">
+                <div className="relative group-hover:scale-110 transition-transform">
+                  <GroupDiscussionIcon className={`w-10 h-10 ${activeTab === 'group_chat' ? 'text-rose-600' : 'text-gray-400 opacity-60 group-hover:opacity-100'} transition-all`} />
+                  {groupUnreadCount > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[10px] font-black min-w-[20px] h-[20px] px-1 rounded-full flex items-center justify-center border-2 border-white shadow-md animate-bounce z-10">
+                      {groupUnreadCount}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </button>
         </div>
       </div>
       
@@ -93,8 +122,15 @@ export const Sidebar = ({ user, users, activeTab, setActiveTab, onLogout, onUser
         <div className="flex items-center gap-3 px-2">
           <Avatar src={user.avatar} name={user.name} size="lg" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-gray-900 truncate">{user.name}</p>
-            <p className="text-[10px] text-gray-500 font-semibold uppercase">{user.role}</p>
+            <p translate="no" className="text-sm font-bold text-gray-900 truncate notranslate">{user.name}</p>
+            <p className={`text-[10px] font-semibold uppercase ${hasDelegatedPermissions(user) ? 'text-amber-600' : 'text-gray-500'}`}>
+              {user.role} {user.delegatedPermissions && (() => {
+                const count = Object.values(user.delegatedPermissions).filter(Boolean).length;
+                if (count === 0) return null;
+                if (count === 6) return '(QUYỀN TP)';
+                return `(ỦY QUYỀN ${count}/6)`;
+              })()}
+            </p>
           </div>
           <button 
             onClick={onLogout}

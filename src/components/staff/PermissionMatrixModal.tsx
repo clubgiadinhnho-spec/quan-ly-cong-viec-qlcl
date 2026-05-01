@@ -1,6 +1,6 @@
 import React from 'react';
 import { User, UserPermissions } from '../../types';
-import { X, Shield, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Shield, CheckCircle2, AlertCircle, Briefcase, Database, Settings, Zap, History, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface PermissionMatrixModalProps {
@@ -8,6 +8,39 @@ interface PermissionMatrixModalProps {
   onClose: () => void;
   onSave: (permissions: UserPermissions) => void;
 }
+
+const PERMISSION_GROUPS = [
+  {
+    id: 'tasks',
+    label: 'Quản lý Công việc',
+    icon: <Briefcase size={20} />,
+    color: 'blue',
+    items: [
+      { key: 'canCreateTask', label: 'Soạn thảo / Nhập công việc mới', description: 'Cho phép tạo công việc và gán cho nhân viên khác.' },
+      { key: 'canApproveTask', label: 'Phê duyệt hoàn thành / Chốt báo cáo', description: 'Quyền xác nhận công việc (PENDING_APPROVAL -> COMPLETED).' },
+      { key: 'canDeleteTask', label: 'Xóa hoặc Hủy công việc', description: 'Cho phép xóa vĩnh viễn hoặc chuyển trạng thái Hủy cho các dự án.' },
+    ]
+  },
+  {
+    id: 'data',
+    label: 'Dữ liệu & Báo cáo',
+    icon: <Database size={20} />,
+    color: 'green',
+    items: [
+      { key: 'canExportExcel', label: 'Xuất báo cáo Excel', description: 'Cho phép tải xuống dữ liệu tổng hợp của toàn bộ phòng.' },
+      { key: 'canImportExcel', label: 'Nhập dữ liệu từ Excel', description: 'Cho phép cập nhật hàng loạt danh sách từ tệp mẫu.' },
+    ]
+  },
+  {
+    id: 'system',
+    label: 'Quản trị Hệ thống',
+    icon: <Settings size={20} />,
+    color: 'purple',
+    items: [
+      { key: 'canManageStaff', label: 'Quản lý Nhân sự', description: 'Phê duyệt tài khoản mới và chỉnh sửa thông tin đồng nghiệp.' },
+    ]
+  }
+];
 
 export const PermissionMatrixModal: React.FC<PermissionMatrixModalProps> = ({ user, onClose, onSave }) => {
   const [permissions, setPermissions] = React.useState<UserPermissions>(
@@ -21,17 +54,40 @@ export const PermissionMatrixModal: React.FC<PermissionMatrixModalProps> = ({ us
     }
   );
 
-  const permissionItems = [
-    { key: 'canCreateTask', label: 'Soạn thảo / Nhập công việc mới', description: 'Cho phép tạo công việc và gán cho nhân viên khác.' },
-    { key: 'canApproveTask', label: 'Phê duyệt hoàn thành / Chốt báo cáo', description: 'Quyền xác nhận công việc đã hoàn thành (PENDING_APPROVAL -> COMPLETED).' },
-    { key: 'canDeleteTask', label: 'Xóa hoặc Hủy công việc', description: 'Cho phép xóa vĩnh viễn hoặc chuyển trạng thái Hủy cho các dự án.' },
-    { key: 'canExportExcel', label: 'Xuất báo cáo Excel', description: 'Cho phép tải xuống dữ liệu tổng hợp của toàn bộ phòng.' },
-    { key: 'canImportExcel', label: 'Nhập dữ liệu từ Excel', description: 'Cho phép cập nhật hàng loạt danh sách công việc từ tệp mẫu.' },
-    { key: 'canManageStaff', label: 'Quản lý Nhân sự', description: 'Phê duyệt tài khoản mới và chỉnh sửa thông tin đồng nghiệp.' },
-  ];
-
   const handleToggle = (key: keyof UserPermissions) => {
     setPermissions(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const applyPreset = (type: 'full' | 'none' | 'data-only') => {
+    switch (type) {
+      case 'full':
+        setPermissions({
+          canCreateTask: true,
+          canApproveTask: true,
+          canDeleteTask: true,
+          canExportExcel: true,
+          canImportExcel: true,
+          canManageStaff: true,
+        });
+        break;
+      case 'none':
+        setPermissions({
+          canCreateTask: false,
+          canApproveTask: false,
+          canDeleteTask: false,
+          canExportExcel: false,
+          canImportExcel: false,
+          canManageStaff: false,
+        });
+        break;
+      case 'data-only':
+        setPermissions(p => ({
+          ...p,
+          canExportExcel: true,
+          canImportExcel: true,
+        }));
+        break;
+    }
   };
 
   const hasAnyPermission = Object.values(permissions).some(v => v);
@@ -41,84 +97,138 @@ export const PermissionMatrixModal: React.FC<PermissionMatrixModalProps> = ({ us
       <motion.div 
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white w-full max-w-2xl rounded-[32px] shadow-2xl overflow-hidden border border-gray-100"
+        className="bg-white w-full max-w-3xl rounded-[32px] shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh]"
       >
-        <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50/30">
+        {/* Header */}
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-200">
-              <Shield size={28} />
+            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
+              <Shield size={24} />
             </div>
             <div>
-              <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight">MA TRẬN PHÂN QUYỀN</h2>
-              <p className="text-sm text-gray-500 font-medium mt-0.5">Ủy thác quyền Quản lý cho: <span className="text-blue-600 font-bold">{user.name}</span></p>
+              <h2 className="text-xl font-black text-gray-900 tracking-tight">MA TRẬN BẢO MẬT & ỦY QUYỀN</h2>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs text-gray-500">Thiết lập quyền cho:</span>
+                <span translate="no" className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg notranslate">{user.name}</span>
+                <span className="text-xs font-mono text-gray-400">#{user.code}</span>
+              </div>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-colors text-gray-400 hover:text-gray-600 shadow-sm border border-transparent hover:border-gray-100">
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400">
             <X size={24} />
           </button>
         </div>
 
-        <div className="p-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
-          <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-6 flex items-start gap-3">
-             <AlertCircle size={20} className="text-amber-500 shrink-0 mt-0.5" />
-             <div className="text-xs text-amber-800 leading-relaxed font-medium">
-                <strong>Lưu ý:</strong> Việc phân quyền này không thay đổi chức vụ chính của nhân viên. Nhân viên sẽ được hiển thị kèm nhãn <span className="bg-amber-200 px-1 rounded font-bold text-[9px] uppercase tracking-tighter">(QUYỀN TP)</span> khi có ít nhất một quyền Quản lý được kích hoạt.
-             </div>
+        <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 custom-scrollbar">
+          {/* Quick Presets */}
+          <div className="flex flex-wrap gap-2">
+            <button 
+              onClick={() => applyPreset('full')}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-blue-700 transition-all shadow-md shadow-blue-100"
+            >
+              <Zap size={14} /> Toàn quyền (TP)
+            </button>
+            <button 
+              onClick={() => applyPreset('data-only')}
+              className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 border border-green-100 rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-green-100 transition-all"
+            >
+              <Database size={14} /> Chỉ Dữ liệu & Báo cáo
+            </button>
+            <button 
+              onClick={() => applyPreset('none')}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-gray-200 transition-all"
+            >
+              <RotateCcw size={14} /> Reset mặc định
+            </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-3">
-            {permissionItems.map((item) => (
-              <button
-                key={item.key}
-                onClick={() => handleToggle(item.key as keyof UserPermissions)}
-                className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left group ${
-                  permissions[item.key as keyof UserPermissions]
-                    ? 'border-blue-500 bg-blue-50/50 shadow-md shadow-blue-50'
-                    : 'border-gray-50 bg-gray-50/30 hover:border-gray-100 hover:bg-gray-50'
-                }`}
-              >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                  permissions[item.key as keyof UserPermissions] 
-                    ? 'bg-blue-600 text-white rotate-6' 
-                    : 'bg-gray-200 text-gray-400 group-hover:scale-110'
-                }`}>
-                  <CheckCircle2 size={24} />
+
+
+          <div className="grid grid-cols-1 gap-8">
+            {PERMISSION_GROUPS.map((group) => (
+              <div key={group.id} className="space-y-4">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-2">
+                  <div className={`p-2 rounded-xl bg-${group.color}-50 text-${group.color}-600`}>
+                    {group.icon}
+                  </div>
+                  <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest leading-none">
+                    {group.label}
+                  </h3>
                 </div>
-                <div className="flex-1">
-                  <p className={`text-sm font-black uppercase tracking-tight ${
-                    permissions[item.key as keyof UserPermissions] ? 'text-blue-700' : 'text-gray-700'
-                  }`}>{item.label}</p>
-                  <p className="text-[10px] text-gray-500 font-medium leading-relaxed mt-0.5">{item.description}</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {group.items.map((item) => {
+                    const isActive = permissions[item.key as keyof UserPermissions];
+                    return (
+                      <button
+                        key={item.key}
+                        onClick={() => handleToggle(item.key as keyof UserPermissions)}
+                        className={`flex items-start gap-4 p-4 rounded-[20px] border-2 transition-all text-left ${
+                          isActive
+                            ? `border-${group.color}-500 bg-${group.color}-50 shadow-lg shadow-${group.color}-500/10`
+                            : 'border-gray-50 bg-gray-50/30 hover:border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-1 transition-all ${
+                          isActive 
+                            ? `bg-${group.color}-600 text-white shadow-md shadow-${group.color}-200` 
+                            : 'bg-white border border-gray-200 text-gray-300'
+                        }`}>
+                          <CheckCircle2 size={18} />
+                        </div>
+                        <div className="flex-1 min-w-0 pr-2">
+                          <p className={`text-[11px] font-black uppercase tracking-tight leading-tight mb-1 ${
+                            isActive ? `text-${group.color}-700` : 'text-gray-700'
+                          }`}>{item.label}</p>
+                          <p className="text-[10px] text-gray-400 font-medium leading-relaxed">{item.description}</p>
+                        </div>
+                        <div className="pt-1">
+                           <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
+                             isActive ? `bg-${group.color}-500 border-${group.color}-500` : 'bg-white border-gray-300'
+                           }`}>
+                             {isActive && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                           </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className={`w-6 h-6 border-2 rounded-full flex items-center justify-center transition-all ${
-                  permissions[item.key as keyof UserPermissions] ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
-                }`}>
-                  {permissions[item.key as keyof UserPermissions] && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
-                </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>
 
-        <div className="p-8 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
-          <div className="flex flex-col">
-             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Trạng thái hiện tại</span>
-             <span className={`text-[11px] font-black uppercase ${hasAnyPermission ? 'text-blue-600' : 'text-gray-400'}`}>
-                {hasAnyPermission ? 'Đã kích hoạt ủy quyền (QUYỀN TP)' : 'Chưa có phân quyền bổ sung'}
-             </span>
+        {/* Footer */}
+        <div className="p-6 border-t border-gray-100 bg-gray-50/30 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+             <div className={`px-4 py-2 rounded-xl border-2 flex items-center gap-3 transition-colors ${
+               hasAnyPermission ? 'bg-amber-50 border-amber-200' : 'bg-gray-100 border-gray-200'
+             }`}>
+                <div className={`w-2 h-2 rounded-full ${hasAnyPermission ? 'bg-amber-500 animate-pulse' : 'bg-gray-400'}`} />
+                <span className={`text-[10px] font-black uppercase tracking-wider ${hasAnyPermission ? 'text-amber-700' : 'text-gray-500'}`}>
+                   {hasAnyPermission ? 'Đang kích hoạt Gói ủy quyền' : 'Chưa thiết lập ủy quyền'}
+                </span>
+             </div>
+             {hasAnyPermission && (
+               <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
+                 <History size={14} />
+                 <span>ID: {user.abbreviation}</span>
+               </div>
+             )}
           </div>
-          <div className="flex gap-3">
+          
+          <div className="flex gap-3 w-full md:w-auto">
             <button 
               onClick={onClose}
-              className="px-6 py-3 bg-white text-gray-500 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-gray-100 border border-gray-200 transition-all"
+              className="flex-1 md:flex-none px-8 py-3 bg-white text-gray-500 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-gray-100 border border-gray-200 transition-all font-sans"
             >
               Hủy bỏ
             </button>
             <button 
               onClick={() => onSave(permissions)}
-              className="px-10 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:brightness-110 transition-all shadow-xl shadow-blue-200"
+              className="flex-1 md:flex-none px-10 py-3 bg-indigo-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 font-sans"
             >
-              Lưu cấu hình
+              Cập nhật ma trận
             </button>
           </div>
         </div>
@@ -126,3 +236,4 @@ export const PermissionMatrixModal: React.FC<PermissionMatrixModalProps> = ({ us
     </div>
   );
 };
+

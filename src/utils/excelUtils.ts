@@ -16,7 +16,7 @@ export const exportTasksToExcel = (tasks: Task[], users: User[]) => {
     const assignee = users.find(u => u.id === task.assigneeId);
     return {
       'Mã CV': task.code,
-      'Nhân viên': assignee ? assignee.name : 'N/A',
+      'Nhân viên': task.assigneeName || task.assignedTo || (assignee ? assignee.name : 'Quản Trị Viên'),
       'Nội dung công việc': task.title,
       'Mục tiêu đạt được': task.objective,
       'Hạn hoàn thành': formatDate(task.expectedEndDate),
@@ -86,6 +86,7 @@ export const importTasksFromExcel = (file: File): Promise<Partial<Task>[]> => {
             objective: row['Mục tiêu đạt được'] || '',
             priority: priority,
             expectedEndDate: row['Hạn hoàn thành'] || '',
+            assigneeName: row['Nhân viên'] || row['Nhân viên (Tên hoặc Email)'] || '',
             assigneeId: row['Nhân viên (Tên hoặc Email)'] || '',
             prevProgress: row['Diễn tiến trước đó'] || '',
             currentUpdate: row['Cập nhật tiến độ'] || ''

@@ -6,6 +6,8 @@ import { formatDateTime } from '../../lib/dateUtils';
 import { ReactionPicker, ReactionBadge } from '../common/ReactionPicker';
 import { Avatar } from '../common/Avatar';
 
+import { getUserById, getSafeNameProps } from '../../utils/userUtils';
+
 interface TaskChatProps {
   task: Task;
   currentUser: User;
@@ -115,13 +117,14 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
         ) : (
           task.comments.map((comment) => {
             const isMe = comment.authorId === currentUser.id;
-            const author = users.find(s => s.id === comment.authorId);
+            const author = getUserById(comment.authorId, users);
+            const authorName = author?.name || 'Thành viên';
             
             return (
               <div key={comment.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                 <div className={`flex items-end gap-1.5 max-w-[90%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                   {!isMe && (
-                    <Avatar src={author?.avatar} name={author?.name} size="xs" />
+                    <Avatar src={author?.avatar} name={authorName} size="xs" />
                   )}
                   <div className={`p-2.5 rounded-2xl text-[11px] leading-relaxed shadow-sm relative group/msg ${
                     isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-none'
@@ -158,7 +161,7 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
 
                 <div className="mt-0.5 flex items-center gap-1.5 px-0.5">
                    <span className="text-[8px] text-gray-300 font-bold">{formatDateTime(comment.timestamp)}</span>
-                   {!isMe && <span className="text-[8px] text-blue-400 font-black uppercase tracking-tighter">{author?.name}</span>}
+                   {!isMe && <span {...getSafeNameProps()} className="text-[8px] text-blue-400 font-black uppercase tracking-tighter notranslate">{authorName}</span>}
                 </div>
               </div>
             );

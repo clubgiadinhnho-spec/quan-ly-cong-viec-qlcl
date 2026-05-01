@@ -29,7 +29,7 @@ export const TaskModal = ({ onClose, onSave, users, task }: TaskModalProps) => {
       >
         <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
           {isEdit ? <Edit2 className="text-blue-600" /> : <Plus className="text-blue-600" />}
-          {isEdit ? 'CẬP NHẬT CÔNG VIỆC' : 'KHỞI TẠO CÔNG VIỆC MỚI'}
+          {isEdit ? 'CẬP NHẬT CÔNG VIỆC' : 'NHẬP CÔNG VIỆC MỚI'}
         </h2>
         
         <div className="space-y-4">
@@ -60,7 +60,7 @@ export const TaskModal = ({ onClose, onSave, users, task }: TaskModalProps) => {
                 onChange={(e) => setAssigneeId(e.target.value)}
               >
                 <option value="">Chọn nhân sự</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                {users.map((u) => <option key={u.id} value={u.id} className="notranslate">{u.name}</option>)}
               </select>
             </div>
             <div>
@@ -105,7 +105,17 @@ export const TaskModal = ({ onClose, onSave, users, task }: TaskModalProps) => {
           <button onClick={onClose} className="flex-1 px-4 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-all">HỦY</button>
           <button 
             disabled={!title || !assigneeId}
-            onClick={() => onSave({ title, objective, assigneeId, expectedEndDate: expectedDate, attachment })}
+            onClick={() => {
+              const assignee = users.find(u => u.id === assigneeId);
+              onSave({ 
+                title, 
+                objective, 
+                assigneeId, 
+                assignedTo: assignee?.name || '',
+                expectedEndDate: expectedDate, 
+                attachment 
+              });
+            }}
             className="flex-1 px-4 py-3 bg-[#1A56DB] text-white font-bold rounded-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none"
           >
             {isEdit ? 'CẬP NHẬT' : 'KHỞI TẠO'}

@@ -9,6 +9,7 @@ interface TaskListProps {
   users: User[];
   onUpdate: (id: string, updates: Partial<Task>) => void;
   onDelete: (id: string) => void;
+  onRestore?: (id: string) => void;
   onViewHistory: (id: string) => void;
   onOpenChat: (id: string) => void;
   showChatModal: string | null;
@@ -34,11 +35,26 @@ export const TaskList: React.FC<TaskListProps> = ({
   onEdit,
   setConfirmModal,
   type,
-  isReadOnly = false
+  isReadOnly = false,
+  onRestore
 }) => {
   const sortedTasks = [...tasks].sort((a, b) => {
-    // Luôn sắp xếp theo mã công việc giảm dần (mới nhất lên trên)
-    // Người dùng yêu cầu không tự động đẩy ưu tiên lên đầu
+    // 1. Phê duyệt (Dành cho cấp quản lý xác nhận lính mới) - nếu có status AWAITING_CONFIRMATION
+    if (a.status === 'AWAITING_CONFIRMATION' && b.status !== 'AWAITING_CONFIRMATION') return -1;
+    if (b.status === 'AWAITING_CONFIRMATION' && a.status !== 'AWAITING_CONFIRMATION') return 1;
+
+    // 2. Lính mới xác nhận (Ưu tiên nhảy lên trên cùng của danh sách xử lý)
+    if (type === 'active') {
+      if (a.isNewSoldier && !b.isNewSoldier) return -1;
+      if (b.isNewSoldier && !a.isNewSoldier) return 1;
+    }
+
+    // 3. Ưu tiên do người dùng gán (Priority Order)
+    if (a.priorityOrder && !b.priorityOrder) return -1;
+    if (b.priorityOrder && !a.priorityOrder) return 1;
+    if (a.priorityOrder && b.priorityOrder) return a.priorityOrder - b.priorityOrder;
+
+    // 4. Mã công việc (Mới nhất lên trên)
     return b.code.localeCompare(a.code);
   });
 
@@ -48,7 +64,7 @@ export const TaskList: React.FC<TaskListProps> = ({
 
     if (task.priorityOrder) {
       // Nếu đã có thứ tự, nhấn lại để xóa
-      onUpdate(taskId, { priorityOrder: undefined });
+      onUpdate(taskId, { priorityOrder: null as any });
     } else {
       // Nếu chưa có, lấy số lớn nhất hiện tại + 1
       const maxOrder = tasks.reduce((max, t) => (t.priorityOrder || 0) > max ? (t.priorityOrder || 0) : max, 0);
@@ -72,7 +88,27 @@ export const TaskList: React.FC<TaskListProps> = ({
         </thead>
         <tbody className="divide-y divide-gray-300">
           {sortedTasks.map((task, idx) => (
-            type === 'active' ? (
+            type === 'trash' ? (
+              <TaskRow 
+                key={task.id} 
+                task={task} 
+                user={user} 
+                users={users} 
+                idx={idx}
+                onUpdate={onUpdate}
+                onDelete={onDelete}
+                onViewHistory={onViewHistory}
+                onOpenChat={onOpenChat}
+                isChatOpen={showChatModal === task.id}
+                onSendMessage={onSendMessage}
+                onReact={onReact}
+                onEdit={onEdit}
+                setConfirmModal={setConfirmModal}
+                onTogglePriority={handleTogglePriority}
+                isReadOnly={isReadOnly}
+                onRestore={onRestore}
+              />
+            ) : type === 'active' ? (
               <TaskRow 
                 key={task.id} 
                 task={task} 
@@ -111,7 +147,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       </table>
       {sortedTasks.length === 0 && (
         <div className="py-20 text-center text-gray-400 text-sm font-medium">
-          {type === 'active' ? 'Không có công việc đang xử lý.' : 'Không có công việc đã hoàn thành.'}
+          {type === 'trash' ? 'Thùng rác trống.' : type === 'active' ? 'Không có công việc đang xử lý.' : 'Không có công việc đã hoàn thành.'}
         </div>
       )}
     </div>

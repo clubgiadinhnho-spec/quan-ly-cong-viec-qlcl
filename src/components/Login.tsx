@@ -174,11 +174,11 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
       >
         <div className="p-8 border-b border-gray-50 flex flex-col items-center text-center">
           <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-xl mb-4 shadow-lg shadow-blue-100 transform -rotate-3">Q</div>
-          <h1 className="text-lg font-bold tracking-tight text-gray-900 uppercase">
-            Hệ Thống Quản Lý QC
+          <h1 className="text-xl font-black tracking-tight text-gray-900 uppercase">
+            <span translate="no" className="notranslate">HỆ THỐNG QUẢN LÝ CHẤT LƯỢNG</span>
           </h1>
-          <p className="text-gray-400 mt-1 text-xs font-medium tracking-tight uppercase">
-            Phiên bản 2026: Đăng ký & Bảo mật
+          <p className="text-gray-500 mt-2 text-[10px] font-bold tracking-widest uppercase">
+            <span translate="no" className="notranslate">PHÒNG QUẢN LÝ CHẤT LƯỢNG TÂN PHÚ VIỆT NAM</span>
           </p>
         </div>
 
@@ -230,7 +230,7 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
 
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <Mail size={12} /> {mode === 'REGISTER' ? 'Email Cá nhân (Mặc định dùng Đăng nhập)' : 'Email'}
+                <Mail size={12} /> <span translate="no" className="notranslate">{mode === 'REGISTER' ? 'Email cá nhân / Công ty' : 'Email cá nhân / Công ty'}</span>
               </label>
               <input
                 type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
@@ -241,7 +241,7 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
 
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <Lock size={12} /> Mật khẩu {mode === 'REGISTER' && '(Ít nhất 6 ký tự)'}
+                <Lock size={12} /> <span translate="no" className="notranslate">MẬT KHẨU</span> {mode === 'REGISTER' && '(Ít nhất 6 ký tự)'}
               </label>
               <div className="relative">
                 <input
@@ -250,7 +250,7 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
                   value={password} 
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-medium pr-10"
-                  placeholder="••••••"
+                  placeholder="Nhập mật khẩu"
                 />
                 <button 
                   type="button"
@@ -265,7 +265,7 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
             {mode === 'REGISTER' && (
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                  <ShieldCheck size={12} /> Xác nhận mật khẩu
+                  <ShieldCheck size={12} /> <span translate="no" className="notranslate">Xác nhận mật khẩu</span>
                 </label>
                 <input
                   type={showPassword ? "text" : "password"} 
@@ -275,7 +275,7 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
                   className={`w-full px-4 py-2.5 bg-gray-50 border rounded-xl focus:ring-1 outline-none transition-all text-sm font-medium ${
                     confirmPassword && !isPasswordMatch ? 'border-red-300 focus:ring-red-500' : 'border-gray-100 focus:ring-blue-500'
                   }`}
-                  placeholder="••••••"
+                  placeholder="Nhập lại mật khẩu"
                 />
                 {confirmPassword && !isPasswordMatch && (
                   <p className="text-[10px] text-red-500 font-bold mt-1 uppercase italic">Mật khẩu xác nhận không khớp!</p>
@@ -310,7 +310,7 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
         </div>
         
         <div className="px-8 pb-6 text-center text-[10px] text-gray-300 font-medium border-t border-gray-100 mt-auto pt-4 uppercase tracking-tighter">
-          Hệ thống bảo mật bởi QC TanPhu © 2026
+          <span translate="no" className="notranslate">PHÒNG QUẢN LÝ CHẤT LƯỢNG TÂN PHÚ VIỆT NAM</span>
         </div>
       </motion.div>
     </div>

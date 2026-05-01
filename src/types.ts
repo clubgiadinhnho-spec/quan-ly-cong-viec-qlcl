@@ -35,8 +35,11 @@ export interface User {
   role: UserRoleType;
   companyEmail: string;
   personalEmail: string;
+  email?: string; // For auth mapping
   avatar: string;
   code: string;
+  title?: string; // e.g. Chuyên viên QC, Quản lý
+  password?: string; // Optional field to store/display password on ID card
   uniqueKey: string;
   abbreviation: string;
   personalNote?: string;

@@ -6,7 +6,8 @@ import {
   signOut, 
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  updateProfile
+  updateProfile,
+  updatePassword
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import firebaseConfig from '@/firebase-applet-config.json';
@@ -14,7 +15,6 @@ import firebaseConfig from '@/firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
 
 export const loginWithEmail = async (email: string, pass: string) => {
   const result = await signInWithEmailAndPassword(auth, email, pass);
@@ -27,13 +27,9 @@ export const registerWithEmail = async (email: string, pass: string, name: strin
   return result.user;
 };
 
-export const loginWithGoogle = async () => {
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
-  } catch (error) {
-    console.error("Login failed:", error);
-    throw error;
+export const updateAuthPassword = async (newPassword: string) => {
+  if (auth.currentUser) {
+    await updatePassword(auth.currentUser, newPassword);
   }
 };
 

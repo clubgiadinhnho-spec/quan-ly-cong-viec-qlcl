@@ -104,10 +104,35 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
         </div>
       </div>
 
+      {/* Input area - MOVED TO TOP */}
+      <div className="p-3 border-b border-gray-100 bg-white">
+        <div className="relative flex gap-2 items-end">
+          <textarea
+            className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl py-2 px-3 text-[11px] outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all resize-none h-12"
+            placeholder="Viết tin nhắn mới..."
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+          />
+          <button 
+            onClick={handleSend}
+            disabled={!newMessage.trim()}
+            className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 disabled:shadow-none mb-1"
+          >
+            <Send size={14} />
+          </button>
+        </div>
+      </div>
+
       {/* Messages area */}
       <div 
         ref={scrollRef}
-        className="h-[280px] overflow-y-auto p-4 space-y-3 bg-gray-50/30 scroll-smooth"
+        className="h-[280px] overflow-y-auto p-4 space-y-3 bg-gray-50/30 scroll-smooth rounded-b-3xl"
       >
         {(!task.comments || task.comments.length === 0) ? (
           <div className="h-full flex flex-col items-center justify-center text-center">
@@ -169,30 +194,6 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
         )}
       </div>
 
-      {/* Input area */}
-      <div className="p-3 border-t border-gray-100 bg-white rounded-b-3xl">
-        <div className="relative flex gap-2 items-end">
-          <textarea
-            className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl py-2 px-3 text-[11px] outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all resize-none h-12"
-            placeholder="Viết tin nhắn..."
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-          />
-          <button 
-            onClick={handleSend}
-            disabled={!newMessage.trim()}
-            className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 disabled:shadow-none mb-1"
-          >
-            <Send size={14} />
-          </button>
-        </div>
-      </div>
     </motion.div>
   );
 };

@@ -21,6 +21,7 @@ interface TaskRowProps {
   onReact?: (taskId: string, commentId: string, emoji: string) => void;
   onTogglePriority: (id: string) => void;
   onEdit: (task: Task) => void;
+  onSetPriority?: (id: string, order: number | null) => void;
   idx: number;
   setConfirmModal: (modal: any) => void;
   isReadOnly?: boolean;
@@ -29,7 +30,7 @@ interface TaskRowProps {
 
 export const TaskRow: React.FC<TaskRowProps> = ({ 
   task, user, users, onUpdate, onDelete, onViewHistory, onOpenChat, 
-  isChatOpen, onSendMessage, onReact, onTogglePriority, onEdit, idx, setConfirmModal,
+  isChatOpen, onSendMessage, onReact, onTogglePriority, onSetPriority, onEdit, idx, setConfirmModal,
   isReadOnly = false, onRestore
 }) => {
   const assigneeName = getTaskAssigneeName(task, users);
@@ -42,8 +43,24 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const isManager = isAdmin || isTeamLeader || !!user.delegatedPermissions?.canCreateTask;
   const isEmployee = user.role === 'Staff';
   
-  const canEditPriority = isAdmin;
+  const canEditPriority = isAdmin || isTeamLeader;
   const hasUnread = false; // Placeholder for future logic
+
+  const getPriorityRowClass = (priority: number | undefined) => {
+    if (!priority) return '';
+    switch (priority) {
+      case 1: return 'bg-red-50/90 hover:bg-red-100/95 ring-inset ring-2 ring-red-200/50';
+      case 2: return 'bg-orange-50/90 hover:bg-orange-100/95 ring-inset ring-2 ring-orange-200/50';
+      case 3: return 'bg-yellow-50/90 hover:bg-yellow-100/95 ring-inset ring-2 ring-yellow-200/50';
+      case 4: return 'bg-green-50/90 hover:bg-green-100/95 ring-inset ring-2 ring-green-200/50';
+      case 5: return 'bg-blue-50/90 hover:bg-blue-100/95 ring-inset ring-2 ring-blue-200/50';
+      case 6: return 'bg-indigo-50/90 hover:bg-indigo-100/95 ring-inset ring-2 ring-indigo-200/50';
+      default: return 'bg-purple-50/90 hover:bg-purple-100/95 ring-inset ring-2 ring-purple-200/50';
+    }
+  };
+
+  const priorityRowClass = getPriorityRowClass(task.priorityOrder);
+  const finalRowClass = task.isHighlighted ? 'bg-amber-100/80 hover:bg-amber-200/80 ring-inset ring-2 ring-amber-400/50' : (priorityRowClass || 'hover:bg-gray-50/50');
 
   const handleConfirmTask = (approve: boolean) => {
     if (approve) {
@@ -79,8 +96,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   };
 
   return (
-    <tr className={`group transition-all ${task.isHighlighted ? 'bg-red-50/50' : 'hover:bg-gray-50/50'}`}>
-      <td className={`p-2 text-center text-[10px] font-bold border-b border-l border-r border-gray-300 align-top relative ${task.isHighlighted ? 'text-red-300' : 'text-gray-300'}`}>
+    <tr className={`group transition-all ${finalRowClass}`}>
+      <td className={`p-2 text-center text-[10px] font-bold border-b border-l border-r border-gray-300 align-top relative ${task.isHighlighted || task.priorityOrder ? 'text-gray-600' : 'text-gray-300'}`}>
         <div className="flex flex-col items-center gap-1">
           {task.code}
           {task.isNewSoldier && (
@@ -90,7 +107,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           )}
         </div>
       </td>
-      <td className={`p-2 border-b border-r border-gray-300 align-top ${task.isHighlighted ? 'border-l-4 border-red-500' : ''}`}>
+      <td className={`p-2 border-b border-r border-gray-300 align-top ${task.isHighlighted ? 'border-l-4 border-amber-500' : task.priorityOrder === 1 ? 'border-l-4 border-red-500' : ''}`}>
         <div className="flex items-start gap-1.5">
           <div className="relative flex-shrink-0">
             <Avatar src={assignee?.avatar} name={assigneeName} size="sm" />
@@ -198,7 +215,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           </div>
         </div>
       </td>
-      <td className="p-1 bg-gray-50/50 border-b border-r border-gray-300 align-top h-px">
+      <td className="p-1 border-b border-r border-gray-300 align-top h-px">
         <div className="h-full min-h-[60px] text-[10px] text-gray-700 leading-tight px-1 py-1 bg-white/30 rounded border border-gray-100/50 break-words whitespace-normal font-medium">
           {task.prevProgress || ''}
         </div>
@@ -218,13 +235,48 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           />
         </div>
       </td>
-      <td className="p-0 text-center border-b border-r border-gray-300 align-top">
-        <button 
-          onClick={() => onTogglePriority(task.id)}
-          className={`w-full h-full min-h-[30px] py-2 flex items-center justify-center text-[10px] font-black transition-all ${task.priorityOrder ? 'text-blue-600 bg-blue-50/20' : 'text-gray-300 hover:text-blue-400'}`}
-        >
-          {task.priorityOrder || '—'}
-        </button>
+      <td className="p-0 text-center border-b border-r border-gray-300 align-middle">
+        <div className="relative group/priority w-full h-full min-h-[44px] flex items-center justify-center p-1">
+          <button 
+            onClick={canEditPriority && !task.priorityOrder ? () => onTogglePriority(task.id) : undefined}
+            disabled={!canEditPriority && !task.priorityOrder}
+            className={`w-full max-w-[54px] h-[54px] flex flex-col items-center justify-center transition-all rounded-xl shadow-lg border-2 ${
+              task.priorityOrder 
+                ? `${
+                    task.priorityOrder === 1 ? 'bg-red-600 text-white border-red-400 animate-pulse ring-4 ring-red-100' :
+                    task.priorityOrder === 2 ? 'bg-orange-500 text-white border-orange-300 ring-4 ring-orange-50' :
+                    task.priorityOrder === 3 ? 'bg-yellow-400 text-black border-yellow-200 ring-4 ring-yellow-50' :
+                    task.priorityOrder === 4 ? 'bg-green-500 text-white border-green-300 ring-4 ring-green-50' :
+                    task.priorityOrder === 5 ? 'bg-blue-500 text-white border-blue-300 ring-4 ring-blue-50' :
+                    task.priorityOrder === 6 ? 'bg-indigo-600 text-white border-indigo-400 ring-4 ring-indigo-50' :
+                    'bg-purple-600 text-white border-purple-400 ring-4 ring-purple-50'
+                  } font-black` 
+                : 'text-gray-300 hover:text-red-500 hover:bg-red-50 border-gray-100 border-dashed'
+            } ${!canEditPriority ? 'cursor-default' : 'cursor-pointer hover:scale-110 active:scale-95'}`}
+          >
+            {task.priorityOrder ? (
+              <>
+                <span className="text-[16px] leading-none font-black drop-shadow-sm">{task.priorityOrder}</span>
+                <span className="text-[8px] leading-none uppercase font-black tracking-tighter mt-1 opacity-90">Ưu Tiên</span>
+              </>
+            ) : (
+              <span className="text-[12px] opacity-40">—</span>
+            )}
+          </button>
+          
+          {canEditPriority && task.priorityOrder && (
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onSetPriority && onSetPriority(task.id, null);
+              }}
+              className="absolute top-1 right-1 w-3.5 h-3.5 bg-gray-600/80 text-white rounded-full flex items-center justify-center border border-white shadow-sm opacity-0 group-hover/priority:opacity-100 transition-opacity z-10 hover:bg-red-600"
+              title="Bỏ ưu tiên"
+            >
+              <X size={8} strokeWidth={4} />
+            </button>
+          )}
+        </div>
       </td>
       {!isReadOnly && (
         <td className="py-2 px-0.5 text-center border-b border-r border-gray-300 align-top">

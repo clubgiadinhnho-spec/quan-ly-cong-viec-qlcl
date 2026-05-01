@@ -177,7 +177,9 @@ export const ReportPage = ({
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div style={{ textAlign: 'center' }}>
             <p style={{ margin: 0, fontSize: '10pt', fontWeight: 'bold' }}>TẬP ĐOÀN TÂN PHÚ</p>
-            <p style={{ margin: 0, fontSize: '10pt', fontWeight: 'bold', borderBottom: '1px solid black' }}>HỆ THỐNG QUẢN LÝ QC</p>
+            <p style={{ margin: 0, fontSize: '10pt', fontWeight: 'bold', borderBottom: '1px solid black' }}>
+              <span translate="no" className="notranslate">HỆ THỐNG QUẢN LÝ CHẤT LƯỢNG</span>
+            </p>
           </div>
           <div style={{ textAlign: 'center' }}>
             <p style={{ margin: 0, fontSize: '10pt', fontWeight: 'bold' }}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
@@ -277,7 +279,7 @@ export const ReportPage = ({
           </div>
           <div>
             <h1 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-              BÁO CÁO THÁNG: 
+              <span translate="no" className="notranslate">BÁO CÁO THÁNG:</span> 
               <input 
                 type="text" 
                 value={reportPeriod}

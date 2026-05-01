@@ -337,6 +337,7 @@ export default function App() {
           const userWithFbId = { 
             ...matchingStaff, 
             id: fbUser.uid, 
+            email: fbUser.email || '',
             lastActive: Date.now() 
           } as UserType;
           setCurrentUser(userWithFbId);
@@ -628,7 +629,7 @@ export default function App() {
               <HolidayBanner />
               <div className="sticky top-0 z-50">
                 <Header 
-                  title="PHÒNG QUẢN LÝ CHẤT LƯỢNG TÂN PHÚ VIỆT NAM" 
+                  title={<span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>}
                   badge={effectiveUser.role}
                   onAction={() => setShowTaskModal(true)}
                   actionLabel="Nhập công việc mới"
@@ -773,7 +774,7 @@ export default function App() {
               <HolidayBanner />
               <div className="sticky top-0 z-50">
                 <Header 
-                  title="ĐỀ XUẤT MỚI" 
+                  title={<span translate="no" className="notranslate">ĐỀ XUẤT MỚI</span>}
                   onlineUsers={presence}
                   currentUserId={effectiveUser.id}
                 />
@@ -802,7 +803,7 @@ export default function App() {
               <HolidayBanner />
               <div className="sticky top-0 z-50">
                 <Header 
-                  title="CV HOÀN THÀNH" 
+                  title={<span translate="no" className="notranslate">CÔNG VIỆC HOÀN THÀNH</span>}
                   onlineUsers={presence}
                   currentUserId={effectiveUser.id}
                 />
@@ -894,7 +895,7 @@ export default function App() {
             <motion.div key="profile" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <HolidayBanner />
               <Header 
-                title="Hồ sơ & Thông tin nhân sự" 
+                title={<span translate="no" className="notranslate">TRANG CÁ NHÂN</span>} 
                 badge={effectiveUser.code} 
                 onlineUsers={presence}
                 currentUserId={effectiveUser.id}
@@ -914,7 +915,7 @@ export default function App() {
             <motion.div key="reports" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                <HolidayBanner />
                <Header 
-                title="Báo cáo hiệu suất & Vấn đề" 
+                title={<span translate="no" className="notranslate">BÁO CÁO THÁNG</span>}
                 onlineUsers={presence}
                 currentUserId={effectiveUser.id}
                />
@@ -975,7 +976,7 @@ export default function App() {
             <motion.div key="staff_list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                <HolidayBanner />
                <Header 
-                title="Quản lý Nhân sự" 
+                title={<span translate="no" className="notranslate">QUẢN LÝ NHÂN SỰ</span>}
                 onlineUsers={presence}
                 currentUserId={effectiveUser.id}
                />

@@ -65,6 +65,35 @@ export const GroupChatPage = ({ currentUser, users, messages, onSendMessage, onR
         </div>
       </div>
 
+      {/* Modern Input Area - MOVED TO TOP */}
+      <div className="p-3 md:p-4 bg-white/60 backdrop-blur-md border-b border-gray-100/30">
+        <div className="relative max-w-4xl mx-auto flex items-center gap-3 bg-white/90 p-1.5 pl-4 rounded-full shadow-[0_5px_15px_rgba(0,0,0,0.03)] border border-gray-100">
+          <textarea
+            className="flex-1 bg-transparent border-0 rounded-full py-2.5 text-xs outline-none focus:ring-0 transition-all resize-none h-10 max-h-24 font-medium"
+            placeholder="Nhập nội dung thảo luận mới..."
+            value={newMessage}
+            onChange={(e) => {
+              setNewMessage(e.target.value);
+              e.target.style.height = '40px';
+              e.target.style.height = `${e.target.scrollHeight}px`;
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+          />
+          <button 
+            onClick={handleSend}
+            disabled={!newMessage.trim()}
+            className="w-10 h-10 flex-none flex items-center justify-center bg-gradient-to-br from-rose-500 to-rose-600 text-white rounded-full hover:scale-105 active:scale-95 transition-all shadow-md shadow-rose-200 disabled:opacity-30 disabled:grayscale disabled:scale-100"
+          >
+            <Send size={16} className="ml-0.5" />
+          </button>
+        </div>
+      </div>
+
       {/* Messages area - Compact spacing */}
       <div 
         ref={scrollRef}
@@ -156,39 +185,6 @@ export const GroupChatPage = ({ currentUser, users, messages, onSendMessage, onR
         )}
       </div>
 
-      {/* Modern Input Area - Compact */}
-      <div className="p-4 md:p-6 bg-white/60 backdrop-blur-md border-t border-gray-100/30">
-        <div className="relative max-w-4xl mx-auto flex items-center gap-3 bg-white/90 p-1.5 pl-4 rounded-full shadow-[0_5px_15px_rgba(0,0,0,0.03)] border border-gray-100">
-          <textarea
-            className="flex-1 bg-transparent border-0 rounded-full py-2.5 text-xs outline-none focus:ring-0 transition-all resize-none h-10 max-h-24 font-medium"
-            placeholder="Nhập nội dung thảo luận..."
-            value={newMessage}
-            onChange={(e) => {
-              setNewMessage(e.target.value);
-              e.target.style.height = '40px';
-              e.target.style.height = `${e.target.scrollHeight}px`;
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-          />
-          <button 
-            onClick={handleSend}
-            disabled={!newMessage.trim()}
-            className="w-10 h-10 flex-none flex items-center justify-center bg-gradient-to-br from-rose-500 to-rose-600 text-white rounded-full hover:scale-105 active:scale-95 transition-all shadow-md shadow-rose-200 disabled:opacity-30 disabled:grayscale disabled:scale-100"
-          >
-            <Send size={16} className="ml-0.5" />
-          </button>
-        </div>
-        <div className="flex items-center justify-center gap-3 mt-3 opacity-30">
-           <div className="h-[1px] w-8 bg-gray-300" />
-           <p className="text-[8px] text-gray-400 font-black uppercase tracking-[0.2em]">Enter để gửi</p>
-           <div className="h-[1px] w-8 bg-gray-300" />
-        </div>
-      </div>
     </div>
   );
 };

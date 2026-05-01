@@ -242,10 +242,36 @@ export const DirectChat = ({
 
           {!isMinimized && (
             <>
+              {/* Input area - MOVED TO TOP */}
+              <div className="p-3 border-b border-gray-100 bg-white">
+                <div className="relative">
+                  <textarea
+                    ref={inputRef}
+                    className={`w-full bg-gray-50 border border-gray-100 rounded-xl py-3 pl-4 pr-12 text-[11px] outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all resize-none ${variant === 'bubble' ? 'h-14' : 'h-16'}`}
+                    placeholder="Nhập nội dung mới..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSend();
+                      }
+                    }}
+                  />
+                  <button 
+                    onClick={handleSend}
+                    disabled={!newMessage.trim()}
+                    className="absolute right-2 bottom-2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-md shadow-blue-100 disabled:opacity-50 disabled:shadow-none"
+                  >
+                    <Send size={14} />
+                  </button>
+                </div>
+              </div>
+
               {/* Messages area */}
               <div 
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50"
+                className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 rounded-b-[2.5rem]"
               >
                 {chatMessages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center p-8">
@@ -277,32 +303,6 @@ export const DirectChat = ({
                 )}
               </div>
 
-              {/* Input area */}
-              <div className="p-4 border-t border-gray-100 bg-white rounded-b-[2.5rem]">
-                <div className="relative">
-                  <textarea
-                    ref={inputRef}
-                    className={`w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-4 pr-12 text-[11px] outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all resize-none ${variant === 'bubble' ? 'h-16' : 'h-20'}`}
-                    placeholder="Nhập nội dung..."
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSend();
-                      }
-                    }}
-                  />
-                  <button 
-                    onClick={handleSend}
-                    disabled={!newMessage.trim()}
-                    className="absolute right-2 bottom-2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-md shadow-blue-100 disabled:opacity-50 disabled:shadow-none"
-                  >
-                    <Send size={14} />
-                  </button>
-                </div>
-                <p className="text-[8px] text-gray-400 mt-2 text-center font-bold uppercase italic tracking-tighter opacity-70">Nhấn Enter để gửi</p>
-              </div>
             </>
           )}
         </>

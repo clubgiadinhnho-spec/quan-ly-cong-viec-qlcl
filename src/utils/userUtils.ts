@@ -35,6 +35,20 @@ export const getTaskAssigneeName = (task: Task, allUsers: User[]): string => {
 };
 
 /**
+ * Kiểm tra xem công việc có thuộc về nhân sự hay không.
+ * Hỗ trợ fallback kiểm tra qua Email nếu ID không khớp (do đổi từ ID cũ sang Firebase UID).
+ */
+export const isUserTask = (task: Task, user: User | null): boolean => {
+  if (!user || !task) return false;
+  if (task.assigneeId === user.id) return true;
+  
+  // Fallback check by email (for cases where ID changed from USER001 to Firebase UID)
+  const staffMember = FIXED_STAFF.find(u => u.id === task.assigneeId);
+  return !!(staffMember?.companyEmail && user.companyEmail && 
+            staffMember.companyEmail.toLowerCase() === user.companyEmail.toLowerCase());
+};
+
+/**
  * Trả về class và thuộc tính để chống trình duyệt tự dịch tên nhân sự.
  */
 export const getSafeNameProps = () => ({

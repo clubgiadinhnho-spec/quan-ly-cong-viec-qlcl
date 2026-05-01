@@ -58,32 +58,36 @@ export const TaskList: React.FC<TaskListProps> = ({
     return b.code.localeCompare(a.code);
   });
 
+  const handleSetPriority = (taskId: string, order: number | null) => {
+    onUpdate(taskId, { priorityOrder: order as any });
+  };
+
   const handleTogglePriority = (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
     if (task.priorityOrder) {
-      // Nếu đã có thứ tự, nhấn lại để xóa
-      onUpdate(taskId, { priorityOrder: null as any });
+      handleSetPriority(taskId, null);
     } else {
-      // Nếu chưa có, lấy số lớn nhất hiện tại + 1
       const maxOrder = tasks.reduce((max, t) => (t.priorityOrder || 0) > max ? (t.priorityOrder || 0) : max, 0);
-      onUpdate(taskId, { priorityOrder: maxOrder + 1 });
+      handleSetPriority(taskId, maxOrder + 1);
     }
   };
 
   return (
-    <div className="overflow-x-auto lg:overflow-x-visible max-h-[780px] ring-1 ring-gray-200 rounded-xl scrollbar-thin scrollbar-thumb-gray-300">
-      <table className="w-full min-w-[900px] text-left border-separate border-spacing-0">
-        <thead className="bg-[#FAFBFD] sticky top-0 z-20 shadow-sm">
-          <tr>
-            <th className="p-2 text-[10px] font-black text-gray-700 uppercase tracking-wider w-14 text-center border-b border-l border-r border-gray-300 bg-[#FAFBFD]">Mã CV</th>
-            <th className="p-2 text-[10px] font-black text-gray-700 uppercase tracking-wider w-36 text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Nhân viên</th>
-            <th className="p-2 text-[10px] font-black text-gray-700 uppercase tracking-wider text-center border-b border-r border-gray-300 bg-[#FAFBFD] min-w-[200px]">Nội dung & Mục tiêu</th>
-            <th className="p-2 text-[10px] font-black text-gray-700 uppercase tracking-wider w-40 text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Diễn tiến trước đó</th>
-            <th className="p-2 text-[10px] font-black text-gray-700 uppercase tracking-wider w-44 text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Cập nhật (2 tuần tiếp)</th>
-            <th className="p-2 text-[10px] font-black text-gray-700 uppercase tracking-wider w-10 text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Ưu tiến</th>
-            {!isReadOnly && <th className="py-2 px-1 text-[10px] font-black text-gray-700 uppercase tracking-wider w-[64px] text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Thao tác</th>}
+    <div className="overflow-auto max-h-[1500px] ring-1 ring-gray-200 rounded-xl scrollbar-thin scrollbar-thumb-gray-300 bg-white shadow-sm">
+      <table className="w-full text-left border-separate border-spacing-0 table-fixed min-w-full">
+        <thead>
+          <tr className="bg-[#FAFBFD]">
+            <th className="p-3 text-[10px] font-black text-gray-700 uppercase tracking-wider w-[5%] text-center border-b border-l border-r border-gray-300 bg-[#FAFBFD] sticky top-0 z-40 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Mã</th>
+            <th className="p-3 text-[10px] font-black text-gray-700 uppercase tracking-wider w-[12%] text-center border-b border-r border-gray-300 bg-[#FAFBFD] sticky top-0 z-40 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">
+              <span translate="no" className="notranslate">Nhân sự</span>
+            </th>
+            <th className="p-3 text-[10px] font-black text-gray-700 uppercase tracking-wider text-center border-b border-r border-gray-300 bg-[#FAFBFD] sticky top-0 z-40 shadow-[0_1px_0_0_rgba(0,0,0,0.1)] w-[38%]">Nội dung & Mục tiêu</th>
+            <th className="p-3 text-[10px] font-black text-gray-700 uppercase tracking-wider w-[18%] text-center border-b border-r border-gray-300 bg-[#FAFBFD] sticky top-0 z-40 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Diễn tiến trước đó</th>
+            <th className="p-3 text-[10px] font-black text-gray-700 uppercase tracking-wider w-[18%] text-center border-b border-r border-gray-300 bg-[#FAFBFD] sticky top-0 z-40 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Cập nhật (2 tuần tiếp)</th>
+            <th className="p-3 text-[11px] font-black text-red-600 uppercase tracking-tighter w-[6%] text-center border-b border-r border-gray-300 bg-red-50/30 sticky top-0 z-40 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">ƯU TIÊN</th>
+            {!isReadOnly && <th className="p-3 text-[10px] font-black text-gray-700 uppercase tracking-wider w-[6%] text-center border-b border-r border-gray-300 bg-[#FAFBFD] sticky top-0 z-40 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Thao tác</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-300">
@@ -103,6 +107,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                 onSendMessage={onSendMessage}
                 onReact={onReact}
                 onEdit={onEdit}
+                onSetPriority={handleSetPriority}
                 setConfirmModal={setConfirmModal}
                 onTogglePriority={handleTogglePriority}
                 isReadOnly={isReadOnly}
@@ -123,6 +128,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                 onSendMessage={onSendMessage}
                 onReact={onReact}
                 onEdit={onEdit}
+                onSetPriority={handleSetPriority}
                 setConfirmModal={setConfirmModal}
                 onTogglePriority={handleTogglePriority}
                 isReadOnly={isReadOnly}

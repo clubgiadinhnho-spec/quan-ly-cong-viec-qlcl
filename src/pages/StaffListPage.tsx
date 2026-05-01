@@ -19,6 +19,23 @@ interface StaffListPageProps {
   onDeleteStaff?: (userId: string) => void;
 }
 
+// GIÁ TRỊ BẤT BIẾN - AI KHÔNG ĐƯỢC TỰ Ý THAY ĐỔI DANH SÁCH CHỨC DANH NÀY
+const getHardcodedTitle = (name: string) => {
+  const normName = name.trim();
+  if (normName === 'Lê Nhật Trường' || normName === 'Quản Trị Viên') return 'ADMIN';
+  if (normName === 'Võ Thị Mỹ Tân') return 'TRƯỞNG NHÓM (LEADER)';
+  if (normName === 'Nguyễn Kiều Phan Tú' || normName === 'Bành Nhựt Hùng') return 'NHÂN VIÊN (STAFF)';
+  return 'CHUYÊN VIÊN QC';
+};
+
+const getRoleGradient = (name: string) => {
+  const title = getHardcodedTitle(name);
+  if (title === 'ADMIN') return 'from-red-600 to-red-500';
+  if (title === 'TRƯỞNG NHÓM (LEADER)') return 'from-amber-500 to-amber-400';
+  if (title === 'NHÂN VIÊN (STAFF)') return 'from-blue-600 to-blue-500';
+  return 'from-slate-600 to-slate-500';
+};
+
 export const StaffListPage: React.FC<StaffListPageProps> = ({ 
   users, 
   currentUser, 
@@ -161,7 +178,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
               <div className="p-8 border-b border-gray-50 flex items-center justify-between">
                 <div>
                    <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight">
-                     {editingStaff ? 'CẬP NHẬT NHÂN SỰ' : 'THÊM NHÂN SỰ MỚI'}
+                     <span translate="no" className="notranslate">{editingStaff ? 'CẬP NHẬT NHÂN SỰ' : 'THÊM NHÂN SỰ MỚI'}</span>
                    </h2>
                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Dữ liệu sẽ được lưu trữ trên Firestore</p>
                 </div>
@@ -212,17 +229,17 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                       value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as UserRoleType})}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm appearance-none"
                     >
-                      <option value="Staff">Nhân viên (Staff)</option>
+                      <option value="Staff"><span translate="no" className="notranslate">Nhân sự (Staff)</span></option>
                       <option value="Leader">Nhóm trưởng (Leader)</option>
                       <option value="Admin">Quản trị (Admin)</option>
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Email Công ty</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1"><span translate="no" className="notranslate">Email cá nhân / Công ty</span></label>
                     <input 
                       type="email" required value={formData.companyEmail} onChange={e => setFormData({...formData, companyEmail: e.target.value})}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
-                      placeholder="xyz@tanphu.vn"
+                      placeholder="Email cá nhân / Công ty"
                     />
                   </div>
                   <div className="space-y-1">
@@ -261,9 +278,9 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
             <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
               <ClipboardList size={18} />
             </div>
-            <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">Hệ thống nhân sự</span>
+            <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]"><span translate="no" className="notranslate">Hệ thống nhân sự</span></span>
           </div>
-          <h1 className="text-[24px] font-black text-gray-900 tracking-tight uppercase leading-none">NHÂN SỰ ĐĂNG KÝ</h1>
+          <h1 className="text-lg font-black text-gray-900 tracking-tight uppercase leading-none"><span translate="no" className="notranslate">THÔNG TIN NHÂN SỰ</span></h1>
           <p className="text-sm text-gray-500 mt-2 font-medium italic">Danh sách nhân sự đã đăng ký và đồng bộ hệ thống.</p>
         </div>
 
@@ -287,7 +304,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
               className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 active:scale-95"
             >
               <Plus size={16} />
-              Thêm nhân sự mới
+              <span translate="no" className="notranslate">Thêm nhân sự mới</span>
             </button>
           )}
         </div>
@@ -324,34 +341,42 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-32">
         {filteredStaff.map((staff) => {
-          const isHardcoded = staff.id.startsWith('ADMIN_') || staff.id.startsWith('STAFF_') || staff.id.startsWith('LEADER_');
-          const isTruong = currentUser.name === 'Lê Nhật Trường';
+          const isTruong = currentUser.personalEmail === 'lenhattruong.tpp@gmail.com';
           const isVisible = visiblePasswords[staff.id];
           
           return (
             <motion.div 
               key={staff.id}
               layout
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="group bg-white rounded-[32px] border-2 border-slate-100 shadow-sm hover:shadow-2xl hover:border-blue-400 transition-all relative flex flex-col md:flex-row overflow-hidden min-h-[280px]"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="group bg-white rounded-[40px] border-2 border-slate-100 shadow-sm hover:shadow-2xl transition-all relative flex flex-col overflow-hidden w-full"
             >
-              {/* Left Section: Identity & Actions */}
-              <div className="md:w-1/3 bg-slate-50/50 p-8 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-100 relative shrink-0">
-                <div className="relative group/avatar">
-                  <div className="w-24 h-24 p-1.5 rounded-[28px] bg-white shadow-xl ring-4 ring-white group-hover/avatar:ring-blue-500 transition-all overflow-hidden">
-                    <Avatar src={staff.avatar} name={staff.name} size="full" className="rounded-[20px] w-full h-full object-cover" />
+              {/* Header Strip */}
+              <div className={`h-20 w-full relative bg-gradient-to-r ${getRoleGradient(staff.name)}`}>
+                {isTruong && (
+                  <div className="absolute top-4 right-4 flex gap-2">
+                    <button onClick={() => { setEditingStaff(staff); setFormData({...staff}); }} className="p-2 bg-white/20 hover:bg-white/40 text-white rounded-lg transition-colors backdrop-blur-sm">
+                      <Edit size={16} />
+                    </button>
+                    <button onClick={() => onDeleteStaff?.(staff.id)} className="p-2 bg-white/20 hover:bg-white/40 text-white rounded-lg transition-colors backdrop-blur-sm">
+                      <Trash2 size={16} />
+                    </button>
                   </div>
-                  {!isHardcoded && (
-                     <div className="absolute -top-1 -right-1 bg-blue-600 text-white p-1.5 rounded-lg shadow-lg border-2 border-white" title="Nhân sự mở rộng">
-                        <Plus size={10} strokeWidth={4} />
-                     </div>
-                  )}
+                )}
+              </div>
+
+              {/* Identity Section */}
+              <div className="flex flex-col items-center -mt-14 px-6 pb-6 relative z-10">
+                <div className="relative">
+                  <div className="w-28 h-28 p-1 rounded-full bg-white shadow-xl ring-2 ring-white overflow-hidden relative">
+                    <Avatar src={staff.avatar} name={staff.name} size="full" className="rounded-full w-full h-full object-cover" />
+                  </div>
                   {isTruong && (
-                    <label className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover/avatar:opacity-100 rounded-[28px] cursor-pointer transition-opacity backdrop-blur-[1px]">
-                      <input 
+                    <label className="absolute inset-0 bg-black/30 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer text-white">
+                       <input 
                         type="file" 
                         className="hidden" 
                         accept="image/*" 
@@ -364,123 +389,89 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                           }
                         }} 
                       />
-                      <Camera size={20} />
+                      <Camera size={24} />
                     </label>
                   )}
                 </div>
 
-                <div className="mt-4 flex flex-col items-center gap-2">
-                   <span translate="no" className="notranslate text-[10px] font-black text-slate-500 font-mono italic bg-white border border-slate-100 px-3 py-1 rounded-full shadow-sm">#{staff.code}</span>
-                   {isTruong && (
-                      <div className="flex gap-2 mt-2">
-                        <button onClick={() => { setEditingStaff(staff); setFormData({...staff}); }} className="w-9 h-9 flex items-center justify-center bg-white shadow-sm border border-blue-100 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all">
-                          <Edit size={16} />
-                        </button>
-                        <button onClick={() => onDeleteStaff?.(staff.id)} className="w-9 h-9 flex items-center justify-center bg-white shadow-sm border border-red-100 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                   )}
-                </div>
-              </div>
-
-              {/* Right Section: Details */}
-              <div className="flex-1 p-8 flex flex-col justify-between min-w-0">
-                <div>
-                  <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-                    <div className="min-w-0">
-                      <h3 className="text-2xl font-black text-slate-900 tracking-tight leading-tight uppercase group-hover:text-blue-600 transition-colors">
-                        <span translate="no" className="notranslate">{staff.name}</span>
-                      </h3>
-                      <span className={`inline-block mt-1 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg border shadow-sm ${
-                        staff.role === 'Admin' ? 'bg-red-50 text-red-600 border-red-100' : 
-                        staff.role === 'Leader' ? 'bg-amber-50 text-amber-600 border-amber-100' : 
-                        'bg-blue-50 text-blue-600 border-blue-100'
-                      }`}>
-                        {staff.role}
-                      </span>
-                    </div>
-
-                    <div className="p-2 bg-white rounded-xl border border-slate-100 shadow-sm group-hover:scale-110 transition-transform origin-right" title="Mã QR định danh">
-                      <QRCodeSVG 
-                        value={`NHÂN VIÊN: ${staff.name}\nMÃ NV: ${staff.code}\nSĐT: ${staff.phone}\nEMAIL: ${staff.companyEmail}\nPASS: 123456`}
-                        size={48}
-                        level="H"
-                      />
-                    </div>
+                <div className="text-center mt-4 w-full">
+                  <h3 className="text-xl font-black text-slate-900 tracking-tight leading-tight uppercase mb-1">
+                    <span translate="no" className="notranslate">{staff.name}</span>
+                  </h3>
+                  <div className="flex flex-col items-center gap-1">
+                    <p className="text-[11px] font-black text-blue-600 uppercase tracking-widest">
+                      <span translate="no" className="notranslate">{getHardcodedTitle(staff.name)}</span>
+                    </p>
+                    <span translate="no" className="notranslate text-[10px] font-mono font-black text-slate-400 bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
+                      MÃ NV: {staff.code}
+                    </span>
                   </div>
+                </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 shrink-0 border border-blue-100/50">
-                        <Phone size={14} />
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Điện thoại</span>
-                        <span translate="no" className="notranslate text-sm font-bold text-slate-700">{staff.phone}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 shrink-0 border border-slate-200/50">
-                        <Lock size={14} />
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Mật khẩu</span>
-                        <div className="flex items-center gap-2">
-                          <span translate="no" className="notranslate text-sm font-mono font-black text-slate-600">
-                            {isVisible ? '123456' : '••••••'}
-                          </span>
-                          <button onClick={() => togglePassword(staff.id)} className="text-slate-400 hover:text-blue-600 transition-colors">
-                            {isVisible ? <EyeOff size={14} /> : <Eye size={14} />}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500 shrink-0 border border-indigo-100/50">
-                        <Mail size={14} />
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Email Công ty</span>
-                        <span translate="no" className="notranslate text-[12px] font-bold text-slate-600 break-all leading-tight">{staff.companyEmail}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-500 shrink-0 border border-emerald-100/50">
-                        <Mail size={14} />
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Email Cá nhân</span>
-                        <span translate="no" className="notranslate text-[12px] font-bold text-slate-600 break-all leading-tight">{staff.personalEmail}</span>
-                      </div>
+                {/* Details Section */}
+                <div className="w-full mt-6 space-y-3 border-t border-slate-50 pt-5">
+                  <div className="flex items-center justify-between text-[10px] font-black uppercase">
+                    <span className="text-slate-400 tracking-wider flex items-center gap-2"><Phone size={14} className="text-blue-500" /> ĐIỆN THOẠI</span>
+                    <span translate="no" className="notranslate text-slate-700 font-mono tracking-tighter">{staff.phone}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] font-black">
+                    <span className="text-slate-400 uppercase tracking-wider flex items-center gap-2"><Mail size={14} className="text-red-500" /> EMAIL CT</span>
+                    <span translate="no" className="notranslate text-slate-700 break-all ml-4 text-right truncate max-w-[150px] font-mono tracking-tighter">{staff.companyEmail}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] font-black">
+                    <span className="text-slate-400 uppercase tracking-wider flex items-center gap-2"><Mail size={14} className="text-emerald-500" /> EMAIL CN</span>
+                    <span translate="no" className="notranslate text-slate-700 break-all ml-4 text-right truncate max-w-[150px] font-mono tracking-tighter">{staff.personalEmail}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] font-black">
+                    <span className="text-slate-400 uppercase tracking-wider flex items-center gap-2"><Lock size={14} className="text-slate-500" /> <span translate="no" className="notranslate">MẬT KHẨU</span></span>
+                    <div className="flex items-center gap-2">
+                       <span translate="no" className="notranslate text-slate-700 font-mono">
+                        {isVisible ? (staff.password || '123456') : '••••••'}
+                       </span>
+                       <button onClick={() => togglePassword(staff.id)} className="text-slate-300 hover:text-blue-600 transition-colors">
+                        {isVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+                       </button>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-8 flex gap-3">
+                {/* QR Code Section */}
+                <div className="mt-6 flex flex-col items-center">
+                  <div className="p-2 bg-white rounded-2xl border-2 border-slate-100 shadow-xl group-hover:scale-105 transition-transform duration-500">
+                    <QRCodeSVG 
+                      value={`NHÂN VIÊN: ${staff.name}\nMÃ NV: ${staff.code}\nSĐT: ${staff.phone}\nEMAIL: ${staff.companyEmail}\nPASS: ${staff.password || '123456'}`}
+                      size={70}
+                      level="H"
+                      includeMargin={false}
+                    />
+                  </div>
+                  <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.3em] mt-2 italic">HỆ THỐNG ĐỊNH DANH QLCL</p>
+                </div>
+
+                <div className="mt-5 flex flex-col gap-2 w-full">
                   {onSimulateStaff && staff.id !== (originalUser?.id || currentUser.id) && (
                     <button 
                       onClick={() => onSimulateStaff(staff)} 
-                      className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg active:scale-95"
                     >
                       <Eye size={14} />
-                      GIẢ LẬP
+                      GIẢ LẬP TƯ CÁCH
                     </button>
                   )}
                   {staff.delegatedPermissions && Object.values(staff.delegatedPermissions).some(v => v) && (
                     <button 
                       onClick={() => setDelegationLetterUser(staff)}
-                      className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-indigo-100 text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-50 hover:border-indigo-200 transition-all"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-slate-100 text-slate-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95"
                     >
                       <Award size={14} />
-                      ỦY QUYỀN
+                      XEM ỦY QUYỀN
                     </button>
                   )}
                 </div>
               </div>
+
+              {/* Decoration Elements */}
+              <div className="absolute bottom-0 right-0 w-32 h-32 bg-slate-50 rounded-tl-full -z-0 opacity-50" />
             </motion.div>
           );
         })}

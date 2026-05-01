@@ -43,25 +43,27 @@ export const Sidebar = ({
             <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center text-white text-sm font-black shadow-lg shadow-blue-200 ring-2 ring-white flex-none">Q</div>
             <div className="flex flex-col min-w-0">
               <span className="text-[7px] font-black text-blue-500 uppercase tracking-[0.3em] leading-none mb-1">Systems Unit</span>
-              <h1 className="text-[14px] font-black tracking-tighter text-gray-900 uppercase leading-none truncate bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">PHÒNG QLCL</h1>
+              <h1 className="text-[14px] font-black tracking-tighter text-gray-900 uppercase leading-none truncate bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                <span translate="no" className="notranslate">P.QLCL TPP</span>
+              </h1>
             </div>
           </div>
         </div>
         
         <nav className="space-y-1 flex-none mb-4">
           {[
-            { id: 'tasks', label: 'BẢNG CÔNG VIỆC', icon: ClipboardList, count: activeTasksCount, color: 'bg-blue-500 text-white shadow-blue-100' },
-            { id: 'pending_confirmation', label: 'ĐỀ XUẤT MỚI', icon: Sparkles, count: pendingTasksCount, color: 'bg-emerald-500 text-white shadow-emerald-200', isAlert: true, isSubItem: true },
-            { id: 'completed_tasks', label: 'CV HOÀN THÀNH', icon: CheckCircle2, count: completedTasksCount, color: 'bg-indigo-500 text-white shadow-indigo-100', isSubItem: true },
+            { id: 'tasks', label: <span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>, icon: ClipboardList, count: activeTasksCount, color: 'bg-blue-500 text-white shadow-blue-100' },
+            { id: 'pending_confirmation', label: <span translate="no" className="notranslate">ĐỀ XUẤT MỚI</span>, icon: Sparkles, count: pendingTasksCount, color: 'bg-emerald-500 text-white shadow-emerald-200', isAlert: true, isSubItem: true },
+            { id: 'completed_tasks', label: <span translate="no" className="notranslate">CV HOÀN THÀNH</span>, icon: CheckCircle2, count: completedTasksCount, color: 'bg-indigo-500 text-white shadow-indigo-100', isSubItem: true },
             ...(user.role === 'Admin' || user.delegatedPermissions?.canManageStaff
-              ? [{ id: 'staff_list', label: 'THÔNG TIN NHÂN SỰ', icon: Users, count: totalStaffCount, color: 'bg-amber-500 text-white shadow-amber-100' }] 
+              ? [{ id: 'staff_list', label: <span translate="no" className="notranslate">QUẢN LÝ NHÂN SỰ</span>, icon: Users, count: totalStaffCount, color: 'bg-amber-500 text-white shadow-amber-100' }] 
               : []),
-            { id: 'profile', label: 'Trang cá nhân', icon: UserIcon },
-            { id: 'reports', label: 'Báo cáo tháng', icon: BarChart3 },
+            { id: 'profile', label: <span translate="no" className="notranslate">TRANG CÁ NHÂN</span>, icon: UserIcon },
+            { id: 'reports', label: <span translate="no" className="notranslate">BÁO CÁO THÁNG</span>, icon: BarChart3 },
             ...(user.role === 'Admin'
               ? [
-                  { id: 'trash', label: 'TRUNG TÂM XÓA', icon: Trash2, count: trashTasksCount, color: 'bg-red-500 text-white shadow-red-200' },
-                  { id: 'system_history', label: 'NHẬT KÝ HỆ THỐNG', icon: Database, color: 'bg-indigo-600 text-white shadow-indigo-100' }
+                  { id: 'trash', label: <span translate="no" className="notranslate">TRUNG TÂM XÓA</span>, icon: Trash2, count: trashTasksCount, color: 'bg-red-500 text-white shadow-red-200' },
+                  { id: 'system_history', label: <span translate="no" className="notranslate">NHẬT KÝ HỆ THỐNG</span>, icon: Database, color: 'bg-indigo-600 text-white shadow-indigo-100' }
                 ]
               : []),
           ].map((item: any) => (
@@ -75,7 +77,7 @@ export const Sidebar = ({
               }`}
             >
               <item.icon size={20} />
-              <span className="flex-1 text-left uppercase text-sm font-black whitespace-nowrap">{item.label}</span>
+              <div className="flex-1 text-left uppercase text-sm font-black whitespace-nowrap">{item.label}</div>
               {item.count !== undefined && item.count > 0 && (
                 <span className={`text-[11px] font-black min-w-[22px] h-5.5 px-1.5 rounded-full flex items-center justify-center border-2 border-white shadow-md ${
                   item.color || 'bg-gray-500 text-white'

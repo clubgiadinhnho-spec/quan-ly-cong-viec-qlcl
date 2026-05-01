@@ -327,21 +327,21 @@ export default function App() {
       const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
 
       if (fbUser) {
-        // Since we removed users listener, we rely more on savedUser or staff list
         if (savedUser) {
           setCurrentUser(savedUser);
         } else {
-          // Fallback to first admin if no saved user found (emergency restore)
-          setCurrentUser(FIXED_STAFF[0]);
+          // Firebase session exists but no local user metadata - force re-login/selection
+          setCurrentUser(null);
         }
       } else {
+        // No Firebase session
         if (savedUser) {
-          // No Firebase session, but we have local user - restore anonymously
+          // We have a local user but no FB session - restore session anonymously
+          loginAnonymously().catch(err => console.error("Session restoration failed:", err));
           setCurrentUser(savedUser);
-          loginAnonymously().catch(err => console.error("Anonymous login error during restoration:", err));
         } else {
+          // No user, no session - just show login
           setCurrentUser(null);
-          loginAnonymously().catch(err => console.error("Initial anonymous login failed:", err));
         }
       }
       setAuthReady(true);
@@ -353,6 +353,7 @@ export default function App() {
   const handleLogin = (user: UserType) => {
     setCurrentUser(user);
     localStorage.setItem('qc_user', JSON.stringify(user));
+    localStorage.setItem('qc_logged_out', 'false'); // Reset logout flag
     // Explicitly set view to all/department on login
     setViewScope('all');
     setActiveTab('tasks');
@@ -360,8 +361,9 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      setCurrentUser(null);
       localStorage.removeItem('qc_user');
+      localStorage.setItem('qc_logged_out', 'true');
+      setCurrentUser(null);
       await logout();
     } catch (error) {
       console.error("Logout error:", error);

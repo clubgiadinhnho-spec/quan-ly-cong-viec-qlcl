@@ -73,17 +73,17 @@ export const TaskList: React.FC<TaskListProps> = ({
   };
 
   return (
-    <div className="overflow-auto max-h-[780px] ring-1 ring-gray-200 rounded-xl scrollbar-thin scrollbar-thumb-gray-300">
-      <table className="w-full min-w-[1200px] text-left border-separate border-spacing-0">
+    <div className="overflow-x-auto lg:overflow-x-visible max-h-[780px] ring-1 ring-gray-200 rounded-xl scrollbar-thin scrollbar-thumb-gray-300">
+      <table className="w-full min-w-[900px] text-left border-separate border-spacing-0">
         <thead className="bg-[#FAFBFD] sticky top-0 z-20 shadow-sm">
           <tr>
-            <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-20 text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Mã CV</th>
-            <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-56 text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Nhân viên</th>
-            <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-96 text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Nội dung & Mục tiêu</th>
-            <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-60 text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Diễn tiến trước đó</th>
-            <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-60 text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Cập nhật (2 tuần tiếp)</th>
-            <th className="p-4 text-[13px] font-black text-gray-700 uppercase tracking-wider w-14 text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Ưu tiên</th>
-            {!isReadOnly && <th className="py-4 px-1 text-[13px] font-black text-gray-700 uppercase tracking-wider w-[72px] text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Thao tác</th>}
+            <th className="p-2 text-[10px] font-black text-gray-700 uppercase tracking-wider w-14 text-center border-b border-l border-r border-gray-300 bg-[#FAFBFD]">Mã CV</th>
+            <th className="p-2 text-[10px] font-black text-gray-700 uppercase tracking-wider w-36 text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Nhân viên</th>
+            <th className="p-2 text-[10px] font-black text-gray-700 uppercase tracking-wider text-center border-b border-r border-gray-300 bg-[#FAFBFD] min-w-[200px]">Nội dung & Mục tiêu</th>
+            <th className="p-2 text-[10px] font-black text-gray-700 uppercase tracking-wider w-40 text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Diễn tiến trước đó</th>
+            <th className="p-2 text-[10px] font-black text-gray-700 uppercase tracking-wider w-44 text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Cập nhật (2 tuần tiếp)</th>
+            <th className="p-2 text-[10px] font-black text-gray-700 uppercase tracking-wider w-10 text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Ưu tiến</th>
+            {!isReadOnly && <th className="py-2 px-1 text-[10px] font-black text-gray-700 uppercase tracking-wider w-[64px] text-center border-b border-r border-gray-300 bg-[#FAFBFD]">Thao tác</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-300">

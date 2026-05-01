@@ -80,54 +80,45 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   return (
     <tr className={`group transition-all ${task.isHighlighted ? 'bg-red-50/50' : 'hover:bg-gray-50/50'}`}>
-      <td className={`p-4 text-center text-xs font-bold border-b border-r border-gray-300 align-top relative ${task.isHighlighted ? 'text-red-300' : 'text-gray-300'}`}>
+      <td className={`p-2 text-center text-[10px] font-bold border-b border-l border-r border-gray-300 align-top relative ${task.isHighlighted ? 'text-red-300' : 'text-gray-300'}`}>
         <div className="flex flex-col items-center gap-1">
           {task.code}
           {task.isNewSoldier && (
             <div className="bg-amber-100 text-amber-600 p-0.5 rounded-full animate-bounce" title="Lính mới / Việc mới xác nhận">
-              <Sparkles size={10} strokeWidth={3} />
+              <Sparkles size={8} strokeWidth={3} />
             </div>
           )}
         </div>
       </td>
-      <td className={`p-4 border-b border-r border-gray-300 align-top ${task.isHighlighted ? 'border-l-4 border-red-500' : ''}`}>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Avatar src={assignee?.avatar} name={assigneeName} />
+      <td className={`p-2 border-b border-r border-gray-300 align-top ${task.isHighlighted ? 'border-l-4 border-red-500' : ''}`}>
+        <div className="flex items-start gap-1.5">
+          <div className="relative flex-shrink-0">
+            <Avatar src={assignee?.avatar} name={assigneeName} size="sm" />
             {isManager && (
               <button 
                 onClick={() => onEdit(task)}
-                className="absolute -top-1 -left-1 w-4 h-4 bg-blue-600 text-white rounded-full flex items-center justify-center border border-white hover:scale-110 transition-all shadow-sm"
-                title="Thay đổi nhân sự / Chỉnh sửa"
+                className="absolute -top-1 -left-1 w-3 h-3 bg-blue-600 text-white rounded-full flex items-center justify-center border border-white hover:scale-110 transition-all shadow-sm"
+                title="Sửa"
               >
-                <span className="text-[8px]">✎</span>
+                <span className="text-[6px]">✎</span>
               </button>
             )}
           </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <p {...getSafeNameProps()} className="text-sm font-bold text-gray-900 leading-none whitespace-nowrap notranslate">{assigneeName}</p>
-              {isManager && (
-                <button 
-                  onClick={() => onEdit(task)} 
-                  className="text-[9px] text-blue-500 hover:underline font-black uppercase opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  Sửa
-                </button>
-              )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1">
+              <p {...getSafeNameProps()} className="text-[11px] font-bold text-gray-900 leading-none truncate notranslate" title={assigneeName}>{assigneeName}</p>
             </div>
-            <div className="flex flex-col gap-1 mt-1">
-              <p className="text-[10px] text-gray-500 font-medium opacity-70 leading-normal">Giao việc: {formatDate(task.issueDate)}</p>
-              <p className="text-[10px] text-blue-600 font-black leading-normal">Hạn: {formatDate(task.expectedEndDate)}</p>
-              <div className="relative">
+            <div className="flex flex-col gap-0.5 mt-0.5">
+              <p className="text-[8px] text-gray-500 font-medium opacity-70 leading-tight">G: {formatDate(task.issueDate)}</p>
+              <p className="text-[8px] text-blue-600 font-black leading-tight">H: {formatDate(task.expectedEndDate)}</p>
+              <div className="relative mt-0.5">
                 <button 
                   onClick={() => onOpenChat(isChatOpen ? '' : task.id)}
-                  className={`relative p-1 rounded-full transition-all w-fit -ml-1 ${isChatOpen ? 'text-blue-700 bg-blue-100 shadow-inner' : 'text-blue-500 hover:bg-blue-50'}`}
-                  title="Trao đổi công việc"
+                  className={`p-0.5 rounded transition-all w-fit ${isChatOpen ? 'text-blue-700 bg-blue-100 shadow-inner' : 'text-blue-500 hover:bg-blue-50'}`}
                 >
-                  <div className="flex items-center gap-1 font-bold text-[9px] uppercase px-1">
-                    <MessageSquare size={10} />
-                    <span>Trao đổi {task.comments && task.comments.length > 0 && `(${task.comments.length})`}</span>
+                  <div className="flex items-center gap-0.5 font-bold text-[8px] uppercase">
+                    <MessageSquare size={8} />
+                    <span>{task.comments && task.comments.length > 0 ? `(${task.comments.length})` : 'Chat'}</span>
                   </div>
                 </button>
 
@@ -148,23 +139,23 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           </div>
         </div>
       </td>
-      <td className="p-4 border-b border-r border-gray-300 relative group align-top h-px">
+      <td className="p-2 border-b border-r border-gray-300 relative group align-top h-px">
         {task.attachmentUrl && (
           <a 
             href={task.attachmentUrl} 
             target="_blank" 
             rel="noopener noreferrer"
             title={`Xem đính kèm: ${task.attachmentName}`}
-            className="absolute top-2 right-2 p-1 bg-green-50 text-green-600 rounded hover:bg-green-100 transition-all z-10"
+            className="absolute top-1 right-1 p-0.5 bg-green-50 text-green-600 rounded hover:bg-green-100 transition-all z-10"
           >
-            <Paperclip size={14} strokeWidth={3} />
+            <Paperclip size={10} strokeWidth={3} />
           </a>
         )}
         <div className="flex flex-col h-full font-sans">
           {isManager ? (
              <div className="relative">
               <textarea 
-                className="text-sm font-black text-gray-900 bg-transparent border-b border-transparent focus:border-blue-400 outline-none w-full py-0 pr-6 uppercase break-words resize-none overflow-hidden leading-tight min-h-[1.5rem] font-sans"
+                className="text-[11px] font-black text-gray-900 bg-transparent border-b border-transparent focus:border-blue-400 outline-none w-full py-0 pr-4 uppercase break-words resize-none overflow-hidden leading-tight min-h-[1rem] font-sans"
                 defaultValue={task.title}
                 rows={1}
                 ref={(el) => {
@@ -186,38 +177,35 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               />
               <button 
                 onClick={() => onEdit(task)}
-                className="absolute top-1 right-0 text-blue-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute top-0 right-0 text-blue-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
               >
-                <span className="text-[10px]">✎</span>
+                <span className="text-[8px]">✎</span>
               </button>
              </div>
           ) : (
-            <p className="text-sm font-black text-gray-900 leading-tight pr-6 uppercase break-words whitespace-normal font-sans">{task.title}</p>
+            <p className="text-[11px] font-black text-gray-900 leading-tight pr-4 uppercase break-words whitespace-normal font-sans">{task.title}</p>
           )}
-          <p className="text-[11px] font-black text-gray-900 leading-relaxed mt-2 break-words whitespace-normal flex-1 font-sans">{task.objective}</p>
+          <p className="text-[10px] font-black text-gray-900 leading-tight mt-1 break-words whitespace-normal flex-1 font-sans">{task.objective}</p>
 
-          <div className="mt-2 flex items-center gap-2">
-              <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded font-bold uppercase tracking-tighter">v{task.history.length}</span>
-              <button onClick={() => onViewHistory(task.id)} className="text-[9px] text-blue-500 hover:underline font-bold">Lịch sử</button>
+          <div className="mt-1 flex items-center gap-1">
+              <span className="text-[7px] px-0.5 py-0.5 bg-gray-100 text-gray-500 rounded font-bold uppercase tracking-tighter">v{task.history.length}</span>
+              <button onClick={() => onViewHistory(task.id)} className="text-[8px] text-blue-500 hover:underline font-bold">LS</button>
               {task.status === 'PENDING_APPROVAL' && (
-                <span className="text-[9px] font-black text-amber-500 bg-amber-50 px-2 py-0.5 rounded animate-pulse border border-amber-200 uppercase tracking-tighter">Chờ duyệt HT</span>
-              )}
-              {task.status === 'AWAITING_CONFIRMATION' && (
-                <span className="text-[9px] font-black text-blue-500 bg-blue-50 px-2 py-0.5 rounded animate-pulse border border-blue-200 uppercase tracking-tighter">Chờ xác nhận mới</span>
+                <span className="text-[8px] font-black text-amber-500 bg-amber-50 px-1 py-0.2 rounded animate-pulse border border-amber-100 uppercase tracking-tighter">DUYỆT</span>
               )}
           </div>
         </div>
       </td>
-      <td className="p-2 bg-gray-50/50 border-b border-r border-gray-300 align-top h-px">
-        <div className="h-full min-h-[100px] text-[11px] text-gray-700 leading-relaxed px-3 py-3 bg-white/30 rounded-xl border border-gray-100/50 break-words whitespace-normal">
-          {task.prevProgress || '—'}
+      <td className="p-1 bg-gray-50/50 border-b border-r border-gray-300 align-top h-px">
+        <div className="h-full min-h-[60px] text-[10px] text-gray-700 leading-tight px-1 py-1 bg-white/30 rounded border border-gray-100/50 break-words whitespace-normal font-medium">
+          {task.prevProgress || ''}
         </div>
       </td>
-      <td className="p-2 border-b border-r border-gray-300 align-top h-px">
-        <div className="flex flex-col gap-2 h-full min-h-[120px]">
+      <td className="p-1 border-b border-r border-gray-300 align-top h-px">
+        <div className="flex flex-col gap-1 h-full min-h-[60px]">
           <textarea 
-            className="flex-1 w-full text-[11px] font-medium p-3 bg-white border border-gray-200 rounded-xl shadow-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-50 transition-all resize-none leading-relaxed min-h-[100px] disabled:bg-transparent disabled:border-transparent disabled:p-0 disabled:shadow-none placeholder:font-normal text-gray-800"
-            placeholder="Cập nhật tiến độ..."
+            className="flex-1 w-full text-[10px] font-medium p-1.5 bg-white border border-gray-200 rounded shadow-sm outline-none focus:border-blue-500 transition-all resize-none leading-tight min-h-[60px] disabled:bg-transparent disabled:border-transparent disabled:p-0 disabled:shadow-none placeholder:font-normal text-gray-800"
+            placeholder="..."
             defaultValue={task.currentUpdate}
             onBlur={(e) => {
               if (e.target.value !== (task.currentUpdate || '')) {
@@ -226,33 +214,19 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             }}
             disabled={task.isLocked || (!isOwner && !isManager)}
           />
-          {(task.history || []).length > 0 && (
-            <div className="flex items-center justify-between px-1">
-              <span className="text-[8px] font-black text-gray-400 uppercase tracking-tighter">
-                v{task.history.length} • {formatDate(task.updatedAt)}
-              </span>
-              <button 
-                onClick={() => onViewHistory(task.id)}
-                className="text-[9px] text-blue-600 hover:underline font-black uppercase tracking-tighter"
-              >
-                Lịch sử cập nhật
-              </button>
-            </div>
-          )}
         </div>
       </td>
       <td className="p-0 text-center border-b border-r border-gray-300 align-top">
         <button 
           onClick={() => onTogglePriority(task.id)}
-          className={`w-full h-full min-h-[40px] py-4 flex items-center justify-center font-black transition-all ${task.priorityOrder ? 'text-blue-600 bg-blue-50/20' : 'text-gray-300 hover:text-blue-400'}`}
-          title="Nhấn để gán/xóa thứ tự ưu tiên"
+          className={`w-full h-full min-h-[30px] py-2 flex items-center justify-center text-[10px] font-black transition-all ${task.priorityOrder ? 'text-blue-600 bg-blue-50/20' : 'text-gray-300 hover:text-blue-400'}`}
         >
           {task.priorityOrder || '—'}
         </button>
       </td>
       {!isReadOnly && (
-        <td className="py-4 px-1 text-center border-b border-r border-gray-300 align-top">
-          <div className="flex flex-col items-center gap-1.5">
+        <td className="py-2 px-0.5 text-center border-b border-r border-gray-300 align-top">
+          <div className="flex flex-col items-center gap-1">
             {task.deletedAt ? (
               <>
                 <button 

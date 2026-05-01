@@ -190,6 +190,22 @@ service cloud.firestore {
       allow create: if isSignedIn();
     }
 
+    // 9. Presence Collection
+    // -------------------------------------------------------------------------
+    match /presence/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) && isValidPresence(incoming());
+
+      function isValidPresence(data) {
+        return data.keys().hasAll(['id', 'name', 'avatar', 'lastActive', 'status']) &&
+               data.id == userId &&
+               data.name is string && data.name.size() > 0 &&
+               data.avatar is string &&
+               data.lastActive is timestamp &&
+               data.status in ['online', 'offline'];
+      }
+    }
+
     // Default Deny
     match /{document=**} {
       allow read, write: if false;

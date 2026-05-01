@@ -1,98 +1,167 @@
 import React, { useState } from 'react';
 import { User } from '../types';
-import { SECURITY_QUESTIONS } from '../constants';
-import { LogIn, Phone, User as UserIcon, UserPlus, ArrowLeft, Mail, Shield, Hash, Type, CheckCircle2, HelpCircle, Lock, ShieldCheck } from 'lucide-react';
+import { LogIn, UserPlus, Mail, Lock, ShieldCheck, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db, loginWithGoogle, loginAnonymously } from '../lib/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-
-import { Avatar } from './common/Avatar';
+import { loginWithEmail, registerWithEmail } from '../lib/firebase';
 
 interface LoginProps {
   users: User[];
   onLogin: (user: User) => void;
 }
 
-export default function Login({ users, onLogin }: LoginProps) {
-  const [name, setName] = useState(() => localStorage.getItem('qc_remember_name') || '');
-  const [phone, setPhone] = useState(() => localStorage.getItem('qc_remember_phone') || '');
-  const [securityAnswer, setSecurityAnswer] = useState(() => localStorage.getItem('qc_remember_sec_answer') || '');
-  const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('qc_remember_me') === 'true');
-  const [foundUser, setFoundUser] = useState<User | null>(null);
+export default function Login({ users, onLogin, onAddStaff }: { users: User[], onLogin: (u: User) => void, onAddStaff: (u: User) => Promise<void> }) {
+  const [mode, setMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
+  const [email, setEmail] = useState(() => localStorage.getItem('qc_remember_email') || '');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  
+  // Registration specific states
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newCompanyEmail, setNewCompanyEmail] = useState('');
+
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleInitialLoginAttempt = (e: React.FormEvent) => {
+  const isPasswordMatch = mode === 'REGISTER' ? (password === confirmPassword && password.length >= 6) : true;
+
+  const removeAccents = (str: string) => {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
+  };
+
+  const validateEmail = (email: string) => {
+    const user = users.find(u => 
+      (u.companyEmail || '').toLowerCase() === email.toLowerCase() ||
+      (u.personalEmail || '').toLowerCase() === email.toLowerCase()
+    );
+    return user;
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    // Normalize inputs: trim, lowercase name, and remove formatting from phone
-    const cleanName = name.trim().toLowerCase().replace(/\s+/g, ' ');
-    const cleanPhone = phone.replace(/\D/g, ''); 
     
-    const user = users.find(u => {
-      const uName = (u.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
-      const uEmail = (u.companyEmail || '').trim().toLowerCase();
-      const uPhone = (u.phone || '').replace(/\D/g, '');
-      
-      return (uName === cleanName && uPhone === cleanPhone) ||
-             (uEmail === cleanName && uPhone === cleanPhone);
-    });
+    const staffMember = validateEmail(email);
+    if (!staffMember) {
+      setError('Email này không có trong danh sách nhân sự được cấp phép.');
+      return;
+    }
 
-    if (user) {
-      if (user.status !== 'ACTIVE') {
-        setError('Tài khoản của bạn đã bị vô hiệu hóa.');
-        return;
+    setLoading(true);
+    try {
+      let fbUser;
+      
+      // Flexible login: auto-register if password is default and user exists in list
+      if (password === '123456') {
+        try {
+          fbUser = await loginWithEmail(email, password);
+        } catch (err: any) {
+          if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+            // Auto register
+            fbUser = await registerWithEmail(email, password, staffMember.name);
+          } else {
+            throw err;
+          }
+        }
+      } else {
+        fbUser = await loginWithEmail(email, password);
       }
-      // User found, now show security question
-      setFoundUser(user);
-    } else {
-      setError('Thông tin đăng nhập không chính xác hoặc bạn không có trong danh sách nhân sự được cấp phép.');
+
+      if (fbUser) {
+        localStorage.setItem('qc_remember_email', email);
+        const userToLogin = { ...staffMember, id: fbUser.uid, lastActive: Date.now() } as User;
+        onLogin(userToLogin);
+      }
+    } catch (err: any) {
+      console.error("Login error:", err);
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+        setError('Email hoặc mật khẩu không chính xác.');
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setError('Phương thức Đăng nhập bằng Email chưa được bật trong Firebase Console.');
+      } else {
+        setError('Lỗi đăng nhập: ' + err.message);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleFinalLogin = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!foundUser) return;
+    setError('');
 
-    const normalizedExisting = (foundUser.securityAnswer || '').toLowerCase().trim().replace(/\s+/g, ' ');
-    const normalizedInput = securityAnswer.toLowerCase().trim().replace(/\s+/g, ' ');
+    if (password !== confirmPassword) {
+      setError('Mật khẩu xác nhận không khớp.');
+      return;
+    }
 
-    if (normalizedExisting === normalizedInput) {
-      setLoading(true);
-      try {
-        // Attempt sign in anonymously to get a UID for Firebase Rules
-        const fbUser = await loginAnonymously();
-        
-        let userToLogin = foundUser;
+    if (password.length < 6) {
+      setError('Mật khẩu phải có ít nhất 6 ký tự.');
+      return;
+    }
 
-        if (fbUser) {
-          // Instead of setDoc automatically, we just use the local state.
-          // This stops automatic data generation/update on login.
-          userToLogin = { ...foundUser, id: fbUser.uid, lastActive: Date.now() } as User;
+    setLoading(true);
+    try {
+      // 1. Generate uniqueKey
+      const nameNoAccents = removeAccents(newName).replace(/\s+/g, '');
+      const uniqueKey = `${nameNoAccents}${newPhone}`;
+
+      // 2. Check if user already exists (by personalEmail or Phone/uniqueKey)
+      // Check in the merged list 'users'
+      const existingInList = users.find(u => 
+        (u.personalEmail || '').toLowerCase() === email.toLowerCase() ||
+        u.uniqueKey === uniqueKey ||
+        u.phone === newPhone
+      );
+
+      // 3. Register with Firebase Auth
+      const fbUser = await registerWithEmail(email, password, newName);
+      
+      if (fbUser) {
+        let userToLogin: User;
+
+        if (existingInList) {
+          // If already in list (hardcoded or extra), use their info but update ID to Firebase UID
+          userToLogin = { 
+            ...existingInList, 
+            id: fbUser.uid, 
+            personalEmail: email, // update email to what they used for auth
+            lastActive: Date.now() 
+          };
         } else {
-          console.warn("Login proceeded WITHOUT Firebase Authentication. Real-time chat may be limited.");
+          // New user completely - add to Firestore extra_users via onAddStaff
+          userToLogin = {
+            id: fbUser.uid,
+            name: newName,
+            phone: newPhone,
+            companyEmail: newCompanyEmail,
+            personalEmail: email,
+            uniqueKey,
+            role: 'Staff',
+            status: 'ACTIVE',
+            code: `QC-${Math.floor(100+Math.random()*900)}`,
+            abbreviation: nameNoAccents.substring(0, 3).toUpperCase(),
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${nameNoAccents}`,
+            lastActive: Date.now()
+          };
+          await onAddStaff(userToLogin);
         }
-        
-        if (rememberMe) {
-          localStorage.setItem('qc_remember_me', 'true');
-          localStorage.setItem('qc_remember_name', name);
-          localStorage.setItem('qc_remember_phone', phone);
-          localStorage.setItem('qc_remember_sec_answer', securityAnswer);
-        } else {
-          localStorage.removeItem('qc_remember_me');
-          localStorage.removeItem('qc_remember_name');
-          localStorage.removeItem('qc_remember_phone');
-          localStorage.removeItem('qc_remember_sec_answer');
-        }
+
+        localStorage.setItem('qc_remember_email', email);
         onLogin(userToLogin);
-      } catch (err: any) {
-        console.error("Auth error during regular login:", err);
-        setError('Lỗi xác thực hệ thống: ' + err.message);
-      } finally {
-        setLoading(false);
       }
-    } else {
-      setError('Câu trả lời bảo mật không đúng.');
+    } catch (err: any) {
+      console.error("Registration error:", err);
+      if (err.code === 'auth/email-already-in-use') {
+        setError('Email này đã được đăng ký tài khoản.');
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setError('Phương thức Đăng ký bằng Email chưa được bật trong Firebase Console.');
+      } else {
+        setError('Lỗi đăng ký: ' + err.message);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -108,144 +177,139 @@ export default function Login({ users, onLogin }: LoginProps) {
           <h1 className="text-lg font-bold tracking-tight text-gray-900 uppercase">
             Hệ Thống Quản Lý QC
           </h1>
-          <p className="text-gray-400 mt-1 text-xs font-medium tracking-tight">
-            Theo dõi hiệu suất & Báo cáo chất lượng
+          <p className="text-gray-400 mt-1 text-xs font-medium tracking-tight uppercase">
+            Phiên bản 2026: Đăng ký & Bảo mật
           </p>
         </div>
 
         <div className="p-8 space-y-6">
-          <AnimatePresence mode="wait">
-            <motion.div 
-              key={foundUser ? "sec-form" : "login-form"}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 10 }}
-              className="space-y-6"
+          <div className="flex p-1 bg-gray-100 rounded-xl">
+            <button 
+              onClick={() => { setMode('LOGIN'); setError(''); }}
+              className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${mode === 'LOGIN' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
             >
-              {!foundUser ? (
-                <form onSubmit={handleInitialLoginAttempt} className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                      <UserIcon size={12} /> Tên nhân viên / Email (5 NS cốt lõi)
-                    </label>
-                    <input
-                      type="text" required value={name} onChange={(e) => setName(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-medium"
-                      placeholder="Họ tên hoặc Email..."
-                    />
-                  </div>
+              Đăng nhập
+            </button>
+            <button 
+              onClick={() => { setMode('REGISTER'); setError(''); }}
+              className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${mode === 'REGISTER' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
+            >
+              Đăng ký mới
+            </button>
+          </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                      <Phone size={12} /> Số điện thoại
-                    </label>
-                    <input
-                      type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-medium"
-                      placeholder="Số điện thoại..."
-                    />
-                  </div>
+          <form onSubmit={mode === 'LOGIN' ? handleLogin : handleRegister} className="space-y-4">
+            {mode === 'REGISTER' && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">Họ và Tên</label>
+                  <input
+                    type="text" required value={newName} onChange={(e) => setNewName(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-medium"
+                    placeholder="Nhập họ và tên đầy đủ"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">Số điện thoại</label>
+                  <input
+                    type="tel" required value={newPhone} onChange={(e) => setNewPhone(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-medium"
+                    placeholder="090..."
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">Email Công ty (Tùy chọn)</label>
+                  <input
+                    type="email" value={newCompanyEmail} onChange={(e) => setNewCompanyEmail(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-medium"
+                    placeholder="xyz@tanphu.vn"
+                  />
+                </div>
+              </>
+            )}
 
-                  <div className="flex items-center gap-2 px-1">
-                    <input 
-                      id="remember-me"
-                      type="checkbox" 
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                    />
-                    <label htmlFor="remember-me" className="text-[10px] font-bold text-gray-500 uppercase tracking-widest cursor-pointer select-none">
-                      Ghi nhớ đăng nhập
-                    </label>
-                  </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                <Mail size={12} /> {mode === 'REGISTER' ? 'Email Cá nhân (Mặc định dùng Đăng nhập)' : 'Email'}
+              </label>
+              <input
+                type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-medium"
+                placeholder="example@gmail.com"
+              />
+            </div>
 
-                  {error && (
-                    <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-[10px] font-bold rounded-lg text-center">{error}</div>
-                  )}
-
-                  <button
-                    type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-50 uppercase tracking-widest text-xs"
-                  >
-                    TIẾP TỤC ĐĂNG NHẬP <LogIn size={16} />
-                  </button>
-                </form>
-              ) : (
-                <motion.form 
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  onSubmit={handleFinalLogin} 
-                  className="space-y-6"
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                <Lock size={12} /> Mật khẩu {mode === 'REGISTER' && '(Ít nhất 6 ký tự)'}
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"} 
+                  required 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-medium pr-10"
+                  placeholder="••••••"
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  <div className="flex flex-col items-center gap-4 py-2">
-                     <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shadow-inner">
-                        <Lock size={28} className="animate-pulse" />
-                     </div>
-                     <div className="text-center">
-                        <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight">Xác thực lớp 2</h3>
-                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Lớp bảo vệ bổ sung cho <span translate="no" className="notranslate">{foundUser.name}</span></p>
-                     </div>
-                  </div>
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
 
-                  <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50/30 rounded-2xl border border-blue-100/50 shadow-sm relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
-                       <HelpCircle size={40} />
-                    </div>
-                    <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-3 flex items-center gap-2">
-                      <ShieldCheck size={12} /> Câu hỏi bảo mật của bạn
-                    </p>
-                    <p className="text-sm font-bold text-gray-800 leading-relaxed">
-                      {foundUser.securityQuestion || 'Vui lòng trả lời câu hỏi bảo mật để tiếp tục:'}
-                    </p>
-                  </div>
+            {mode === 'REGISTER' && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <ShieldCheck size={12} /> Xác nhận mật khẩu
+                </label>
+                <input
+                  type={showPassword ? "text" : "password"} 
+                  required 
+                  value={confirmPassword} 
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className={`w-full px-4 py-2.5 bg-gray-50 border rounded-xl focus:ring-1 outline-none transition-all text-sm font-medium ${
+                    confirmPassword && !isPasswordMatch ? 'border-red-300 focus:ring-red-500' : 'border-gray-100 focus:ring-blue-500'
+                  }`}
+                  placeholder="••••••"
+                />
+                {confirmPassword && !isPasswordMatch && (
+                  <p className="text-[10px] text-red-500 font-bold mt-1 uppercase italic">Mật khẩu xác nhận không khớp!</p>
+                )}
+              </div>
+            )}
 
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">
-                      Câu trả lời
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text" required autoFocus
-                        value={securityAnswer}
-                        onChange={(e) => setSecurityAnswer(e.target.value)}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-all text-sm font-bold shadow-inner"
-                        placeholder="Nhập câu trả lời của bạn..."
-                      />
-                    </div>
-                  </div>
+            {error && (
+              <motion.div 
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3 bg-red-50 border border-red-100 text-red-600 text-[10px] font-black rounded-lg text-center uppercase tracking-tight"
+              >
+                {error}
+              </motion.div>
+            )}
 
-                  {error && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: -5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="p-3 bg-red-50 border border-red-100 text-red-600 text-[10px] font-black rounded-xl text-center flex items-center justify-center gap-2"
-                    >
-                       <span className="w-1 h-1 bg-red-600 rounded-full animate-ping" /> {error}
-                    </motion.div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-4 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => { setFoundUser(null); setSecurityAnswer(''); setError(''); }}
-                      className="px-6 py-3.5 bg-white border border-gray-200 text-gray-500 font-bold rounded-xl text-[10px] uppercase tracking-widest hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2"
-                    >
-                      <ArrowLeft size={14} /> Quay lại
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-6 py-3.5 bg-blue-600 text-white font-bold rounded-xl text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2"
-                    >
-                      XÁC NHẬN <LogIn size={14} />
-                    </button>
-                  </div>
-                </motion.form>
+            <button
+              type="submit"
+              disabled={loading || !isPasswordMatch}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest text-xs"
+            >
+              {loading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : mode === 'LOGIN' ? (
+                <>ĐĂNG NHẬP <LogIn size={16} /></>
+              ) : (
+                <>XÁC NHẬN ĐĂNG KÝ <UserPlus size={16} /></>
               )}
-            </motion.div>
-          </AnimatePresence>
+            </button>
+          </form>
         </div>
         
-        <div className="px-8 pb-6 text-center text-[10px] text-gray-300 font-medium border-t border-gray-100 mt-auto pt-4">
+        <div className="px-8 pb-6 text-center text-[10px] text-gray-300 font-medium border-t border-gray-100 mt-auto pt-4 uppercase tracking-tighter">
           Hệ thống bảo mật bởi QC TanPhu © 2026
         </div>
       </motion.div>

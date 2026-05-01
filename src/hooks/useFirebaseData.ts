@@ -15,7 +15,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { User, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport, LogEntry } from '../types';
+import { User, UserPresence, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport, LogEntry } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
 export const useFirebaseData = (currentUserId?: string) => {
@@ -24,7 +24,8 @@ export const useFirebaseData = (currentUserId?: string) => {
   const [privateMessages, setPrivateMessages] = useState<PrivateMessage[]>([]);
   const [officialReports, setOfficialReports] = useState<OfficialReport[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [extraUsers, setExtraUsers] = useState<User[]>([]);
+  const [presence, setPresence] = useState<UserPresence[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,16 +34,45 @@ export const useFirebaseData = (currentUserId?: string) => {
       return;
     }
 
-    // Listen to Users (Staff)
-    const usersUnsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const usersData = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      } as User));
-      setUsers(usersData);
-    }, (error) => {
-      console.warn("Users listener error or permission denied:", error.message);
-    });
+    // Listen to Presence
+    const presenceUnsubscribe = onSnapshot(
+      collection(db, 'presence'),
+      (snapshot) => {
+        const presenceData = snapshot.docs.map(doc => {
+          const data = doc.data();
+          let ts: string;
+          // Xử lý các loại timestamp khác nhau từ Firebase (Metadata, string, Date)
+          if (data.lastActive?.toDate) {
+            ts = data.lastActive.toDate().toISOString();
+          } else if (data.lastActive && typeof data.lastActive === 'object' && 'seconds' in data.lastActive) {
+            // Trường hợp là object snapshot nhưng chưa có hàm toDate
+            ts = new Date(data.lastActive.seconds * 1000).toISOString();
+          } else if (typeof data.lastActive === 'string') {
+            ts = data.lastActive;
+          } else {
+            ts = new Date().toISOString();
+          }
+          return {
+            ...data,
+            id: doc.id,
+            lastActive: ts
+          } as UserPresence;
+        });
+
+        // Lọc người dùng online: Hoạt động trong 5 phút qua
+        const now = Date.now();
+        const onlineUsers = presenceData.filter(p => {
+          const lastActiveTime = new Date(p.lastActive).getTime();
+          return (now - lastActiveTime) < (5 * 60 * 1000);
+        });
+        setPresence(onlineUsers);
+      },
+      (error) => {
+        if (error.code !== 'permission-denied') {
+          console.warn("Presence listener error:", error.message);
+        }
+      }
+    );
 
     // Listen to Tasks
     const tasksUnsubscribe = onSnapshot(
@@ -66,7 +96,6 @@ export const useFirebaseData = (currentUserId?: string) => {
     );
 
     // Listen to Messages (Global Chat)
-    // We use a broader query to match the rules more easily
     const messagesUnsubscribe = onSnapshot(
       query(collection(db, 'messages'), orderBy('timestamp', 'asc')),
       (snapshot) => {
@@ -129,7 +158,6 @@ export const useFirebaseData = (currentUserId?: string) => {
     );
 
     // Listen to Private Messages
-    // We use the Firebase UID if available, otherwise fallback to the provided internal ID
     const firebaseUid = auth.currentUser?.uid || currentUserId;
     
     if (!firebaseUid) return;
@@ -164,20 +192,50 @@ export const useFirebaseData = (currentUserId?: string) => {
     }, (error) => {
       if (error.code !== 'permission-denied') {
         handleFirestoreError(error, OperationType.GET, 'direct_messages');
-      } else {
-        console.warn("Permission denied for direct_messages listener. Auth ID:", firebaseUid);
       }
     });
 
+    // Listen to Extra Users
+    const extraUsersUnsubscribe = onSnapshot(
+      collection(db, 'extra_users'),
+      (snapshot) => {
+        const usersData = snapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id
+        } as User));
+        setExtraUsers(usersData);
+      },
+      (error) => {
+        if (error.code !== 'permission-denied') {
+          console.warn("Extra users listener error:", error.message);
+        }
+      }
+    );
+
     return () => {
       tasksUnsubscribe();
-      usersUnsubscribe();
       messagesUnsubscribe();
       reportsUnsubscribe();
       logsUnsubscribe();
       unsubPrivate();
+      extraUsersUnsubscribe();
+      presenceUnsubscribe();
     };
   }, [currentUserId, auth.currentUser?.uid]);
+
+  const updatePresence = useCallback(async (user: User) => {
+    try {
+      await setDoc(doc(db, 'presence', user.id), {
+        id: user.id,
+        name: user.name,
+        avatar: user.avatar,
+        lastActive: serverTimestamp(),
+        status: 'online'
+      });
+    } catch (error) {
+      console.warn("Failed to update presence:", error);
+    }
+  }, []);
 
   const addTask = useCallback(async (task: Omit<Task, 'id'>) => {
     try {
@@ -204,7 +262,6 @@ export const useFirebaseData = (currentUserId?: string) => {
 
   const saveReportDraft = useCallback(async (draft: Omit<ReportDraft, 'id'>) => {
     try {
-      // Use monthYear_userId as a unique doc ID for simplicity to overwrite same month's draft
       const draftId = `${draft.monthYear.replace(/\//g, '-')}_${draft.userId}`;
       await setDoc(doc(db, 'report_drafts', draftId), {
         ...draft,
@@ -249,7 +306,6 @@ export const useFirebaseData = (currentUserId?: string) => {
 
   const sendPrivateMessage = useCallback(async (content: string, senderId: string, receiverId: string) => {
     try {
-      // Use the actual Firebase UID for sending if available, otherwise use provided ID
       const realSenderId = auth.currentUser?.uid || senderId;
       const chatId = [realSenderId, receiverId].sort().join('_');
       
@@ -265,27 +321,8 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
-  const updateStaff = useCallback(async (staff: User) => {
-    try {
-      // Use the staff's id as the document ID if it exists, otherwise use a new one.
-      // In this app, we should use the UID as the ID for clarity.
-      await setDoc(doc(db, 'users', staff.id), staff);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `users/${staff.id}`);
-    }
-  }, []);
-
-  const deleteStaff = useCallback(async (id: string) => {
-    try {
-      await deleteDoc(doc(db, 'users', id));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
-    }
-  }, []);
-
   const clearAllTasks = useCallback(async (taskIds: string[]) => {
     try {
-      // Loop sequentially to avoid bulk operation restrictions and ensure client-side permissions
       for (const id of taskIds) {
         await deleteDoc(doc(db, 'tasks', id));
       }
@@ -321,26 +358,59 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
+  const addExtraUser = useCallback(async (user: User) => {
+    try {
+      await setDoc(doc(db, 'extra_users', user.id), {
+        ...user,
+        createdAt: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `extra_users/${user.id}`);
+    }
+  }, []);
+
+  const updateExtraUser = useCallback(async (userId: string, updates: Partial<User>) => {
+    try {
+      await updateDoc(doc(db, 'extra_users', userId), {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `extra_users/${userId}`);
+    }
+  }, []);
+
+  const deleteExtraUser = useCallback(async (userId: string) => {
+    try {
+      await deleteDoc(doc(db, 'extra_users', userId));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `extra_users/${userId}`);
+    }
+  }, []);
+
   return {
     tasks,
-    users,
     messages,
     privateMessages,
     officialReports,
     logs,
+    extraUsers,
     loading,
     addTask,
     updateTask,
     deleteTask,
     sendMessage,
     sendPrivateMessage,
-    updateStaff,
-    deleteStaff,
     updateMessageReactions,
     updatePrivateMessageReactions,
     addLog,
     saveReportDraft,
     saveOfficialReport,
-    clearAllTasks
+    clearAllTasks,
+    addExtraUser,
+    updateExtraUser,
+    deleteExtraUser,
+    presence,
+    updatePresence
   };
 };

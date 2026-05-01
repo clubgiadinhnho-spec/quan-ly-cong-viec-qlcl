@@ -122,7 +122,9 @@ export const Sidebar = ({
         <div className="flex items-center gap-3 px-2">
           <Avatar src={user.avatar} name={user.name} size="lg" />
           <div className="flex-1 min-w-0">
-            <p translate="no" className="text-sm font-bold text-gray-900 truncate notranslate">{user.name}</p>
+            <p translate="no" className="text-sm font-bold text-gray-900 truncate notranslate">
+              <span translate="no" className="notranslate">{user.name}</span>
+            </p>
             <p className={`text-[10px] font-semibold uppercase ${hasDelegatedPermissions(user) ? 'text-amber-600' : 'text-gray-500'}`}>
               {user.role} {user.delegatedPermissions && (() => {
                 const count = Object.values(user.delegatedPermissions).filter(Boolean).length;

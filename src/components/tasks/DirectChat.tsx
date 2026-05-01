@@ -207,7 +207,9 @@ export const DirectChat = ({
                 )}
               </div>
               <div className="min-w-0">
-                <h3 {...getSafeNameProps()} className={`${isMinimized || variant === 'bubble' ? 'text-[11px]' : 'text-sm'} font-black text-gray-800 uppercase tracking-tighter truncate w-32 notranslate`}>{otherUser.name}</h3>
+                <h3 {...getSafeNameProps()} className={`${isMinimized || variant === 'bubble' ? 'text-[11px]' : 'text-sm'} font-black text-gray-800 uppercase tracking-tighter truncate w-32 notranslate`}>
+                   <span translate="no" className="notranslate">{otherUser.name}</span>
+                </h3>
                 {!isMinimized && variant !== 'bubble' && (
                   <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-2">
                     {otherUser.role} <span className="w-1 h-1 bg-gray-300 rounded-full"></span> {otherUser.abbreviation}

@@ -37,6 +37,7 @@ export interface User {
   personalEmail: string;
   avatar: string;
   code: string;
+  uniqueKey: string;
   abbreviation: string;
   personalNote?: string;
   status: 'PENDING' | 'ACTIVE' | 'INACTIVE';
@@ -138,6 +139,14 @@ export interface OfficialReport {
   };
   isOfficial: boolean;
   createdAt: string;
+}
+
+export interface UserPresence {
+  id: string;
+  name: string;
+  avatar: string;
+  lastActive: string;
+  status: 'online' | 'offline';
 }
 
 export interface AuthState {

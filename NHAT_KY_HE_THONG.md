@@ -201,6 +201,20 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
     - Áp dụng kiểm tra kiểu dữ liệu (Validation) nghiêm ngặt cho mỗi lần ghi vào database.
 - **Đồng bộ hóa giao diện:** Cập nhật Sidebar, TaskRow, StaffList và ProfilePage để hiển thị và xử lý logic theo bộ phân quyền mới.
 
+### 📝 Cập nhật mới nhất: 01/05/2026 (CUỘC CẢI CÁCH DỮ LIỆU CUỐI CÙNG - QLCL HUB)
+- **Tái thiết lập hạ tầng Dữ liệu Nhân sự:** 
+    - Chuyển đổi toàn bộ thông tin nhân sự từ Firestore sang mô hình **Hardcode Constants**.
+    - Nguồn dữ liệu nhân sự duy nhất hiện tại là file `src/constants/staff.ts`, bao gồm 5 nhân sự cốt lõi.
+    - Loại bỏ vĩnh viễn việc lưu trữ Profile nhân viên trên Firestore để tối ưu bảo mật và tốc độ.
+- **Nâng cấp Cơ chế Xác thực (Authentication):**
+    - Chuyển đổi từ Đăng nhập ẩn danh/Mô phỏng sang **Firebase Auth (Email/Password)** chính thức.
+    - Quy trình mới: Đăng ký (Email + Mật khẩu) -> Đăng nhập -> So khớp Email với `staff.ts` để gán quyền và hiển thị tên.
+- **Thắt chặt Bảo mật Truy cập:**
+    - Chỉ cho phép các Email có trong danh sách 5 nhân sự cốt lõi mới được phép đăng ký/đăng nhập vào hệ thống.
+    - Mọi Email lạ sẽ bị chặn truy cập ngay từ màn hình xác thực.
+- **Dọn dẹp mã nguồn:** 
+    - Gỡ bỏ toàn bộ logic tự động tạo User, tự cập nhật Profile và các listener đồng bộ User từ Firestore.
+
 ---
 
-*Ngày cập nhật cuối cùng: 30/04/2026*
+*Ngày cập nhật cuối cùng: 01/05/2026*

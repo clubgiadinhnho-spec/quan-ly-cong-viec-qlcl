@@ -105,7 +105,7 @@ export const GroupChatPage = ({ currentUser, users, messages, onSendMessage, onR
                     {!isMe && (
                       <div className="flex items-center gap-2 mb-0.5 ml-1">
                         <p className="text-[10px] font-black text-gray-800 uppercase tracking-tighter">
-                          {author?.name}
+                          <span translate="no" className="notranslate">{author?.name}</span>
                         </p>
                         <span className="text-[7px] px-1.5 py-0.5 bg-rose-50 text-rose-600 rounded-md font-black uppercase border border-rose-100/50">
                           {author?.role}

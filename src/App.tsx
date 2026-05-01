@@ -19,9 +19,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { exportTasksToExcel, importTasksFromExcel, downloadSampleExcel } from './utils/excelUtils';
 
 // Import Firebase & Hooks
-import { auth, logout, db, loginAnonymously } from './lib/firebase';
+import { auth, logout, db } from './lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
 import { useFirebaseData } from './hooks/useFirebaseData';
 import { useTaskActions } from './hooks/useTaskActions';
 
@@ -114,61 +113,59 @@ export default function App() {
     privateMessages,
     officialReports,
     logs,
+    extraUsers,
     loading: firebaseLoading,
     addTask: firebaseAddTask,
     updateTask: firebaseUpdateTask,
     deleteTask: firebaseDeleteTask,
     sendMessage: firebaseSendMessage,
     sendPrivateMessage: firebaseSendPrivateMsg,
-    updateStaff: firebaseUpdateStaff,
-    deleteStaff: firebaseDeleteStaff,
     updateMessageReactions: firebaseUpdateMessageReactions,
     updatePrivateMessageReactions: firebaseUpdatePrivateMessageReactions,
     addLog: firebaseAddLog,
     saveReportDraft: firebaseSaveReportDraft,
     saveOfficialReport: firebaseSaveOfficialReport,
     clearAllTasks,
-    users: firebaseUsers
+    addExtraUser,
+    updateExtraUser,
+    deleteExtraUser,
+    presence,
+    updatePresence
   } = useFirebaseData(effectiveUser?.id);
 
+  // Presence Heartbeat
+  useEffect(() => {
+    if (!effectiveUser || !authReady) return;
+
+    // Initial update
+    updatePresence(effectiveUser);
+
+    const interval = setInterval(() => {
+      updatePresence(effectiveUser);
+    }, 60000); // Update every minute to stay "online" (5-min buffer in hook)
+
+    return () => clearInterval(interval);
+  }, [effectiveUser?.id, authReady, updatePresence]);
+
   const firebaseSendPrivateMessage = useCallback(async (content: string, senderId: string, receiverId: string) => {
-    if (!auth.currentUser) {
-      console.warn("Firebase Auth missing. Attempting auto-login...");
-      try {
-        await loginAnonymously();
-      } catch (err) {
-        console.error("Auth restoration failed:", err);
-      }
-    }
     await firebaseSendPrivateMsg(content, senderId, receiverId);
   }, [firebaseSendPrivateMsg]);
 
-  // Firestore is the source of truth, but we use FIXED_STAFF as base defaults
+  // Merge FIXED_STAFF with extraUsers from Firestore and deduplicate by uniqueKey
   const allUsers = React.useMemo(() => {
-    if (!firebaseUsers || firebaseUsers.length === 0) return FIXED_STAFF;
-    
-    // Merge: Firestore users take precedence
-    const merged = [...FIXED_STAFF];
-    firebaseUsers.forEach(fu => {
-      // Dọn dẹp: CHỈ hiển thị nhân sự thuộc danh sách 5 người cốt lõi hoặc có tên hợp lệ
-      const coreNames = ['Lê Nhật Trường', 'Quản Trị Viên', 'Bành Nhựt Hùng', 'Võ Thị Mỹ Tân', 'Nguyễn Kiều Phan Tú'];
-      const isCore = coreNames.some(cn => fu.name && fu.name.includes(cn)) || fu.id.startsWith('ADMIN_') || fu.id.startsWith('STAFF_') || fu.id.startsWith('LEADER_');
-      const isUnknown = !fu.name || fu.name === 'Unknown User';
-      
-      if (!isCore || isUnknown) return;
-
-      const idx = merged.findIndex(u => u.id === fu.id);
-      if (idx !== -1) {
-        merged[idx] = fu;
-      } else {
-        // Only allow adding if it's a known approved user (not unknown)
-        merged.push(fu);
+    const merged = [...FIXED_STAFF, ...extraUsers];
+    const uniqueMap = new Map();
+    merged.forEach(u => {
+      // Normalize uniqueKey if exists, otherwise generate one for safety
+      const key = u.uniqueKey || `${(u.name || '').replace(/\s+/g, '')}${u.phone || ''}`;
+      // Firestore extra_users might have higher priority for updates? 
+      // Actually, order matters. Let's keep the first occurrence or latest if from Firestore.
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, u);
       }
     });
-
-    // Final safety filter
-    return merged.filter(u => u.name && u.name !== 'Unknown User');
-  }, [firebaseUsers]);
+    return Array.from(uniqueMap.values());
+  }, [extraUsers]);
 
   const { 
     addTask: baseAddTask,
@@ -323,32 +320,33 @@ export default function App() {
   // Handle Authentication State (Restore Session & Sync)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
-      const savedUserStr = localStorage.getItem('qc_user');
-      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
-
       if (fbUser) {
-        if (savedUser) {
-          setCurrentUser(savedUser);
+        // Find matching staff in the merged list
+        const matchingStaff = allUsers.find(s => 
+          (s.companyEmail || '').toLowerCase() === (fbUser.email || '').toLowerCase() ||
+          (s.personalEmail || '').toLowerCase() === (fbUser.email || '').toLowerCase()
+        );
+
+        if (matchingStaff) {
+          const userWithFbId = { 
+            ...matchingStaff, 
+            id: fbUser.uid, 
+            lastActive: Date.now() 
+          } as UserType;
+          setCurrentUser(userWithFbId);
         } else {
-          // Firebase session exists but no local user metadata - force re-login/selection
+          // Email not in staff list - block access
+          logout();
           setCurrentUser(null);
         }
       } else {
-        // No Firebase session
-        if (savedUser) {
-          // We have a local user but no FB session - restore session anonymously
-          loginAnonymously().catch(err => console.error("Session restoration failed:", err));
-          setCurrentUser(savedUser);
-        } else {
-          // No user, no session - just show login
-          setCurrentUser(null);
-        }
+        setCurrentUser(null);
       }
       setAuthReady(true);
     });
 
     return () => unsubscribe();
-  }, []); 
+  }, [allUsers]); 
 
   const handleLogin = (user: UserType) => {
     setCurrentUser(user);
@@ -381,13 +379,6 @@ export default function App() {
     if (!effectiveUser) return;
     firebaseSendMessage(content, effectiveUser.id);
   }, [effectiveUser, firebaseSendMessage]);
-
-  const updateUserNote = useCallback((userId: string, note: string) => {
-    const staff = FIXED_STAFF.find(u => u.id === userId);
-    if (staff) {
-      firebaseUpdateStaff({ ...staff, personalNote: note });
-    }
-  }, [firebaseUpdateStaff]);
 
   const deleteTask = useCallback((id: string) => {
     setConfirmModal({
@@ -450,53 +441,6 @@ export default function App() {
       }
     });
   }, [tasks, clearAllTasks]);
-
-  const onUpdateStaff = useCallback(async (updatedStaff: UserType) => {
-    // Detect delegation changes to log them
-    const originalStaff = FIXED_STAFF.find(u => u.id === updatedStaff.id);
-    const hasPermsChanged = JSON.stringify(originalStaff?.delegatedPermissions) !== JSON.stringify(updatedStaff.delegatedPermissions);
-    
-    if (originalStaff && hasPermsChanged) {
-      const activePerms = updatedStaff.delegatedPermissions ? 
-        Object.entries(updatedStaff.delegatedPermissions)
-          .filter(([_, v]) => v)
-          .map(([k]) => k) : [];
-      
-      const count = activePerms.length;
-
-      // Log the change
-      await firebaseAddLog({
-        type: 'DELEGATION_CHANGE',
-        userId: currentUser?.id || 'system',
-        targetId: updatedStaff.id,
-        details: `Cập nhật quyền ủy quyền cho ${updatedStaff.name}: ${count > 0 ? activePerms.join(', ') : 'Thu hồi toàn bộ quyền'}`,
-        metadata: { perms: updatedStaff.delegatedPermissions }
-      });
-
-      // Send announcement to Group Chat if there are permissions
-      if (count > 0) {
-        const adminName = currentUser?.name || 'Trưởng phòng';
-        const msg = `🛡️ [THÔNG BÁO ỦY QUYỀN TRỌNG YẾU]\n\n` +
-                    `Trưởng phòng ${adminName} chính thức ủy quyền cho ${updatedStaff.name} (${count}/6 quyền) để điều hành và kiểm soát công việc tại Phòng QLCL.\n\n` +
-                    `Phạm vi ủy quyền bao gồm:\n` +
-                    activePerms.map(p => {
-                      const labels: Record<string, string> = {
-                        canCreateTask: '• Soạn thảo & Nhập liệu',
-                        canApproveTask: '• Phê duyệt & Chốt báo cáo',
-                        canDeleteTask: '• Xóa & Hủy dự án',
-                        canExportExcel: '• Trích xuất dữ liệu',
-                        canImportExcel: '• Nhập dữ liệu hàng loạt',
-                        canManageStaff: '• Quản trị nhân sự'
-                      };
-                      return labels[p] || p;
-                    }).join('\n') +
-                    `\n\nHệ thống đã cập nhật thẻ bài quyền hạn. Đề nghị các thành viên phối hợp thực hiện.`;
-
-        await firebaseSendMessage(msg, 'system');
-      }
-    }
-    firebaseUpdateStaff(updatedStaff);
-  }, [firebaseUpdateStaff, firebaseAddLog, firebaseSendMessage, currentUser]);
 
   const handleExportExcel = () => {
     if (currentUser?.role !== 'Admin' && !currentUser?.delegatedPermissions?.canExportExcel) return;
@@ -581,35 +525,6 @@ export default function App() {
     }
   };
 
-  const handleStaffDelete = useCallback((userId: string) => {
-    const staff = allUsers.find(u => u.id === userId);
-    if (!staff) return;
-
-    setConfirmModal({
-      show: true,
-      title: 'XÁC NHẬN XÓA NHÂN SỰ',
-      message: `Bạn có chắc chắn muốn xóa vĩnh viễn nhân sự "${staff.name}" khỏi hệ thống? Phông thể hoàn tác.`,
-      onConfirm: async () => {
-        try {
-          await firebaseDeleteStaff(userId);
-          setConfirmModal(p => ({ ...p, show: false }));
-        } catch (error) {
-          console.error("Delete staff error:", error);
-          alert("Lỗi: Không thể xóa nhân sự này (Kiểm tra Firebase Rules).");
-        }
-      }
-    });
-  }, [allUsers, firebaseDeleteStaff]);
-
-  const handleBulkDeleteStaff = useCallback(async (userIds: string[]) => {
-    try {
-      await Promise.all(userIds.map(id => firebaseDeleteStaff(id)));
-    } catch (error) {
-      console.error("Bulk delete error:", error);
-      throw error;
-    }
-  }, [firebaseDeleteStaff]);
-
   const filteredTasks = tasks.filter(t => {
     // Trash tab shows ONLY deleted tasks
     if (activeTab === 'trash') {
@@ -656,7 +571,7 @@ export default function App() {
   });
 
   if (!authReady) return <div className="min-h-screen flex items-center justify-center font-black text-blue-600">ĐANG TẢI DỮ LIỆU...</div>;
-  if (!currentUser || (!currentUser.name && !currentUser.companyEmail)) return <Login users={allUsers} onLogin={handleLogin} />;
+  if (!currentUser || (!currentUser.name && !currentUser.companyEmail)) return <Login users={allUsers} onLogin={handleLogin} onAddStaff={addExtraUser} />;
 
   return (
     <div className="flex min-h-screen bg-[#F9FAFB]">
@@ -705,11 +620,13 @@ export default function App() {
             >
               <HolidayBanner />
               <Header 
-                title="TRUNG TÂM QUẢN LÝ CHẤT LƯỢNG TÂN PHÚ VIỆT NAM" 
+                title="PHÒNG QUẢN LÝ CHẤT LƯỢNG TÂN PHÚ VIỆT NAM" 
                 badge={effectiveUser.role}
                 onAction={effectiveUser.role !== 'Staff' || effectiveUser.delegatedPermissions?.canCreateTask ? () => setShowTaskModal(true) : undefined}
                 actionLabel={effectiveUser.role !== 'Staff' || effectiveUser.delegatedPermissions?.canCreateTask ? "Nhập công việc mới" : "Xem thông tin"}
                 actionIcon={effectiveUser.role !== 'Staff' || effectiveUser.delegatedPermissions?.canCreateTask ? Plus : Search}
+                onlineUsers={presence}
+                currentUserId={effectiveUser.id}
               />
               
               <div className="p-6 space-y-6">
@@ -847,6 +764,8 @@ export default function App() {
               <HolidayBanner />
               <Header 
                 title="ĐỀ XUẤT MỚI" 
+                onlineUsers={presence}
+                currentUserId={effectiveUser.id}
               />
               <div className="p-6">
                 <PendingConfirmationPage 
@@ -872,6 +791,8 @@ export default function App() {
               <HolidayBanner />
               <Header 
                 title="CV HOÀN THÀNH" 
+                onlineUsers={presence}
+                currentUserId={effectiveUser.id}
               />
               <div className="p-6 space-y-6">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
@@ -933,6 +854,8 @@ export default function App() {
               <HolidayBanner />
               <Header 
                 title="Phòng thảo luận chung" 
+                onlineUsers={presence}
+                currentUserId={effectiveUser.id}
               />
               <div className="p-6">
                 <GroupChatPage 
@@ -960,14 +883,14 @@ export default function App() {
               <Header 
                 title="Hồ sơ & Thông tin nhân sự" 
                 badge={effectiveUser.code} 
+                onlineUsers={presence}
+                currentUserId={effectiveUser.id}
               />
               <div className="p-6">
                 <ProfilePage 
                   currentUser={effectiveUser} 
                   tasks={tasks} 
                   users={allUsers}
-                  onUpdateNote={updateUserNote}
-                  onUpdateUser={firebaseUpdateStaff}
                 />
               </div>
             </motion.div>
@@ -978,6 +901,8 @@ export default function App() {
                <HolidayBanner />
                <Header 
                 title="Báo cáo hiệu suất & Vấn đề" 
+                onlineUsers={presence}
+                currentUserId={effectiveUser.id}
                />
                <div className="p-6">
                   <ReportPage 
@@ -998,6 +923,8 @@ export default function App() {
                <HolidayBanner />
                <Header 
                 title="TRUNG TÂM XÓA (THÙNG RÁC)" 
+                onlineUsers={presence}
+                currentUserId={effectiveUser.id}
                />
                <div className="p-6 space-y-6">
                  <div className="bg-red-50 p-4 rounded-xl border border-red-100 flex items-center gap-3">
@@ -1035,21 +962,23 @@ export default function App() {
                <HolidayBanner />
                <Header 
                 title="Quản lý Nhân sự" 
+                onlineUsers={presence}
+                currentUserId={effectiveUser.id}
                />
                <div className="p-8">
                   <StaffListPage 
                     users={allUsers} 
-                    onUpdateStaff={onUpdateStaff} 
-                    onDeleteStaff={handleStaffDelete}
-                    onBulkDeleteStaff={handleBulkDeleteStaff}
                     currentUser={effectiveUser} 
                     onSimulateStaff={setSimulatedUser}
                     onSendToUser={async (msg, targetId) => {
-                      await firebaseSendPrivateMsg(msg, currentUser.id, targetId);
+                      await firebaseSendPrivateMsg(msg, effectiveUser.id, targetId);
                     }}
                     onSendToGroup={async (msg) => {
                       await firebaseSendMessage(msg, 'system');
                     }}
+                    onAddStaff={addExtraUser}
+                    onUpdateStaff={updateExtraUser}
+                    onDeleteStaff={deleteExtraUser}
                   />
                </div>
             </motion.div>
@@ -1060,6 +989,8 @@ export default function App() {
                <HolidayBanner />
                <Header 
                 title="Lịch sử Hoạt động Hệ thống" 
+                onlineUsers={presence}
+                currentUserId={effectiveUser.id}
                />
                <div className="p-8">
                   <div className="max-w-4xl mx-auto space-y-6">

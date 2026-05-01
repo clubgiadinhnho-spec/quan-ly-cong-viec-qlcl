@@ -1,5 +1,13 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, signInAnonymously } from 'firebase/auth';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile
+} from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import firebaseConfig from '@/firebase-applet-config.json';
 
@@ -8,27 +16,23 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
+export const loginWithEmail = async (email: string, pass: string) => {
+  const result = await signInWithEmailAndPassword(auth, email, pass);
+  return result.user;
+};
+
+export const registerWithEmail = async (email: string, pass: string, name: string) => {
+  const result = await createUserWithEmailAndPassword(auth, email, pass);
+  await updateProfile(result.user, { displayName: name });
+  return result.user;
+};
+
 export const loginWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (error) {
     console.error("Login failed:", error);
-    throw error;
-  }
-};
-
-export const loginAnonymously = async () => {
-  try {
-    const result = await signInAnonymously(auth);
-    return result.user;
-  } catch (error: any) {
-    if (error.code === 'auth/admin-restricted-operation') {
-      console.warn("LỖI CẤU HÌNH FIREBASE: Tính năng 'Anonymous Authentication' chưa được bật.");
-      console.warn("Vui lòng vào: https://console.firebase.google.com/project/gen-lang-client-0387627403/authentication/providers");
-      return null;
-    }
-    console.error("Anonymous login failed:", error);
     throw error;
   }
 };

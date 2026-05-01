@@ -106,7 +106,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1">
-              <p {...getSafeNameProps()} className="text-[11px] font-bold text-gray-900 leading-none truncate notranslate" title={assigneeName}>{assigneeName}</p>
+              <p {...getSafeNameProps()} className="text-[11px] font-bold text-gray-900 leading-none truncate notranslate" title={assigneeName}>
+                <span translate="no" className="notranslate">{assigneeName}</span>
+              </p>
             </div>
             <div className="flex flex-col gap-0.5 mt-0.5">
               <p className="text-[8px] text-gray-500 font-medium opacity-70 leading-tight">G: {formatDate(task.issueDate)}</p>

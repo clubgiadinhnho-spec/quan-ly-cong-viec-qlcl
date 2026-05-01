@@ -114,6 +114,19 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["monthYear", "content", "userId", "stats", "isOfficial", "createdAt"]
+    },
+    "Presence": {
+      "title": "Presence",
+      "description": "User online status and activity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "avatar": { "type": "string" },
+        "lastActive": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["online", "offline"] }
+      },
+      "required": ["id", "name", "avatar", "lastActive", "status"]
     }
   },
   "firestore": {
@@ -140,6 +153,10 @@
     "official_reports": {
       "schema": "OfficialReport",
       "description": "Finalized monthly reports"
+    },
+    "presence": {
+      "schema": "Presence",
+      "description": "Real-time user presence tracking"
     }
   }
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Task, User, OfficialReport, ReportDraft } from '../types';
 import { formatDate } from '../lib/dateUtils';
 import { 
-  AlertCircle, Plus, Paperclip, Calendar, Download, Clock, ChevronDown, CheckCircle, FileText, X
+  AlertCircle, Plus, Paperclip, Calendar, Download, Clock, ChevronDown, CheckCircle, CheckCircle2, FileText, X
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -161,7 +161,7 @@ export const ReportPage = ({
   const highlightedTasks = tasks.filter(t => t.isHighlighted);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-20">
+    <div className="max-w-6xl mx-auto space-y-6 pb-20 animate-in fade-in duration-500">
       {/* Print Template (Hidden) */}
       <div 
         ref={printTemplateRef} 
@@ -272,108 +272,200 @@ export const ReportPage = ({
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-blue-100 text-blue-600 rounded-xl">
-            <Calendar size={24} />
+      <div className="bg-[#eff6ff] rounded-[32px] shadow-xl border-4 border-slate-100 overflow-hidden px-10 py-6 transition-all duration-300">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <div className="w-14 h-14 bg-white rounded-2xl shadow-md border border-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+              <Calendar size={28} strokeWidth={2.5} />
+            </div>
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <h1 className="text-[28px] font-black text-slate-900 tracking-tight uppercase leading-none">
+                  BÁO CÁO THÁNG
+                </h1>
+                <div className="px-3 py-1 bg-white/80 rounded-xl border border-blue-100 flex items-center gap-2">
+                  <input 
+                    type="text" 
+                    value={reportPeriod}
+                    onChange={(e) => setReportPeriod(e.target.value)}
+                    className="bg-transparent border-none p-0 text-blue-600 font-black text-xl w-36 focus:ring-0 text-center tracking-tighter"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                TỔNG HỢP CHỈ SỐ KPIS & VẤN ĐỀ NỔI CỘM
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-              <span translate="no" className="notranslate">BÁO CÁO THÁNG:</span> 
-              <input 
-                type="text" 
-                value={reportPeriod}
-                onChange={(e) => setReportPeriod(e.target.value)}
-                className="bg-transparent border-none p-0 text-blue-600 font-black text-xl w-40 focus:ring-0"
-              />
-            </h1>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Tổng hợp chỉ số KPIs & Vấn đề</p>
-          </div>
-        </div>
 
-        <div className="flex gap-2">
-          <button 
-            onClick={() => setShowHistory(!showHistory)}
-            className="px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-xl text-xs font-black transition-all flex items-center gap-2"
-          >
-            <Clock size={16} /> Lịch sử
-          </button>
-          <button 
-            onClick={handleSaveDraft}
-            disabled={isSavingDraft}
-            className="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl text-xs font-black hover:bg-gray-50 transition-all"
-          >
-            {isSavingDraft ? 'Đang lưu...' : 'Lưu nháp'}
-          </button>
-          <button 
-            onClick={handleExportPDF}
-            disabled={isExportingPDF}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-200 transition-all flex items-center gap-2"
-          >
-            <Download size={16} /> {isExportingPDF ? 'Đang xuất...' : 'Xuất PDF & Chốt'}
-          </button>
+          <div className="flex gap-3">
+            <button 
+              onClick={() => setShowHistory(!showHistory)}
+              className="h-10 px-6 rounded-xl bg-white text-slate-800 text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-50 transition-all active:scale-95 flex items-center gap-2 border border-slate-200"
+            >
+              <Clock size={16} /> LỊCH SỬ
+            </button>
+            <button 
+              onClick={handleSaveDraft}
+              disabled={isSavingDraft}
+              className="h-10 px-6 bg-white border border-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 shadow-md transition-all"
+            >
+              {isSavingDraft ? 'ĐANG LƯU...' : 'LƯU NHÁP'}
+            </button>
+            <button 
+              onClick={handleExportPDF}
+              disabled={isExportingPDF}
+              className="h-10 px-8 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center gap-2"
+            >
+              <Download size={16} strokeWidth={3} /> {isExportingPDF ? 'ĐANG XUẤT...' : 'CHỐT BÁO CÁO (PDF)'}
+            </button>
+          </div>
         </div>
       </div>
 
       {showHistory && (
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="col-span-full flex justify-between items-center mb-2">
-            <h3 className="text-xs font-black text-gray-400 uppercase">Báo cáo đã chốt</h3>
-            <button onClick={() => setShowHistory(false)}><X size={16} /></button>
+        <div className="bg-white p-6 rounded-[24px] shadow-xl border border-blue-50 grid grid-cols-1 md:grid-cols-3 gap-4 animate-in slide-in-from-top-4 duration-300">
+          <div className="col-span-full flex justify-between items-center mb-2 px-2">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">BÁO CÁO CHÍNH THỨC ĐÃ LƯU</h3>
+            <button onClick={() => setShowHistory(false)} className="p-1 hover:bg-slate-100 rounded-lg"><X size={16} /></button>
           </div>
-          {officialReports.map(report => (
-            <div key={report.id} className="p-4 border border-gray-50 bg-gray-50 rounded-xl">
-              <p className="font-black text-gray-900">{report.monthYear}</p>
-              <p className="text-[10px] text-gray-400">Ngày lập: {formatDate(report.createdAt)}</p>
+          {officialReports.length === 0 ? (
+            <p className="col-span-full text-center py-4 text-[11px] text-slate-400 font-bold uppercase italic">Chưa có bản ghi nào.</p>
+          ) : officialReports.map(report => (
+            <div key={report.id} className="p-4 border border-slate-50 bg-slate-50/50 rounded-2xl hover:border-blue-200 transition-colors group">
+              <p className="font-black text-slate-900 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{report.monthYear}</p>
+              <p className="text-[9px] font-black text-slate-400 mt-1 uppercase">Ngày lập: {formatDate(report.createdAt)}</p>
             </div>
           ))}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          { label: 'Tổng nhiệm vụ', val: total, color: 'blue' },
-          { label: 'Hoàn thành', val: completed, color: 'green' },
-          { label: 'Vấn đề nổi cộm', val: issues, color: 'red' },
-        ].map((stat, i) => (
-          <div key={i} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center">
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{stat.label}</p>
-            <p className={`text-2xl font-black text-${stat.color}-600`}>{stat.val}</p>
+      {/* STATISTICS - 4 COLUMNS WIDE STYLE */}
+      <div className="grid grid-cols-4 gap-4 px-2">
+        <div className="bg-amber-500 p-2 px-4 rounded-[20px] border-b-2 border-amber-600 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[60px]">
+          <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
+            <FileText size={40} />
           </div>
-        ))}
-      </div>
-
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-50 flex items-center gap-3">
-          <AlertCircle className="text-red-500" />
-          <h3 className="font-black text-gray-800 uppercase text-sm">VẤN ĐỀ CẦN GIẢI TRÌNH ({issues})</h3>
-        </div>
-        <div className="p-6 space-y-4">
-          {tasks.filter(t => t.isHighlighted).map(t => (
-            <div key={t.id} className="p-4 border border-gray-50 bg-gray-50 rounded-xl space-y-3">
-              <div className="flex justify-between items-start">
-                <h4 className="font-black text-gray-900 text-sm">{t.code} - {t.title}</h4>
-                <span className="text-[10px] font-black text-gray-400 uppercase">{users.find(u => u.id === t.assigneeId)?.name}</span>
-              </div>
-              <textarea 
-                className="w-full p-4 bg-white border border-gray-200 rounded-xl text-xs h-24 focus:ring-1 focus:ring-blue-500 outline-none"
-                placeholder="Nhập giải trình..."
-                value={t.reportExplanation || ''}
-                onChange={(e) => onUpdateTask(t.id, { reportExplanation: e.target.value })}
-              />
+          <div className="flex items-center gap-2 mb-0.5 relative z-10">
+            <div className="p-1 bg-white/20 rounded-md">
+              <FileText size={11} strokeWidth={2.5} />
             </div>
-          ))}
+            <p className="text-[8px] font-black uppercase tracking-widest">Tổng nhiệm vụ</p>
+          </div>
+          <p className="text-xl font-black leading-none relative z-10 text-right">{total}</p>
+        </div>
+
+        <div className="bg-emerald-500 p-2 px-4 rounded-[20px] border-b-2 border-emerald-600 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[60px]">
+          <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
+            <CheckCircle2 size={40} />
+          </div>
+          <div className="flex items-center gap-2 mb-0.5 relative z-10">
+            <div className="p-1 bg-white/20 rounded-md">
+              <CheckCircle2 size={11} strokeWidth={2.5} />
+            </div>
+            <p className="text-[8px] font-black uppercase tracking-widest">Hoàn thành</p>
+          </div>
+          <p className="text-xl font-black leading-none relative z-10 text-right">{completed}</p>
+        </div>
+
+        <div className="bg-blue-600 p-2 px-4 rounded-[20px] border-b-2 border-blue-700 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[60px]">
+          <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
+            <CheckCircle size={40} />
+          </div>
+          <div className="flex items-center gap-2 mb-0.5 relative z-10">
+            <div className="p-1 bg-white/20 rounded-md">
+              <CheckCircle size={11} strokeWidth={2.5} />
+            </div>
+            <p className="text-[8px] font-black uppercase tracking-widest">Tỉ lệ đạt</p>
+          </div>
+          <p className="text-xl font-black leading-none relative z-10 text-right">{total > 0 ? Math.round((completed/total)*100) : 0}%</p>
+        </div>
+
+        <div className="bg-red-500 p-2 px-4 rounded-[20px] border-b-2 border-red-600 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[60px]">
+          <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
+            <AlertCircle size={40} />
+          </div>
+          <div className="flex items-center gap-2 mb-0.5 relative z-10">
+            <div className="p-1 bg-white/20 rounded-md">
+              <AlertCircle size={11} strokeWidth={2.5} />
+            </div>
+            <p className="text-[8px] font-black uppercase tracking-widest whitespace-nowrap">Vấn đề nổi cộm</p>
+          </div>
+          <p className="text-xl font-black leading-none relative z-10 text-right">{issues}</p>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-        <h3 className="font-black text-gray-800 uppercase text-sm">TỔNG KẾT THÁNG</h3>
-        <textarea 
-          className="w-full p-6 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-1 focus:ring-blue-500 text-sm h-40 resize-none transition-all"
-          placeholder="Nhập nội dung tổng kết..."
-          value={monthlyConclusion}
-          onChange={(e) => setMonthlyConclusion(e.target.value)}
-        />
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 p-2">
+        <div className="lg:col-span-3 space-y-6">
+          <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-6 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-100 text-red-600 rounded-xl">
+                  <AlertCircle size={18} />
+                </div>
+                <h3 className="font-black text-slate-900 uppercase text-[12px] tracking-tight">VẤN ĐỀ CẦN GIẢI TRÌNH ({issues})</h3>
+              </div>
+            </div>
+            <div className="p-6 space-y-5">
+              {tasks.filter(t => t.isHighlighted).length === 0 ? (
+                <div className="text-center py-10">
+                  <div className="w-12 h-12 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <CheckCircle size={24} />
+                  </div>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase italic">Không có vấn đề nổi cộm trong kỳ!</p>
+                </div>
+              ) : (
+                tasks.filter(t => t.isHighlighted).map(t => (
+                  <div key={t.id} className="p-5 border border-slate-50 bg-slate-50/30 rounded-2xl space-y-4 hover:border-red-100 transition-colors">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-1">
+                        <h4 className="font-black text-slate-900 text-[13px] uppercase tracking-tight">{t.title}</h4>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[9px] font-black text-red-500 uppercase">MÃ: {t.code}</span>
+                          <span className="text-[9px] font-black text-slate-300"> | </span>
+                          <span className="text-[9px] font-black text-slate-400 uppercase">PHỤ TRÁCH: {users.find(u => u.id === t.assigneeId)?.name}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <textarea 
+                      className="w-full p-4 bg-white border border-slate-100 rounded-xl text-[12px] h-28 focus:ring-2 focus:ring-red-100 outline-none transition-all placeholder:italic font-medium text-slate-700"
+                      placeholder="Nhập nội dung giải trình chi tiết về nguyên nhân và giải pháp..."
+                      value={t.reportExplanation || ''}
+                      onChange={(e) => onUpdateTask(t.id, { reportExplanation: e.target.value })}
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white p-8 rounded-[24px] border border-slate-100 shadow-sm space-y-5">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-blue-100 text-blue-600 rounded-xl">
+                <FileText size={18} />
+              </div>
+              <h3 className="font-black text-slate-900 uppercase text-[12px] tracking-tight">TỔNG KẾT & ĐÁNH GIÁ THÁNG</h3>
+            </div>
+            <p className="text-[11px] text-slate-400 font-bold leading-relaxed uppercase tracking-widest">
+              Nội dung này sẽ xuất hiện trong phần III của báo cáo PDF chính thức.
+            </p>
+            <textarea 
+              className="w-full p-6 bg-slate-50 border border-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-100 text-[13px] h-[350px] resize-none transition-all font-medium text-slate-700 leading-relaxed shadow-inner"
+              placeholder="Nhập nội dung tổng kết chung về hiệu suất, các thành tựu đạt được và phương hướng cải thiện..."
+              value={monthlyConclusion}
+              onChange={(e) => setMonthlyConclusion(e.target.value)}
+            />
+            <button 
+              onClick={handleSaveDraft}
+              className="w-full py-4 bg-slate-900 hover:bg-black text-white text-[10px] font-black uppercase tracking-[0.2em] rounded-xl shadow-xl transition-all active:scale-[0.98]"
+            >
+              CẬP NHẬT NỘI DUNG TỔNG KẾT
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

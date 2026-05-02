@@ -127,6 +127,34 @@
         "status": { "type": "string", "enum": ["online", "offline"] }
       },
       "required": ["id", "name", "avatar", "lastActive", "status"]
+    },
+    "DiscussionTopic": {
+      "title": "DiscussionTopic",
+      "description": "A topic for discussion",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["OPEN", "CLOSED"] },
+        "isDefault": { "type": "boolean" }
+      },
+      "required": ["title", "createdBy", "createdAt", "status"]
+    },
+    "DiscussionMessage": {
+      "title": "DiscussionMessage",
+      "description": "A message within a discussion topic",
+      "type": "object",
+      "properties": {
+        "topicId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "reactions": { "type": "array" },
+        "attachments": { "type": "array" }
+      },
+      "required": ["topicId", "authorId", "content", "timestamp"]
     }
   },
   "firestore": {
@@ -137,6 +165,14 @@
     "messages": {
       "schema": "Message",
       "description": "Global chat messages"
+    },
+    "discussion_topics": {
+      "schema": "DiscussionTopic",
+      "description": "List of discussion topics"
+    },
+    "discussion_messages": {
+      "schema": "DiscussionMessage",
+      "description": "Messages for all discussion topics"
     },
     "tasks": {
       "schema": "Task",

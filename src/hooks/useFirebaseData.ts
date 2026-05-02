@@ -12,15 +12,19 @@ import {
   doc, 
   setDoc,
   Timestamp,
-  serverTimestamp
+  serverTimestamp,
+  writeBatch,
+  getDocs
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { User, UserPresence, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport, LogEntry } from '../types';
+import { User, UserPresence, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport, LogEntry, DiscussionTopic, DiscussionMessage } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
 export const useFirebaseData = (currentUserId?: string) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [messages, setMessages] = useState<TaskComment[]>([]);
+  const [discussionTopics, setDiscussionTopics] = useState<DiscussionTopic[]>([]);
+  const [discussionMessages, setDiscussionMessages] = useState<DiscussionMessage[]>([]);
   const [privateMessages, setPrivateMessages] = useState<PrivateMessage[]>([]);
   const [officialReports, setOfficialReports] = useState<OfficialReport[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -126,6 +130,57 @@ export const useFirebaseData = (currentUserId?: string) => {
       }
     );
 
+    // Listen to Discussion Topics
+    const topicsUnsubscribe = onSnapshot(
+      query(collection(db, 'discussion_topics'), orderBy('createdAt', 'desc')),
+      (snapshot) => {
+        const topicsData = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            ...data,
+            id: doc.id,
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString()),
+            closedAt: data.closedAt?.toDate ? data.closedAt.toDate().toISOString() : data.closedAt
+          } as DiscussionTopic;
+        });
+        setDiscussionTopics(topicsData);
+      },
+      (error) => {
+        if (error.code !== 'permission-denied') {
+          console.warn("Discussion topics error:", error.message);
+        }
+      }
+    );
+
+    // Listen to Discussion Messages
+    const discMessagesUnsubscribe = onSnapshot(
+      query(collection(db, 'discussion_messages'), orderBy('timestamp', 'asc')),
+      (snapshot) => {
+        const messagesData = snapshot.docs.map(doc => {
+          const data = doc.data();
+          let ts: string;
+          if (data.timestamp?.toDate) {
+            ts = data.timestamp.toDate().toISOString();
+          } else if (typeof data.timestamp === 'string') {
+            ts = data.timestamp;
+          } else {
+            ts = new Date().toISOString();
+          }
+          return {
+            ...data,
+            id: doc.id,
+            timestamp: ts
+          } as DiscussionMessage;
+        });
+        setDiscussionMessages(messagesData);
+      },
+      (error) => {
+        if (error.code !== 'permission-denied') {
+          console.warn("Discussion messages error:", error.message);
+        }
+      }
+    );
+
     // Listen to Official Reports
     const reportsUnsubscribe = onSnapshot(
       query(collection(db, 'official_reports'), orderBy('createdAt', 'desc')),
@@ -219,6 +274,8 @@ export const useFirebaseData = (currentUserId?: string) => {
     return () => {
       tasksUnsubscribe();
       messagesUnsubscribe();
+      topicsUnsubscribe();
+      discMessagesUnsubscribe();
       reportsUnsubscribe();
       logsUnsubscribe();
       unsubPrivate();
@@ -308,6 +365,57 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
+  const sendDiscussionMessage = useCallback(async (
+    topicId: string, 
+    content: string, 
+    authorId: string, 
+    attachments?: any[]
+  ) => {
+    try {
+      const realAuthorId = auth.currentUser?.uid || authorId;
+      await addDoc(collection(db, 'discussion_messages'), {
+        topicId,
+        authorId: realAuthorId,
+        content,
+        attachments: attachments || [],
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'discussion_messages');
+    }
+  }, []);
+
+  const createTopic = useCallback(async (topic: Omit<DiscussionTopic, 'id' | 'createdAt'>) => {
+    try {
+      await addDoc(collection(db, 'discussion_topics'), {
+        ...topic,
+        createdAt: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'discussion_topics');
+    }
+  }, []);
+
+  const updateTopic = useCallback(async (topicId: string, updates: Partial<DiscussionTopic>) => {
+    try {
+      const finalUpdates = { ...updates };
+      if (updates.status === 'CLOSED') {
+        finalUpdates.closedAt = serverTimestamp() as any;
+      }
+      await updateDoc(doc(db, 'discussion_topics', topicId), finalUpdates);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `discussion_topics/${topicId}`);
+    }
+  }, []);
+
+  const updateDiscussionMessageReactions = useCallback(async (msgId: string, reactions: any[]) => {
+    try {
+      await updateDoc(doc(db, 'discussion_messages', msgId), { reactions });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `discussion_messages/${msgId}`);
+    }
+  }, []);
+
   const sendPrivateMessage = useCallback(async (content: string, senderId: string, receiverId: string) => {
     try {
       const realSenderId = auth.currentUser?.uid || senderId;
@@ -392,9 +500,80 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
+  const cleanupDiscussionMessages = useCallback(async (daysOld: number = 30) => {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+    const cutoffStr = cutoffDate.toISOString();
+
+    const q = query(
+      collection(db, 'discussion_messages'),
+      where('timestamp', '<', cutoffStr)
+    );
+
+    try {
+      const snapshot = await getDocs(q);
+      const batch = writeBatch(db);
+      snapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+      console.log(`Cleaned up ${snapshot.docs.length} old messages.`);
+    } catch (error) {
+      console.error('Cleanup failed:', error);
+    }
+  }, []);
+
+  // Auto-create "Free Chat" topic if no topics exist
+  useEffect(() => {
+    if (!loading && currentUserId && discussionTopics.length === 0) {
+      const initTopic = async () => {
+        try {
+          // Check again if a topic with this title already exists to be sure
+          const q = query(collection(db, 'discussion_topics'), where('title', 'in', ['Tự do', 'TỰ DO']));
+          const existing = await getDocs(q);
+          if (!existing.empty) return;
+
+          // Try to find an admin to use their avatar for the default topic
+          const adminUser = extraUsers.find(u => u.role === 'Admin');
+          
+          await addDoc(collection(db, 'discussion_topics'), {
+            title: 'Tự do',
+            description: 'Nơi thảo luận tự do, không bắt buộc chủ đề.',
+            createdBy: 'SYSTEM',
+            creatorAvatar: adminUser?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin',
+            status: 'OPEN',
+            isDefault: true,
+            createdAt: serverTimestamp()
+          });
+        } catch (error) {
+          // Ignore if it fails due to race condition (already created by another user)
+          if (!(error instanceof Error && error.message.includes('permission-denied'))) {
+            console.error("Auto-init topic failed:", error);
+          }
+        }
+      };
+      initTopic();
+    }
+  }, [loading, currentUserId, discussionTopics.length, extraUsers]);
+
+  const deleteTopic = useCallback(async (topicId: string) => {
+    try {
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'discussion_topics', topicId));
+      const msgsQuery = query(collection(db, 'discussion_messages'), where('topicId', '==', topicId));
+      const msgsSnapshot = await getDocs(msgsQuery);
+      msgsSnapshot.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `discussion_topics/${topicId}`);
+    }
+  }, []);
+
   return {
     tasks,
     messages,
+    discussionTopics,
+    discussionMessages,
     privateMessages,
     officialReports,
     logs,
@@ -404,9 +583,15 @@ export const useFirebaseData = (currentUserId?: string) => {
     updateTask,
     deleteTask,
     sendMessage,
+    sendDiscussionMessage,
+    createTopic,
+    updateTopic,
+    deleteTopic,
     sendPrivateMessage,
     updateMessageReactions,
+    updateDiscussionMessageReactions,
     updatePrivateMessageReactions,
+    cleanupDiscussionMessages,
     addLog,
     saveReportDraft,
     saveOfficialReport,

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, UserRoleType, UserPermissions } from '../types';
-import { Search, Mail, Phone, Lock, Download, ClipboardList, Filter, Eye, Award, Plus, X, Trash2, Edit, EyeOff, QrCode, Upload, Camera } from 'lucide-react';
+import { Search, Mail, Phone, Lock, Download, ClipboardList, Filter, Eye, Award, Plus, X, Trash2, Edit, EyeOff, QrCode, Upload, Camera, Shield, ShieldCheck, Users, AlertCircle, CheckCircle2, MessageSquare, MessageCircle, PhoneIncoming, UserCircle } from 'lucide-react';
 import { Avatar } from '../components/common/Avatar';
 import { PermissionMatrixModal } from '../components/staff/PermissionMatrixModal';
 import { DelegationLetterModal } from '../components/staff/DelegationLetterModal';
@@ -28,12 +28,19 @@ const getHardcodedTitle = (name: string) => {
   return 'CHUYÊN VIÊN QC';
 };
 
-const getRoleGradient = (name: string) => {
+const getRoleBgColor = (name: string) => {
   const title = getHardcodedTitle(name);
-  if (title === 'ADMIN') return 'from-red-600 to-red-500';
-  if (title === 'TRƯỞNG NHÓM (LEADER)') return 'from-amber-500 to-amber-400';
-  if (title === 'NHÂN VIÊN (STAFF)') return 'from-blue-600 to-blue-500';
-  return 'from-slate-600 to-slate-500';
+  const normName = name.trim();
+  // Admin & Lê Nhật Trường -> Đỏ
+  if (normName === 'Lê Nhật Trường' || normName === 'Quản Trị Viên' || title === 'ADMIN') return 'bg-[#FF3B30]'; 
+  // Leader -> Cam
+  if (title === 'TRƯỞNG NHÓM (LEADER)') return 'bg-[#FF9500]'; 
+  // Staff -> Xanh lá
+  return 'bg-[#00C16E]'; 
+};
+
+const getRoleBadgeStyle = (name: string) => {
+  return 'bg-white/20 text-white border-white/30';
 };
 
 export const StaffListPage: React.FC<StaffListPageProps> = ({ 
@@ -173,16 +180,18 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-white rounded-[32px] shadow-2xl overflow-hidden"
+              className="relative w-full max-w-lg bg-white rounded-[32px] shadow-2xl overflow-hidden border border-slate-100"
             >
-              <div className="p-8 border-b border-gray-50 flex items-center justify-between">
+              <div className={`h-1.5 w-full ${editingStaff ? 'bg-blue-600' : 'bg-blue-600'}`} />
+              
+              <div className="p-8 border-b border-slate-50 flex items-center justify-between">
                 <div>
-                   <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight">
-                     <span translate="no" className="notranslate">{editingStaff ? 'CẬP NHẬT NHÂN SỰ' : 'THÊM NHÂN SỰ MỚI'}</span>
+                   <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                     {editingStaff ? 'CẬP NHẬT NHÂN SỰ' : 'THÊM NHÂN SỰ MỚI'}
                    </h2>
-                   <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Dữ liệu sẽ được lưu trữ trên Firestore</p>
+                   <p className="text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-widest">Dữ liệu sẽ được đồng bộ trên hệ thống</p>
                 </div>
-                <button onClick={() => { setShowAddModal(false); setEditingStaff(null); }} className="w-10 h-10 flex items-center justify-center bg-gray-50 text-gray-400 rounded-full hover:bg-gray-100 transition-all">
+                <button onClick={() => { setShowAddModal(false); setEditingStaff(null); }} className="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 hover:text-slate-600 transition-all">
                   <X size={20} />
                 </button>
               </div>
@@ -272,206 +281,215 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
         )}
       </AnimatePresence>
 
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 pb-4">
         <div>
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
-              <ClipboardList size={18} />
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-100">
+              <ClipboardList size={22} />
             </div>
-            <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]"><span translate="no" className="notranslate">Hệ thống nhân sự</span></span>
+            <div>
+              <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.3em] block leading-none mb-1">Cơ sở dữ liệu</span>
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase leading-none">QUẢN LÝ NHÂN SỰ</h1>
+            </div>
           </div>
-          <h1 className="text-lg font-black text-gray-900 tracking-tight uppercase leading-none"><span translate="no" className="notranslate">THÔNG TIN NHÂN SỰ</span></h1>
-          <p className="text-sm text-gray-500 mt-2 font-medium italic">Danh sách nhân sự đã đăng ký và đồng bộ hệ thống.</p>
+          <p className="text-sm text-slate-500 font-medium max-w-md">Quản trị và điều phối đội ngũ QC Tân Phú. Dữ liệu nhân lực được bảo mật và phân quyền nghiêm ngặt.</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-col items-end px-4 py-2 bg-white border border-gray-100 rounded-2xl shadow-sm">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Tổng nhân lượng</span>
-            <span className="text-xl font-black text-gray-900">{users.length}</span>
+        <div className="flex items-center gap-4">
+          <div className="hidden sm:flex flex-col items-end px-6 py-3 bg-white border border-slate-100 rounded-2xl shadow-sm">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Nhân sự hiện hữu</span>
+            <div className="flex items-baseline gap-1">
+              <span className="text-2xl font-black text-slate-900 leading-none">{users.length}</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Thành viên</span>
+            </div>
           </div>
 
-          <button 
-            onClick={handleExport}
-            className="flex items-center gap-2 px-6 py-4 bg-gray-50 text-gray-600 border border-gray-200 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-white transition-all shadow-sm active:scale-95"
-          >
-            <Download size={16} />
-            CSV
-          </button>
-
-          {currentUser.role === 'Admin' && (
+          <div className="flex gap-2">
             <button 
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 active:scale-95"
+              onClick={handleExport}
+              className="group flex items-center gap-2 px-5 py-3.5 bg-white text-slate-600 border border-slate-200 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm active:scale-95"
             >
-              <Plus size={16} />
-              <span translate="no" className="notranslate">Thêm nhân sự mới</span>
+              <Download size={16} className="group-hover:translate-y-0.5 transition-transform" />
+              Tải CSV
             </button>
-          )}
+
+            {currentUser.role === 'Admin' && (
+              <button 
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-2 px-6 py-3.5 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 active:scale-95"
+              >
+                <Plus size={18} />
+                Thêm nhân sự
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="bg-white p-2 rounded-[24px] border border-gray-100 shadow-sm flex flex-col md:flex-row gap-2">
-        <div className="flex-1 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+      <div className="bg-white p-3 rounded-[28px] border border-slate-100 shadow-sm flex flex-col md:flex-row gap-3">
+        <div className="flex-1 relative group">
+          <div className="absolute left-5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-focus-within:bg-blue-50 group-focus-within:text-blue-500 transition-colors">
+            <Search size={18} />
+          </div>
           <input 
             type="text" 
-            placeholder="Tìm theo tên, SĐT, mã NV..."
-            className="w-full pl-12 pr-4 py-4 bg-transparent outline-none text-sm font-medium placeholder:text-gray-300"
+            placeholder="Tìm theo tên, SĐT, mã nhân sự..."
+            className="w-full pl-16 pr-4 py-4 bg-transparent outline-none text-sm font-bold text-slate-700 placeholder:text-slate-300 placeholder:font-medium"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-3 bg-gray-50 rounded-[20px] px-3 py-2">
-          <Filter size={14} className="text-gray-400 ml-1 shrink-0" />
-          <div className="flex gap-1 shrink-0">
-            {roles.map(role => (
-              <button
-                key={role}
-                onClick={() => setFilterRole(role)}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-                  filterRole === role 
-                    ? 'bg-white text-blue-600 shadow-sm' 
-                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                {role === 'All' ? 'TẤT CẢ' : role}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center gap-1.5 bg-slate-50/80 rounded-[22px] px-2 py-1.5 border border-slate-50">
+          {roles.map(role => (
+            <button
+              key={role}
+              onClick={() => setFilterRole(role)}
+              className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                filterRole === role 
+                  ? 'bg-white text-blue-600 shadow-md shadow-blue-50' 
+                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+              }`}
+            >
+              {role === 'All' ? 'TẤT CẢ' : role}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-32">
+      <div className="grid grid-cols-1 2xl:grid-cols-2 gap-8 pb-32">
         {filteredStaff.map((staff) => {
-          const isTruong = currentUser.personalEmail === 'lenhattruong.tpp@gmail.com';
           const isVisible = visiblePasswords[staff.id];
-          
+          const isTruong = currentUser.role === 'Admin' || currentUser.personalEmail === 'lenhattruong.tpp@gmail.com';
+
           return (
-            <motion.div 
+            <motion.div
               key={staff.id}
               layout
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="group bg-white rounded-[40px] border-2 border-slate-100 shadow-sm hover:shadow-2xl transition-all relative flex flex-col overflow-hidden w-full"
+              className={`group ${getRoleBgColor(staff.name)} rounded-[32px] shadow-2xl transition-all duration-300 relative flex flex-col p-5 overflow-hidden border-4 border-white/20`}
             >
-              {/* Header Strip */}
-              <div className={`h-20 w-full relative bg-gradient-to-r ${getRoleGradient(staff.name)}`}>
-                {isTruong && (
-                  <div className="absolute top-4 right-4 flex gap-2">
-                    <button onClick={() => { setEditingStaff(staff); setFormData({...staff}); }} className="p-2 bg-white/20 hover:bg-white/40 text-white rounded-lg transition-colors backdrop-blur-sm">
-                      <Edit size={16} />
-                    </button>
-                    <button onClick={() => onDeleteStaff?.(staff.id)} className="p-2 bg-white/20 hover:bg-white/40 text-white rounded-lg transition-colors backdrop-blur-sm">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Identity Section */}
-              <div className="flex flex-col items-center -mt-14 px-6 pb-6 relative z-10">
-                <div className="relative">
-                  <div className="w-28 h-28 p-1 rounded-full bg-white shadow-xl ring-2 ring-white overflow-hidden relative">
-                    <Avatar src={staff.avatar} name={staff.name} size="full" className="rounded-full w-full h-full object-cover" />
-                  </div>
-                  {isTruong && (
-                    <label className="absolute inset-0 bg-black/30 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer text-white">
-                       <input 
-                        type="file" 
-                        className="hidden" 
-                        accept="image/*" 
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                             const reader = new FileReader();
-                             reader.onloadend = () => onUpdateStaff?.(staff.id, { avatar: reader.result as string });
-                             reader.readAsDataURL(file);
-                          }
-                        }} 
-                      />
-                      <Camera size={24} />
-                    </label>
-                  )}
-                </div>
-
-                <div className="text-center mt-4 w-full">
-                  <h3 className="text-xl font-black text-slate-900 tracking-tight leading-tight uppercase mb-1">
-                    <span translate="no" className="notranslate">{staff.name}</span>
-                  </h3>
-                  <div className="flex flex-col items-center gap-1">
-                    <p className="text-[11px] font-black text-blue-600 uppercase tracking-widest">
-                      <span translate="no" className="notranslate">{getHardcodedTitle(staff.name)}</span>
-                    </p>
-                    <span translate="no" className="notranslate text-[10px] font-mono font-black text-slate-400 bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
-                      MÃ NV: {staff.code}
+              {/* Top Section: Name & Category */}
+              <div className="mb-4 border-b border-white/10 pb-3">
+                <h3 className="text-[22px] font-black text-white tracking-normal uppercase leading-tight mb-1 drop-shadow-sm">
+                  <span translate="no" className="notranslate">{staff.name}</span>
+                </h3>
+                <div className="flex items-center justify-between">
+                  <div className="px-2 py-0.5 rounded-lg bg-white/20 border border-white/10">
+                    <span className="text-[12px] font-black text-white uppercase tracking-widest">
+                      {getHardcodedTitle(staff.name)}
                     </span>
                   </div>
-                </div>
-
-                {/* Details Section */}
-                <div className="w-full mt-6 space-y-3 border-t border-slate-50 pt-5">
-                  <div className="flex items-center justify-between text-[10px] font-black uppercase">
-                    <span className="text-slate-400 tracking-wider flex items-center gap-2"><Phone size={14} className="text-blue-500" /> <span translate="no" className="notranslate">SỐ ĐIỆN THOẠI / ZALO</span></span>
-                    <span translate="no" className="notranslate text-slate-700 font-mono tracking-tighter">{staff.phone}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] font-black">
-                    <span className="text-slate-400 uppercase tracking-wider flex items-center gap-2"><Mail size={14} className="text-red-500" /> EMAIL CT</span>
-                    <span translate="no" className="notranslate text-slate-700 break-all ml-4 text-right truncate max-w-[150px] font-mono tracking-tighter">{staff.companyEmail}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] font-black">
-                    <span className="text-slate-400 uppercase tracking-wider flex items-center gap-2"><Mail size={14} className="text-emerald-500" /> EMAIL CN</span>
-                    <span translate="no" className="notranslate text-slate-700 break-all ml-4 text-right truncate max-w-[150px] font-mono tracking-tighter">{staff.personalEmail}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[10px] font-black">
-                    <span className="text-slate-400 uppercase tracking-wider flex items-center gap-2"><Lock size={14} className="text-slate-500" /> <span translate="no" className="notranslate">MẬT KHẨU</span></span>
-                    <div className="flex items-center gap-2">
-                       <span translate="no" className="notranslate text-slate-700 font-mono">
-                        {isVisible ? (staff.password || '123456') : '••••••'}
-                       </span>
-                       <button onClick={() => togglePassword(staff.id)} className="text-slate-300 hover:text-blue-600 transition-colors">
-                        {isVisible ? <EyeOff size={14} /> : <Eye size={14} />}
-                       </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* QR Code Section */}
-                <div className="mt-6 flex flex-col items-center">
-                  <div className="p-2 bg-white rounded-2xl border-2 border-slate-100 shadow-xl group-hover:scale-105 transition-transform duration-500">
-                    <QRCodeSVG 
-                      value={`NHÂN VIÊN: ${staff.name}\nMÃ NV: ${staff.code}\nSĐT: ${staff.phone}\nEMAIL: ${staff.companyEmail}\nPASS: ${staff.password || '123456'}`}
-                      size={70}
-                      level="H"
-                      includeMargin={false}
-                    />
-                  </div>
-                  <p className="text-[8px] font-black text-slate-300 uppercase tracking-[0.3em] mt-2 italic">HỆ THỐNG ĐỊNH DANH QLCL</p>
-                </div>
-
-                <div className="mt-5 flex flex-col gap-2 w-full">
-                  {onSimulateStaff && staff.id !== (originalUser?.id || currentUser.id) && (
-                    <button 
-                      onClick={() => onSimulateStaff(staff)} 
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg active:scale-95"
-                    >
-                      <Eye size={14} />
-                      GIẢ LẬP TƯ CÁCH
-                    </button>
-                  )}
-                  {staff.delegatedPermissions && Object.values(staff.delegatedPermissions).some(v => v) && (
-                    <button 
-                      onClick={() => setDelegationLetterUser(staff)}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-slate-100 text-slate-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-95"
-                    >
-                      <Award size={14} />
-                      XEM ỦY QUYỀN
-                    </button>
-                  )}
+                  <span className="text-[18px] font-mono font-black text-white">
+                    MÃ NHÂN VIÊN: #{staff.code}
+                  </span>
                 </div>
               </div>
 
-              {/* Decoration Elements */}
-              <div className="absolute bottom-0 right-0 w-32 h-32 bg-slate-50 rounded-tl-full -z-0 opacity-50" />
+              {/* Middle Section: Avatar and Info Boxes aligned */}
+              <div className="grid grid-cols-12 gap-5">
+                {/* Left Column: Avatar & Action Buttons Stacked */}
+                <div className="col-span-3 flex flex-col gap-3">
+                  <div className="relative aspect-square rounded-[24px] overflow-hidden border-2 border-white/40 shadow-xl bg-white/10 backdrop-blur-sm">
+                    <Avatar src={staff.avatar} name={staff.name} size="full" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                    {isTruong && (
+                      <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer text-white">
+                        <input 
+                          type="file" className="hidden" accept="image/*" 
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (loadEvent) => onUpdateStaff?.(staff.id, { avatar: loadEvent.target?.result as string });
+                              reader.readAsDataURL(file);
+                            }
+                          }} 
+                        />
+                        <Camera size={20} />
+                      </label>
+                    )}
+                  </div>
+                  
+                  {/* Action Buttons Stack below Avatar */}
+                  <div className="flex flex-col gap-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button 
+                        onClick={() => { setEditingStaff(staff); setFormData({...staff}); }}
+                        className="h-10 rounded-xl bg-white text-slate-600 flex items-center justify-center hover:bg-white/90 transition-all shadow-lg active:scale-95 border border-white"
+                        title="Chỉnh sửa"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      {onSimulateStaff && staff.id !== (originalUser?.id || currentUser.id) && (
+                        <button 
+                          onClick={() => onSimulateStaff(staff)}
+                          className="h-10 bg-white text-slate-900 rounded-xl shadow-xl hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center border border-slate-100"
+                          title="Ủy quyền"
+                        >
+                          <ShieldCheck size={16} />
+                        </button>
+                      )}
+                    </div>
+                    {isTruong && (
+                      <button 
+                        onClick={() => onDeleteStaff?.(staff.id)}
+                        className="w-full h-10 rounded-xl bg-white text-red-500 hover:text-red-600 transition-all shadow-lg active:scale-95 flex items-center justify-center border border-red-50"
+                        title="Xóa"
+                      >
+                        <Trash2 size={16} />
+                        <span className="ml-2 text-[10px] font-black uppercase">XÓA HỒ SƠ</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Information Column (Right) */}
+                <div className="col-span-9 space-y-3">
+                  <div className="bg-white rounded-2xl p-3 shadow-xl border border-white">
+                    <div className="flex items-center gap-2 mb-1">
+                       <Phone size={12} className="text-slate-400" />
+                       <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none">ĐIỆN THOẠI / ZALO BUSINESS</span>
+                    </div>
+                    <p className="text-[19px] font-black text-slate-900 font-mono leading-none tracking-tight">{staff.phone}</p>
+                  </div>
+
+                  <div className="bg-white rounded-2xl p-3 shadow-xl border border-white">
+                    <div className="flex items-center gap-2 mb-1">
+                       <Mail size={12} className="text-slate-400" />
+                       <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none">THƯ ĐIỆN TỬ CÔNG VIỆC</span>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[16px] font-bold text-slate-900 font-sans break-all leading-tight">
+                        {staff.companyEmail}
+                      </p>
+                      {staff.personalEmail && (
+                        <p className="text-[16px] font-bold text-[#1e3a8a] font-sans break-all">
+                          {staff.personalEmail}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900 shadow-2xl rounded-2xl p-3 border border-white/20 relative group/pwd">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <Lock size={12} className="text-amber-400" />
+                        <span className="text-[11px] font-black text-white/50 uppercase tracking-[0.2em]">KHÓA TRUY CẬP HỆ THỐNG</span>
+                      </div>
+                      <button 
+                        onClick={() => togglePassword(staff.id)}
+                        className="p-1 text-white/40 hover:text-white transition-colors"
+                        title={isVisible ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                      >
+                        {isVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                    <p className="text-[17px] font-black text-white font-mono tracking-[0.2em]">
+                      {isVisible ? (staff.password || '123456') : '••••••••••••'}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </motion.div>
           );
         })}

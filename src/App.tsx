@@ -43,6 +43,7 @@ import { ReportPage } from './pages/ReportPage';
 import { GroupChatPage } from './pages/GroupChatPage';
 import { StaffListPage } from './pages/StaffListPage';
 import { PendingConfirmationPage } from './pages/PendingConfirmationPage';
+import { SystemHistoryPage } from './pages/SystemHistoryPage';
 
 // --- Main App ---
 
@@ -121,9 +122,17 @@ export default function App() {
     updateTask: firebaseUpdateTask,
     deleteTask: firebaseDeleteTask,
     sendMessage: firebaseSendMessage,
+    sendDiscussionMessage,
+    createTopic,
+    updateTopic,
+    deleteTopic,
     sendPrivateMessage: firebaseSendPrivateMsg,
     updateMessageReactions: firebaseUpdateMessageReactions,
+    updateDiscussionMessageReactions,
     updatePrivateMessageReactions: firebaseUpdatePrivateMessageReactions,
+    discussionTopics,
+    discussionMessages,
+    cleanupDiscussionMessages,
     addLog: firebaseAddLog,
     saveReportDraft: firebaseSaveReportDraft,
     saveOfficialReport: firebaseSaveOfficialReport,
@@ -891,26 +900,32 @@ export default function App() {
           {activeTab === 'group_chat' && (
             <motion.div key="group_chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <HolidayBanner />
-              <Header 
-                title="Phòng thảo luận chung" 
-                onlineUsers={presence}
-                currentUserId={effectiveUser.id}
-              />
-              <div className="p-6">
+              <div className="p-4 pt-6">
                 <GroupChatPage 
                   currentUser={effectiveUser} 
                   users={allUsers}
-                  messages={generalMessages} 
-                  onSendMessage={sendGeneralMessage} 
+                  topics={discussionTopics}
+                  messages={discussionMessages}
+                  onSendMessage={(topicId, content, attachments) => sendDiscussionMessage(topicId, content, effectiveUser.id, attachments)}
                   onReact={(msgId, emoji) => {
-                    const msg = generalMessages.find(m => m.id === msgId);
+                    const msg = discussionMessages.find(m => m.id === msgId);
                     if (!msg) return;
                     const reactions = [...(msg.reactions || [])];
                     const idx = reactions.findIndex(r => r.userId === effectiveUser.id && r.emoji === emoji);
                     if (idx > -1) reactions.splice(idx, 1);
                     else reactions.push({ userId: effectiveUser.id, emoji });
-                    firebaseUpdateMessageReactions(msgId, reactions);
+                    updateDiscussionMessageReactions(msgId, reactions);
                   }}
+                  onCreateTopic={(title, desc) => createTopic({ 
+                    title, 
+                    description: desc, 
+                    createdBy: effectiveUser.id, 
+                    creatorAvatar: effectiveUser.avatar,
+                    status: 'OPEN' 
+                  })}
+                  onUpdateTopic={updateTopic}
+                  onDeleteTopic={deleteTopic}
+                  onCleanup={cleanupDiscussionMessages}
                 />
               </div>
             </motion.div>
@@ -1038,55 +1053,16 @@ export default function App() {
             <motion.div key="system_history" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                <HolidayBanner />
                <Header 
-                title="Lịch sử Hoạt động Hệ thống" 
+                title={<span translate="no" className="notranslate">LỊCH SỬ HỆ THỐNG</span>}
                 onlineUsers={presence}
                 currentUserId={effectiveUser.id}
                />
-               <div className="p-8">
-                  <div className="max-w-4xl mx-auto space-y-6">
-                    <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden">
-                      <div className="p-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
-                            <Search size={20} />
-                          </div>
-                          <div>
-                            <h2 className="text-sm font-black uppercase tracking-widest text-gray-900">Nhật ký hệ thống</h2>
-                            <p className="text-[10px] text-gray-400 font-bold">Ghi nhận các thay đổi quan trọng</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="divide-y divide-gray-50">
-                        {logs.length > 0 ? logs.map(log => {
-                          const actor = allUsers.find(u => u.id === log.userId);
-                          const target = allUsers.find(u => u.id === log.targetId);
-                          return (
-                            <div key={log.id} className="p-6 hover:bg-gray-50 transition-colors">
-                              <div className="flex items-start gap-4">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                                  log.type === 'DELEGATION_CHANGE' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
-                                }`}>
-                                  {log.type === 'DELEGATION_CHANGE' ? <Lock size={20} /> : <Search size={20} />}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-xs font-black text-gray-900">{log.details}</span>
-                                    <span className="text-[10px] text-gray-400 font-bold">{new Date(log.timestamp).toLocaleString('vi-VN')}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-widest text-red-500">
-                                    <span>Tác nhân: {actor?.name || 'Hệ thống'}</span>
-                                    {target && <span>• Đối tượng: {target.name}</span>}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        }) : (
-                          <div className="p-20 text-center text-gray-400 italic">Chưa có bản ghi hoạt động nào.</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+               <div className="p-6">
+                  <SystemHistoryPage 
+                    logs={logs}
+                    allUsers={allUsers}
+                    currentUser={effectiveUser!}
+                  />
                </div>
             </motion.div>
           )}

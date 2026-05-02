@@ -186,5 +186,21 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isSignedIn();
     }
+    
+    // 11. Discussion Topics
+    match /discussion_topics/{topicId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (isAdmin() || existing().createdBy == request.auth.uid || existing().createdBy == 'SYSTEM');
+      allow delete: if isAdmin();
+    }
+
+    // 12. Discussion Messages
+    match /discussion_messages/{msgId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (existing().authorId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin() || (existing().authorId == request.auth.uid);
+    }
   }
 }

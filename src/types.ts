@@ -145,6 +145,33 @@ export interface OfficialReport {
   createdAt: string;
 }
 
+export interface DiscussionMessage {
+  id: string;
+  authorId: string;
+  topicId: string;
+  content: string;
+  timestamp: string;
+  reactions?: MessageReaction[];
+  attachments?: {
+    name: string;
+    url: string;
+    type: 'image' | 'file';
+    size: number;
+  }[];
+}
+
+export interface DiscussionTopic {
+  id: string;
+  title: string;
+  description?: string;
+  createdBy: string;
+  creatorAvatar?: string;
+  createdAt: string;
+  closedAt?: string;
+  status: 'OPEN' | 'CLOSED';
+  isDefault?: boolean;
+}
+
 export interface UserPresence {
   id: string;
   name: string;

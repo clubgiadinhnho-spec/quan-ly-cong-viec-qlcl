@@ -57,7 +57,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
       title: user.title || '',
       avatar: user.avatar || ''
     });
-  }, [user.id, user.name, user.phone, user.companyEmail, user.personalEmail, user.avatar]);
+  }, [user.id, user.name, user.phone, user.companyEmail, user.personalEmail, user.avatar, user.password]);
 
   const [passwordData, setPasswordData] = useState({
     newPassword: '',

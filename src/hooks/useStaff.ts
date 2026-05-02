@@ -40,37 +40,45 @@ export const useStaff = () => {
     // Bước 2: So khớp theo Email. Nếu trên Firestore có dữ liệu, GHI ĐÈ Password, Phone, Avatar.
     const firestoreUsers = Object.values(firestoreProfiles) as User[];
     
-    const merged = baseStaff.map(fixed => {
+    // GỘP DỮ LIỆU (MERGE) BẮT BUỘC:
+    // Bước 1: Lấy 5 người từ file staff.ts làm khung.
+    const merged = FIXED_STAFF.map(fixed => {
       const pEmail = fixed.personalEmail?.toLowerCase();
       const cEmail = fixed.companyEmail?.toLowerCase();
       
-      // Tìm dữ liệu tương ứng trên Firestore - ƯU TIÊN Email Cá nhân làm định danh gốc
+      // Bước 2: So khớp theo Email (Cá nhân hoặc Công ty) hoặc ID hoặc Code
       const firestoreUser = firestoreUsers.find(fu => {
         const fuPEmail = fu.personalEmail?.toLowerCase();
         const fuCEmail = fu.companyEmail?.toLowerCase();
+        const fuId = fu.id?.toLowerCase();
+        const fuCode = fu.code?.toLowerCase();
+        
         return (fuPEmail && (fuPEmail === pEmail || fuPEmail === cEmail)) || 
                (fuCEmail && (fuCEmail === pEmail || fuCEmail === cEmail)) ||
-               (fu.id.toLowerCase() === pEmail) ||
-               (fu.id.toLowerCase() === cEmail);
+               (fuId === pEmail) ||
+               (fuId === cEmail) ||
+               (fuCode === fixed.code?.toLowerCase());
       });
 
       if (firestoreUser) {
-        // CẤP BẬC ƯU TIÊN: Dữ liệu Firestore ghi đè dữ liệu mẫu
+        // CẤP BẬC ƯU TIÊN: Dữ liệu Firestore GHI ĐÈ dữ liệu mẫu
+        // Giữ lại id và code gốc để không làm hỏng UI/Mapping nghiệp vụ
         return { 
           ...fixed, 
           ...firestoreUser,
-          // Đảm bảo mật khẩu mới từ Firestore luôn được ưu tiên
+          id: fixed.id, 
+          code: fixed.code,
+          // Ưu tiên các trường yêu cầu: Mật khẩu, SĐT, Avatar
           password: firestoreUser.password || fixed.password || '123456',
           phone: firestoreUser.phone || fixed.phone,
-          avatar: firestoreUser.avatar || fixed.avatar,
-          id: fixed.id, 
-          name: fixed.name
+          avatar: firestoreUser.avatar || fixed.avatar
         } as User;
       }
+      // Mặc định mật khẩu là 123456 nếu chưa có trên Firestore
       return { ...fixed, password: fixed.password || '123456' };
     });
 
-    // Bước 3: Trả về danh sách đã gộp này (Cộng thêm những người mới hoàn toàn trong Firestore)
+    // Bước 3: Trả về danh sách đã gộp (Cộng thêm người mới nếu có)
     const matchedEmails = new Set();
     merged.forEach(s => {
       if (s.personalEmail) matchedEmails.add(s.personalEmail.toLowerCase());
@@ -83,7 +91,10 @@ export const useStaff = () => {
       if ((fPEmail && matchedEmails.has(fPEmail)) || (fCEmail && matchedEmails.has(fCEmail))) {
         return;
       }
-      merged.push(fUser);
+      merged.push({
+        ...fUser,
+        password: fUser.password || '123456'
+      });
     });
 
     return merged;

@@ -201,20 +201,19 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
     - Áp dụng kiểm tra kiểu dữ liệu (Validation) nghiêm ngặt cho mỗi lần ghi vào database.
 - **Đồng bộ hóa giao diện:** Cập nhật Sidebar, TaskRow, StaffList và ProfilePage để hiển thị và xử lý logic theo bộ phân quyền mới.
 
-### 📝 Cập nhật mới nhất: 01/05/2026 (CUỘC CẢI CÁCH DỮ LIỆU CUỐI CÙNG - QLCL HUB)
-- **Tái thiết lập hạ tầng Dữ liệu Nhân sự:** 
-    - Chuyển đổi toàn bộ thông tin nhân sự từ Firestore sang mô hình **Hardcode Constants**.
-    - Nguồn dữ liệu nhân sự duy nhất hiện tại là file `src/constants/staff.ts`, bao gồm 5 nhân sự cốt lõi.
-    - Loại bỏ vĩnh viễn việc lưu trữ Profile nhân viên trên Firestore để tối ưu bảo mật và tốc độ.
-- **Nâng cấp Cơ chế Xác thực (Authentication):**
-    - Chuyển đổi từ Đăng nhập ẩn danh/Mô phỏng sang **Firebase Auth (Email/Password)** chính thức.
-    - Quy trình mới: Đăng ký (Email + Mật khẩu) -> Đăng nhập -> So khớp Email với `staff.ts` để gán quyền và hiển thị tên.
-- **Thắt chặt Bảo mật Truy cập:**
-    - Chỉ cho phép các Email có trong danh sách 5 nhân sự cốt lõi mới được phép đăng ký/đăng nhập vào hệ thống.
-    - Mọi Email lạ sẽ bị chặn truy cập ngay từ màn hình xác thực.
-- **Dọn dẹp mã nguồn:** 
-    - Gỡ bỏ toàn bộ logic tự động tạo User, tự cập nhật Profile và các listener đồng bộ User từ Firestore.
+### 📝 Cập nhật mới nhất: 02/05/2026 (Đồng bộ hóa Mật khẩu & Thông tin Nhân sự)
+- **Khắc phục lỗi Đồng bộ Thẻ Nhân sự:** 
+    - Triển khai cơ chế **Hợp nhất Dữ liệu Động (Dynamic Merge)** trong `useStaff.ts`.
+    - **Vấn đề:** Trước đó, mật khẩu mới cập nhật tại Trang cá nhân không hiển thị trên thẻ nhân sự tại trang Quản lý.
+    - **Giải pháp:** Hệ thống hiện tại tự động so khớp `Email` và `Mã NV` giữa danh sách tĩnh (`staff.ts`) và dữ liệu thực tế trên `Firestore`.
+- **Nguyên tắc Ưu tiên Dữ liệu:**
+    - Dữ liệu từ Firestore (do nhân viên tự cập nhật: Mật khẩu, SĐT, Ảnh) luôn được ưu tiên **Ghi đè** lên dữ liệu mẫu.
+    - Nếu Firestore chưa có dữ liệu, hệ thống tự động fallback về mật khẩu mặc định `123456`.
+- **Cập nhật Giao diện Profile:**
+    - Thêm tính năng ẩn/hiện mật khẩu khi nhập liệu.
+    - Xử lý lỗi `auth/requires-recent-login`: Tự động nhắc người dùng Đăng xuất và Đăng nhập lại nếu thời gian phiên làm việc đã quá lâu khi thực hiện đổi mật khẩu (cơ chế bảo mật của Firebase).
+- **Security Rules:** Cập nhật quyền `read: if true` cho bộ sưu tập `user_profiles` để đảm bảo thẻ nhân sự luôn hiển thị được thông tin cơ bản ngay cả khi Admin đang xem danh sách tổng quát.
 
 ---
 
-*Ngày cập nhật cuối cùng: 01/05/2026*
+*Ngày cập nhật cuối cùng: 02/05/2026*

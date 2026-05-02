@@ -33,6 +33,12 @@ export const updateAuthPassword = async (newPassword: string) => {
   }
 };
 
+export const loginWithGoogle = async () => {
+  const provider = new GoogleAuthProvider();
+  const result = await signInWithPopup(auth, provider);
+  return result.user;
+};
+
 export const logout = async () => {
   try {
     await signOut(auth);

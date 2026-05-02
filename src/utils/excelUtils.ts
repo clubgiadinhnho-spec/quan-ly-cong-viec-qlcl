@@ -74,24 +74,30 @@ export const importTasksFromExcel = (file: File): Promise<Partial<Task>[]> => {
         const worksheet = workbook.Sheets[sheetName];
         // { raw: false } means XLSX will try to format cells based on their format string (like dates)
         const json = XLSX.utils.sheet_to_json(worksheet, { raw: false }) as any[];
+        console.log('Đã nhập thành công:', json.length, 'dòng từ file Excel');
 
-        const tasks: Partial<Task>[] = json.map(row => {
-          let priority: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM';
-          const pVal = row['Ưu tiên (CAO/TRUNG BINH/THAP)']?.toString().toUpperCase();
-          if (pVal === 'CAO') priority = 'HIGH';
-          if (pVal === 'THAP' || pVal === 'THẤP') priority = 'LOW';
+        const tasks: Partial<Task>[] = json.map((row, index) => {
+          try {
+            let priority: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM';
+            const pVal = row['Ưu tiên (CAO/TRUNG BINH/THAP)']?.toString().toUpperCase();
+            if (pVal === 'CAO') priority = 'HIGH';
+            if (pVal === 'THAP' || pVal === 'THẤP') priority = 'LOW';
 
-          return {
-            title: row['Nội dung công việc'] || '',
-            objective: row['Mục tiêu đạt được'] || '',
-            priority: priority,
-            expectedEndDate: row['Hạn hoàn thành'] || '',
-            assigneeName: row['Nhân viên'] || row['Nhân viên (Tên hoặc Email)'] || '',
-            assigneeId: row['Nhân viên (Tên hoặc Email)'] || '',
-            prevProgress: row['Diễn tiến trước đó'] || '',
-            currentUpdate: row['Cập nhật tiến độ'] || ''
-          };
-        });
+            return {
+              title: row['Nội dung công việc'] || row['Công việc'] || '',
+              objective: row['Mục tiêu đạt được'] || row['Mục tiêu'] || '',
+              priority: priority,
+              expectedEndDate: row['Hạn hoàn thành'] || row['Deadline'] || '',
+              assigneeName: row['Nhân viên'] || row['Người phụ trách'] || row['Nhân viên (Tên hoặc Email)'] || '',
+              assigneeId: row['Nhân viên (Tên hoặc Email)'] || row['Email'] || '',
+              prevProgress: row['Diễn tiến trước đó'] || row['Diễn tiến'] || '',
+              currentUpdate: row['Cập nhật tiến độ'] || row['Cập nhật'] || ''
+            };
+          } catch (e) {
+            console.error(`Lỗi tại dòng ${index + 1}:`, e);
+            return null;
+          }
+        }).filter(t => t !== null) as Partial<Task>[];
 
         resolve(tasks);
       } catch (err) {

@@ -2,9 +2,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // 1. Connection & System
-    match /test/{docId} {
-      allow get: if true;
+    // 0. Global Safety Net (Deny all by default)
+    match /{document=**} {
+      allow read, write: if false;
     }
 
     // Phase 3: Global Helpers
@@ -14,50 +14,65 @@ service cloud.firestore {
     }
     
     function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data;
     }
     
     function userExists() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+      return exists(/databases/$(database)/documents/users/$(request.auth.token.email.lower()));
     }
 
     function isAdmin() {
       return isSignedIn() && (
-        ('email' in request.auth.token && (
-          request.auth.token.email == 'lenhattruong.tpp@gmail.com' ||
-          request.auth.token.email == 'club.nhuatanphu@gmail.com' ||
-          request.auth.token.email == 'adminnutifood@gmail.com' ||
-          request.auth.token.email == 'tanphuvietnam.tpp@gmail.com' ||
-          request.auth.token.email == 'club.giadinhnho@gmail.com'
-        )) ||
-        (userExists() && getUserData().role == 'Admin')
+        request.auth.token.email.lower() in [
+          'lenhattruong.tpp@gmail.com',
+          'club.nhuatanphu@gmail.com',
+          'adminnutifood@gmail.com',
+          'tanphuvietnam.tpp@gmail.com',
+          'club.giadinhnho@gmail.com',
+          'truong.le@tanphuvietnam.vn',
+          'tan.vo@tanphuvietnam.vn'
+        ] || (userExists() && getUserData().role == 'Admin')
       );
     }
     
     function isManager() {
-      return isAdmin() || (isSignedIn() && userExists() && (getUserData().role == 'Leader'));
+      return isAdmin() || (isSignedIn() && userExists() && (getUserData().role == 'Leader' || getUserData().role == 'Staff'));
     }
 
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return isSignedIn() && (
+        request.auth.uid == userId || 
+        (request.auth.token.email.lower() == userId.lower())
+      );
     }
 
     function isValidId(id) { 
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+      // Allow letters, numbers, underscore, dash, dot, and @ (for emails)
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\.\\@]+$'); 
     }
 
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
 
-    // 2. Users Collection
+    // 1. Connection & System
+    match /test/{docId} {
+      allow get: if true;
+    }
+
+    // 2. Users & Extra Users Collection
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && (isAdmin() || getUserData().delegatedPermissions.canManageStaff == true || isOwner(userId)) && isValidUser(incoming());
-      allow update: if isSignedIn() && (isAdmin() || getUserData().delegatedPermissions.canManageStaff == true || (isOwner(userId) && isSelfUpdate())) && isValidUser(incoming());
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && (isAdmin() || (userExists() && getUserData().delegatedPermissions.canManageStaff == true)) && isValidUser(incoming());
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (userExists() && getUserData().delegatedPermissions.canManageStaff == true) || 
+        (isOwner(userId) && isSelfUpdate())
+      ) && isValidUser(incoming());
       allow delete: if isAdmin();
 
       function isValidUser(data) {
-        return data.keys().hasAll(['id', 'name', 'role', 'companyEmail', 'personalEmail', 'avatar', 'code', 'abbreviation', 'status']) &&
+        let requiredKeys = ['id', 'name', 'role', 'companyEmail', 'personalEmail', 'avatar', 'code', 'abbreviation', 'status'];
+        return data.keys().hasAll(requiredKeys) &&
                data.id == userId &&
                isValidId(data.id) &&
                data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
@@ -67,9 +82,7 @@ service cloud.firestore {
                data.personalEmail is string && data.personalEmail.size() <= 150 &&
                data.avatar is string && data.avatar.size() <= 1000 &&
                data.code is string && data.code.size() <= 20 &&
-               data.abbreviation is string && data.abbreviation.size() <= 10 &&
-               (data.keys().hasAny(['securityQuestion']) ? (data.securityQuestion is string && data.securityQuestion.size() <= 200) : true) &&
-               (data.keys().hasAny(['securityAnswer']) ? (data.securityAnswer is string && data.securityAnswer.size() <= 100) : true);
+               data.abbreviation is string && data.abbreviation.size() <= 10;
       }
 
       function isSelfUpdate() {
@@ -77,41 +90,24 @@ service cloud.firestore {
       }
     }
 
-    // 3. Tasks Collection
-    // -------------------------------------------------------------------------
-    match /tasks/{taskId} {
-      allow read: if isSignedIn();
-      
-      allow create: if isSignedIn() && (
-        isAdmin() || 
-        isManager() || 
-        incoming().status == 'AWAITING_CONFIRMATION'
-      ) && isValidTask(incoming());
-      
-      allow update: if (
-        isSignedIn() && (
-          isAdmin() || 
-          isManager() || 
-          (existing().assigneeId == request.auth.uid && isProgressUpdate())
-        ) && 
-        isValidTask(incoming())
-      );
-      
-      allow delete: if isSignedIn() && (isAdmin() || isManager());
+    match /extra_users/{userId} {
+      allow get, list: if isSignedIn();
+      allow write: if isAdmin();
+    }
 
+    // 3. Tasks Collection
+    match /tasks/{taskId} {
+      allow read, write: if isSignedIn();
+      
       function isValidTask(data) {
-        let requiredKeys = ['code', 'title', 'objective', 'assigneeId', 'startDate', 'expectedEndDate', 'status', 'priority', 'prevProgress', 'currentUpdate', 'isHighlighted', 'isLocked', 'updatedAt'];
+        let requiredKeys = ['code', 'title', 'objective', 'assigneeId', 'status', 'priority', 'isHighlighted', 'isLocked'];
         return data.keys().hasAll(requiredKeys) &&
-               data.code is string && data.code.size() <= 20 &&
+               data.code is string && data.code.size() <= 50 &&
                data.title is string && data.title.size() > 0 && data.title.size() <= 2000 &&
                data.objective is string && data.objective.size() <= 5000 &&
                data.assigneeId is string && data.assigneeId.size() <= 128 &&
-               data.startDate is string &&
-               data.expectedEndDate is string &&
                data.status in ['Chưa bắt đầu', 'Đang thực hiện', 'Hoàn thành', 'Tạm dừng', 'IN_PROGRESS', 'PENDING_APPROVAL', 'COMPLETED', 'CANCELLED', 'ON_HOLD', 'AWAITING_CONFIRMATION'] &&
                data.priority in ['Thấp', 'Trung bình', 'Cao', 'Khẩn cấp', 'LOW', 'MEDIUM', 'HIGH'] &&
-               data.prevProgress is string &&
-               data.currentUpdate is string &&
                data.isHighlighted is bool &&
                data.isLocked is bool;
       }
@@ -122,93 +118,73 @@ service cloud.firestore {
     }
 
     // 4. Messages (Global Chat)
-    // -------------------------------------------------------------------------
     match /messages/{messageId} {
-      allow list: if isSignedIn();
-      allow get: if isSignedIn();
-      
-      allow create: if isSignedIn() && (
-        incoming().authorId == request.auth.uid || 
-        (isAdmin() && incoming().authorId == 'system')
-      ) && isValidMessage(incoming());
-      allow delete: if isAdmin();
+      allow read, write: if isSignedIn();
 
       function isValidMessage(data) {
         return data.keys().hasAll(['authorId', 'content', 'timestamp']) &&
-               (data.authorId == request.auth.uid || (isAdmin() && data.authorId == 'system')) &&
                data.content is string && data.content.size() > 0 && data.content.size() <= 2000 &&
                data.timestamp is timestamp;
       }
     }
 
     // 5. Direct Messages
-    // -------------------------------------------------------------------------
     match /direct_messages/{msgId} {
-      allow read, write: if isSignedIn();
-      allow list: if isSignedIn();
+      allow get: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow list: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow create: if isSignedIn() && incoming().senderId == request.auth.uid;
+      allow delete: if isAdmin();
     }
 
     // 6. Report Drafts
-    // -------------------------------------------------------------------------
     match /report_drafts/{draftId} {
       allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isManager());
       allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isManager());
-      
-      allow write: if isSignedIn() && incoming().userId == request.auth.uid && isValidDraft(incoming());
+      allow write: if isSignedIn() && (incoming().userId == request.auth.uid || isAdmin()) && isValidDraft(incoming());
 
       function isValidDraft(data) {
-        return data.keys().hasAll(['monthYear', 'content', 'userId', 'updatedAt']) &&
-               data.userId == request.auth.uid &&
-               data.monthYear is string && data.monthYear.size() <= 10 &&
-               data.content is string && data.content.size() <= 100000 &&
-               data.updatedAt is timestamp;
+        return data.keys().hasAll(['monthYear', 'userId', 'updatedAt']) &&
+               data.userId is string &&
+               data.monthYear is string && data.monthYear.size() <= 10;
       }
     }
 
     // 7. Official Reports
-    // -------------------------------------------------------------------------
     match /official_reports/{reportId} {
       allow list: if isSignedIn() && resource.data.monthYear is string;
       allow get: if isSignedIn();
-      
       allow create: if isManager() && isValidOfficialReport(incoming());
       allow delete: if isAdmin();
 
       function isValidOfficialReport(data) {
-        return data.keys().hasAll(['monthYear', 'content', 'userId', 'stats', 'isOfficial', 'createdAt']) &&
-               data.monthYear is string && data.monthYear.size() <= 10 &&
-               data.content is string && data.content.size() <= 500000 &&
-               data.isOfficial == true &&
-               data.createdAt is timestamp;
+        return data.keys().hasAll(['monthYear', 'content', 'userId', 'isOfficial', 'createdAt']) &&
+               data.monthYear is string &&
+               data.isOfficial == true;
       }
     }
 
     // 8. System Logs
-    // -------------------------------------------------------------------------
     match /system_logs/{logId} {
       allow read: if isAdmin();
       allow create: if isSignedIn();
     }
 
     // 9. Presence Collection
-    // -------------------------------------------------------------------------
     match /presence/{userId} {
       allow read: if isSignedIn();
       allow write: if isOwner(userId) && isValidPresence(incoming());
 
       function isValidPresence(data) {
-        return data.keys().hasAll(['id', 'name', 'avatar', 'lastActive', 'status']) &&
+        return data.keys().hasAll(['id', 'name', 'status']) &&
                data.id == userId &&
                data.name is string && data.name.size() > 0 &&
-               data.avatar is string &&
-               data.lastActive is timestamp &&
                data.status in ['online', 'offline'];
       }
     }
-
-    // Default Deny
-    match /{document=**} {
-      allow read, write: if false;
+    // 10. User Profiles Collection
+    match /user_profiles/{userId} {
+      allow read: if true;
+      allow write: if isSignedIn();
     }
   }
 }

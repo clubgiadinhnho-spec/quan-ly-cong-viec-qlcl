@@ -76,7 +76,7 @@ export const useFirebaseData = (currentUserId?: string) => {
 
     // Listen to Tasks
     const tasksUnsubscribe = onSnapshot(
-      query(collection(db, 'tasks'), orderBy('code', 'desc')),
+      collection(db, 'tasks'),
       (snapshot) => {
         const tasksData = snapshot.docs.map(doc => {
           const data = doc.data();
@@ -84,10 +84,14 @@ export const useFirebaseData = (currentUserId?: string) => {
             ...data,
             id: doc.id,
             updatedAt: (data.updatedAt as any)?.toDate ? (data.updatedAt as any).toDate().toISOString() : (data.updatedAt || new Date().toISOString()),
-            issueDate: data.issueDate || new Date().toISOString().split('T')[0]
+            issueDate: data.issueDate || new Date().toISOString().split('T')[0],
+            code: data.code || 'N/A'
           } as Task;
         });
-        setTasks(tasksData);
+        
+        // In-memory sort by code (desc)
+        const sorted = tasksData.sort((a, b) => (b.code || '').localeCompare(a.code || ''));
+        setTasks(sorted);
         setLoading(false);
       },
       (error) => {

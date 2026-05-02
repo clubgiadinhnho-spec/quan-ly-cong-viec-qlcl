@@ -155,6 +155,12 @@ export default function App() {
     };
   }, [tasks, effectiveUser]);
 
+  useEffect(() => {
+    if (tasks.length > 0) {
+      console.log('Tổng số công việc trong hệ thống:', tasks.length);
+    }
+  }, [tasks.length]);
+
   // Presence Heartbeat
   useEffect(() => {
     if (!effectiveUser || !authReady) return;
@@ -479,53 +485,72 @@ export default function App() {
           }, 0);
 
           let successCount = 0;
+          let failCount = 0;
+
           for (const tData of importedTasks) {
-            lastNum++;
+            try {
+              lastNum++;
 
-            // Find user by email or name string from Excel
-            let assigneeId = currentUser?.id || '';
-            if (tData.assigneeId) {
-              const searchStr = (tData.assigneeId?.toString() || '').toLowerCase();
-              const matchedUser = allUsers.find(u => 
-                ((u.companyEmail || '').toLowerCase() === searchStr) || 
-                ((u.personalEmail || '').toLowerCase() === searchStr) || 
-                ((u.name || '').toLowerCase().includes(searchStr))
-              );
-              if (matchedUser) {
-                assigneeId = matchedUser.id;
+              // Find user by email or name string from Excel
+              let assigneeId = '';
+              let assigneeName = tData.assigneeName || '';
+
+              if (tData.assigneeId || tData.assigneeName) {
+                const searchStr = (tData.assigneeId || tData.assigneeName || '').toString().toLowerCase();
+                const matchedUser = allUsers.find(u => 
+                  ((u.companyEmail || '').toLowerCase() === searchStr) || 
+                  ((u.personalEmail || '').toLowerCase() === searchStr) || 
+                  ((u.name || '').toLowerCase() === searchStr) ||
+                  ((u.name || '').toLowerCase().includes(searchStr))
+                );
+                if (matchedUser) {
+                  assigneeId = matchedUser.id;
+                  assigneeName = matchedUser.name;
+                } else {
+                  // Fallback: If no match, we can't easily assign a Firestore ID
+                  // but we should store the name if possible.
+                  // For now, if no match, we might assign to Admin or leave as empty Id
+                  // The user wants it NOT to be automatically assigned to Admin.
+                  assigneeId = ''; // Empty ID means it shows the name provided in Excel
+                }
               }
-            }
 
-            const newTask: Omit<Task, 'id'> = {
-              code: `C${String(lastNum).padStart(4, '0')}`,
-              issueDate: new Date().toISOString().split('T')[0],
-              title: tData.title || 'Không có tiêu đề',
-              objective: tData.objective || '',
-              assigneeId: assigneeId,
-              startDate: new Date().toISOString().split('T')[0],
-              expectedEndDate: tData.expectedEndDate || '',
-              prevProgress: tData.prevProgress || '',
-              currentUpdate: tData.currentUpdate || '',
-              history: [{ 
-                version: 1, 
-                content: 'Nhập từ file Excel.', 
-                timestamp: new Date().toISOString(), 
-                authorId: currentUser?.id || 'system' 
-              }],
-              status: 'IN_PROGRESS',
-              priority: tData.priority || 'MEDIUM',
-              isHighlighted: false,
-              isLocked: false,
-              updatedAt: new Date().toISOString(),
-            };
-            await firebaseAddTask(newTask);
-            successCount++;
+              const newTask: Omit<Task, 'id'> = {
+                code: `C${String(lastNum).padStart(4, '0')}`,
+                issueDate: new Date().toISOString().split('T')[0],
+                title: tData.title || 'Không có tiêu đề',
+                objective: tData.objective || '',
+                assigneeId: assigneeId,
+                assigneeName: assigneeName,
+                startDate: new Date().toISOString().split('T')[0],
+                expectedEndDate: tData.expectedEndDate || '',
+                prevProgress: tData.prevProgress || '',
+                currentUpdate: tData.currentUpdate || '',
+                history: [{ 
+                  version: 1, 
+                  content: 'Nhập từ file Excel.', 
+                  timestamp: new Date().toISOString(), 
+                  authorId: currentUser?.id || 'system' 
+                }],
+                status: 'IN_PROGRESS',
+                priority: tData.priority || 'MEDIUM',
+                isHighlighted: false,
+                isLocked: false,
+                updatedAt: new Date().toISOString(),
+              };
+              await firebaseAddTask(newTask);
+              successCount++;
+            } catch (err) {
+              console.error("Error importing row:", err);
+              failCount++;
+            }
           }
-          alert(`Đã nạp thành công ${successCount} công việc.`);
+          console.log(`Đã nhập thành công: ${successCount} dòng. Thất bại: ${failCount} dòng.`);
+          alert(`Đã nạp thành công ${successCount} công việc.${failCount > 0 ? ` Có ${failCount} dòng bị lỗi.` : ''}`);
         }
       });
       
-      if (e.target) e.target.value = '';
+  if (e.target) e.target.value = '';
     } catch (err) {
       console.error("Import error:", err);
       alert("Đã có lỗi xảy ra khi nhập file Excel. Vui lòng kiểm tra định dạng.");
@@ -632,7 +657,7 @@ export default function App() {
                   title={<span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>}
                   badge={effectiveUser.role}
                   onAction={() => setShowTaskModal(true)}
-                  actionLabel="Nhập công việc mới"
+                  actionLabel="+ Nhập công việc mới"
                   actionIcon={Plus}
                   onlineUsers={presence}
                   currentUserId={effectiveUser.id}
@@ -642,7 +667,7 @@ export default function App() {
               <div className="p-6 space-y-6 overflow-y-auto min-h-0 flex-1">
                 <StatsSummary tasks={filteredTasks} />
 
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm transition-all duration-300">
+                <div className="flex items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm transition-all duration-300">
                   <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
                     <button 
                       onClick={() => setViewScope('mine')}
@@ -653,7 +678,7 @@ export default function App() {
                       }`}
                     >
                       <UserIcon size={14} />
-                      Cá nhân ({myActiveCount})
+                      <span translate="no" className="notranslate">Cá nhân</span> ({myActiveCount})
                     </button>
                     <button 
                       onClick={() => setViewScope('all')}
@@ -664,13 +689,13 @@ export default function App() {
                       }`}
                     >
                       <UsersIcon size={14} />
-                      Phòng QLCL ({allActiveCount})
+                      <span translate="no" className="notranslate">Phòng QLCL</span> ({allActiveCount})
                     </button>
                   </div>
                   <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full border border-blue-100">
                     <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                     <span className="text-[10px] text-blue-700 font-black uppercase tracking-widest">
-                      Đang xem: {viewScope === 'mine' ? 'Nhiệm vụ của bạn' : 'Toàn bộ phòng'}
+                      <span translate="no" className="notranslate">Đang xem: {viewScope === 'mine' ? 'Nhiệm vụ của bạn' : 'Toàn bộ phòng'}</span>
                     </span>
                   </div>
                 </div>
@@ -679,7 +704,7 @@ export default function App() {
                    <div className="flex items-center gap-4">
                     <h3 className="text-[14px] font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
                        <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
-                       DANH SÁCH BẢNG CÔNG VIỆC
+                       <span translate="no" className="notranslate">DANH SÁCH BẢNG CÔNG VIỆC</span>
                     </h3>
                      {(effectiveUser.role !== 'Staff' || effectiveUser.delegatedPermissions?.canExportExcel || effectiveUser.delegatedPermissions?.canImportExcel) && (
                        <div className="flex items-center gap-2">

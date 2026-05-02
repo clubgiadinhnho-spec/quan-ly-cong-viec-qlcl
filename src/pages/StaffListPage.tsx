@@ -411,7 +411,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                 {/* Details Section */}
                 <div className="w-full mt-6 space-y-3 border-t border-slate-50 pt-5">
                   <div className="flex items-center justify-between text-[10px] font-black uppercase">
-                    <span className="text-slate-400 tracking-wider flex items-center gap-2"><Phone size={14} className="text-blue-500" /> ĐIỆN THOẠI</span>
+                    <span className="text-slate-400 tracking-wider flex items-center gap-2"><Phone size={14} className="text-blue-500" /> <span translate="no" className="notranslate">SỐ ĐIỆN THOẠI / ZALO</span></span>
                     <span translate="no" className="notranslate text-slate-700 font-mono tracking-tighter">{staff.phone}</span>
                   </div>
                   <div className="flex items-center justify-between text-[10px] font-black">

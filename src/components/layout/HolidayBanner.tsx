@@ -151,12 +151,11 @@ export const HolidayBanner = () => {
           </div>
         ) : (
           <>
-            <img 
-              src={activeHoliday.bannerUrl} 
-              alt={activeHoliday.name}
-              className="absolute inset-0 w-full h-full object-cover brightness-75 transition-all duration-1000 group-hover:scale-105"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-900/40 via-transparent to-blue-900/40" />
+            <div className={`absolute inset-0 ${activeHoliday.theme === 'blue-cyan' ? 'bg-linear-to-r from-blue-700 via-indigo-600 to-blue-700' : 'bg-linear-to-r from-emerald-600 via-teal-500 to-emerald-600'} opacity-90`} />
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
+            <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+              <div className="absolute top-[-50%] left-[-10%] w-[120%] h-[200%] bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.1),transparent_50%)] animate-pulse" />
+            </div>
           </>
         )}
         

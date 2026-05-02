@@ -31,7 +31,7 @@ export const getTaskAssigneeName = (task: Task, allUsers: User[]): string => {
   const user = allUsers.find(u => u.id === task.assigneeId);
   if (user) return user.name;
 
-  return 'Quản Trị Viên';
+  return task.assigneeId || 'Chưa phân công';
 };
 
 /**

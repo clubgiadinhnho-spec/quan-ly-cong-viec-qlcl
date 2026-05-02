@@ -180,26 +180,32 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 </p>
               </div>
               <div className="flex flex-col gap-1.5 mt-2">
-                <p className="text-[9px] text-gray-500 font-bold opacity-80 leading-tight">GIAO: {formatDate(task.issueDate)}</p>
+                <p className="text-[9px] text-gray-500 font-bold opacity-80 leading-tight">
+                  <span translate="no" className="notranslate">GIAO:</span> {formatDate(task.issueDate)}
+                </p>
                 <p className={`text-[10px] font-black leading-tight ${
                   deadlineStatus === 'overdue' && !task.extensionDate 
                     ? 'text-red-700 underline' 
                     : deadlineStatus === 'warning'
                       ? 'text-emerald-700'
                       : 'text-blue-700'
-                }`}>HẠN: {formatDate(task.expectedEndDate)}</p>
+                }`}>
+                  <span translate="no" className="notranslate">HẠN:</span> {formatDate(task.expectedEndDate)}
+                </p>
                 {(() => {
                   const extensions = task.history.filter(h => h.content.includes('Gia hạn công việc đến'));
                   const extensionCount = extensions.length;
                   if (task.extensionDate) {
                     return (
                       <p className={`text-[10px] font-black leading-tight text-red-600 animate-pulse underline`}>
-                        GIA HẠN {extensionCount > 0 ? `(V${extensionCount})` : ''}: {formatDate(task.extensionDate)}
+                        <span translate="no" className="notranslate">GIA HẠN</span> {extensionCount > 0 ? `(V${extensionCount})` : ''}: {formatDate(task.extensionDate)}
                       </p>
                     );
                   } else if (isManager) {
                     return (
-                      <p className="text-[9px] font-bold text-gray-300 hover:text-red-400 italic transition-colors">GIA HẠN: --</p>
+                      <p className="text-[9px] font-bold text-gray-300 hover:text-red-400 italic transition-colors">
+                        <span translate="no" className="notranslate">GIA HẠN: --</span>
+                      </p>
                     );
                   }
                   return null;
@@ -429,7 +435,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                      onClick={handleStatusAction}
                      className="w-full px-1 py-2 text-[10px] bg-amber-500 text-white rounded font-black hover:bg-amber-600 transition-all uppercase tracking-tighter shadow-md"
                    >
-                     {canApprove ? 'XONG' : 'GỬI HT'}
+                     <span translate="no" className="notranslate">{canApprove ? 'XONG' : 'GỬI HT'}</span>
                    </button>
                 )}
                 {(isManager || isOwner || canApprove) && (
@@ -441,7 +447,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                          : 'bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50'
                      }`}
                    >
-                     LƯU Ý
+                     <span translate="no" className="notranslate">LƯU Ý</span>
                    </button>
                 )}
                 {!task.requestDelete && canDelete && (
@@ -449,7 +455,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                      onClick={() => onDelete(task.id)}
                      className="w-full px-1 py-2 text-[10px] bg-red-500 text-white border border-red-600 rounded font-black hover:bg-red-600 transition-all uppercase tracking-tighter shadow-md"
                    >
-                     XÓA
+                     <span translate="no" className="notranslate">XÓA</span>
                    </button>
                 )}
 

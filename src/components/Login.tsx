@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { User } from '../types';
 import { LogIn, UserPlus, Mail, Lock, ShieldCheck, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { loginWithEmail, registerWithEmail } from '../lib/firebase';
+import { loginWithEmail, registerWithEmail, loginWithGoogle, logout } from '../lib/firebase';
+import { FcGoogle } from 'react-icons/fc';
 
 interface LoginProps {
   users: User[];
@@ -76,12 +77,39 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
     } catch (err: any) {
       console.error("Login error:", err);
       if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-        setError('Email hoặc mật khẩu không chính xác.');
+        if (password === '123456') {
+           setError('Tài khoản đã tồn tại với mật khẩu khác. Vui lòng thử lại.');
+        } else {
+           setError('Email hoặc mật khẩu không chính xác. (Lưu ý: Nếu bạn vừa đổi mật khẩu và gặp lỗi, hãy thử lại sau vài giây hoặc dùng mật khẩu cũ).');
+        }
       } else if (err.code === 'auth/operation-not-allowed') {
         setError('Phương thức Đăng nhập bằng Email chưa được bật trong Firebase Console.');
       } else {
         setError('Lỗi đăng nhập: ' + err.message);
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const fbUser = await loginWithGoogle();
+      if (fbUser) {
+        const staffMember = validateEmail(fbUser.email || '');
+        if (!staffMember) {
+           setError('Email Google này không có trong danh sách nhân sự được cấp phép.');
+           await logout(); // Import logout if needed, but App.tsx handles onAuthStateChanged
+           return;
+        }
+        const userToLogin = { ...staffMember, id: fbUser.uid, lastActive: Date.now() } as User;
+        onLogin(userToLogin);
+      }
+    } catch (err: any) {
+      console.error("Google login error:", err);
+      setError('Lỗi đăng nhập Google: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -305,6 +333,25 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
               ) : (
                 <>XÁC NHẬN ĐĂNG KÝ <UserPlus size={16} /></>
               )}
+            </button>
+
+            <div className="relative py-2">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-100"></div>
+              </div>
+              <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest">
+                <span className="bg-white px-4 text-gray-400">Hoặc</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loading}
+              className="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-bold py-3.5 rounded-xl flex items-center justify-center gap-3 transition-all uppercase tracking-widest text-xs"
+            >
+              <FcGoogle size={20} />
+              Đăng nhập với Google
             </button>
           </form>
         </div>

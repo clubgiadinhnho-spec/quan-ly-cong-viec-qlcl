@@ -39,7 +39,6 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                   currentUser?.email === 'truong.le@tanphu.vn' ||
                   currentUser?.email === 'lenhattruong.tpp@gmail.com'; 
 
-  // Form State
   const [formData, setFormData] = useState({
     name: user.name,
     phone: user.phone,
@@ -58,24 +57,13 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
       title: user.title || '',
       avatar: user.avatar || ''
     });
-  }, [user]);
+  }, [user.id, user.name, user.phone, user.companyEmail, user.personalEmail, user.avatar]);
 
   const [passwordData, setPasswordData] = useState({
     newPassword: '',
     confirmPassword: ''
   });
   const [showPassword, setShowPassword] = useState(false);
-
-  useEffect(() => {
-    setFormData({
-      name: user.name,
-      phone: user.phone,
-      companyEmail: user.companyEmail,
-      personalEmail: user.personalEmail,
-      title: user.title || '',
-      avatar: user.avatar
-    });
-  }, [user]);
 
   const hasDelegatedPermissions = (u: User) => u.delegatedPermissions && Object.values(u.delegatedPermissions).some(v => v);
 
@@ -106,14 +94,23 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
           setSaving(false);
           return;
         }
-        await updateAuthPassword(passwordData.newPassword);
+        try {
+          await updateAuthPassword(passwordData.newPassword);
+        } catch (authErr: any) {
+          if (authErr.code === 'auth/requires-recent-login') {
+             alert("Để bảo mật, bạn cần Đăng xuất và Đăng nhập lại trước khi có thể đổi mật khẩu.");
+             setSaving(false);
+             return;
+          }
+          throw authErr;
+        }
       }
 
       // 2. Update Firestore Profile
       const updates: Partial<User> = {
         ...formData,
-        // Also save text password if explicitly provided (for ID card view as requested)
-        password: passwordData.newPassword || user.password
+        // CẤP BẬC ƯU TIÊN: Lưu mật khẩu mới hoặc giữ mật khẩu hiện tại vào Firestore
+        password: passwordData.newPassword || user.password || '123456'
       };
 
       await onUpdateProfile(user.personalEmail, updates);
@@ -234,7 +231,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
               </h4>
               <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase flex items-center gap-1"><Phone size={10} /> ĐIỆN THOẠI</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase flex items-center gap-1"><Phone size={10} /> <span translate="no" className="notranslate">SỐ ĐIỆN THOẠI / ZALO</span></label>
                   {!isEditing ? (
                     <p className="text-sm font-bold text-gray-700">{user.phone}</p>
                   ) : (
@@ -292,11 +289,11 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
               {canEdit && isEditing && (
                 <div className="space-y-4 pt-2">
                   <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2">
-                    <Key size={14} /> CẬP NHẬT MẬT KHẨU
+                    <Key size={14} /> <span translate="no" className="notranslate">CẬP NHẬT MẬT KHẨU</span>
                   </h4>
                   <div className="space-y-3">
                     <div className="space-y-1 relative">
-                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">MẬT KHẨU MỚI</label>
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest"><span translate="no" className="notranslate">MẬT KHẨU MỚI</span></label>
                        <input 
                         type={showPassword ? "text" : "password"}
                         value={passwordData.newPassword}
@@ -309,7 +306,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                        </button>
                     </div>
                     <div className="space-y-1">
-                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">XÁC NHẬN MẬT KHẨU</label>
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest"><span translate="no" className="notranslate">XÁC NHẬN MẬT KHẨU</span></label>
                        <input 
                         type={showPassword ? "text" : "password"}
                         value={passwordData.confirmPassword}

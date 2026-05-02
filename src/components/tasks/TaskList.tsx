@@ -56,7 +56,7 @@ export const TaskList: React.FC<TaskListProps> = ({
 
     // 4. Mã công việc (Mới nhất lên trên)
     return b.code.localeCompare(a.code);
-  }).slice(0, 15);
+  }).slice(0, 100);
 
   const handleUpdateTask = (id: string, updates: Partial<Task>) => {
     const taskData = tasks.find(t => t.id === id);
@@ -120,15 +120,27 @@ export const TaskList: React.FC<TaskListProps> = ({
       <table className="w-full text-left border-separate border-spacing-0 table-fixed min-w-full">
         <thead>
           <tr className="bg-blue-600">
-            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[5%] text-center border-b border-l border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Mã</th>
+            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[5%] text-center border-b border-l border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">
+              <span translate="no" className="notranslate">Mã</span>
+            </th>
             <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[16%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">
               <span translate="no" className="notranslate">Nhân sự</span>
             </th>
-            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)] w-[34%]">Nội dung & Mục tiêu</th>
-            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[18%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Diễn tiến trước đó</th>
-            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[18%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Cập nhật (2 tuần tiếp)</th>
-            <th className="p-3 text-[11px] font-black text-white uppercase tracking-tighter w-[6%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">ƯU TIÊN</th>
-            {!isReadOnly && <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[6%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">Thao tác</th>}
+            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)] w-[34%]">
+              <span translate="no" className="notranslate">Nội dung & Mục tiêu</span>
+            </th>
+            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[18%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">
+              <span translate="no" className="notranslate">Diễn tiến trước đó</span>
+            </th>
+            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[18%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">
+              <span translate="no" className="notranslate">Cập nhật (2 tuần tiếp)</span>
+            </th>
+            <th className="p-3 text-[11px] font-black text-white uppercase tracking-tighter w-[6%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">
+              <span translate="no" className="notranslate">ƯU TIÊN</span>
+            </th>
+            {!isReadOnly && <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[6%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">
+              <span translate="no" className="notranslate">Thao tác</span>
+            </th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-300">

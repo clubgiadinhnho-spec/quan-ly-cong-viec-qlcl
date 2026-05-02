@@ -8,6 +8,7 @@ interface StatsSummaryProps {
 
 export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
   const nonDeleted = tasks.filter(t => !t.deletedAt);
+  const totalCount = nonDeleted.length;
   const activeTasks = nonDeleted.filter(t => t.status !== 'COMPLETED' && t.status !== 'AWAITING_CONFIRMATION');
   
   const totalProcessing = activeTasks.length;
@@ -25,11 +26,11 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
           <div className="p-2 bg-white/20 rounded-lg text-white">
             <Activity size={18} strokeWidth={2.5} />
           </div>
-          <p className="text-[10px] text-white font-black uppercase tracking-widest">Tổng dự án</p>
+          <p className="text-[10px] text-white font-black uppercase tracking-widest">TỔNG DỰ ÁN</p>
         </div>
         <div className="flex items-end gap-2">
-          <p className="text-3xl font-black text-white leading-none">{totalProcessing}</p>
-          <span className="text-[10px] text-amber-100 font-bold mb-1 uppercase">Đang xử lý</span>
+          <p className="text-3xl font-black text-white leading-none">{totalCount}</p>
+          <span className="text-[10px] text-amber-100 font-bold mb-1 uppercase">Đang quản lý</span>
         </div>
       </div>
 
@@ -41,7 +42,7 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
           <div className="p-2 bg-white/20 rounded-lg text-white">
             <Shield size={18} strokeWidth={2.5} />
           </div>
-          <p className="text-[10px] text-white font-black uppercase tracking-widest">Bình thường</p>
+          <p className="text-[10px] text-white font-black uppercase tracking-widest">BÌNH THƯỜNG</p>
         </div>
         <div className="flex items-end gap-2">
           <p className="text-3xl font-black text-white leading-none">{normalTasks.length}</p>
@@ -57,7 +58,7 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
           <div className="p-2 bg-white/20 rounded-lg text-white">
             <Zap size={18} strokeWidth={2.5} />
           </div>
-          <p className="text-[10px] text-white font-black uppercase tracking-widest">Ưu tiên / Gấp</p>
+          <p className="text-[10px] text-white font-black uppercase tracking-widest whitespace-nowrap">ƯU TIÊN / GẤP</p>
         </div>
         <div className="flex items-end gap-2">
           <p className="text-3xl font-black text-white leading-none">{priorityTasks.length}</p>
@@ -73,7 +74,7 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
           <div className="p-2 bg-white/20 rounded-lg text-white">
             <CheckCircle size={18} strokeWidth={2.5} />
           </div>
-          <p className="text-[10px] text-white font-black uppercase tracking-widest">Hoàn thành</p>
+          <p className="text-[10px] text-white font-black uppercase tracking-widest">HOÀN THÀNH</p>
         </div>
         <div className="flex items-end gap-2">
           <p className="text-3xl font-black text-white leading-none">{completedCount}</p>

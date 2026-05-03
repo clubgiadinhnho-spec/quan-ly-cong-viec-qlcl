@@ -4,7 +4,7 @@ interface AvatarProps {
   src?: string;
   name?: string;
   className?: string;
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
 }
 
 export const Avatar: React.FC<AvatarProps> = ({ src, name, className = '', size = 'md' }) => {
@@ -13,7 +13,8 @@ export const Avatar: React.FC<AvatarProps> = ({ src, name, className = '', size 
     'sm': 'w-6 h-6 min-w-[24px]',
     'md': 'w-8 h-8 min-w-[32px]',
     'lg': 'w-10 h-10 min-w-[40px]',
-    'xl': 'w-16 h-16 min-w-[64px]'
+    'xl': 'w-16 h-16 min-w-[64px]',
+    'full': 'w-full h-full'
   };
 
   const currentSizeClass = sizeClasses[size] || sizeClasses.md;

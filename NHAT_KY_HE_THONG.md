@@ -183,7 +183,7 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
     - Thực hiện thụt lề (Indentation) cho các mục con trong Sidebar để tạo cấu trúc phân cấp rõ ràng hơn.
     - Mở rộng chiều rộng Sidebar lên `w-72` để đảm bảo các nhãn dài không bị ngắt dòng.
 - **Khôi phục Quyền Quản trị & Trang Nhân sự:**
-    - Cấp lại quyền **Admin** cho tài khoản `adminnutifood@gmail.com` và các email quản trị hệ thống khác.
+    - Cấp lại quyền **Admin** cho tài khoản quản trị và các email quản trị hệ thống khác.
     - Đảm bảo trang **Nhân sự** và **Nhật ký hệ thống** luôn hiển thị đối với cấp bậc Quản trị viên, khắc phục lỗi mất hiển thị trang do thiếu vai trò (Role).
     - Tự động gán vai trò `Admin` cho các email đặc thù (System Admins) ngay khi đăng nhập để đảm bảo công việc quản lý không bị gián đoạn.
 
@@ -201,7 +201,43 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
     - Áp dụng kiểm tra kiểu dữ liệu (Validation) nghiêm ngặt cho mỗi lần ghi vào database.
 - **Đồng bộ hóa giao diện:** Cập nhật Sidebar, TaskRow, StaffList và ProfilePage để hiển thị và xử lý logic theo bộ phân quyền mới.
 
-### 📝 Cập nhật mới nhất: 02/05/2026 (Đồng bộ hóa Mật khẩu & Thông tin Nhân sự)
+### 📝 Cập nhật mới nhất: 02/05/2026 (Định danh Thương hiệu & Hệ sinh thái Sản phẩm)
+- **Thông tin Cơ cấu & Thương hiệu:** 
+    - Đơn vị: **Công Ty Cổ Phần Tân Phú Việt Nam** (thành viên DNP Holding).
+    - Thương hiệu chiến lược: **Inochi** (Gia dụng cao cấp phong cách Nhật Bản).
+    - Các dòng sản phẩm chính: Hokkaido (hộp thực phẩm), Hiro (thùng rác), Yoko (phụ kiện nhà bếp), Kita (bình nước), Omi (nồi chảo), Amori/Aoi (mẹ & bé).
+    - Triết lý thiết kế: Tối giản, tinh tế, thông minh, bền bỉ (chuẩn Nhật).
+- **Bối cảnh Phòng QLCL (Quality Management Context):**
+    - Đại diện: **Trưởng phòng Lê Nhật Trường**.
+    - Đặc thù công việc: Kiểm soát chất lượng bao bì công nghiệp và đồ gia dụng. Hệ thống Dashboard này phục vụ việc theo dõi tiến độ công việc KS phát sinh, xử lý sự cố chất lượng và báo cáo KPIs tháng của phòng.
+- **Tư liệu tham khảo:** 
+    - Website doanh nghiệp: [tanphuvietnam.vn](https://tanphuvietnam.vn/)
+    - Website thương hiệu: [inochi.vn](https://inochi.vn/)
+- **Yêu cầu phong cách (Branding Guidelines - Inochi Style):**
+    - **Màu sắc:** Trắng (Base), Xanh Dương / Teal (Action), Xám Slate (Text), Pastel (Background).
+    - **Cảm giác (Vibe):** Sạch sẽ, chuyên nghiệp, Nhật Bản (Minimalist).
+    - **Layout:** Ưu tiên khoảng trắng (White space), phân cấp thông tin rõ ràng, bo góc lớn (2xl/3xl) giống như các góc bo của sản phẩm nhựa Inochi.
+    - **Typography:** Sử dụng font Sans-serif hiện đại, gọn gàng.
+
+### 📝 Cập nhật: 02/05/2026 (Fix Logic Quyền hạn & UI Thẻ Nhân sự)
+- **Sửa lỗi Logic Quyền hạn (Staff Permission Fix):**
+    - Khắc phục sự cố nhân viên không thấy nút "Gửi hoàn thành" và "Xóa" trên trang cá nhân.
+    - Cập nhật hàm `isUserTask` để so khớp thông minh hơn: So khớp cả Firebase UID, Mã nhân viên (C001...), Email (Công ty/Cá nhân) và Tên hiển thị. Đảm bảo nhân sự luôn có quyền sở hữu đúng công việc của mình ngay cả khi ID hệ thống thay đổi.
+- **Tinh chỉnh UI Thẻ Nhân sự (Profile Card Refinement):**
+    - "Đóng băng" kích thước thẻ (`max-w-[550px]`) để tránh hiện tượng thẻ bị kéo giãn quá rộng trên màn hình lớn hoặc khi zoom.
+    - Giao diện thẻ hiện tại tuân thủ bố cục: Avatar (Trái) | Thông tin (Phải).
+- **Khôi phục Tính năng Giả lập (Simulation Feature):**
+    - Khôi phục nút **Phân quyền** (icon Khiên) cho Admin.
+    - Bố trí lại nút **GIẢ LẬP** nằm ngay dưới nút **XÓA HỒ SƠ** trong trang Quản lý nhân sự để phục vụ công tác kiểm tra hệ thống của Quản lý.
+- **Tăng cường Bảo mật Admin:** 
+    - Cập nhật logic nhận diện Admin dựa trên danh sách email hệ thống của Trưởng phòng (`lenhattruong.tpp@gmail.com`, v.v.), đảm bảo quyền Admin được duy trì xuyên suốt các tài khoản Gmail phụ.
+- **Đính chính thông tin Công ty:** 
+    - Đơn vị: **Công Ty Cổ Phần Tân Phú Việt Nam**.
+    - Ngành nghề: Sản xuất, nhập khẩu doanh các mặt hàng gia dụng, bao bì chứa đựng thực phẩm.
+    - Đại diện người dùng: **Trưởng phòng Quản Lý Chất Lượng** (Lê Nhật Trường).
+- **Lưu ý định danh:** Gỡ bỏ hoàn toàn mọi liên quan đến "Nutifood" (vốn là nhầm lẫn do địa chỉ email trước đó). Toàn bộ hệ thống Dashboard và Báo cáo tháng này phục vụ riêng cho Phòng QLCL Tân Phú Việt Nam.
+
+### 📝 Cập nhật trước đó: 02/05/2026 (Đồng bộ hóa Mật khẩu & Thông tin Nhân sự)
 - **Khắc phục lỗi Đồng bộ Thẻ Nhân sự:** 
     - Triển khai cơ chế **Hợp nhất Dữ liệu Động (Dynamic Merge)** trong `useStaff.ts`.
     - **Vấn đề:** Trước đó, mật khẩu mới cập nhật tại Trang cá nhân không hiển thị trên thẻ nhân sự tại trang Quản lý.

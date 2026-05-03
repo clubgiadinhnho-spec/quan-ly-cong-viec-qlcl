@@ -76,8 +76,13 @@ export default function App() {
     if (!user) return null;
     
     // Safety check: if they belong to any system admin emails, force Admin role
-    const systemAdmins = ['adminnutifood@gmail.com', 'lenhattruong.tpp@gmail.com', 'club.nhuatanphu@gmail.com', 'tanphuvietnam.tpp@gmail.com'];
-    if (user.companyEmail && systemAdmins.includes(user.companyEmail.toLowerCase())) {
+    const systemAdmins = ['lenhattruong.tpp@gmail.com', 'club.nhuatanphu@gmail.com', 'tanphuvietnam.tpp@gmail.com'];
+    const userEmail = (user.email || user.companyEmail || user.personalEmail || '').toLowerCase();
+    const isSystemAdmin = systemAdmins.includes(userEmail) || 
+                          (user.companyEmail && systemAdmins.includes(user.companyEmail.toLowerCase())) ||
+                          (user.personalEmail && systemAdmins.includes(user.personalEmail.toLowerCase()));
+                          
+    if (isSystemAdmin) {
        return { ...user, role: 'Admin' as any };
     }
     return user;
@@ -585,13 +590,7 @@ export default function App() {
 
     // View scope filter
     if (viewScope === 'mine') {
-      const isMine = t.assigneeId === effectiveUser?.id;
-      // Also match if the assignee ID corresponds to the same email as current user (legacy match)
-      const assigneeByOldId = FIXED_STAFF.find(u => u.id === t.assigneeId);
-      const emailMatches = !!(assigneeByOldId?.companyEmail && effectiveUser?.companyEmail && 
-                           assigneeByOldId.companyEmail.toLowerCase() === effectiveUser.companyEmail.toLowerCase());
-      
-      return isMine || emailMatches;
+      return isUserTask(t, effectiveUser);
     }
 
     // 'all' scope shows everything matching search
@@ -666,7 +665,7 @@ export default function App() {
                   title={<span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>}
                   badge={effectiveUser.role}
                   onAction={() => setShowTaskModal(true)}
-                  actionLabel="+ Nhập công việc mới"
+                  actionLabel="NHẬP CÔNG VIỆC MỚI"
                   actionIcon={Plus}
                   onlineUsers={presence}
                   currentUserId={effectiveUser.id}
@@ -785,7 +784,7 @@ export default function App() {
                   onEdit={setEditingTask}
                   setConfirmModal={setConfirmModal}
                   type="active"
-                  isReadOnly={viewScope === 'all' && effectiveUser.role === 'Staff'}
+                  isReadOnly={false}
                 />
 
                 {effectiveUser.role === 'Admin' && (
@@ -1012,7 +1011,7 @@ export default function App() {
             </motion.div>
           )}
 
-          {activeTab === 'staff_list' && (effectiveUser?.role === 'Admin' || effectiveUser?.delegatedPermissions?.canManageStaff) && (
+          {activeTab === 'staff_list' && (currentUser?.role === 'Admin' || effectiveUser?.role === 'Admin' || currentUser?.delegatedPermissions?.canManageStaff) && effectiveUser?.name !== 'Võ Thị Mỹ Tân' && (
             <motion.div key="staff_list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                <HolidayBanner />
                <Header 
@@ -1024,6 +1023,7 @@ export default function App() {
                   <StaffListPage 
                     users={allUsers} 
                     currentUser={effectiveUser} 
+                    originalUser={currentUser}
                     onSimulateStaff={setSimulatedUser}
                     onSendToUser={async (msg, targetId) => {
                       await firebaseSendPrivateMsg(msg, effectiveUser.id, targetId);

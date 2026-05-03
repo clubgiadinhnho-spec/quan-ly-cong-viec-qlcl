@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { User } from '../../types';
-import { X, Download, ShieldCheck, Send, Users, Award, Stamp } from 'lucide-react';
+import { X, Download, ShieldCheck, Send, Users, Award, Stamp, CheckCircle2, Shield } from 'lucide-react';
 import { motion } from 'motion/react';
 import html2canvas from 'html2canvas';
 
@@ -26,14 +26,14 @@ export const DelegationLetterModal: React.FC<DelegationLetterModalProps> = ({
   
   const getPermissionLabel = (key: string) => {
     const labels: Record<string, string> = {
-      canCreateTask: 'Soạn thảo & Nhập liệu công việc',
-      canApproveTask: 'Phê duyệt & Chốt báo cáo chuyên mục',
-      canDeleteTask: 'Xóa & Hủy bỏ các dự án hệ thống',
-      canExportExcel: 'Trích xuất dữ liệu & Báo cáo Excel',
-      canImportExcel: 'Nạp dữ liệu hệ thống hàng loạt',
-      canManageStaff: 'Quản trị hồ sơ & Phân quyền nhân sự'
+      canCreateTask: 'NHẬP CÔNG VIỆC MỚI',
+      canApproveTask: 'PHÊ DUYỆT HOÀN THÀNH',
+      canDeleteTask: 'XÓA HOẶC HỦY DỰ ÁN',
+      canExportExcel: 'XUẤT DỮ LIỆU EXCEL',
+      canImportExcel: 'NHẬP DỮ LIỆU MẪU',
+      canManageStaff: 'QUẢN LÝ NHÂN SỰ'
     };
-    return labels[key] || key;
+    return labels[key] || key.toUpperCase();
   };
 
   const activePermissions = permissions ? Object.entries(permissions)
@@ -55,7 +55,7 @@ export const DelegationLetterModal: React.FC<DelegationLetterModalProps> = ({
 
       const canvas = await html2canvas(element, {
         backgroundColor: '#ffffff',
-        scale: 2,
+        scale: 3, // Tăng scale để chữ cực kỳ rõ nét
         useCORS: true
       });
 
@@ -69,151 +69,134 @@ export const DelegationLetterModal: React.FC<DelegationLetterModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-md overflow-y-auto custom-scrollbar">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md overflow-y-auto custom-scrollbar">
       <motion.div 
-        initial={{ opacity: 0, scale: 0.9, y: 30 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="relative w-full max-w-2xl flex flex-col items-center py-4"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="relative w-full max-w-2xl flex flex-col items-center py-8"
       >
-        {/* Actions Bar (Top) */}
-        <div className="absolute top-0 right-0 p-4 z-50">
+        {/* Actions Bar - Removed from here to place inside shield */}
+
+        {/* The Letter Design - Shield Shape Layout */}
+        <div 
+          ref={letterRef} 
+          className="group relative w-[500px] h-[750px] flex items-center justify-center bg-white"
+          style={{ clipPath: 'path("M250 10 L480 80 V350 C480 600 250 740 250 740 C250 740 20 600 20 350 V80 L250 10 Z")' }}
+        >
+          {/* Close Button - Internal & Hover-only */}
           <button 
             onClick={onClose}
-            className="w-10 h-10 bg-white hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-full flex items-center justify-center transition-all border border-gray-100 shadow-lg"
+            className="absolute top-20 right-14 z-50 w-10 h-10 bg-white/40 hover:bg-red-500 text-white rounded-full flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 backdrop-blur-md border border-white/20 active:scale-95"
           >
-            <X size={20} />
+            <X size={20} strokeWidth={3} />
           </button>
-        </div>
-
-        {/* The Letter Design - More compact (440px width) */}
-        <div ref={letterRef} className="bg-white p-1 shadow-[0_20px_40px_rgba(0,0,0,0.1)] rounded-sm border-[6px] border-double border-blue-950/20">
-          <div className="bg-white border border-blue-900/10 p-6 w-[440px] min-h-[560px] flex flex-col relative overflow-hidden">
-            {/* Background Texture/Watermark */}
-            <div className="absolute inset-0 opacity-[0.03] pointer-events-none select-none flex items-center justify-center">
-              <Award size={300} className="text-blue-950" />
-            </div>
-
-            {/* Header */}
-            <div className="border-b border-blue-900/20 pb-3 mb-4 text-center relative z-10">
-              <div className="flex flex-col items-center mb-2">
-                <p className="text-[8px] font-black text-blue-900 uppercase tracking-[0.2em] leading-tight mb-0.5">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-                <p className="text-[9px] font-black text-gray-900 border-b border-gray-900 pb-0.5">Độc lập - Tự do - Hạnh phúc</p>
-              </div>
-
-              <div className="flex items-center justify-center gap-2 mb-3 mt-4">
-                <div className="w-8 h-8 bg-blue-950 text-white rounded flex items-center justify-center shadow-md">
-                  <ShieldCheck size={20} />
-                </div>
-                <div className="text-left">
-                  <p className="text-[8px] font-black text-blue-900 uppercase tracking-widest leading-tight">Phòng Quản lý Chất lượng</p>
-                  <p className="text-[10px] font-black text-gray-900 uppercase leading-none">Tân Phú Việt Nam</p>
-                </div>
-              </div>
+          {/* Main Shield Background & Border (Explicit RED Border) */}
+          <div className="absolute inset-0 bg-red-600 shadow-2xl" style={{ clipPath: 'path("M250 10 L480 80 V350 C480 600 250 740 250 740 C250 740 20 600 20 350 V80 L250 10 Z")' }}>
+            {/* Inner Shield (Pale Yellow with Subtle Pattern) */}
+            <div 
+              className="w-full h-full bg-[#fffbeb] relative flex flex-col items-center pt-28 px-10" 
+              style={{ 
+                clipPath: 'path("M250 18 L468 86 V342 C468 580 250 715 250 715 C250 715 32 580 32 342 V86 L250 18 Z")',
+                backgroundImage: 'radial-gradient(#fcd34d 0.5px, transparent 0.5px)',
+                backgroundSize: '20px 20px',
+              }}
+            >
               
-              <h1 className="text-lg font-black text-blue-950 uppercase tracking-widest font-serif mt-2">GIẤY ỦY QUYỀN ĐIỀU HÀNH</h1>
-              <p className="text-[7px] text-gray-500 font-bold mt-1 uppercase tracking-[0.2em]">Số: {user.code}/2026/UQ-QC</p>
-            </div>
-
-            {/* Body */}
-            <div className="flex-1 relative z-10 text-gray-800 px-4 text-left">
-              <div className="mb-4 font-serif leading-relaxed">
-                <p className="text-[10px] mb-3 text-gray-600 tracking-tight">Hôm nay, ngày {new Date().toLocaleDateString('vi-VN')}, tại Văn phòng QLCL,</p>
-                
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1">Cán bộ ủy quyền:</p>
-                    <p className="text-sm font-black text-gray-900 uppercase tracking-tight">{manager.name}</p>
-                    <p className="text-[9px] font-bold text-blue-800 uppercase tracking-tight leading-none">CHỨC VỤ: TRƯỞNG PHÒNG QC</p>
-                  </div>
-
-                  <div className="py-1 flex justify-start">
-                    <p className="text-[7.5px] font-black text-gray-300 uppercase tracking-[0.4em]">--- CHÍNH THỨC ỦY QUYỀN ---</p>
-                  </div>
-
-                  <div>
-                    <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest leading-none mb-1">Cho cán bộ:</p>
-                    <p translate="no" className="text-lg font-black text-blue-950 uppercase tracking-tight notranslate">{user.name}</p>
-                    <p className="text-[9px] font-bold text-blue-800 uppercase tracking-tight leading-none">MÃ NHÂN SỰ: {user.code}</p>
-                  </div>
+              {/* Header section - Balanced positioning */}
+              <div className="text-center mb-6">
+                <h1 className="text-2xl font-black text-red-700 uppercase tracking-tight leading-none mb-2">GIẤY ỦY QUYỀN</h1>
+                <div className="flex flex-col items-center gap-1">
+                   <p className="text-[10px] font-mono font-black text-slate-500 tracking-[0.4em] uppercase">REF: {user.code}-UQ-2026</p>
+                   <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">NGÀY LẬP: {new Date().toLocaleDateString('vi-VN')}</p>
                 </div>
+              </div>
 
-                <div className="mt-4">
-                  <p className="text-[10px] font-black text-gray-900 uppercase tracking-widest mb-2 border-b border-gray-100 pb-1 inline-block">Nội dung ủy quyền ({activePermissions.length}/6 quyền):</p>
-                  <div className="grid grid-cols-1 gap-1.5 pl-2">
+              {/* Delegator Section */}
+              <div className="text-center mb-4">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">CÁN BỘ ỦY QUYỀN</p>
+                <p className="text-[22px] font-black text-slate-900 uppercase leading-none mb-1">{manager.name}</p>
+                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tight">TRƯỞNG PHÒNG QLCL</p>
+              </div>
+
+              {/* Divider */}
+              <div className="w-full flex items-center justify-center my-3">
+                <div className="h-[1px] flex-1 bg-red-100"></div>
+                <div className="mx-4 text-red-600">
+                  <Award size={22} strokeWidth={2.5} />
+                </div>
+                <div className="h-[1px] flex-1 bg-red-100"></div>
+              </div>
+
+              {/* Delegated Section */}
+              <div className="text-center mb-8">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">CÁN BỘ ĐƯỢC ỦY QUYỀN</p>
+                <p className="text-[26px] font-black text-red-800 uppercase leading-none mb-1">{user.name}</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">MÃ NHÂN VIÊN: {user.code}</p>
+              </div>
+
+              {/* Permissions Area - Tapered for shield curve */}
+              <div className="w-full px-6 flex-1 flex flex-col items-center">
+                 <p className="text-[11px] font-black text-slate-900 uppercase tracking-widest mb-4">NỘI DUNG ỦY QUYỀN TRỌNG YẾU:</p>
+                 
+                 <div className="w-full max-w-[280px] space-y-2">
                     {activePermissions.length > 0 ? activePermissions.map((p, idx) => (
-                      <div key={idx} className="flex items-center gap-2 text-[10px] font-extrabold text-gray-800">
-                        <div className="w-1 h-1 rounded-full bg-blue-900 shrink-0" />
-                        <span>{p}</span>
+                      <div key={idx} className="flex items-center gap-2.5 bg-white/40 p-2 rounded-xl border border-red-50/50 shadow-sm">
+                        <CheckCircle2 size={14} className="text-emerald-600 shrink-0" strokeWidth={3} />
+                        <span className="text-[11px] font-black text-slate-700 uppercase tracking-tight">{p}</span>
                       </div>
                     )) : (
-                      <p className="text-gray-400 text-[10px]">Chưa có nội dung cấp phép.</p>
+                      <div className="text-center pt-4">
+                         <span className="text-slate-400 font-bold italic text-[12px]">Chưa xác định quyền hạn.</span>
+                      </div>
                     )}
-                  </div>
-                </div>
-
-                <p className="text-[8px] text-gray-500 leading-relaxed mt-6 text-left max-w-[360px]">
-                  Văn bản có hiệu lực ngay khi phát hành và tự động hết hiệu lực khi có quyết định thay thế hoặc khi cán bộ thôi giữ chức vụ.
-                </p>
+                 </div>
               </div>
 
-            {/* Stamp Area */}
-              <div className="mt-4 flex justify-end pr-6">
-                <div className="relative flex flex-col items-center">
-                  <p className="text-[9px] font-black text-gray-900 uppercase mb-8">TRƯỞNG PHÒNG PHÊ DUYỆT</p>
-                  <p className="text-sm font-black text-blue-950 uppercase">{manager.name}</p>
-                  
-                  {/* Formal Digital Stamp */}
-                  <div className="absolute -right-6 -top-2 w-20 h-20 border-[2px] border-red-600 rounded-full flex items-center justify-center rotate-12 pointer-events-none flex-col scale-90">
-                    <div className="absolute inset-1 border border-red-600/40 rounded-full flex flex-col items-center justify-center p-1">
-                      <p className="text-[4px] font-black text-red-600 uppercase text-center leading-none mb-1">PHÒNG QUẢN LÝ CHẤT LƯỢNG<br/>TÂN PHÚ VIỆT NAM</p>
-                      <Stamp size={16} className="text-red-600 mb-1" />
-                      <p className="text-[6px] font-black text-red-600 uppercase text-center leading-none tracking-tighter">ĐÃ XÁC NHẬN SỐ</p>
-                    </div>
-                  </div>
-                </div>
+              {/* Footer Area - Simplified per request */}
+              <div className="w-full pb-16 flex flex-col items-center justify-center relative mt-auto z-10">
+                <div className="w-20 h-0.5 bg-red-100 opacity-50 mb-2"></div>
+                <div className="text-[8px] text-slate-300 font-mono tracking-widest uppercase">Certified Document</div>
               </div>
-            </div>
 
-            {/* Bottom Footer */}
-            <div className="mt-auto pt-3 border-t border-gray-100 flex items-center justify-between opacity-40 text-[6px] font-black uppercase tracking-[0.2em]">
-              <span>Hash: {user.id.substring(0, 12).toUpperCase()}</span>
-              <span>Online Authorization Portal</span>
+              {/* Watermark Logo */}
+              <div className="absolute bottom-10 left-1/2 -translate-x-1/2 text-red-500/5 pointer-events-none">
+                 <Shield size={100} fill="currentColor" strokeWidth={0} />
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons Below Letter */}
-        <div className="w-full max-w-[440px] grid grid-cols-1 md:grid-cols-3 gap-2 mt-4 pb-4">
+        {/* Floating Actions */}
+        <div className="w-full grid grid-cols-3 gap-3 mt-8">
            <button 
              onClick={() => onSendToUser?.(announcementText)}
-             className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all group active:scale-95 text-white"
+             className="flex flex-col items-center gap-2 p-4 bg-white hover:bg-blue-50 text-blue-600 rounded-3xl transition-all shadow-xl shadow-slate-200 border-2 border-transparent hover:border-blue-200 group"
            >
-             <Send size={16} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-             Gửi Cá Nhân
+             <Send size={24} className="group-hover:-translate-y-1 transition-transform" />
+             <span className="text-[11px] font-black uppercase tracking-tighter">Gửi Cá Nhân</span>
            </button>
-
+           
            <button 
              onClick={() => onSendToGroup?.(announcementText)}
-             className="flex items-center justify-center gap-2 px-4 py-3 bg-amber-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-amber-200 hover:bg-amber-600 transition-all group active:scale-95 text-white"
+             className="flex flex-col items-center gap-2 p-4 bg-white hover:bg-emerald-50 text-emerald-600 rounded-3xl transition-all shadow-xl shadow-slate-200 border-2 border-transparent hover:border-emerald-200 group"
            >
-             <Users size={16} className="group-hover:scale-110 transition-transform" />
-             Gửi Nhóm Chat
+             <Users size={24} className="group-hover:scale-110 transition-transform" />
+             <span className="text-[11px] font-black uppercase tracking-tighter">Gửi Nhóm</span>
            </button>
 
            <button 
              onClick={handleDownload}
-             className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-gray-300 hover:bg-black transition-all group active:scale-95 text-white"
+             className="flex flex-col items-center gap-2 p-4 bg-slate-900 hover:bg-black text-white rounded-3xl transition-all shadow-xl shadow-slate-200 group"
            >
-             <Download size={16} className="animate-bounce" />
-             Lưu Ảnh
+             <Download size={24} className="group-hover:translate-y-1 transition-transform" />
+             <span className="text-[11px] font-black uppercase tracking-tighter text-white">Tải Ảnh PNG</span>
            </button>
         </div>
-        
-        <p className="mt-6 text-white/40 text-[10px] font-bold uppercase tracking-widest animate-pulse">
-           "Chứng từ có giá trị pháp lý ngay trên hệ thống điều hành"
+
+        <p className="mt-8 text-slate-400 text-[11px] font-black uppercase tracking-[0.2em] animate-pulse">
+           Chứng từ điện tử chính thức
         </p>
       </motion.div>
     </div>
   );
 };
-

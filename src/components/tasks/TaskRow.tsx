@@ -6,7 +6,7 @@ import { TaskChat } from './TaskChat';
 import { AnimatePresence } from 'motion/react';
 import { Avatar } from '../common/Avatar';
 
-import { getUserById, getSafeNameProps, getTaskAssigneeName } from '../../utils/userUtils';
+import { getUserById, getSafeNameProps, getTaskAssigneeName, isUserTask } from '../../utils/userUtils';
 
 interface TaskRowProps {
   task: Task;
@@ -35,7 +35,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 }) => {
   const assigneeName = getTaskAssigneeName(task, users);
   const assignee = getUserById(assigneeName, users) || getUserById(task.assigneeId, users);
-  const isOwner = user.id === task.assigneeId;
+  const isOwner = isUserTask(task, user);
   const isAdmin = user.role === 'Admin';
   const isTeamLeader = user.role === 'Leader';
   const canApprove = isAdmin || !!user.delegatedPermissions?.canApproveTask;

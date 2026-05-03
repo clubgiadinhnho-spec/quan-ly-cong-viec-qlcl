@@ -29,7 +29,7 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({ logs, allU
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20 animate-in fade-in duration-500">
-      {/* Header Card Style - Following Nutifood Staff Card Layout */}
+      {/* Header Card Style - Following Tan Phu Staff Card Layout */}
       <div className="bg-[#eff6ff] rounded-[32px] shadow-xl border-4 border-slate-100 overflow-hidden px-10 py-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">

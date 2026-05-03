@@ -66,9 +66,9 @@ export const Sidebar = ({
             <div className="absolute top-0 right-0 w-12 h-12 bg-blue-400/5 rounded-full blur-xl -mr-6 -mt-6" />
             <div className={`w-10 h-10 ${isDark ? 'bg-white text-gray-900' : 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white'} rounded-xl flex items-center justify-center text-sm font-black shadow-lg ring-2 ring-white/20 flex-none`}>Q</div>
             <div className="flex flex-col min-w-0">
-              <span className={`text-[7px] font-black ${isDark ? 'text-white/60' : 'text-blue-500'} uppercase tracking-[0.3em] leading-none mb-1`}>Systems Unit</span>
+              <span className={`text-[7px] font-black ${isDark ? 'text-white/60' : 'text-blue-500'} uppercase tracking-[0.3em] leading-none mb-1`}>Tân Phú Việt Nam</span>
               <h1 className={`text-[14px] font-black tracking-tighter uppercase leading-none truncate ${isDark ? 'text-white' : 'bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent'}`}>
-                <span translate="no" className="notranslate">P.QLCL TPP</span>
+                <span translate="no" className="notranslate">QLCL Tân Phú</span>
               </h1>
             </div>
           </div>
@@ -79,7 +79,7 @@ export const Sidebar = ({
             { id: 'tasks', label: <span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>, icon: ClipboardList, count: activeTasksCount, color: 'bg-blue-500 text-white shadow-blue-100' },
             { id: 'pending_confirmation', label: <span translate="no" className="notranslate"> ĐỀ XUẤT MỚI</span>, icon: Sparkles, count: pendingTasksCount, color: 'bg-emerald-500 text-white shadow-emerald-200', isAlert: true, isSubItem: true },
             { id: 'completed_tasks', label: <span translate="no" className="notranslate">CÔNG VIỆC HOÀN THÀNH</span>, icon: CheckCircle2, count: completedTasksCount, color: 'bg-indigo-500 text-white shadow-indigo-100', isSubItem: true },
-            ...(user.role === 'Admin' || user.role === 'Leader' || user.delegatedPermissions?.canManageStaff
+            ...((user.role === 'Admin' || user.role === 'Leader' || user.delegatedPermissions?.canManageStaff) && user.name !== 'Võ Thị Mỹ Tân'
               ? [{ id: 'staff_list', label: <span translate="no" className="notranslate">QUẢN LÝ NHÂN SỰ</span>, icon: Users, count: totalStaffCount, color: 'bg-amber-500 text-white shadow-amber-100' }] 
               : []),
             { id: 'profile', label: <span translate="no" className="notranslate">TRANG CÁ NHÂN</span>, icon: UserIcon },

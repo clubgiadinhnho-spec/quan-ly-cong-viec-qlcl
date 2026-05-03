@@ -40,12 +40,27 @@ export const getTaskAssigneeName = (task: Task, allUsers: User[]): string => {
  */
 export const isUserTask = (task: Task, user: User | null): boolean => {
   if (!user || !task) return false;
+  
+  // 1. So khớp ID trực tiếp (Firebase UID hoặc Legacy ID)
   if (task.assigneeId === user.id) return true;
   
-  // Fallback check by email (for cases where ID changed from USER001 to Firebase UID)
-  const staffMember = FIXED_STAFF.find(u => u.id === task.assigneeId);
-  return !!(staffMember?.companyEmail && user.companyEmail && 
-            staffMember.companyEmail.toLowerCase() === user.companyEmail.toLowerCase());
+  // 2. So khớp theo Mã nhân viên (Staff Code)
+  if (user.code && task.assigneeId === user.code) return true;
+  
+  // 3. Tra cứu trong danh sách FIXED_STAFF để so khớp Email
+  const staffByTask = FIXED_STAFF.find(u => u.id === task.assigneeId || u.code === task.assigneeId);
+  if (staffByTask && user.companyEmail) {
+    if (staffByTask.companyEmail?.toLowerCase() === user.companyEmail.toLowerCase()) return true;
+    if (staffByTask.personalEmail?.toLowerCase() === user.companyEmail.toLowerCase()) return true;
+  }
+  
+  // 4. So khớp theo tên hiển thị (Trường hợp cuối)
+  const taskAssigneeName = task.assigneeName || task.assignedTo;
+  if (taskAssigneeName && user.name && taskAssigneeName.toLowerCase() === user.name.toLowerCase()) {
+    return true;
+  }
+
+  return false;
 };
 
 /**

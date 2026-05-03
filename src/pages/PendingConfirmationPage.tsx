@@ -92,7 +92,7 @@ export const PendingConfirmationPage = ({
             </div>
             <div className="text-sm text-blue-800 leading-relaxed font-medium">
               <p className="mb-1 font-bold">Lưu ý cho nhân viên:</p>
-              Các công việc sau khi bạn nhấn "Nhập công việc mới" sẽ nằm ở trạng thái <span className="text-blue-600 font-bold uppercase">Chờ xác nhận</span>. 
+              Các công việc sau khi bạn nhấn "NHẬP CÔNG VIỆC MỚI" sẽ nằm ở trạng thái <span className="text-blue-600 font-bold uppercase">Chờ xác nhận</span>. 
               Sau khi Quản lý xác nhận, nó mới chính thức được đưa vào danh sách xử lý và xuất hiện tại DANH SÁCH BẢNG CÔNG VIỆC.
             </div>
           </div>

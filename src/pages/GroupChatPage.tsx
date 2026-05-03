@@ -114,7 +114,7 @@ export const GroupChatPage = ({
       }
 
       const content = await zip.generateAsync({ type: "blob" });
-      saveAs(content, `Nutifood_Archive_${topic.title.replace(/\s+/g, '_')}.zip`);
+      saveAs(content, `TanPhu_Archive_${topic.title.replace(/\s+/g, '_')}.zip`);
     } catch (error) {
       console.error("Download failed:", error);
     } finally {
@@ -288,7 +288,7 @@ export const GroupChatPage = ({
                     </div>
                     <div className="flex items-baseline gap-2 min-w-0">
                       <p className="text-[8px] font-black uppercase tracking-tighter truncate max-w-[80px]">
-                        {topic.createdBy === 'SYSTEM' ? 'Hệ thống' : (getAuthor(topic.createdBy)?.name || 'Nutifood')}
+                        {topic.createdBy === 'SYSTEM' ? 'Hệ thống' : (getAuthor(topic.createdBy)?.name || 'Tân Phú')}
                       </p>
                       <span className="text-[7px] font-mono opacity-50 underline decoration-dotted">
                         {formatDateTime(topic.createdAt).split(' ')[0]}

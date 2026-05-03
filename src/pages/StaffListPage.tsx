@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, UserRoleType, UserPermissions } from '../types';
-import { Search, Mail, Phone, Lock, Download, ClipboardList, Filter, Eye, Award, Plus, X, Trash2, Edit, EyeOff, QrCode, Upload, Camera, Shield, ShieldCheck, Users, AlertCircle, CheckCircle2, MessageSquare, MessageCircle, PhoneIncoming, UserCircle } from 'lucide-react';
+import { Search, Mail, Phone, Lock, Download, ClipboardList, Filter, Eye, Award, Plus, X, Trash2, Edit, EyeOff, QrCode, Upload, Camera, Shield, ShieldCheck, Users, AlertCircle, CheckCircle2, MessageSquare, MessageCircle, PhoneIncoming, UserCircle, Star } from 'lucide-react';
 import { Avatar } from '../components/common/Avatar';
 import { PermissionMatrixModal } from '../components/staff/PermissionMatrixModal';
 import { DelegationLetterModal } from '../components/staff/DelegationLetterModal';
@@ -57,6 +57,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState<'All' | UserRoleType>('All');
   const [delegationLetterUser, setDelegationLetterUser] = useState<User | null>(null);
+  const [permissionMatrixUser, setPermissionMatrixUser] = useState<User | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState<User | null>(null);
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
@@ -75,6 +76,8 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
     abbreviation: '',
     status: 'ACTIVE'
   });
+
+  const [selectedQRUser, setSelectedQRUser] = useState<User | null>(null);
 
   const filteredStaff = users.filter(s => {
     if (!s) return false;
@@ -162,6 +165,94 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      {/* Enlarged QR Modal - Redesigned to look like a professional ID card / Edit profile */}
+      <AnimatePresence>
+        {selectedQRUser && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white w-full max-w-sm rounded-[48px] overflow-hidden shadow-2xl relative border border-white p-10 flex flex-col items-center"
+            >
+              <button 
+                onClick={() => setSelectedQRUser(null)}
+                className="absolute top-8 right-8 w-12 h-12 flex items-center justify-center bg-slate-100 text-slate-400 rounded-full hover:bg-slate-200 transition-all z-10 active:scale-90"
+              >
+                <X size={28} strokeWidth={3} />
+              </button>
+
+              {/* Avatar Section from "EDIT" style */}
+              <div className="relative mb-8">
+                <div className="w-36 h-36 p-1.5 bg-gradient-to-tr from-blue-100 to-blue-50 rounded-full shadow-2xl border-2 border-blue-50/50 overflow-hidden">
+                  <Avatar src={selectedQRUser.avatar} name={selectedQRUser.name} size="full" className="rounded-full object-cover" />
+                </div>
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                  <p className="text-[11px] font-black text-blue-700 uppercase tracking-widest bg-white px-5 py-1.5 rounded-full shadow-xl border border-blue-50">
+                    ID VERIFIED
+                  </p>
+                </div>
+              </div>
+
+              {/* Info Blocks mimicking the provided screenshot */}
+              <div className="w-full space-y-5 mb-10">
+                <div className="space-y-1.5 text-center">
+                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">HỌ VÀ TÊN NHÂN VIÊN</p>
+                  <p className="text-2xl font-black text-slate-900 uppercase tracking-tight">{selectedQRUser.name}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6 pt-2">
+                  <div className="space-y-1.5 text-center">
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">MÃ CHUẨN</p>
+                    <div className="bg-slate-50 rounded-2xl py-3 border border-slate-100 flex items-center justify-center">
+                      <p className="text-lg font-mono font-black text-blue-800">{selectedQRUser.code}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 text-center">
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">VAI TRÒ</p>
+                    <div className="bg-slate-50 rounded-2xl py-3 border border-slate-100 flex items-center justify-center px-2 overflow-hidden">
+                      <p className="text-[13px] font-black text-slate-700 uppercase leading-none truncate">{selectedQRUser.role}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Central QR Data */}
+              <div className="bg-slate-50 p-6 rounded-[50px] border-8 border-white shadow-2xl transition-transform hover:scale-105 active:scale-95 cursor-pointer">
+                <QRCodeSVG 
+                  value={`https://tanphuvietnam.vn/staff/${selectedQRUser.id}`} 
+                  size={180} 
+                  level="H"
+                  className="text-slate-900"
+                />
+              </div>
+              
+              <div className="mt-8 flex flex-col items-center gap-2">
+                <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] animate-pulse">
+                  SCAN TO AUTHENTICATE
+                </p>
+                <div className="h-1 w-12 bg-blue-100 rounded-full" />
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {permissionMatrixUser && (
+        <PermissionMatrixModal 
+          user={permissionMatrixUser}
+          onClose={() => setPermissionMatrixUser(null)}
+          onSave={(perms) => {
+            onUpdateStaff?.(permissionMatrixUser.id, { delegatedPermissions: perms });
+            setPermissionMatrixUser(null);
+          }}
+          onShowDelegationLetter={() => {
+            setDelegationLetterUser(permissionMatrixUser);
+            setPermissionMatrixUser(null);
+          }}
+        />
+      )}
+
       {delegationLetterUser && (
         <DelegationLetterModal 
           user={delegationLetterUser}
@@ -295,8 +386,44 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
           <p className="text-sm text-slate-500 font-medium max-w-md">Quản trị và điều phối đội ngũ QC Tân Phú. Dữ liệu nhân lực được bảo mật và phân quyền nghiêm ngặt.</p>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="hidden sm:flex flex-col items-end px-6 py-3 bg-white border border-slate-100 rounded-2xl shadow-sm">
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Discussion Room Card */}
+          <button className="flex items-center gap-4 px-6 py-4 bg-[#fff5f5] border border-rose-100 rounded-[28px] shadow-sm relative group hover:bg-rose-100/50 transition-all cursor-pointer">
+            {/* Left Icon Box */}
+            <div className="w-14 h-14 bg-rose-600 rounded-2xl flex items-center justify-center shadow-lg shadow-rose-200 shrink-0 relative overflow-hidden">
+               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
+               <div className="relative grid grid-cols-2 gap-1 translate-y-0.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-400 shadow-sm" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-400 shadow-sm" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-400 shadow-sm" />
+                  <div className="w-2.5 h-2.5 rounded-md bg-white/20 shadow-sm" />
+               </div>
+            </div>
+
+            {/* Content */}
+            <div className="text-left">
+              <h3 className="text-lg font-black text-rose-600 uppercase tracking-tight leading-none mb-1">ROOM THẢO LUẬN</h3>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">CỘNG ĐỒNG QLCL</p>
+            </div>
+
+            {/* Right Illustration */}
+            <div className="ml-2 text-rose-600/80 shrink-0">
+               <div className="relative">
+                  <Users size={32} strokeWidth={2} />
+                  <div className="absolute -top-2 -right-1 flex gap-0.5">
+                    <MessageCircle size={14} fill="currentColor" className="text-rose-600" />
+                    <MessageCircle size={10} fill="currentColor" className="text-rose-400 mt-1" />
+                  </div>
+               </div>
+            </div>
+
+            {/* Notification Badge */}
+            <div className="absolute -top-1.5 -right-1.5 w-7 h-7 bg-rose-600 rounded-full border-[3px] border-white flex items-center justify-center text-white text-[11px] font-black shadow-xl ring-4 ring-rose-50">
+              1
+            </div>
+          </button>
+
+          <div className="hidden sm:flex flex-col items-end px-6 py-3 bg-white border border-slate-100 rounded-2xl shadow-sm h-[88px] justify-center">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Nhân sự hiện hữu</span>
             <div className="flex items-baseline gap-1">
               <span className="text-2xl font-black text-slate-900 leading-none">{users.length}</span>
@@ -356,10 +483,13 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 2xl:grid-cols-2 gap-8 pb-32">
+      {/* Staff List - Grid Layout to prevent overlap and maintain "Frozen" design standards */}
+      <div className="grid grid-cols-1 2xl:grid-cols-2 gap-x-12 gap-y-16 pb-32 w-full max-w-[1500px] mx-auto justify-items-center">
         {filteredStaff.map((staff) => {
           const isVisible = visiblePasswords[staff.id];
           const isTruong = currentUser.role === 'Admin' || currentUser.personalEmail === 'lenhattruong.tpp@gmail.com';
+          const permissionsCount = staff.delegatedPermissions ? Object.values(staff.delegatedPermissions).filter(Boolean).length : 0;
+          const starCount = permissionsCount >= 5 ? 3 : (permissionsCount >= 3 ? 2 : (permissionsCount >= 1 ? 1 : 0));
 
           return (
             <motion.div
@@ -367,128 +497,151 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
               layout
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className={`group ${getRoleBgColor(staff.name)} rounded-[32px] shadow-2xl transition-all duration-300 relative flex flex-col p-5 overflow-hidden border-4 border-white/20`}
+              className="group relative bg-[#132d6b] rounded-[48px] shadow-[0_40px_100px_rgba(19,45,107,0.4)] transition-all duration-500 pl-4 pr-10 py-6 flex flex-row flex-nowrap gap-8 overflow-hidden border border-white/10 w-[670px] h-[340px] shrink-0 mx-auto hover:shadow-[0_50px_120px_rgba(19,45,107,0.5)] hover:-translate-y-2"
             >
-              {/* Top Section: Name & Category */}
-              <div className="mb-4 border-b border-white/10 pb-3">
-                <h3 className="text-[22px] font-black text-white tracking-normal uppercase leading-tight mb-1 drop-shadow-sm">
-                  <span translate="no" className="notranslate">{staff.name}</span>
-                </h3>
-                <div className="flex items-center justify-between">
-                  <div className="px-2 py-0.5 rounded-lg bg-white/20 border border-white/10">
-                    <span className="text-[12px] font-black text-white uppercase tracking-widest">
-                      {getHardcodedTitle(staff.name)}
-                    </span>
+              {/* Left Column: Avatar & ID Section (Frozen: 176px) */}
+              <div className="flex flex-col items-center shrink-0 w-[176px] relative z-10">
+                {/* Circular Avatar Frame */}
+                <div className="relative w-28 h-28 bg-white/5 backdrop-blur-md rounded-full flex items-center justify-center p-1.5 border-2 border-white/10 shadow-2xl mb-4">
+                  <div className="w-full h-full rounded-full overflow-hidden border-2 border-white/20 bg-slate-800 shadow-inner">
+                    <Avatar 
+                      src={staff.avatar} 
+                      name={staff.name} 
+                      size="full" 
+                      className="object-cover" 
+                    />
                   </div>
-                  <span className="text-[18px] font-mono font-black text-white">
-                    MÃ NHÂN VIÊN: #{staff.code}
-                  </span>
+                </div>
+                
+                {/* ID & Copy Link */}
+                <div className="flex flex-col items-center gap-1">
+                   <p className="text-xl font-mono font-black text-white tracking-[0.1em] whitespace-nowrap">
+                     #{staff.code || '2020.00292'}
+                   </p>
+                   <button 
+                     onClick={() => {
+                       navigator.clipboard.writeText(staff.code || '2020.00292');
+                     }}
+                     className="text-[10px] font-black text-blue-300/60 hover:text-blue-300 uppercase tracking-widest transition-colors cursor-pointer"
+                   >
+                     SAO CHÉP MÃ
+                   </button>
+                </div>
+
+                {/* QR Code Container */}
+                <div className="mt-auto pt-6">
+                  <div 
+                    onClick={() => setSelectedQRUser(staff)}
+                    className="w-20 h-20 bg-white/5 rounded-[24px] flex items-center justify-center border border-white/10 shadow-2xl cursor-pointer hover:bg-white/10 transition-all group/qr"
+                  >
+                    <QrCode size={40} className="text-white/20 group-hover/qr:text-white transition-colors" />
+                  </div>
                 </div>
               </div>
 
-              {/* Middle Section: Avatar and Info Boxes aligned */}
-              <div className="grid grid-cols-12 gap-5">
-                {/* Left Column: Avatar & Action Buttons Stacked */}
-                <div className="col-span-3 flex flex-col gap-3">
-                  <div className="relative aspect-square rounded-[24px] overflow-hidden border-2 border-white/40 shadow-xl bg-white/10 backdrop-blur-sm">
-                    <Avatar src={staff.avatar} name={staff.name} size="full" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                    {isTruong && (
-                      <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer text-white">
-                        <input 
-                          type="file" className="hidden" accept="image/*" 
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (loadEvent) => onUpdateStaff?.(staff.id, { avatar: loadEvent.target?.result as string });
-                              reader.readAsDataURL(file);
-                            }
-                          }} 
-                        />
-                        <Camera size={20} />
-                      </label>
-                    )}
-                  </div>
-                  
-                  {/* Action Buttons Stack below Avatar */}
-                  <div className="flex flex-col gap-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <button 
-                        onClick={() => { setEditingStaff(staff); setFormData({...staff}); }}
-                        className="h-10 rounded-xl bg-white text-slate-600 flex items-center justify-center hover:bg-white/90 transition-all shadow-lg active:scale-95 border border-white"
-                        title="Chỉnh sửa"
-                      >
-                        <Edit size={16} />
-                      </button>
-                      {onSimulateStaff && staff.id !== (originalUser?.id || currentUser.id) && (
-                        <button 
-                          onClick={() => onSimulateStaff(staff)}
-                          className="h-10 bg-white text-slate-900 rounded-xl shadow-xl hover:bg-slate-50 transition-all active:scale-95 flex items-center justify-center border border-slate-100"
-                          title="Ủy quyền"
-                        >
-                          <ShieldCheck size={16} />
-                        </button>
-                      )}
-                    </div>
-                    {isTruong && (
-                      <button 
-                        onClick={() => onDeleteStaff?.(staff.id)}
-                        className="w-full h-10 rounded-xl bg-white text-red-500 hover:text-red-600 transition-all shadow-lg active:scale-95 flex items-center justify-center border border-red-50"
-                        title="Xóa"
-                      >
-                        <Trash2 size={16} />
-                        <span className="ml-2 text-[10px] font-black uppercase">XÓA HỒ SƠ</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Information Column (Right) */}
-                <div className="col-span-9 space-y-3">
-                  <div className="bg-white rounded-2xl p-3 shadow-xl border border-white">
-                    <div className="flex items-center gap-2 mb-1">
-                       <Phone size={12} className="text-slate-400" />
-                       <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none">ĐIỆN THOẠI / ZALO BUSINESS</span>
-                    </div>
-                    <p className="text-[19px] font-black text-slate-900 font-mono leading-none tracking-tight">{staff.phone}</p>
-                  </div>
-
-                  <div className="bg-white rounded-2xl p-3 shadow-xl border border-white">
-                    <div className="flex items-center gap-2 mb-1">
-                       <Mail size={12} className="text-slate-400" />
-                       <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none">THƯ ĐIỆN TỬ CÔNG VIỆC</span>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[16px] font-bold text-slate-900 font-sans break-all leading-tight">
-                        {staff.companyEmail}
+              {/* Center Column: Information & Security (Flexible) */}
+              <div className="flex-1 flex flex-col justify-between relative z-10 min-w-0">
+                <div className="pt-2">
+                  <div className="mb-6 text-left">
+                    <h3 translate="no" className="text-2xl font-black text-white tracking-tight uppercase leading-relaxed mb-0">
+                      {staff.name}
+                    </h3>
+                    <div className="flex items-center gap-4">
+                      <p className="text-[14px] font-black text-blue-200/40 uppercase tracking-[0.2em] leading-none whitespace-nowrap">
+                        {getHardcodedTitle(staff.name)}
                       </p>
-                      {staff.personalEmail && (
-                        <p className="text-[16px] font-bold text-[#1e3a8a] font-sans break-all">
-                          {staff.personalEmail}
-                        </p>
+                      {starCount > 0 && (
+                        <div className="flex gap-1">
+                          {Array.from({ length: starCount }).map((_, i) => (
+                            <Star key={i} size={18} fill="#fbbf24" className="text-amber-400" />
+                          ))}
+                        </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="bg-slate-900 shadow-2xl rounded-2xl p-3 border border-white/20 relative group/pwd">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <Lock size={12} className="text-amber-400" />
-                        <span className="text-[11px] font-black text-white/50 uppercase tracking-[0.2em]">KHÓA TRUY CẬP HỆ THỐNG</span>
+                  <div className="space-y-3 mb-6">
+                    <div className="flex items-center gap-4 text-white">
+                      <div className="w-9 h-9 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-blue-400 shrink-0">
+                        <Phone size={14} strokeWidth={2.5} />
                       </div>
-                      <button 
-                        onClick={() => togglePassword(staff.id)}
-                        className="p-1 text-white/40 hover:text-white transition-colors"
-                        title={isVisible ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
-                      >
-                        {isVisible ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
+                      <span className="text-lg font-mono font-black tracking-tight whitespace-nowrap">{staff.phone}</span>
                     </div>
-                    <p className="text-[17px] font-black text-white font-mono tracking-[0.2em]">
-                      {isVisible ? (staff.password || '123456') : '••••••••••••'}
-                    </p>
+                    
+                    <div className="flex items-center gap-4 text-white">
+                      <div className="w-9 h-9 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-blue-400 shrink-0">
+                        <Mail size={14} strokeWidth={2.5} />
+                      </div>
+                      <span className="text-sm font-bold lowercase tracking-tight">{staff.companyEmail}</span>
+                    </div>
+
+                    {staff.personalEmail && (
+                      <div className="flex items-center gap-4 text-white/40">
+                        <div className="w-9 h-9 rounded-full border border-white/5 bg-white/5 flex items-center justify-center text-blue-400/30 shrink-0">
+                          <Mail size={14} strokeWidth={2.5} />
+                        </div>
+                        <span className="text-sm font-medium lowercase tracking-tight">{staff.personalEmail}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                {/* Security Box */}
+                <div className="bg-white rounded-full h-14 w-full max-w-[340px] px-5 flex items-center shadow-2xl">
+                  <div className="flex items-center gap-4 w-full">
+                    <Lock size={18} className="text-slate-200 shrink-0" strokeWidth={2.5} />
+                    <div className="flex-1 flex flex-col items-center justify-center min-w-0">
+                      <span className="text-[7px] font-black text-slate-300 uppercase tracking-[0.3em] mb-0.5 whitespace-nowrap">BẢO MẬT HỆ THỐNG</span>
+                      <span className="text-lg font-mono font-black text-slate-800 tracking-[0.4em] leading-none">
+                        {isVisible ? (staff.password || '123456') : '•••••'}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => togglePassword(staff.id)}
+                      className="text-slate-200 hover:text-blue-600 transition-colors p-1.5 shrink-0"
+                    >
+                      {isVisible ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Operation Cluster (Frozen: 80px) */}
+              <div className="flex flex-col gap-4 justify-center items-center relative z-10 w-[80px] shrink-0">
+                <button 
+                  onClick={() => setPermissionMatrixUser(staff)}
+                  className="w-16 h-16 rounded-full bg-white text-[#132d6b] flex flex-col items-center justify-center hover:bg-slate-50 transition-all shadow-xl group/btn flex-none"
+                >
+                  <Shield size={24} strokeWidth={2.5} className="group-hover/btn:scale-110 transition-transform mb-0.5" />
+                  <span className="text-[9px] font-black uppercase tracking-tighter">QUYỀN</span>
+                </button>
+                
+                {onSimulateStaff && staff.id !== (originalUser?.id || currentUser.id) && isTruong && (
+                  <button 
+                    onClick={() => onSimulateStaff(staff)}
+                    className="w-16 h-16 rounded-full bg-white/10 text-white hover:bg-white hover:text-[#132d6b] flex flex-col items-center justify-center transition-all shadow-xl border border-white/10 group/btn"
+                  >
+                    <ShieldCheck size={24} strokeWidth={2.5} className="group-hover/btn:scale-110 transition-transform mb-0.5" />
+                    <span className="text-[9px] font-black uppercase tracking-tighter">GIẢ LẬP</span>
+                  </button>
+                )}
+
+                <button 
+                  onClick={() => { setEditingStaff(staff); setFormData({...staff}); }}
+                  className="w-16 h-16 rounded-full bg-white/10 text-white hover:bg-white hover:text-[#132d6b] flex flex-col items-center justify-center transition-all shadow-xl border border-white/10 group/btn"
+                >
+                  <Edit size={24} strokeWidth={2.5} className="group-hover/btn:scale-110 transition-transform mb-0.5" />
+                  <span className="text-[9px] font-black uppercase tracking-tighter">SỬA</span>
+                </button>
+
+                {isTruong && (
+                   <button 
+                    onClick={() => onDeleteStaff?.(staff.id)}
+                    className="w-16 h-16 bg-red-600 text-white rounded-full hover:bg-red-700 transition-all shadow-2xl flex items-center justify-center xl:mt-auto group/del"
+                  >
+                    <Trash2 size={24} className="group-hover/del:scale-110 transition-transform" />
+                  </button>
+                )}
               </div>
             </motion.div>
           );

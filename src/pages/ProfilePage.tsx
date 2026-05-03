@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Task } from '../types';
-import { User as UserIcon, FileText, MessageSquare, Shield, HelpCircle, CheckCircle2, Clock, Edit3, Save, Lock, Mail, Phone, UserCircle, Key, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { User as UserIcon, FileText, MessageSquare, Shield, HelpCircle, CheckCircle2, Clock, Edit3, Save, Lock, Mail, Phone, UserCircle, Key, Eye, EyeOff, CheckCircle, Camera } from 'lucide-react';
 import { getPerformanceAdvice } from '../lib/gemini';
 import { formatDate } from '../lib/dateUtils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -36,8 +36,9 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
   const user = users.find(u => u.id === viewedUserId) || currentUser;
   const canEdit = currentUser?.email?.toLowerCase().trim() === user?.personalEmail?.toLowerCase().trim() || 
                   currentUser?.companyEmail?.toLowerCase().trim() === user?.companyEmail?.toLowerCase().trim() ||
-                  currentUser?.email === 'truong.le@tanphu.vn' ||
-                  currentUser?.email === 'lenhattruong.tpp@gmail.com'; 
+                  currentUser?.email === 'truong.le@tanphuvietnam.vn' ||
+                  currentUser?.email === 'lenhattruong.tpp@gmail.com' ||
+                  currentUser?.role === 'Admin'; 
 
   const [formData, setFormData] = useState({
     name: user.name,
@@ -57,7 +58,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
       title: user.title || '',
       avatar: user.avatar || ''
     });
-  }, [user.id, user.name, user.phone, user.companyEmail, user.personalEmail, user.avatar, user.password]);
+  }, [user.id, user.name, user.phone, user.companyEmail, user.personalEmail, user.avatar, user.password, isEditing]);
 
   const [passwordData, setPasswordData] = useState({
     newPassword: '',
@@ -80,9 +81,21 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
   };
 
   const handleSave = async () => {
+    if (!user) return;
     setSaving(true);
+    
+    // Identify the best key for the Firestore document
+    // We prioritize personalEmail as it's the identifier used in useStaff
+    const profileKey = user.personalEmail || user.companyEmail || user.email;
+    
+    if (!profileKey) {
+      alert("Không tìm thấy định danh người dùng (Email). Không thể lưu.");
+      setSaving(false);
+      return;
+    }
+
     try {
-      // 1. Update Password if provided
+      // 1. Update Password in Firebase Auth if provided (only for self)
       if (passwordData.newPassword) {
         if (passwordData.newPassword !== passwordData.confirmPassword) {
           alert("Mật khẩu xác nhận không khớp!");
@@ -94,26 +107,38 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
           setSaving(false);
           return;
         }
-        try {
-          await updateAuthPassword(passwordData.newPassword);
-        } catch (authErr: any) {
-          if (authErr.code === 'auth/requires-recent-login') {
-             alert("Để bảo mật, bạn cần Đăng xuất và Đăng nhập lại trước khi có thể đổi mật khẩu.");
-             setSaving(false);
-             return;
+        
+        // Only attempt auth password update if updating own profile
+        const isSelf = currentUser?.email?.toLowerCase() === user.personalEmail?.toLowerCase() || 
+                       currentUser?.email?.toLowerCase() === user.companyEmail?.toLowerCase();
+                       
+        if (isSelf) {
+          try {
+            await updateAuthPassword(passwordData.newPassword);
+          } catch (authErr: any) {
+            console.warn("Auth password update failed (possibly not own account or session expired):", authErr);
+            if (authErr.code === 'auth/requires-recent-login') {
+               alert("Để bảo mật, bạn cần Đăng xuất và Đăng nhập lại trước khi có thể đổi mật khẩu.");
+               setSaving(false);
+               return;
+            }
           }
-          throw authErr;
         }
       }
 
       // 2. Update Firestore Profile
       const updates: Partial<User> = {
         ...formData,
-        // CẤP BẬC ƯU TIÊN: Lưu mật khẩu mới hoặc giữ mật khẩu hiện tại vào Firestore
-        password: passwordData.newPassword || user.password || '123456'
+        id: user.id, // Include stable ID
+        code: user.code, // Include stable Code
+        uniqueKey: user.uniqueKey, // Include stable UniqueKey
+        // CẬP BẬC ƯU TIÊN: Lưu mật khẩu mới hoặc giữ mật khẩu hiện tại vào Firestore
+        password: passwordData.newPassword || user.password || '123456',
+        updatedAt: new Date().toISOString()
       };
 
-      await onUpdateProfile(user.personalEmail, updates);
+      console.log('Đang cập nhật hồ sơ cho:', profileKey, updates);
+      await onUpdateProfile(profileKey, updates);
       
       alert("Đã cập nhật thông tin thành công!");
       setToast("Cập nhật thành công!");
@@ -121,8 +146,8 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
       setPasswordData({ newPassword: '', confirmPassword: '' });
       setTimeout(() => setToast(null), 3000);
     } catch (error: any) {
-      console.error(error);
-      alert("Lỗi cập nhật: " + error.message);
+      console.error("Lỗi khi lưu Profile:", error);
+      alert("Lỗi cập nhật: " + (error.message || "Không xác định"));
     } finally {
       setSaving(false);
     }
@@ -160,166 +185,239 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
           )}
         </AnimatePresence>
 
-        {/* NUTIFOOD STAFF CARD - ULTRA WIDE & LIGHT THEME */}
-        <div className={`${getRoleBgColor(user.name)} rounded-[32px] shadow-xl transition-all duration-300 relative flex flex-col px-10 py-6 overflow-hidden border-4 border-slate-100`}>
-          {/* Header row - Contrast colored text for light background */}
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-5">
-              <h1 className="text-[28px] font-black text-slate-900 tracking-tight uppercase leading-none">
-                <span translate="no" className="notranslate">{user.name}</span>
-              </h1>
-              <div className="flex items-center gap-3">
-                <div className="px-3 py-1 bg-blue-100 rounded-lg border border-blue-200 text-[11px] font-black text-blue-700 uppercase tracking-widest shadow-sm">
-                  {getHardcodedTitle(user.name)}
-                </div>
-                <span className="text-[14px] font-mono font-black text-slate-400 uppercase tracking-widest">#{user.code}</span>
-              </div>
-            </div>
-
-            {!isEditing && canEdit && (
-              <button 
-                onClick={() => setIsEditing(true)}
-                className="h-9 px-6 rounded-xl bg-white text-slate-800 text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-50 transition-all active:scale-95 flex items-center gap-2 border border-slate-200"
-              >
-                <Edit3 size={15} />
-                CHỈNH SỬA
-              </button>
-            )}
-            {isEditing && (
-              <div className="flex gap-2">
-                <button onClick={handleSave} className="h-9 px-6 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg hover:bg-blue-700">
-                  <Save size={15} /> LƯU
-                </button>
-                <button onClick={() => setIsEditing(false)} className="h-9 px-6 bg-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-300">
-                  HỦY
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Info Section */}
-          <div className="flex gap-5 items-stretch">
-            {/* Left: Avatar */}
-            <div className="w-24 shrink-0">
-              <div className="relative aspect-square w-full rounded-[24px] overflow-hidden border-2 border-white shadow-lg bg-white/50">
-                <Avatar src={formData.avatar} name={formData.name} size="full" className="w-full h-full object-cover" />
-                {isOnline && (
-                  <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-emerald-500 text-white text-[7px] font-black rounded shadow-lg uppercase tracking-widest border border-white flex items-center gap-1">
-                    ON
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right: Info boxes */}
-            <div className="flex-1 flex flex-col justify-center">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px]">
-                  <div className="flex items-center gap-2 mb-1 opacity-50">
-                    <Phone size={11} className="text-slate-400" />
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">ĐIỆN THOẠI</span>
-                  </div>
+        {/* PROFILE CARD & STATS ROW - FULL WIDTH (max-w-6xl) */}
+        <div className="space-y-4">
+          {/* NUTIFOOD STAFF CARD - ULTRA WIDE & LIGHT THEME */}
+          <div className={`${getRoleBgColor(user.name)} rounded-[32px] shadow-xl transition-all duration-300 relative flex flex-col px-12 py-6 overflow-hidden border-4 border-slate-100 w-full`}>
+            {/* Header row - Contrast colored text for light background */}
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-6">
+                <h1 className="text-[28px] font-black text-slate-900 tracking-tight uppercase leading-none">
                   {!isEditing ? (
-                    <p className="text-[18px] font-black text-slate-900 font-mono tracking-tighter leading-none">{user.phone}</p>
+                    <span translate="no" className="notranslate">{user.name}</span>
                   ) : (
                     <input 
-                      type="text" value={formData.phone}
-                      onChange={e => setFormData({...formData, phone: e.target.value})}
-                      className="w-full text-[16px] font-black text-blue-600 font-mono outline-none bg-blue-50/30 rounded-lg px-2 py-0.5"
+                      type="text" 
+                      value={formData.name}
+                      onChange={e => setFormData({...formData, name: e.target.value})}
+                      className="bg-blue-50/50 border border-blue-200 rounded-lg px-3 py-1 outline-none text-[24px] font-black text-blue-800"
+                      placeholder="Họ và tên"
                     />
                   )}
-                </div>
-
-                <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px]">
-                  <div className="flex items-center gap-2 mb-1 opacity-50">
-                    <Mail size={11} className="text-slate-400" />
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">HỆ THỐNG EMAIL</span>
+                </h1>
+                <div className="flex items-center gap-4">
+                  <div className="px-3 py-1 bg-blue-100 rounded-lg border border-blue-200 text-[11px] font-black text-blue-700 uppercase tracking-widest shadow-sm">
+                    {getHardcodedTitle(user.name)}
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-[12px] font-extrabold text-slate-900 truncate">
-                      <span className="text-[8px] font-black text-slate-400 w-7 shrink-0 tracking-tighter">CTY:</span>{user.companyEmail}
+                  <span className="text-[15px] font-mono font-black text-slate-400 uppercase tracking-widest">#{user.code}</span>
+                </div>
+              </div>
+
+              {!isEditing && canEdit && (
+                <button 
+                  onClick={() => setIsEditing(true)}
+                  className="h-10 px-6 rounded-xl bg-white text-slate-800 text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-50 transition-all active:scale-95 flex items-center gap-2 border border-slate-200"
+                >
+                  <Edit3 size={16} strokeWidth={2.5} />
+                  CHỈNH SỬA
+                </button>
+              )}
+              {isEditing && (
+                <div className="flex gap-2">
+                  <button onClick={handleSave} className="h-10 px-6 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg hover:bg-blue-700">
+                    <Save size={16} strokeWidth={2.5} /> LƯU
+                  </button>
+                  <button onClick={() => setIsEditing(false)} className="h-10 px-6 bg-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-300 transition-colors">
+                    HỦY
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Info Section */}
+            <div className="flex gap-8 items-stretch">
+              {/* Left: Avatar */}
+              <div className="w-32 shrink-0 group/avatar relative">
+                <div className="relative aspect-square w-full rounded-[24px] overflow-hidden border-2 border-white shadow-lg bg-white flex items-center justify-center">
+                  <Avatar 
+                    src={formData.avatar} 
+                    name={formData.name} 
+                    size="full" 
+                    className="w-full h-full object-cover transition-opacity duration-300 group-hover/avatar:opacity-0" 
+                  />
+                  
+                  {/* Camera Overlay on Hover / Edit mode */}
+                  <div className={`absolute inset-0 flex flex-col items-center justify-center transition-opacity bg-white/20 backdrop-blur-sm ${isEditing ? 'opacity-100' : 'opacity-0 group-hover/avatar:opacity-100'}`}>
+                    <Camera size={32} className="text-blue-600 mb-1" strokeWidth={2.5} />
+                    {isEditing && (
+                      <input 
+                        type="text"
+                        placeholder="URL Ảnh"
+                        value={formData.avatar}
+                        onChange={e => setFormData({...formData, avatar: e.target.value})}
+                        className="text-[8px] font-black bg-white/80 border border-blue-200 rounded px-1 w-[90%] outline-none"
+                      />
+                    )}
+                  </div>
+
+                  {isOnline && !isEditing && (
+                    <div className="absolute top-2 right-2 px-2 py-0.5 bg-emerald-500 text-white text-[8px] font-black rounded shadow-lg uppercase tracking-widest border border-white flex items-center gap-1">
+                      ON
                     </div>
-                    {user.personalEmail && (
-                      <div className="flex items-center gap-2 text-[12px] font-extrabold text-[#1e3a8a] truncate">
-                        <span className="text-[8px] font-black text-slate-400 w-7 shrink-0 tracking-tighter">C/N:</span>{user.personalEmail}
+                  )}
+                </div>
+              </div>
+
+              {/* Right: Info boxes */}
+              <div className="flex-1 flex flex-col justify-center">
+                <div className="grid grid-cols-12 gap-4">
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-3">
+                    <div className="flex items-center gap-2 mb-2 opacity-50">
+                      <Phone size={12} className="text-slate-400" />
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ĐIỆN THOẠI</span>
+                    </div>
+                    {!isEditing ? (
+                      <p className="text-[20px] font-black text-slate-900 font-mono tracking-tighter leading-none">{user.phone}</p>
+                    ) : (
+                      <input 
+                        type="text" value={formData.phone}
+                        onChange={e => setFormData({...formData, phone: e.target.value})}
+                        className="w-full text-[18px] font-black text-blue-600 font-mono outline-none bg-blue-50/30 rounded-lg px-2 py-0.5"
+                      />
+                    )}
+                  </div>
+
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-6">
+                    <div className="flex items-center gap-2 mb-2 opacity-50">
+                      <Mail size={12} className="text-slate-400" />
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">HỆ THỐNG EMAIL</span>
+                    </div>
+                    {!isEditing ? (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-[13px] font-extrabold text-slate-900">
+                          <span className="text-[9px] font-black text-slate-400 w-8 shrink-0 tracking-tighter">CTY:</span>{user.companyEmail}
+                        </div>
+                        {user.personalEmail && (
+                          <div className="flex items-center gap-2 text-[13px] font-extrabold text-[#1e3a8a]">
+                            <span className="text-[9px] font-black text-slate-400 w-8 shrink-0 tracking-tighter">C/N:</span>{user.personalEmail}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[8px] font-black text-slate-400 w-6 shrink-0">CTY:</span>
+                          <input 
+                            type="email" value={formData.companyEmail}
+                            onChange={e => setFormData({...formData, companyEmail: e.target.value})}
+                            className="flex-1 text-[11px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-1 py-0.5"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[8px] font-black text-slate-400 w-6 shrink-0">C/N:</span>
+                          <input 
+                            type="email" value={formData.personalEmail}
+                            onChange={e => setFormData({...formData, personalEmail: e.target.value})}
+                            className="flex-1 text-[11px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-1 py-0.5"
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
-                </div>
 
-                <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px]">
-                  <div className="flex items-center gap-2 mb-1 opacity-50">
-                    <Lock size={11} className="text-blue-500" />
-                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">TRUY CẬP</span>
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-3">
+                    <div className="flex items-center gap-2 mb-2 opacity-50">
+                      <Lock size={12} className="text-blue-500" />
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{!isEditing ? 'TRUY CẬP' : 'CẬP NHẬT MẬT KHẨU'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      {!isEditing ? (
+                        <>
+                          <p className="text-[18px] font-black text-slate-900 font-mono tracking-[0.1em] leading-none">
+                            {showPassword ? (user.password || '123456') : '••••••••••••'}
+                          </p>
+                          <button onClick={() => setShowPassword(!showPassword)} className="text-slate-300 hover:text-slate-600 transition-colors">
+                            <Eye size={16} strokeWidth={2.5} />
+                          </button>
+                        </>
+                      ) : (
+                        <div className="flex flex-col gap-1 w-full">
+                           <input 
+                             type="password"
+                             placeholder="Mật khẩu mới"
+                             value={passwordData.newPassword}
+                             onChange={e => setPasswordData({...passwordData, newPassword: e.target.value})}
+                             className="w-full text-[12px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-2 py-0.5"
+                           />
+                           <input 
+                             type="password"
+                             placeholder="Xác nhận"
+                             value={passwordData.confirmPassword}
+                             onChange={e => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                             className="w-full text-[12px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-2 py-0.5"
+                           />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-[16px] font-black text-slate-900 font-mono tracking-[0.1em] leading-none">
-                      {showPassword ? (user.password || '123456') : '••••••••••••'}
-                    </p>
-                    {!isEditing && (
-                      <button onClick={() => setShowPassword(!showPassword)} className="text-slate-300 hover:text-slate-600 transition-colors">
-                        <Eye size={14} />
-                      </button>
-                    )}
-                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* STATISTICS Row - 4 items in a single horizontal row for wide layout */}
-        <div className="grid grid-cols-4 gap-4 px-2">
-          <div className="bg-amber-500 p-2 px-4 rounded-[20px] border-b-2 border-amber-600 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[60px]">
-            <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
-              <FileText size={40} />
-            </div>
-            <div className="flex items-center gap-2 mb-0.5 relative z-10">
-              <div className="p-1 bg-white/20 rounded-md">
-                <FileText size={11} strokeWidth={2.5} />
+          {/* STATISTICS Row - 4 items scaled horizontally */}
+          <div className="grid grid-cols-4 gap-4 px-0">
+            <div className="bg-amber-500 p-3 px-6 rounded-[24px] border-b-4 border-amber-600 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[80px]">
+              <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
+                <FileText size={50} />
               </div>
-              <p className="text-[8px] font-black uppercase tracking-widest">Tổng dự án</p>
+              <div className="flex items-center gap-2 mb-1 relative z-10">
+                <div className="p-1.5 bg-white/20 rounded-lg">
+                  <FileText size={14} strokeWidth={3} />
+                </div>
+                <p className="text-[11px] font-black uppercase tracking-widest leading-none">Tổng dự án</p>
+              </div>
+              <p className="text-2xl font-black leading-none relative z-10 text-right">0</p>
             </div>
-            <p className="text-xl font-black leading-none relative z-10 text-right">0</p>
-          </div>
 
-          <div className="bg-emerald-500 p-2 px-4 rounded-[20px] border-b-2 border-emerald-600 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[60px]">
-            <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
-              <CheckCircle2 size={40} />
-            </div>
-            <div className="flex items-center gap-2 mb-0.5 relative z-10">
-              <div className="p-1 bg-white/20 rounded-md">
-                <CheckCircle2 size={11} strokeWidth={2.5} />
+            <div className="bg-emerald-500 p-3 px-6 rounded-[24px] border-b-4 border-emerald-600 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[80px]">
+              <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
+                <CheckCircle2 size={50} />
               </div>
-              <p className="text-[8px] font-black uppercase tracking-widest">Hiệu suất</p>
+              <div className="flex items-center gap-2 mb-1 relative z-10">
+                <div className="p-1.5 bg-white/20 rounded-lg">
+                  <CheckCircle2 size={14} strokeWidth={3} />
+                </div>
+                <p className="text-[11px] font-black uppercase tracking-widest leading-none">Hiệu suất</p>
+              </div>
+              <p className="text-2xl font-black leading-none relative z-10 text-right">{efficiency}%</p>
             </div>
-            <p className="text-xl font-black leading-none relative z-10 text-right">{efficiency}%</p>
-          </div>
 
-          <div className="bg-red-500 p-2 px-4 rounded-[20px] border-b-2 border-red-600 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[60px]">
-            <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
-              <Clock size={40} />
-            </div>
-            <div className="flex items-center gap-2 mb-0.5 relative z-10">
-              <div className="p-1 bg-white/20 rounded-md">
-                <Clock size={11} strokeWidth={2.5} />
+            <div className="bg-red-500 p-3 px-6 rounded-[24px] border-b-4 border-red-600 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[80px]">
+              <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
+                <Clock size={50} />
               </div>
-              <p className="text-[8px] font-black uppercase tracking-widest whitespace-nowrap">Đang xử lý</p>
+              <div className="flex items-center gap-2 mb-1 relative z-10">
+                <div className="p-1.5 bg-white/20 rounded-lg">
+                  <Clock size={14} strokeWidth={3} />
+                </div>
+                <p className="text-[11px] font-black uppercase tracking-widest whitespace-nowrap leading-none">Đang xử lý</p>
+              </div>
+              <p className="text-2xl font-black leading-none relative z-10 text-right">{ongoing}</p>
             </div>
-            <p className="text-xl font-black leading-none relative z-10 text-right">{ongoing}</p>
-          </div>
 
-          <div className="bg-blue-600 p-2 px-4 rounded-[20px] border-b-2 border-blue-700 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[60px]">
-            <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
-              <CheckCircle size={40} />
-            </div>
-            <div className="flex items-center gap-2 mb-0.5 relative z-10">
-              <div className="p-1 bg-white/20 rounded-md">
-                <CheckCircle size={11} strokeWidth={2.5} />
+            <div className="bg-blue-600 p-3 px-6 rounded-[24px] border-b-4 border-blue-700 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[80px]">
+              <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
+                <CheckCircle size={50} />
               </div>
-              <p className="text-[8px] font-black uppercase tracking-widest">Hoàn thành</p>
+              <div className="flex items-center gap-2 mb-1 relative z-10">
+                <div className="p-1.5 bg-white/20 rounded-lg">
+                  <CheckCircle size={14} strokeWidth={3} />
+                </div>
+                <p className="text-[11px] font-black uppercase tracking-widest leading-none">Hoàn thành</p>
+              </div>
+              <p className="text-2xl font-black leading-none relative z-10 text-right">{completed}</p>
             </div>
-            <p className="text-xl font-black leading-none relative z-10 text-right">{completed}</p>
           </div>
         </div>
 

@@ -23,7 +23,7 @@ export const Avatar: React.FC<AvatarProps> = ({ src, name, className = '', size 
   const displaySrc = (src && typeof src === 'string' && src.trim() !== '') ? src : fallbackUrl;
   
   return (
-    <div className={`${currentSizeClass} flex-none relative bg-gray-50 rounded-full overflow-hidden border border-gray-100 shadow-sm`}>
+    <div className={`${currentSizeClass} flex-none relative bg-gray-50 rounded-full overflow-hidden border border-gray-100 shadow-sm ${className}`}>
       <img 
         translate="no"
         src={displaySrc}

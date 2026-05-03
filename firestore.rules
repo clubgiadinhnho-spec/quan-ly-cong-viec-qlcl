@@ -30,7 +30,13 @@ service cloud.firestore {
           'tanphuvietnam.tpp@gmail.com',
           'club.giadinhnho@gmail.com',
           'truong.le@tanphuvietnam.vn',
-          'tan.vo@tanphuvietnam.vn'
+          'tan.vo@tanphuvietnam.vn',
+          'lenhattruong@gmail.com',
+          'lenhattruong.cafe@gmail.com',
+          'lenhattruong.caphef1@gmail.com',
+          'lenhattruong.ddt@gmail.com',
+          'lenhattruong.tecno@gmail.com',
+          'lenhattruong.thn@gmail.com'
         ] || (userExists() && getUserData().role == 'Admin')
       );
     }

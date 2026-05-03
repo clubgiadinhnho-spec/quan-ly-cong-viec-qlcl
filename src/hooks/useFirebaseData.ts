@@ -133,7 +133,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     // Listen to Discussion Topics
     const topicsUnsubscribe = onSnapshot(
       query(collection(db, 'discussion_topics'), orderBy('createdAt', 'desc')),
-      (snapshot) => {
+      async (snapshot) => {
         const topicsData = snapshot.docs.map(doc => {
           const data = doc.data();
           return {
@@ -144,6 +144,22 @@ export const useFirebaseData = (currentUserId?: string) => {
           } as DiscussionTopic;
         });
         setDiscussionTopics(topicsData);
+
+        // Auto-create 000 Topic "TRAO ĐỔI TỰ DO" if missing
+        if (topicsData.length > 0 && !topicsData.find(t => t.orderCode === '000')) {
+          try {
+            await addDoc(collection(db, 'discussion_topics'), {
+              title: 'TRAO ĐỔI TỰ DO',
+              description: 'Nơi thảo luận các vấn đề chung không nằm trong các chủ đề chuyên biệt.',
+              createdBy: 'SYSTEM',
+              status: 'OPEN',
+              orderCode: '000',
+              createdAt: serverTimestamp()
+            });
+          } catch (err) {
+            console.warn("Failed to create default topic 000:", err);
+          }
+        }
       },
       (error) => {
         if (error.code !== 'permission-denied') {
@@ -352,12 +368,13 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
-  const sendMessage = useCallback(async (content: string, authorId: string) => {
+  const sendMessage = useCallback(async (content: string, authorId: string, attachments?: any[]) => {
     try {
       const realAuthorId = auth.currentUser?.uid || authorId;
       await addDoc(collection(db, 'messages'), {
         authorId: realAuthorId,
         content,
+        attachments: attachments || [],
         timestamp: serverTimestamp()
       });
     } catch (error) {
@@ -389,6 +406,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     try {
       await addDoc(collection(db, 'discussion_topics'), {
         ...topic,
+        orderCode: topic.orderCode || '001',
         createdAt: serverTimestamp()
       });
     } catch (error) {
@@ -416,7 +434,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
-  const sendPrivateMessage = useCallback(async (content: string, senderId: string, receiverId: string) => {
+  const sendPrivateMessage = useCallback(async (content: string, senderId: string, receiverId: string, attachments?: any[]) => {
     try {
       const realSenderId = auth.currentUser?.uid || senderId;
       const chatId = [realSenderId, receiverId].sort().join('_');
@@ -426,6 +444,7 @@ export const useFirebaseData = (currentUserId?: string) => {
         receiverId,
         content,
         chatId,
+        attachments: attachments || [],
         timestamp: serverTimestamp()
       });
     } catch (error) {
@@ -500,26 +519,11 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
-  const cleanupDiscussionMessages = useCallback(async (daysOld: number = 30) => {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
-    const cutoffStr = cutoffDate.toISOString();
-
-    const q = query(
-      collection(db, 'discussion_messages'),
-      where('timestamp', '<', cutoffStr)
-    );
-
+  const deleteDiscussionMessage = useCallback(async (msgId: string) => {
     try {
-      const snapshot = await getDocs(q);
-      const batch = writeBatch(db);
-      snapshot.docs.forEach((doc) => {
-        batch.delete(doc.ref);
-      });
-      await batch.commit();
-      console.log(`Cleaned up ${snapshot.docs.length} old messages.`);
+      await deleteDoc(doc(db, 'discussion_messages', msgId));
     } catch (error) {
-      console.error('Cleanup failed:', error);
+      handleFirestoreError(error, OperationType.DELETE, `discussion_messages/${msgId}`);
     }
   }, []);
 
@@ -591,7 +595,6 @@ export const useFirebaseData = (currentUserId?: string) => {
     updateMessageReactions,
     updateDiscussionMessageReactions,
     updatePrivateMessageReactions,
-    cleanupDiscussionMessages,
     addLog,
     saveReportDraft,
     saveOfficialReport,
@@ -599,6 +602,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     addExtraUser,
     updateExtraUser,
     deleteExtraUser,
+    deleteDiscussionMessage,
     presence,
     updatePresence
   };

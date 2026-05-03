@@ -10,6 +10,7 @@ import {
   FileUp,
   FileDown,
   Trash2,
+  MessageSquare,
   User as UserIcon,
   Users as UsersIcon
 } from 'lucide-react';
@@ -35,6 +36,7 @@ import { TaskModal } from './components/tasks/TaskModal';
 import { HistoryModal } from './components/tasks/HistoryModal';
 import { TaskChat } from './components/tasks/TaskChat';
 import { DirectChat } from './components/tasks/DirectChat';
+import { Avatar } from './components/common/Avatar';
 import { ConfirmModal } from './components/common/ConfirmModal';
 import { HealthReminder } from './components/common/HealthReminder';
 import { isUserTask } from './utils/userUtils';
@@ -137,7 +139,7 @@ export default function App() {
     updatePrivateMessageReactions: firebaseUpdatePrivateMessageReactions,
     discussionTopics,
     discussionMessages,
-    cleanupDiscussionMessages,
+    deleteDiscussionMessage,
     addLog: firebaseAddLog,
     saveReportDraft: firebaseSaveReportDraft,
     saveOfficialReport: firebaseSaveOfficialReport,
@@ -187,7 +189,7 @@ export default function App() {
     }, 60000); // Update every minute to stay "online" (5-min buffer in hook)
 
     return () => clearInterval(interval);
-  }, [effectiveUser?.id, authReady, updatePresence]);
+  }, [effectiveUser?.id, effectiveUser?.name, effectiveUser?.avatar, authReady, updatePresence]);
 
   const firebaseSendPrivateMessage = useCallback(async (content: string, senderId: string, receiverId: string) => {
     await firebaseSendPrivateMsg(content, senderId, receiverId);
@@ -246,13 +248,23 @@ export default function App() {
   }, [privateMessages, currentUser?.id, lastReadChatTimestamps]);
 
   const groupUnreadCount = React.useMemo(() => {
-    if (!currentUser) return 0;
+    if (!effectiveUser) return 0;
     const lastRead = lastReadChatTimestamps['group_chat'] || 0;
-    return generalMessages.filter(m => 
-      m.senderId !== currentUser.id && 
+    return discussionMessages.filter(m => 
+      m.authorId !== effectiveUser.id && 
       new Date(m.timestamp).getTime() > lastRead
     ).length;
-  }, [generalMessages, currentUser, lastReadChatTimestamps]);
+  }, [discussionMessages, effectiveUser, lastReadChatTimestamps]);
+
+  // Mark group chat as read when shown
+  useEffect(() => {
+    if (activeTab === 'group_chat') {
+      setLastReadChatTimestamps(prev => ({
+        ...prev,
+        'group_chat': Date.now()
+      }));
+    }
+  }, [activeTab]);
 
   const unreadUserIds = React.useMemo(() => Object.keys(unreadCounts), [unreadCounts]);
 
@@ -899,34 +911,35 @@ export default function App() {
           {activeTab === 'group_chat' && (
             <motion.div key="group_chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <HolidayBanner />
-              <div className="p-4 pt-6">
-                <GroupChatPage 
-                  currentUser={effectiveUser} 
-                  users={allUsers}
-                  topics={discussionTopics}
-                  messages={discussionMessages}
-                  onSendMessage={(topicId, content, attachments) => sendDiscussionMessage(topicId, content, effectiveUser.id, attachments)}
-                  onReact={(msgId, emoji) => {
-                    const msg = discussionMessages.find(m => m.id === msgId);
-                    if (!msg) return;
-                    const reactions = [...(msg.reactions || [])];
-                    const idx = reactions.findIndex(r => r.userId === effectiveUser.id && r.emoji === emoji);
-                    if (idx > -1) reactions.splice(idx, 1);
-                    else reactions.push({ userId: effectiveUser.id, emoji });
-                    updateDiscussionMessageReactions(msgId, reactions);
-                  }}
-                  onCreateTopic={(title, desc) => createTopic({ 
-                    title, 
-                    description: desc, 
-                    createdBy: effectiveUser.id, 
-                    creatorAvatar: effectiveUser.avatar,
-                    status: 'OPEN' 
-                  })}
-                  onUpdateTopic={updateTopic}
-                  onDeleteTopic={deleteTopic}
-                  onCleanup={cleanupDiscussionMessages}
-                />
-              </div>
+              <GroupChatPage 
+                currentUser={effectiveUser} 
+                users={allUsers}
+                topics={discussionTopics}
+                messages={discussionMessages}
+                onSendMessage={(topicId, content, attachments) => sendDiscussionMessage(topicId, content, effectiveUser.id, attachments)}
+                onReact={(msgId, emoji) => {
+                  const msg = discussionMessages.find(m => m.id === msgId);
+                  if (!msg) return;
+                  const reactions = [...(msg.reactions || [])];
+                  const idx = reactions.findIndex(r => r.userId === effectiveUser.id && r.emoji === emoji);
+                  if (idx > -1) reactions.splice(idx, 1);
+                  else reactions.push({ userId: effectiveUser.id, emoji });
+                  updateDiscussionMessageReactions(msgId, reactions);
+                }}
+                onCreateTopic={(title, desc, orderCode) => createTopic({ 
+                  title, 
+                  description: desc, 
+                  createdBy: effectiveUser.id, 
+                  creatorAvatar: effectiveUser.avatar,
+                  status: 'OPEN',
+                  orderCode
+                })}
+                onUpdateTopic={updateTopic}
+                onDeleteTopic={deleteTopic}
+                onDeleteMessage={deleteDiscussionMessage}
+                onAddLog={firebaseAddLog}
+                presence={presence.map(p => p.id)}
+              />
             </motion.div>
           )}
 
@@ -1021,15 +1034,23 @@ export default function App() {
                />
                <div className="p-8">
                   <StaffListPage 
+                    onNavigate={setActiveTab}
+                    onOpenDirectChat={setShowDirectChat}
+                    unreadCount={(Object.values(unreadCounts) as number[]).reduce((a, b) => a + b, 0) + (groupUnreadCount as number)}
                     users={allUsers} 
                     currentUser={effectiveUser} 
                     originalUser={currentUser}
                     onSimulateStaff={setSimulatedUser}
-                    onSendToUser={async (msg, targetId) => {
-                      await firebaseSendPrivateMsg(msg, effectiveUser.id, targetId);
+                    onSendToUser={async (msg, targetId, attachments) => {
+                      await firebaseSendPrivateMsg(msg, effectiveUser.id, targetId, attachments);
                     }}
-                    onSendToGroup={async (msg) => {
-                      await firebaseSendMessage(msg, 'system');
+                    onSendToGroup={async (msg, attachments) => {
+                      const topic = discussionTopics.find(t => t.title.toLowerCase() === 'tự do');
+                      if (topic) {
+                        await sendDiscussionMessage(topic.id, msg, effectiveUser.id, attachments);
+                      } else {
+                        await firebaseSendMessage(msg, effectiveUser.id, attachments);
+                      }
                     }}
                     onAddStaff={(user) => updateProfile(user.personalEmail, user)}
                     onUpdateStaff={(userId, updates) => {

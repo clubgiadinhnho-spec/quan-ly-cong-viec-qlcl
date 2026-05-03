@@ -250,6 +250,20 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
     - Xử lý lỗi `auth/requires-recent-login`: Tự động nhắc người dùng Đăng xuất và Đăng nhập lại nếu thời gian phiên làm việc đã quá lâu khi thực hiện đổi mật khẩu (cơ chế bảo mật của Firebase).
 - **Security Rules:** Cập nhật quyền `read: if true` cho bộ sưu tập `user_profiles` để đảm bảo thẻ nhân sự luôn hiển thị được thông tin cơ bản ngay cả khi Admin đang xem danh sách tổng quát.
 
+### 📝 Cập nhật mới nhất: 03/05/2026 (Đồng bộ Firebase & Mở rộng Quyền Quản trị)
+- **Đồng bộ Dự án Firebase:** 
+    - Xác nhận và áp dụng chính xác dự án Firebase Console theo yêu cầu của Trưởng phòng: **`ai-studio-applet-webapp-7bd05`**.
+    - Đã đồng bộ mã cấu hình `firebase-applet-config.json` và triển khai bộ quy tắc bảo mật (Firestore Rules) mới nhất lên dự án này.
+- **Mở rộng Danh sách Admin (Security Rules):**
+    - Cập nhật hàm `isAdmin` trong Firestore Rules để bao gồm toàn bộ danh sách các tài khoản Gmail phụ của hệ thống (theo hình ảnh từ Firebase Console).
+    - Các email mới được cấp quyền Admin trực tiếp: `lenhattruong@gmail.com`, `lenhattruong.cafe@gmail.com`, `lenhattruong.caphef1@gmail.com`, `lenhattruong.ddt@gmail.com`, `lenhattruong.tecno@gmail.com`, `lenhattruong.thn@gmail.com`.
+    - Điều này đảm bảo Trưởng phòng có thể quản lý hệ thống từ bất kỳ tài khoản nào đã được mời làm Owner trong console.
+- **Hoàn thiện Tính năng Nhắn tin (Messaging Expansion):**
+    - Tích hợp nút **"NHẮN TIN"** (Message) trực tiếp trên Thẻ nhân sự tại trang danh sách nhân sự.
+    - Cho phép mở nhanh khung chat cá nhân (Direct Chat) giữa các thành viên trong phòng.
+    - Cập nhật `App.tsx` để xử lý điều hướng và thông báo tin nhắn mới thời gian thực.
+- **Cập nhật Giao diện:** Áp dụng thiết kế thẻ nhân sự "Dark Shield" bo góc lớn (#132d6b) với QR Code bảo mật và các nút chức năng tối ưu.
+
 ---
 
-*Ngày cập nhật cuối cùng: 02/05/2026*
+*Ngày cập nhật cuối cùng: 03/05/2026*

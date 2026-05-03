@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, UserRoleType, UserPermissions } from '../types';
-import { Search, Mail, Phone, Lock, Download, ClipboardList, Filter, Eye, Award, Plus, X, Trash2, Edit, EyeOff, QrCode, Upload, Camera, Shield, ShieldCheck, Users, AlertCircle, CheckCircle2, MessageSquare, MessageCircle, PhoneIncoming, UserCircle, Star } from 'lucide-react';
+import { Search, Mail, Phone, Lock, Download, ClipboardList, Filter, Eye, Award, Plus, X, Trash2, Edit, EyeOff, QrCode, Upload, Camera, Shield, ShieldCheck, Users, AlertCircle, CheckCircle2, MessageSquare, MessageCircle, PhoneIncoming, UserCircle, Star, ChevronRight } from 'lucide-react';
 import { Avatar } from '../components/common/Avatar';
 import { PermissionMatrixModal } from '../components/staff/PermissionMatrixModal';
 import { DelegationLetterModal } from '../components/staff/DelegationLetterModal';
@@ -8,12 +8,15 @@ import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface StaffListPageProps {
+  onNavigate?: (tab: string) => void;
+  onOpenDirectChat?: (user: User) => void;
+  unreadCount?: number;
   users: User[];
   currentUser: User;
   onSimulateStaff?: (user: User) => void;
   originalUser?: User | null;
-  onSendToUser?: (msg: string, targetId: string) => void;
-  onSendToGroup?: (msg: string) => void;
+  onSendToUser?: (msg: string, targetId: string, attachments?: any[]) => void;
+  onSendToGroup?: (msg: string, attachments?: any[]) => void;
   onAddStaff?: (user: User) => void;
   onUpdateStaff?: (userId: string, updates: Partial<User>) => void;
   onDeleteStaff?: (userId: string) => void;
@@ -44,6 +47,9 @@ const getRoleBadgeStyle = (name: string) => {
 };
 
 export const StaffListPage: React.FC<StaffListPageProps> = ({ 
+  onNavigate,
+  onOpenDirectChat,
+  unreadCount = 0,
   users, 
   currentUser, 
   onSimulateStaff, 
@@ -258,7 +264,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
           user={delegationLetterUser}
           manager={currentUser}
           onClose={() => setDelegationLetterUser(null)}
-          onSendToUser={(msg) => onSendToUser?.(msg, delegationLetterUser.id)}
+          onSendToUser={(msg, attachments) => onSendToUser?.(msg, delegationLetterUser.id, attachments)}
           onSendToGroup={onSendToGroup}
         />
       )}
@@ -380,76 +386,30 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
             </div>
             <div>
               <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.3em] block leading-none mb-1">Cơ sở dữ liệu</span>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase leading-none">QUẢN LÝ NHÂN SỰ</h1>
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase leading-none">THÔNG TIN NHÂN VIÊN</h1>
             </div>
           </div>
-          <p className="text-sm text-slate-500 font-medium max-w-md">Quản trị và điều phối đội ngũ QC Tân Phú. Dữ liệu nhân lực được bảo mật và phân quyền nghiêm ngặt.</p>
+          <p className="text-sm text-slate-500 font-medium max-w-md">Hệ thống quản lý dữ liệu nhân lực Phòng QLCL Tân Phú Việt Nam. Dữ liệu được bảo mật và phân quyền nghiêm ngặt.</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Discussion Room Card */}
-          <button className="flex items-center gap-4 px-6 py-4 bg-[#fff5f5] border border-rose-100 rounded-[28px] shadow-sm relative group hover:bg-rose-100/50 transition-all cursor-pointer">
-            {/* Left Icon Box */}
-            <div className="w-14 h-14 bg-rose-600 rounded-2xl flex items-center justify-center shadow-lg shadow-rose-200 shrink-0 relative overflow-hidden">
-               <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent" />
-               <div className="relative grid grid-cols-2 gap-1 translate-y-0.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-400 shadow-sm" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-blue-400 shadow-sm" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-green-400 shadow-sm" />
-                  <div className="w-2.5 h-2.5 rounded-md bg-white/20 shadow-sm" />
-               </div>
-            </div>
-
-            {/* Content */}
-            <div className="text-left">
-              <h3 className="text-lg font-black text-rose-600 uppercase tracking-tight leading-none mb-1">ROOM THẢO LUẬN</h3>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">CỘNG ĐỒNG QLCL</p>
-            </div>
-
-            {/* Right Illustration */}
-            <div className="ml-2 text-rose-600/80 shrink-0">
-               <div className="relative">
-                  <Users size={32} strokeWidth={2} />
-                  <div className="absolute -top-2 -right-1 flex gap-0.5">
-                    <MessageCircle size={14} fill="currentColor" className="text-rose-600" />
-                    <MessageCircle size={10} fill="currentColor" className="text-rose-400 mt-1" />
-                  </div>
-               </div>
-            </div>
-
-            {/* Notification Badge */}
-            <div className="absolute -top-1.5 -right-1.5 w-7 h-7 bg-rose-600 rounded-full border-[3px] border-white flex items-center justify-center text-white text-[11px] font-black shadow-xl ring-4 ring-rose-50">
-              1
-            </div>
+        <div className="flex gap-2">
+          <button 
+            onClick={handleExport}
+            className="group flex items-center gap-2 px-5 py-3.5 bg-white text-slate-600 border border-slate-200 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+          >
+            <Download size={16} className="group-hover:translate-y-0.5 transition-transform" />
+            Tải CSV
           </button>
 
-          <div className="hidden sm:flex flex-col items-end px-6 py-3 bg-white border border-slate-100 rounded-2xl shadow-sm h-[88px] justify-center">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Nhân sự hiện hữu</span>
-            <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-black text-slate-900 leading-none">{users.length}</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Thành viên</span>
-            </div>
-          </div>
-
-          <div className="flex gap-2">
+          {currentUser.role === 'Admin' && (
             <button 
-              onClick={handleExport}
-              className="group flex items-center gap-2 px-5 py-3.5 bg-white text-slate-600 border border-slate-200 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 px-6 py-3.5 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 active:scale-95"
             >
-              <Download size={16} className="group-hover:translate-y-0.5 transition-transform" />
-              Tải CSV
+              <Plus size={18} />
+              Thêm nhân sự
             </button>
-
-            {currentUser.role === 'Admin' && (
-              <button 
-                onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-2 px-6 py-3.5 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 active:scale-95"
-              >
-                <Plus size={18} />
-                Thêm nhân sự
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
@@ -484,7 +444,10 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
       </div>
 
       {/* Staff List - Grid Layout to prevent overlap and maintain "Frozen" design standards */}
-      <div className="grid grid-cols-1 2xl:grid-cols-2 gap-x-12 gap-y-16 pb-32 w-full max-w-[1500px] mx-auto justify-items-center">
+      <div 
+        id="staff-grid"
+        className="grid grid-cols-[repeat(auto-fit,670px)] gap-x-10 gap-y-16 pb-32 w-full max-w-full justify-center px-4"
+      >
         {filteredStaff.map((staff) => {
           const isVisible = visiblePasswords[staff.id];
           const isTruong = currentUser.role === 'Admin' || currentUser.personalEmail === 'lenhattruong.tpp@gmail.com';
@@ -615,6 +578,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                   <Shield size={24} strokeWidth={2.5} className="group-hover/btn:scale-110 transition-transform mb-0.5" />
                   <span className="text-[9px] font-black uppercase tracking-tighter">QUYỀN</span>
                 </button>
+
                 
                 {onSimulateStaff && staff.id !== (originalUser?.id || currentUser.id) && isTruong && (
                   <button 

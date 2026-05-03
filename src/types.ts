@@ -85,6 +85,12 @@ export interface PrivateMessage {
   timestamp: string;
   chatId: string;
   reactions?: MessageReaction[];
+  attachments?: {
+    name: string;
+    url: string;
+    type: 'image' | 'file';
+    size: number;
+  }[];
 }
 
 export interface Task {
@@ -162,6 +168,7 @@ export interface DiscussionMessage {
 
 export interface DiscussionTopic {
   id: string;
+  orderCode?: string;
   title: string;
   description?: string;
   createdBy: string;

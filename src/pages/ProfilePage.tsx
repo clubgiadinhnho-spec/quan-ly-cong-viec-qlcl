@@ -238,12 +238,12 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
             <div className="flex gap-8 items-stretch">
               {/* Left: Avatar */}
               <div className="w-32 shrink-0 group/avatar relative">
-                <div className="relative aspect-square w-full rounded-[24px] overflow-hidden border-2 border-white shadow-lg bg-white flex items-center justify-center">
+                <div className="relative aspect-square w-full rounded-full overflow-hidden border-2 border-white shadow-lg">
                   <Avatar 
                     src={formData.avatar} 
                     name={formData.name} 
                     size="full" 
-                    className="w-full h-full object-cover transition-opacity duration-300 group-hover/avatar:opacity-0" 
+                    className="border-none bg-transparent shadow-none" 
                   />
                   
                   {/* Camera Overlay on Hover / Edit mode */}
@@ -260,11 +260,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     )}
                   </div>
 
-                  {isOnline && !isEditing && (
-                    <div className="absolute top-2 right-2 px-2 py-0.5 bg-emerald-500 text-white text-[8px] font-black rounded shadow-lg uppercase tracking-widest border border-white flex items-center gap-1">
-                      ON
-                    </div>
-                  )}
+
                 </div>
               </div>
 
@@ -377,7 +373,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                 </div>
                 <p className="text-[11px] font-black uppercase tracking-widest leading-none">Tổng dự án</p>
               </div>
-              <p className="text-2xl font-black leading-none relative z-10 text-right">0</p>
+              <p className="text-2xl font-black leading-none relative z-10 text-right">{myTasks.length}</p>
             </div>
 
             <div className="bg-emerald-500 p-3 px-6 rounded-[24px] border-b-4 border-emerald-600 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[80px]">

@@ -3,7 +3,7 @@ import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw,
 import { Task, User } from '../../types';
 import { formatDate } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { Avatar } from '../common/Avatar';
 
 import { getUserById, getSafeNameProps, getTaskAssigneeName, isUserTask } from '../../utils/userUtils';
@@ -26,15 +26,27 @@ interface TaskRowProps {
   setConfirmModal: (modal: any) => void;
   isReadOnly?: boolean;
   onRestore?: (id: string) => void;
+  highlightedTaskId?: string | null;
 }
 
 export const TaskRow: React.FC<TaskRowProps> = ({ 
   task, user, users, onUpdate, onDelete, onViewHistory, onOpenChat, 
   isChatOpen, onSendMessage, onReact, onTogglePriority, onSetPriority, onEdit, idx, setConfirmModal,
-  isReadOnly = false, onRestore
+  isReadOnly = false, onRestore, highlightedTaskId
 }) => {
   const assigneeName = getTaskAssigneeName(task, users);
   const assignee = getUserById(assigneeName, users) || getUserById(task.assigneeId, users);
+
+  // Auto-scroll when highlighted
+  React.useEffect(() => {
+    if (highlightedTaskId === task.id) {
+      const element = document.getElementById(`task-row-${task.id}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [highlightedTaskId, task.id]);
+
   const isOwner = isUserTask(task, user);
   const isAdmin = user.role === 'Admin';
   const isTeamLeader = user.role === 'Leader';
@@ -129,7 +141,16 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   };
 
   return (
-    <tr className={`group transition-all ${finalRowClass}`}>
+    <motion.tr 
+      id={`task-row-${task.id}`}
+      initial={false}
+      animate={{ 
+        backgroundColor: highlightedTaskId === task.id ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
+        boxShadow: highlightedTaskId === task.id ? 'inset 0 0 0 2px rgba(59, 130, 246, 0.5)' : 'inset 0 0 0 0px transparent'
+      }}
+      transition={{ duration: 0.4 }}
+      className={`group transition-all ${finalRowClass} relative ${highlightedTaskId === task.id ? 'z-10' : ''}`}
+    >
       <td className={`p-2 text-center text-[10px] border-b border-l border-r border-gray-300 align-top relative ${task.isHighlighted || task.priorityOrder ? 'text-gray-600' : 'text-gray-300'}`}>
         <div className="flex flex-col items-center pt-1">
           <div translate="no" className="notranslate leading-none text-[10px] mb-3">{task.code}</div>
@@ -401,14 +422,22 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         <td className="py-2 px-1 text-center border-b border-r border-gray-300 align-middle">
           <div className="flex flex-col items-center justify-center gap-3 w-full max-w-[60px] mx-auto min-h-full py-1">
             {task.deletedAt ? (
-              <>
+              <div className="flex flex-col gap-2 w-full">
                 <button 
                   onClick={() => onRestore && onRestore(task.id)}
                   className="w-full px-1 py-2 text-[10px] bg-emerald-500 text-white rounded font-black hover:bg-emerald-600 transition-all uppercase tracking-tighter shadow-md"
                 >
                   HỒI PHỤC
                 </button>
-              </>
+                {canDelete && (
+                  <button 
+                    onClick={() => onDelete && onDelete(task.id)}
+                    className="w-full px-1 py-2 text-[10px] bg-red-600 text-white rounded font-black hover:bg-red-700 transition-all uppercase tracking-tighter shadow-md border border-red-400"
+                  >
+                    XÓA VĨNH VIỄN
+                  </button>
+                )}
+              </div>
             ) : (
               <>
                 {task.status === 'AWAITING_CONFIRMATION' && isManager && (
@@ -425,15 +454,28 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 {task.status === 'PENDING_APPROVAL' && canApprove && (
                   <button 
                       onClick={handleApprove}
-                      className="w-full px-1 py-2 text-[10px] bg-amber-500 text-white rounded font-black hover:bg-amber-600 transition-all uppercase tracking-tighter shadow-md"
+                      className="w-full px-1 py-2 text-[10px] bg-blue-600 text-white rounded font-black hover:bg-blue-700 transition-all uppercase tracking-tighter shadow-md border border-blue-400"
                     >
-                      XONG
+                      XÁC NHẬN
                     </button>
+                )}
+                {task.status === 'PENDING_APPROVAL' && !canApprove && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[7px] font-black text-amber-600 bg-amber-50 px-1 py-1 rounded border border-amber-200 uppercase tracking-tighter leading-none text-center animate-pulse">Đang chờ duyệt...</span>
+                    <button 
+                      onClick={() => onUpdate(task.id, { status: 'IN_PROGRESS' })}
+                      className="w-full py-1 text-[7px] font-bold text-gray-400 hover:text-red-500 uppercase tracking-tighter"
+                    >
+                      Hủy gửi
+                    </button>
+                  </div>
                 )}
                 {task.status !== 'PENDING_APPROVAL' && (isOwner || isManager || canApprove) && !task.isLocked && !task.requestDelete && task.status !== 'COMPLETED' && task.status !== 'AWAITING_CONFIRMATION' && (
                   <button 
                      onClick={handleStatusAction}
-                     className="w-full px-1 py-2 text-[10px] bg-amber-500 text-white rounded font-black hover:bg-amber-600 transition-all uppercase tracking-tighter shadow-md"
+                     className={`w-full px-1 py-2 text-[10px] rounded font-black transition-all uppercase tracking-tighter shadow-md ${
+                       canApprove ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-blue-600 text-white hover:bg-blue-700 ring-2 ring-blue-100'
+                     }`}
                    >
                      <span translate="no" className="notranslate">{canApprove ? 'XONG' : 'GỬI HT'}</span>
                    </button>
@@ -450,12 +492,16 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                      <span translate="no" className="notranslate">LƯU Ý</span>
                    </button>
                 )}
-                {!task.requestDelete && canDelete && (
+                {canDelete && (
                    <button 
                      onClick={() => onDelete(task.id)}
-                     className="w-full px-1 py-2 text-[10px] bg-red-500 text-white border border-red-600 rounded font-black hover:bg-red-600 transition-all uppercase tracking-tighter shadow-md"
+                     className={`w-full px-1 py-2 text-[10px] rounded font-black transition-all uppercase tracking-tighter shadow-md border ${
+                       task.requestDelete 
+                         ? 'bg-red-600 text-white border-red-400 ring-2 ring-red-100 animate-pulse' 
+                         : 'bg-red-500 text-white border-red-600 hover:bg-red-600'
+                     }`}
                    >
-                     <span translate="no" className="notranslate">XÓA</span>
+                     <span translate="no" className="notranslate">{task.requestDelete ? 'DUYỆT XÓA' : 'XÓA'}</span>
                    </button>
                 )}
 
@@ -479,7 +525,15 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 )}
 
                 {task.requestDelete && !canDelete && (
-                  <span className="text-[8px] font-black text-red-500 bg-red-50 px-2 py-1 rounded border border-red-200 uppercase tracking-tighter text-center leading-none">Chờ duyệt xóa</span>
+                  <div className="flex flex-col gap-1 w-full">
+                    <span className="text-[8px] font-black text-red-500 bg-red-50 px-2 py-1 rounded border border-red-200 uppercase tracking-tighter text-center leading-none">Chờ duyệt xóa</span>
+                    <button 
+                      onClick={() => onUpdate(task.id, { requestDelete: false })}
+                      className="w-full py-1 text-[7px] font-bold text-gray-400 hover:text-blue-500 uppercase tracking-tighter"
+                    >
+                      Hủy yêu cầu
+                    </button>
+                  </div>
                 )}
                 {task.status === 'COMPLETED' && canApprove && (
                   <button 
@@ -509,6 +563,6 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           </div>
         </td>
       )}
-    </tr>
+    </motion.tr>
   );
 };

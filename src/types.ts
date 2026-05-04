@@ -169,13 +169,14 @@ export interface DiscussionMessage {
 export interface DiscussionTopic {
   id: string;
   orderCode?: string;
+  topicCode?: string; // Standardized code like P.001-26
   title: string;
   description?: string;
   createdBy: string;
   creatorAvatar?: string;
   createdAt: string;
   closedAt?: string;
-  status: 'OPEN' | 'CLOSED';
+  status: 'OPEN' | 'CLOSED' | 'DELETED';
   isDefault?: boolean;
 }
 

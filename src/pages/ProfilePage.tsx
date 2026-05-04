@@ -207,7 +207,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                 </h1>
                 <div className="flex items-center gap-4">
                   <div className="px-3 py-1 bg-blue-100 rounded-lg border border-blue-200 text-[11px] font-black text-blue-700 uppercase tracking-widest shadow-sm">
-                    {getHardcodedTitle(user.name)}
+                    {getHardcodedTitle(user.name) === 'ADMIN' ? <span translate="no" className="notranslate">ADMIN</span> : getHardcodedTitle(user.name)}
                   </div>
                   <span className="text-[15px] font-mono font-black text-slate-400 uppercase tracking-widest">#{user.code}</span>
                 </div>

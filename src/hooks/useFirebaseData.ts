@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   collection, 
   query, 
@@ -14,7 +14,8 @@ import {
   Timestamp,
   serverTimestamp,
   writeBatch,
-  getDocs
+  getDocs,
+  runTransaction
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { User, UserPresence, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport, LogEntry, DiscussionTopic, DiscussionMessage } from '../types';
@@ -130,43 +131,27 @@ export const useFirebaseData = (currentUserId?: string) => {
       }
     );
 
-    // Listen to Discussion Topics
-    const topicsUnsubscribe = onSnapshot(
-      query(collection(db, 'discussion_topics'), orderBy('createdAt', 'desc')),
-      async (snapshot) => {
-        const topicsData = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            ...data,
-            id: doc.id,
-            createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString()),
-            closedAt: data.closedAt?.toDate ? data.closedAt.toDate().toISOString() : data.closedAt
-          } as DiscussionTopic;
-        });
-        setDiscussionTopics(topicsData);
-
-        // Auto-create 000 Topic "TRAO ĐỔI TỰ DO" if missing
-        if (topicsData.length > 0 && !topicsData.find(t => t.orderCode === '000')) {
-          try {
-            await addDoc(collection(db, 'discussion_topics'), {
-              title: 'TRAO ĐỔI TỰ DO',
-              description: 'Nơi thảo luận các vấn đề chung không nằm trong các chủ đề chuyên biệt.',
-              createdBy: 'SYSTEM',
-              status: 'OPEN',
-              orderCode: '000',
-              createdAt: serverTimestamp()
-            });
-          } catch (err) {
-            console.warn("Failed to create default topic 000:", err);
-          }
-        }
-      },
-      (error) => {
-        if (error.code !== 'permission-denied') {
-          console.warn("Discussion topics error:", error.message);
-        }
+  // Listen to Discussion Topics
+  const topicsUnsubscribe = onSnapshot(
+    query(collection(db, 'discussion_topics'), orderBy('createdAt', 'desc')),
+    async (snapshot) => {
+      const topicsData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ...data,
+          id: doc.id,
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString()),
+          closedAt: data.closedAt?.toDate ? data.closedAt.toDate().toISOString() : data.closedAt
+        } as DiscussionTopic;
+      });
+      setDiscussionTopics(topicsData);
+    },
+    (error) => {
+      if (error.code !== 'permission-denied') {
+        console.warn("Discussion topics error:", error.message);
       }
-    );
+    }
+  );
 
     // Listen to Discussion Messages
     const discMessagesUnsubscribe = onSnapshot(
@@ -300,8 +285,14 @@ export const useFirebaseData = (currentUserId?: string) => {
     };
   }, [currentUserId, auth.currentUser?.uid]);
 
+  const lastPresenceUpdate = useRef<number>(0);
+
   const updatePresence = useCallback(async (user: User) => {
     try {
+      const now = Date.now();
+      // Gating: Chặn đứng vòng lặp, chỉ cho phép cập nhật sau mỗi 4 phút
+      if (now - lastPresenceUpdate.current < 240000) return;
+
       await setDoc(doc(db, 'presence', user.id), {
         id: user.id,
         name: user.name,
@@ -309,6 +300,7 @@ export const useFirebaseData = (currentUserId?: string) => {
         lastActive: serverTimestamp(),
         status: 'online'
       });
+      lastPresenceUpdate.current = now;
     } catch (error) {
       console.warn("Failed to update presence:", error);
     }
@@ -404,10 +396,41 @@ export const useFirebaseData = (currentUserId?: string) => {
 
   const createTopic = useCallback(async (topic: Omit<DiscussionTopic, 'id' | 'createdAt'>) => {
     try {
-      await addDoc(collection(db, 'discussion_topics'), {
-        ...topic,
-        orderCode: topic.orderCode || '001',
-        createdAt: serverTimestamp()
+      const currentYear = new Date().getFullYear();
+      const sttRef = doc(db, 'settings', 'topic_counter');
+      
+      await runTransaction(db, async (transaction) => {
+        const sttDoc = await transaction.get(sttRef);
+        let nextStt = 1;
+
+        if (sttDoc.exists()) {
+          const data = sttDoc.data();
+          if (data.year === currentYear) {
+            nextStt = (data.lastStt || 0) + 1;
+          } else {
+            nextStt = 1;
+          }
+        } else {
+          // Special case for the very first initialization in a new project
+          nextStt = 0; 
+        }
+
+        // New format: P0002026 if nextStt is 0
+        const formattedCode = `P${String(nextStt).padStart(3, '0')}${currentYear}`;
+        
+        transaction.set(sttRef, {
+          lastStt: nextStt,
+          year: currentYear,
+          updatedAt: serverTimestamp()
+        });
+
+        const topicRef = doc(collection(db, 'discussion_topics'));
+        transaction.set(topicRef, {
+          ...topic,
+          topicCode: formattedCode,
+          orderCode: String(nextStt).padStart(3, '0'),
+          createdAt: serverTimestamp()
+        });
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'discussion_topics');
@@ -449,16 +472,6 @@ export const useFirebaseData = (currentUserId?: string) => {
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'direct_messages');
-    }
-  }, []);
-
-  const clearAllTasks = useCallback(async (taskIds: string[]) => {
-    try {
-      for (const id of taskIds) {
-        await deleteDoc(doc(db, 'tasks', id));
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, 'multiple tasks');
     }
   }, []);
 
@@ -527,39 +540,6 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
-  // Auto-create "Free Chat" topic if no topics exist
-  useEffect(() => {
-    if (!loading && currentUserId && discussionTopics.length === 0) {
-      const initTopic = async () => {
-        try {
-          // Check again if a topic with this title already exists to be sure
-          const q = query(collection(db, 'discussion_topics'), where('title', 'in', ['Tự do', 'TỰ DO']));
-          const existing = await getDocs(q);
-          if (!existing.empty) return;
-
-          // Try to find an admin to use their avatar for the default topic
-          const adminUser = extraUsers.find(u => u.role === 'Admin');
-          
-          await addDoc(collection(db, 'discussion_topics'), {
-            title: 'Tự do',
-            description: 'Nơi thảo luận tự do, không bắt buộc chủ đề.',
-            createdBy: 'SYSTEM',
-            creatorAvatar: adminUser?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin',
-            status: 'OPEN',
-            isDefault: true,
-            createdAt: serverTimestamp()
-          });
-        } catch (error) {
-          // Ignore if it fails due to race condition (already created by another user)
-          if (!(error instanceof Error && error.message.includes('permission-denied'))) {
-            console.error("Auto-init topic failed:", error);
-          }
-        }
-      };
-      initTopic();
-    }
-  }, [loading, currentUserId, discussionTopics.length, extraUsers]);
-
   const deleteTopic = useCallback(async (topicId: string) => {
     try {
       const batch = writeBatch(db);
@@ -598,7 +578,6 @@ export const useFirebaseData = (currentUserId?: string) => {
     addLog,
     saveReportDraft,
     saveOfficialReport,
-    clearAllTasks,
     addExtraUser,
     updateExtraUser,
     deleteExtraUser,

@@ -17,8 +17,9 @@ interface TaskListProps {
   onReact?: (taskId: string, commentId: string, emoji: string) => void;
   onEdit: (task: Task) => void;
   setConfirmModal: (modal: any) => void;
-  type: 'active' | 'completed';
+  type: 'active' | 'completed' | 'trash';
   isReadOnly?: boolean;
+  highlightedTaskId?: string | null;
 }
 
 export const TaskList: React.FC<TaskListProps> = ({ 
@@ -36,7 +37,8 @@ export const TaskList: React.FC<TaskListProps> = ({
   setConfirmModal,
   type,
   isReadOnly = false,
-  onRestore
+  onRestore,
+  highlightedTaskId
 }) => {
   const sortedTasks = [...tasks].sort((a, b) => {
     // 1. Phê duyệt (Dành cho cấp quản lý xác nhận lính mới) - nếu có status AWAITING_CONFIRMATION
@@ -165,6 +167,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                 onTogglePriority={handleTogglePriority}
                 isReadOnly={isReadOnly}
                 onRestore={onRestore}
+                highlightedTaskId={highlightedTaskId}
               />
             ) : type === 'active' ? (
               <TaskRow 
@@ -185,6 +188,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                 setConfirmModal={setConfirmModal}
                 onTogglePriority={handleTogglePriority}
                 isReadOnly={isReadOnly}
+                highlightedTaskId={highlightedTaskId}
               />
             ) : (
               <CompletedTaskRow 

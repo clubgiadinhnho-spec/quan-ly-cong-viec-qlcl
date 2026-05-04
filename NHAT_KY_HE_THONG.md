@@ -264,6 +264,22 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
     - Cập nhật `App.tsx` để xử lý điều hướng và thông báo tin nhắn mới thời gian thực.
 - **Cập nhật Giao diện:** Áp dụng thiết kế thẻ nhân sự "Dark Shield" bo góc lớn (#132d6b) với QR Code bảo mật và các nút chức năng tối ưu.
 
+### 📝 Cập nhật mới nhất: 04/05/2026 (Thiết quân luật & Độc tôn Hệ thống)
+- **Cải tiến Mã định danh (P.STTYYYY):**
+    - **Định dạng mới:** Chuyển đổi mã chủ đề sang `P.STTYYYY` (Ví dụ: `P.0012026`).
+    - **Giao diện "Ô đỏ":** Thiết kế lại ô mã số nhỏ gọn (Portrait box), chia 2 dòng: `P.STT` (Chữ to, đậm) và `YYYY` (Chữ nhỏ phía dưới).
+    - **Bảo vệ nội dung:** Bọc thẻ `<span translate="no" class="notranslate">` chống dịch tự động, đảm bảo mã chuyên môn QA không bị biến đổi.
+- **Nút RESET Quyền lực (Admin Only):**
+    - **Vị trí:** Nằm bên trái khu vực điều khiển chủ đề.
+    - **Logic hủy diệt:** Xóa sạch toàn bộ `topics`, `messages`, đặt lại bộ đếm `topic_counter` về 0.
+    - **Cảnh báo an toàn:** Xác nhận đa tầng với nội dung: *"CẢNH BÁO QUAN TRỌNG: Hành động này sẽ xóa sạch dữ liệu và đặt lại bộ đếm. Bạn có chắc chắn muốn thực hiện?"*.
+- **Chế độ "Độc tôn" (System Exclusivity):**
+    - **Tạo mới:** Cho phép Admin tạo chủ đề mới, nhưng hệ thống vẫn duy trì chủ đề "TRAO ĐỔI TỰ DO" làm gốc.
+    - **Chủ đề Hệ thống chuẩn:** Tự động khởi tạo duy nhất chủ đề **"TRAO ĐỔI TỰ DO"** với mã định danh mặc định `P.0002026` khi hệ thống trống hoặc sau khi Reset.
+    - **Màu sắc ổn định:** Khóa màu đỏ đặc trưng cho chủ đề hệ thống, không thay đổi hiệu ứng khi được nhấn chọn để duy trì tính nhận diện.
+- **Dọn dẹp mã nguồn:** Xóa bỏ hoàn toàn file `AGENTS.md` và tinh gọn logic khởi tạo dữ liệu trong `useFirebaseData`.
+- **Sửa lỗi Reset:** Cập nhật hàm `resetSystem` theo quy trình nguyên tử (Atomic), xóa sạch vĩnh viễn `topics` và `messages` bằng vòng lặp, ép bộ đếm về 0 và hiển thị màn hình chờ "ĐANG QUÉT SẠCH HỆ THỐNG...".
+
 ---
 
-*Ngày cập nhật cuối cùng: 03/05/2026*
+*Ngày cập nhật cuối cùng: 04/05/2026*

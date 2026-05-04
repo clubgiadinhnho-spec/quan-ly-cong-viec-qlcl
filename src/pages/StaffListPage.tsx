@@ -217,7 +217,9 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                   <div className="space-y-1.5 text-center">
                     <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">VAI TRÒ</p>
                     <div className="bg-slate-50 rounded-2xl py-3 border border-slate-100 flex items-center justify-center px-2 overflow-hidden">
-                      <p className="text-[13px] font-black text-slate-700 uppercase leading-none truncate">{selectedQRUser.role}</p>
+                      <p className="text-[13px] font-black text-slate-700 uppercase leading-none truncate">
+                        {selectedQRUser.role === 'Admin' ? <span translate="no" className="notranslate">ADMIN</span> : selectedQRUser.role}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -337,7 +339,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                     >
                       <option value="Staff"><span translate="no" className="notranslate">Nhân sự (Staff)</span></option>
                       <option value="Leader">Nhóm trưởng (Leader)</option>
-                      <option value="Admin">Quản trị (Admin)</option>
+                      <option value="Admin"><span translate="no" className="notranslate">Quản trị (Admin)</span></option>
                     </select>
                   </div>
                   <div className="space-y-1">
@@ -437,7 +439,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                   : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
               }`}
             >
-              {role === 'All' ? 'TẤT CẢ' : role}
+              {role === 'All' ? 'TẤT CẢ' : (role === 'Admin' ? <span translate="no" className="notranslate">ADMIN</span> : role)}
             </button>
           ))}
         </div>
@@ -511,7 +513,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                     </h3>
                     <div className="flex items-center gap-4">
                       <p className="text-[14px] font-black text-blue-200/40 uppercase tracking-[0.2em] leading-none whitespace-nowrap">
-                        {getHardcodedTitle(staff.name)}
+                        {getHardcodedTitle(staff.name) === 'ADMIN' ? <span translate="no" className="notranslate">ADMIN</span> : getHardcodedTitle(staff.name)}
                       </p>
                       {starCount > 0 && (
                         <div className="flex gap-1">

@@ -20,7 +20,7 @@ export interface UserPermissions {
 export interface LogEntry {
   id: string;
   timestamp: string;
-  type: 'DELEGATION_CHANGE' | 'DELEGATED_ACTION' | 'SYSTEM';
+  type: 'DELEGATION_CHANGE' | 'DELEGATED_ACTION' | 'SYSTEM' | 'TASK_UPDATE' | 'ERROR' | 'PROFILE_UPDATE';
   userId: string; // The person who performed the action
   targetId?: string; // The person who was the target (e.g. delegated to)
   details: string;
@@ -51,6 +51,9 @@ export interface User {
   cvDetails?: string;
   reminderSettings?: HealthReminder;
   delegatedPermissions?: UserPermissions;
+  updatedFields?: string[];
+  updatedFieldsAt?: string;
+  updatedAt?: string;
 }
 
 export interface ProgressUpdate {
@@ -121,6 +124,9 @@ export interface Task {
   updatedAt: string;
   comments?: TaskComment[];
   requestDelete?: boolean;
+  requestUndo?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  undoRequestAt?: string;
+  undoRequestBy?: string;
   reportExplanation?: string;
   reportAttachments?: string[];
   isNewSoldier?: boolean;
@@ -169,7 +175,7 @@ export interface DiscussionMessage {
 export interface DiscussionTopic {
   id: string;
   orderCode?: string;
-  topicCode?: string; // Standardized code like P.001-26
+  topicCode?: string; // Standardized code like P0012026
   title: string;
   description?: string;
   createdBy: string;

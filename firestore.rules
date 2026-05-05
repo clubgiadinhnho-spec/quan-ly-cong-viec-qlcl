@@ -1,73 +1,130 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 0. Global Safety Net
-    match /{document=**} {
-      allow read, write: if false;
+    
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // Phase 3: Primitives
-    function isSignedIn() { return request.auth != null; }
-    function isAdmin() { 
+    function isAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'truong.le@tanphuvietnam.vn' || 
         request.auth.token.email == 'lenhattruong.tpp@gmail.com' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin' ||
-        get(/databases/$(database)/documents/extra_users/$(request.auth.uid)).data.role == 'Admin'
+        request.auth.token.email == 'lenhattruong.caphef1@gmail.com' ||
+        request.auth.token.email == 'club.nhuatanphu@gmail.com' ||
+        request.auth.token.email == 'tanphuvietnam.tpp@gmail.com' ||
+        request.auth.token.email == 'truongln.tanhongngoc@gmail.com' ||
+        request.auth.token.email == 'lenhattruong.ddt@gmail.com'
       );
     }
-    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
-    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
 
-    // Validation Blueprints
-    function isValidTopic(data) {
-      return data.title is string && data.title.size() <= 200 &&
-             data.status in ['OPEN', 'CLOSED'] &&
-             data.createdBy == request.auth.uid;
+    function incoming() {
+      return request.resource.data;
     }
 
-    // Rules for Collections
-    match /users/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() || isOwner(userId);
+    function existing() {
+      return resource.data;
     }
 
-    match /messages/{id} {
+    function isValidTask(data) {
+      return data.keys().hasAll(['code', 'title', 'assigneeId', 'status']) &&
+             data.code is string && data.code.size() <= 50 &&
+             data.title is string && data.title.size() <= 500 &&
+             (data.status in ['IN_PROGRESS', 'PENDING_APPROVAL', 'COMPLETED', 'CANCELLED', 'ON_HOLD', 'Hoàn thành', 'Đang thực hiện', 'Chưa bắt đầu', 'Tạm dừng', 'AWAITING_CONFIRMATION']);
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['authorId', 'content', 'timestamp']) &&
+             data.authorId is string && data.authorId.size() <= 128 &&
+             data.content is string && data.content.size() <= 5000;
+    }
+
+    // 1. User Profiles - MỞ KHÓA TUYỆT ĐỐI THEO LỆNH
+    match /user_profiles/{profileId} {
+      allow read: if true;
+      allow write: if true; // CHO PHÉP TẠO VÀ SỬA ĐỂ BẠN HẬU ĐĂNG KÝ THÀNH CÔNG
+    }
+    
+    // Global Access Control fallback
+    match /{document=**} {
+      allow read, write, delete: if isAdmin();
+    }
+
+    // 2. Extra Users (Auto-registration fallback)
+    match /extra_users/{userId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow write: if isAdmin() || (isSignedIn() && userId == request.auth.uid);
+    }
+
+    // 3. Tasks
+    match /tasks/{taskId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isValidTask(incoming());
+      allow update: if isSignedIn() && isValidTask(incoming()) && (
+        isAdmin() || 
+        incoming().assigneeId == request.auth.uid || 
+        existing().assigneeId == request.auth.uid
+      );
       allow delete: if isAdmin();
     }
 
-    match /discussion_topics/{id} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && (isAdmin() || request.resource.data.createdBy == request.auth.uid);
+    // 4. Messages (General Chat)
+    match /messages/{msgId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isValidMessage(incoming()) && incoming().authorId == request.auth.uid;
+      allow update: if isAdmin() || (isSignedIn() && existing().authorId == request.auth.uid && incoming().authorId == request.auth.uid);
       allow delete: if isAdmin();
     }
 
-    match /discussion_messages/{id} {
+    // 5. Discussion
+    match /discussion_topics/{topicId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.authorId == request.auth.uid);
+      allow write: if isSignedIn();
     }
-
-    match /tasks/{id} {
+    match /discussion_messages/{msgId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['Admin', 'Leader']);
+      allow create: if isSignedIn() && isValidMessage(incoming()) && incoming().authorId == request.auth.uid;
+      allow update: if isAdmin() || (isSignedIn() && existing().authorId == request.auth.uid);
+      allow delete: if isAdmin();
     }
 
-    match /report_drafts/{id} {
-      allow read, write: if isSignedIn();
+    // 6. Direct Messages
+    match /direct_messages/{msgId} {
+      allow list: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow get: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow create: if isSignedIn() && incoming().senderId == request.auth.uid;
+      allow update: if isSignedIn() && (existing().senderId == request.auth.uid || existing().receiverId == request.auth.uid);
+      allow delete: if isAdmin();
     }
 
-    match /official_reports/{id} {
+    // 7. Presence
+    match /presence/{id} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && id == request.auth.uid;
+    }
+
+    // 8. Reports
+    match /report_drafts/{draftId} {
+      allow read: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow write: if isSignedIn() && (isAdmin() || incoming().userId == request.auth.uid);
+    }
+    match /official_reports/{reportId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    match /presence/{id} {
-      allow read: if isSignedIn();
-      allow write: if isOwner(id);
+    // 9. System
+    match /system_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
     }
+    match /settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
   }
 }

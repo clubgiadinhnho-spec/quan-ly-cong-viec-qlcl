@@ -21,17 +21,40 @@ interface CompletedTaskRowProps {
   onReact?: (taskId: string, commentId: string, emoji: string) => void;
   onUndo: (id: string) => void;
   onUpdate: (id: string, updates: Partial<Task>) => void;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ 
-  task, user, users, idx, onViewHistory, onOpenChat, isChatOpen, onSendMessage, onReact, onUndo, onUpdate 
+  task, user, users, idx, onViewHistory, onOpenChat, isChatOpen, onSendMessage, onReact, onUndo, onUpdate,
+  isSelected, onToggleSelect
 }) => {
   const assigneeName = getTaskAssigneeName(task, users);
   const assignee = getUserById(assigneeName, users) || getUserById(task.assigneeId, users);
 
+  const [lastReadCount, setLastReadCount] = React.useState(task.comments?.length || 0);
+
+  // When chat opens, update last read count to current number of comments
+  React.useEffect(() => {
+    if (isChatOpen) {
+      setLastReadCount(task.comments?.length || 0);
+    }
+  }, [isChatOpen, task.comments?.length]);
+
+  const unreadCount = (task.comments?.length || 0) - lastReadCount;
+  const showBadge = unreadCount > 0 && !isChatOpen;
+
   return (
-    <tr className="hover:bg-gray-50/50 transition-all">
-      <td className="p-2 text-center text-[10px] font-bold text-gray-300 border-b border-l border-r border-gray-300 align-top">{task.code}</td>
+    <tr id={`task-${task.id}`} className={`hover:bg-gray-50/50 transition-all ${isSelected ? 'bg-blue-50/50' : ''} ${task.isHighlighted ? 'ring-2 ring-emerald-400 ring-inset bg-emerald-50/20' : ''}`}>
+      <td className="p-2 text-center border-b border-l border-r border-gray-300 align-middle">
+         <input 
+           type="checkbox" 
+           checked={isSelected}
+           onChange={() => onToggleSelect?.(task.id)}
+           className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer shadow-sm transition-all"
+         />
+      </td>
+      <td className="p-2 text-center text-[10px] font-bold text-gray-300 border-b border-r border-gray-300 align-top">{task.code}</td>
       <td className="p-2 border-b border-r border-gray-300 align-top h-px">
         <div className="flex flex-col h-full gap-1">
           <div className="flex items-start gap-1.5">
@@ -99,7 +122,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
               <div className="flex flex-col min-w-0">
                 <p className="text-[6px] font-black text-blue-600 uppercase tracking-tighter leading-none mb-0.5">Lần cập trước:</p>
                 <p className="text-[7px] text-gray-500 line-clamp-1 italic leading-none truncate">
-                  {task.history[task.history.length - 2]?.content.replace('Cập nhật tiến độ: ', '') || 'Khởi tạo'}
+                  {(task.history[task.history.length - 2]?.content || '').replace('Cập nhật tiến độ: ', '') || 'Khởi tạo'}
                 </p>
               </div>
               <p className="text-[6px] font-black text-blue-400 bg-blue-50/50 px-0.5 rounded leading-none uppercase tracking-tighter shrink-0 ml-1">V{task.history.length}</p>
@@ -126,10 +149,23 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           <div className="flex items-center gap-1 relative mt-auto pt-0.5">
             <button 
               onClick={() => onOpenChat(isChatOpen ? '' : task.id)}
-              className={`p-0.5 px-1 text-[8px] rounded font-black uppercase transition-all flex items-center gap-0.5 ${isChatOpen ? 'bg-blue-600 text-white' : 'text-blue-600 bg-blue-50'}`}
+              className={`p-1 px-2 rounded-md transition-all w-fit flex items-center gap-1.5 border ${
+                isChatOpen 
+                  ? 'text-blue-700 bg-blue-100 shadow-inner border-blue-200' 
+                  : showBadge
+                    ? 'text-white bg-red-600 border-red-400 animate-[pulse_0.8s_infinite] shadow-[0_0_15px_rgba(220,38,38,0.4)]'
+                    : (task.comments?.length || 0) > 0
+                      ? 'text-red-600 bg-red-50 border-red-200 animate-[pulse_2s_infinite]'
+                      : 'text-blue-600 hover:bg-blue-50 border-blue-100 bg-white'
+              }`}
             >
-              <MessageSquare size={8} />
-              {task.comments && task.comments.length > 0 ? `(${task.comments.length})` : 'CHAT'}
+              <MessageSquare size={12} fill={showBadge ? "white" : (task.comments?.length || 0) > 0 ? "rgba(220, 38, 38, 0.1)" : "none"} />
+              <span className="text-[10px] font-black tracking-tight uppercase">CHAT</span>
+              {showBadge && (
+                <span className="flex items-center justify-center min-w-[14px] h-[14px] px-1 bg-white text-red-600 text-[8px] font-black rounded-full shadow-sm animate-bounce border border-red-100">
+                  {unreadCount}
+                </span>
+              )}
             </button>
 
             <AnimatePresence>
@@ -163,13 +199,50 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
         )}
       </td>
       <td className="py-2 px-1 text-center border-b border-r border-gray-300 align-middle">
-        <div className="flex flex-col items-center justify-center gap-3 w-full max-w-[60px] mx-auto min-h-full py-1">
-          <button 
-            onClick={() => onUndo(task.id)} 
-            className="w-full px-1 py-2 text-[10px] bg-amber-500 text-white rounded font-black hover:bg-amber-600 transition-all uppercase tracking-tighter shadow-md"
-          >
-            H.TÁC
-          </button>
+        <div className="flex flex-col items-center justify-center gap-2 w-full max-w-[70px] mx-auto min-h-full py-1">
+          {task.requestUndo === 'PENDING' ? (
+            <div className="w-full flex flex-col gap-1">
+              <span className="text-[7px] font-black text-amber-600 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 animate-pulse uppercase">Chờ hoàn tác</span>
+              {(user.role === 'Admin' || user.role === 'Leader') && (
+                <div className="flex flex-col gap-1">
+                  <button 
+                    onClick={() => onUndo(task.id)} 
+                    className="w-full px-1 py-1 text-[8px] bg-green-600 text-white rounded font-black hover:bg-green-700 transition-all uppercase shadow-sm"
+                  >
+                    DUYỆT
+                  </button>
+                  <button 
+                    onClick={() => onUpdate(task.id, { requestUndo: 'REJECTED' })} 
+                    className="w-full px-1 py-1 text-[8px] bg-red-500 text-white rounded font-black hover:bg-red-600 transition-all uppercase shadow-sm"
+                  >
+                    BÁC
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button 
+              onClick={() => {
+                if (user.role === 'Admin' || user.role === 'Leader') {
+                  onUndo(task.id);
+                } else {
+                  onUpdate(task.id, { 
+                    requestUndo: 'PENDING', 
+                    undoRequestAt: new Date().toISOString(),
+                    undoRequestBy: user.name
+                  });
+                  // Optionally trigger a notification logic passed down or handled in Parent
+                }
+              }} 
+              className={`w-full px-1 py-2 text-[10px] rounded font-black transition-all uppercase tracking-tighter shadow-md ${
+                task.requestUndo === 'REJECTED' 
+                  ? 'bg-gray-400 text-white cursor-not-allowed opacity-50' 
+                  : 'bg-amber-500 text-white hover:bg-amber-600'
+              }`}
+            >
+              H.TÁC
+            </button>
+          )}
           <button 
              onClick={() => onUpdate(task.id, { isHighlighted: !task.isHighlighted })}
              className={`w-full px-1 py-2 text-[10px] rounded font-black transition-all uppercase tracking-tighter shadow-md border ${

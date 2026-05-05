@@ -18,6 +18,7 @@ interface DirectChatProps {
   onClose: () => void;
   onReact?: (msgId: string, emoji: string) => void;
   allUsers: User[];
+  onJumpToTask?: (taskId: string) => void;
   variant?: 'panel' | 'bubble';
   top?: number;
   isMinimized?: boolean;
@@ -32,6 +33,7 @@ export const DirectChat = ({
   onClose, 
   onReact, 
   allUsers,
+  onJumpToTask,
   variant = 'panel',
   top = 0,
   isMinimized = false,
@@ -284,12 +286,34 @@ export const DirectChat = ({
                   chatMessages.map((msg) => {
                     const isMe = msg.senderId === myRelevantId || msg.senderId === currentUser.id;
                     
+                    // Regex find #UNDO_ followed by taskId
+                    const undoMatch = msg.content.match(/#UNDO_([a-zA-Z0-9_\-]+)/);
+                    const taskId = undoMatch ? undoMatch[1] : null;
+                    const content = taskId 
+                      ? msg.content.replace(`#UNDO_${taskId}`, '').trim()
+                      : msg.content;
+
                     return (
                       <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                         <div className={`p-3 rounded-2xl text-[11px] leading-relaxed shadow-sm w-full relative group/msg ${
                           isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-none'
                         }`}>
-                          {msg.content}
+                          {content}
+                          {taskId && (
+                            <button 
+                              onClick={() => {
+                                onJumpToTask?.(taskId);
+                                // Optional: highlight animation or close chat
+                              }}
+                              className={`mt-2 block w-full p-2 rounded-lg text-center font-black transition-all border-2 ${
+                                isMe 
+                                  ? 'bg-white/20 border-white/40 text-white group-hover/msg:bg-white/30' 
+                                  : 'bg-blue-50 border-blue-200 text-blue-700 group-hover/msg:bg-blue-100'
+                              } animate-pulse shadow-sm`}
+                            >
+                                <span translate="no" className="notranslate">⚡ XEM CÔNG VIỆC CẦN HOÀN TÁC ⚡</span>
+                            </button>
+                          )}
                         </div>
                         
                         <ReactionBadge reactions={msg.reactions} users={allUsers} />

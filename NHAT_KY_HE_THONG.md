@@ -264,22 +264,25 @@ Tài liệu này là sự hợp nhất giữa Nhật ký Trò chuyện và Nhậ
     - Cập nhật `App.tsx` để xử lý điều hướng và thông báo tin nhắn mới thời gian thực.
 - **Cập nhật Giao diện:** Áp dụng thiết kế thẻ nhân sự "Dark Shield" bo góc lớn (#132d6b) với QR Code bảo mật và các nút chức năng tối ưu.
 
-### 📝 Cập nhật mới nhất: 04/05/2026 (Thiết quân luật & Độc tôn Hệ thống)
-- **Cải tiến Mã định danh (P.STTYYYY):**
-    - **Định dạng mới:** Chuyển đổi mã chủ đề sang `P.STTYYYY` (Ví dụ: `P.0012026`).
-    - **Giao diện "Ô đỏ":** Thiết kế lại ô mã số nhỏ gọn (Portrait box), chia 2 dòng: `P.STT` (Chữ to, đậm) và `YYYY` (Chữ nhỏ phía dưới).
-    - **Bảo vệ nội dung:** Bọc thẻ `<span translate="no" class="notranslate">` chống dịch tự động, đảm bảo mã chuyên môn QA không bị biến đổi.
-- **Nút RESET Quyền lực (Admin Only):**
-    - **Vị trí:** Nằm bên trái khu vực điều khiển chủ đề.
-    - **Logic hủy diệt:** Xóa sạch toàn bộ `topics`, `messages`, đặt lại bộ đếm `topic_counter` về 0.
-    - **Cảnh báo an toàn:** Xác nhận đa tầng với nội dung: *"CẢNH BÁO QUAN TRỌNG: Hành động này sẽ xóa sạch dữ liệu và đặt lại bộ đếm. Bạn có chắc chắn muốn thực hiện?"*.
-- **Chế độ "Độc tôn" (System Exclusivity):**
-    - **Tạo mới:** Cho phép Admin tạo chủ đề mới, nhưng hệ thống vẫn duy trì chủ đề "TRAO ĐỔI TỰ DO" làm gốc.
-    - **Chủ đề Hệ thống chuẩn:** Tự động khởi tạo duy nhất chủ đề **"TRAO ĐỔI TỰ DO"** với mã định danh mặc định `P.0002026` khi hệ thống trống hoặc sau khi Reset.
-    - **Màu sắc ổn định:** Khóa màu đỏ đặc trưng cho chủ đề hệ thống, không thay đổi hiệu ứng khi được nhấn chọn để duy trì tính nhận diện.
-- **Dọn dẹp mã nguồn:** Xóa bỏ hoàn toàn file `AGENTS.md` và tinh gọn logic khởi tạo dữ liệu trong `useFirebaseData`.
-- **Sửa lỗi Reset:** Cập nhật hàm `resetSystem` theo quy trình nguyên tử (Atomic), xóa sạch vĩnh viễn `topics` và `messages` bằng vòng lặp, ép bộ đếm về 0 và hiển thị màn hình chờ "ĐANG QUÉT SẠCH HỆ THỐNG...".
+### 📝 Cập nhật mới nhất: 04/05/2026 (Khởi tạo lại hệ thống thảo luận)
+- **Hệ thống Mã hóa tinh gọn (PSTT):**
+    - Triển khai định dạng mã chủ đề tối giản: chỉ bao gồm `P` + `STT` (3 số). 
+    - Ví dụ: `P001`.
+- **Giao diện mã chủ đề:** Hiển thị mã PSTT lớn và căn giữa ô đại diện, loại bỏ dòng ngày tháng để giao diện thoáng hơn.
+- **Tính năng Reset:** Thêm nút RESET (Admin) để đặt lại số thứ tự về 000 khi cần bắt đầu lại từ đầu.
+- **Linh hoạt:** Loại bỏ hoàn toàn các ràng buộc về chủ đề hệ thống mặc định. Mọi chủ đề hiện nay đều do người dùng quản lý.
 
 ---
 
-*Ngày cập nhật cuối cùng: 04/05/2026*
+### 📝 Cập nhật mới nhất: 05/05/2026 (Hoàn thiện hệ thống & Kết nối nhân sự)
+- **Kết nối nhân sự thành công:** 
+    - Nhân viên đầu tiên (**Mai Thị Hậu**) đã đăng ký và kết nối hệ thống thành công.
+- **Bảo vệ danh tính (Anti-Translation):**
+    - Toàn bộ tên người dùng tại Sidebar và Trang cá nhân đã được bọc thẻ `<span translate="no" class="notranslate">` để ngăn Google Translate dịch nhầm tên riêng.
+- **Tinh chỉnh quyền hạn Staff:**
+    - Xác minh và đảm bảo nhân sự (Role: Staff) có thể xem toàn bộ công việc của phòng nhưng không có quyền Xóa hoặc Quản lý nhân sự.
+- **Làm sạch hệ thống:** Gỡ bỏ các cảnh báo (Warning) không cần thiết trong Console khi người dùng đã có profile chính thức.
+
+---
+
+*Ngày cập nhật cuối cùng: 05/05/2026*

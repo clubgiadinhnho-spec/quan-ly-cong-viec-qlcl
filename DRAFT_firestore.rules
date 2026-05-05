@@ -1,16 +1,26 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // 0. Global Safety Net
+    // Global Access Control
     match /{document=**} {
-      allow read, write: if false;
+      allow read, write, delete: if isAdmin();
     }
 
-    // Helper Primitives
+    // Helper functions
     function isSignedIn() {
       return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'truong.le@tanphuvietnam.vn' || 
+        request.auth.token.email == 'lenhattruong.tpp@gmail.com' ||
+        request.auth.token.email == 'lenhattruong.caphef1@gmail.com' ||
+        request.auth.token.email == 'club.nhuatanphu@gmail.com' ||
+        request.auth.token.email == 'tanphuvietnam.tpp@gmail.com' ||
+        request.auth.token.email == 'truongln.tanhongngoc@gmail.com'
+      );
     }
 
     function isValidId(id) {
@@ -25,125 +35,117 @@ service cloud.firestore {
       return resource.data;
     }
 
-    // Since we use Anonymous auth, we don't have email-verified.
-    // We check if the user is signed in at all.
-    // For production, Google Auth with email verification is better.
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
 
-    // 1. Users Collection
-    match /users/{userId} {
+    // --- Validation Blueprints ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'name', 'role']) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 200 &&
+             data.role in ['Staff', 'Leader', 'Admin'];
+    }
+
+    function isValidTask(data) {
+      return data.keys().hasAll(['code', 'title', 'assigneeId', 'status']) &&
+             data.code is string && data.code.size() <= 50 &&
+             data.title is string && data.title.size() <= 500 &&
+             data.status in ['IN_PROGRESS', 'PENDING_APPROVAL', 'COMPLETED', 'CANCELLED', 'ON_HOLD'];
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['authorId', 'content', 'timestamp']) &&
+             data.authorId is string && data.authorId.size() <= 128 &&
+             data.content is string && data.content.size() <= 5000;
+    }
+
+    // --- Collections ---
+
+    // 1. User Profiles
+    match /user_profiles/{profileId} {
+      allow list: if isAdmin();
+      allow get: if isSignedIn();
+      allow create: if isAdmin() || (isSignedIn() && profileId == request.auth.uid && isValidUser(incoming()));
+      allow update: if isAdmin() || (isSignedIn() && profileId == request.auth.uid && isValidUser(incoming()));
+    }
+
+    // 2. Extra Users (Auto-registration fallback)
+    match /extra_users/{userId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidUser(incoming());
-      allow update: if isSignedIn() && isValidUser(incoming()) && (
-        // Allow self-update of non-sensitive fields
-        (incoming().diff(existing()).affectedKeys().hasOnly(['lastActive', 'personalNote', 'zalo', 'avatar', 'securityQuestion', 'securityAnswer'])) ||
-        // Admin can update everything
-        isAdmin()
+      allow write: if isAdmin() || (isSignedIn() && userId == request.auth.uid);
+    }
+
+    // 3. Tasks
+    match /tasks/{taskId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isValidTask(incoming());
+      allow update: if isSignedIn() && isValidTask(incoming()) && (
+        isAdmin() || 
+        incoming().assigneeId == request.auth.uid || 
+        existing().assigneeId == request.auth.uid
       );
       allow delete: if isAdmin();
     }
 
-    function isValidUser(data) {
-      return data.keys().hasAll(['id', 'name', 'phone', 'role', 'status'])
-        && data.id is string && data.id.size() <= 64
-        && data.name is string && data.name.size() <= 100
-        && data.phone is string && data.phone.size() <= 20
-        && data.role in ['Nhân Viên', 'Trưởng Nhóm', 'Trưởng Phòng', 'Admin']
-        && data.status in ['PENDING', 'ACTIVE', 'INACTIVE'];
-    }
-
-    // 2. Tasks Collection
-    match /tasks/{taskId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidTask(incoming());
-      allow update: if isSignedIn() && isValidTask(incoming()) && (
-        // Action: Common Update (Assignee or Status)
-        (incoming().diff(existing()).affectedKeys().hasAny(['status', 'currentUpdate', 'prevProgress', 'updatedAt', 'sortTimestamp'])) ||
-        // Action: Manager Action
-        (isManager() && incoming().diff(existing()).affectedKeys().hasAny(['isHighlighted', 'isLocked', 'priority', 'assigneeId', 'expectedEndDate'])) ||
-        // Admin escape hatch
-        isAdmin()
-      );
-      allow delete: if isManager() || isAdmin();
-    }
-
-    function isValidTask(data) {
-      return data.keys().hasAll(['id', 'code', 'title', 'assigneeId', 'status', 'priority'])
-        && data.id is string
-        && data.code is string && data.code.size() <= 20
-        && data.title is string && data.title.size() <= 200
-        && data.status in ['IN_PROGRESS', 'PENDING_APPROVAL', 'COMPLETED', 'CANCELLED', 'ON_HOLD']
-        && data.priority in ['LOW', 'MEDIUM', 'HIGH'];
-    }
-
-    // 3. Messages (Group Chat)
+    // 4. Messages (General Chat)
     match /messages/{msgId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isValidMessage(incoming()) && incoming().authorId == request.auth.uid;
+      allow update: if isAdmin() || (isSignedIn() && existing().authorId == request.auth.uid && incoming().authorId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // 5. Discussion
+    match /discussion_topics/{topicId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidMessage(incoming());
-      allow update, delete: if isAdmin();
+      allow write: if isSignedIn();
+    }
+    match /discussion_messages/{msgId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidMessage(incoming()) && incoming().authorId == request.auth.uid;
+      allow update: if isAdmin() || (isSignedIn() && existing().authorId == request.auth.uid);
+      allow delete: if isAdmin();
     }
 
-    function isValidMessage(data) {
-      return data.keys().hasAll(['authorId', 'content'])
-        && data.content is string && data.content.size() <= 5000;
-    }
-
-    // 4. Direct Messages (Private Chat)
+    // 6. Direct Messages
     match /direct_messages/{msgId} {
-      allow read: if isSignedIn() && (resource.data.senderId == getMyCustomId() || resource.data.receiverId == getMyCustomId());
-      allow create: if isSignedIn() && isValidDirectMessage(incoming()) && (incoming().senderId == getMyCustomId());
-      allow update, delete: if isAdmin();
+      allow list: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow get: if isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow create: if isSignedIn() && incoming().senderId == request.auth.uid;
+      allow update: if isSignedIn() && (existing().senderId == request.auth.uid || existing().receiverId == request.auth.uid);
+      allow delete: if isAdmin();
     }
 
-    function isValidDirectMessage(data) {
-      return data.keys().hasAll(['senderId', 'receiverId', 'chatId', 'content'])
-        && data.content is string && data.content.size() <= 5000;
+    // 7. Presence
+    match /presence/{id} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && id == request.auth.uid;
     }
 
-    // 5. Official Reports
+    // 8. Reports
+    match /report_drafts/{draftId} {
+      allow read: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow write: if isSignedIn() && (isAdmin() || incoming().userId == request.auth.uid);
+    }
     match /official_reports/{reportId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidOfficialReport(incoming());
-      allow update, delete: if isAdmin();
+      allow write: if isAdmin();
     }
 
-    function isValidOfficialReport(data) {
-      return data.keys().hasAll(['userId', 'monthYear', 'content'])
-        && data.content is string;
+    // 9. System
+    match /system_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+    }
+    match /settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
-    // 6. Report Drafts
-    match /report_drafts/{draftId} {
-      allow read: if isSignedIn() && (resource.data.userId == getMyCustomId());
-      allow create, update: if isSignedIn() && isValidReportDraft(incoming()) && (incoming().userId == getMyCustomId());
-      allow delete: if isSignedIn() && (resource.data.userId == getMyCustomId());
-    }
 
-    function isValidReportDraft(data) {
-      return data.keys().hasAll(['userId', 'monthYear', 'content'])
-        && data.content is string;
-    }
-
-    // Helper to check if current user is Admin via the users collection
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(getMyCustomId())).data.role == 'Admin';
-    }
-
-    function isManager() {
-      let role = get(/databases/$(database)/documents/users/$(getMyCustomId())).data.role;
-      return role in ['Admin', 'Trưởng Phòng', 'Trưởng Nhóm'];
-    }
-
-    // This is tricky: we need a way to link the auth.uid to the internal user ID.
-    // For now, if we use Anonymous auth, we can't easily do this without a mapping.
-    // I'll assume the app stores the 'uid' in the user document when they log in.
-    // But since I don't have that yet, I'll temporarily use a simpler check or 
-    // allow all signed in users for some actions.
-    
-    function getMyCustomId() {
-       // Placeholder: in a real app, you'd do:
-       // return get(/databases/$(database)/documents/uid_map/$(request.auth.uid)).data.userId;
-       // For this demo, let's assume the auth works.
-       return request.auth.uid; 
-    }
   }
 }

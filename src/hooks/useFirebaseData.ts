@@ -30,6 +30,7 @@ export const useFirebaseData = (currentUserId?: string) => {
   const [officialReports, setOfficialReports] = useState<OfficialReport[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [extraUsers, setExtraUsers] = useState<User[]>([]);
+  const [userProfiles, setUserProfiles] = useState<User[]>([]);
   const [presence, setPresence] = useState<UserPresence[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,6 +39,15 @@ export const useFirebaseData = (currentUserId?: string) => {
       setLoading(false);
       return;
     }
+
+    let tasksLoaded = false;
+    let topicsLoaded = false;
+
+    const checkLoading = () => {
+      if (tasksLoaded && topicsLoaded) {
+        setLoading(false);
+      }
+    };
 
     // Listen to Presence
     const presenceUnsubscribe = onSnapshot(
@@ -97,10 +107,15 @@ export const useFirebaseData = (currentUserId?: string) => {
         // In-memory sort by code (desc)
         const sorted = tasksData.sort((a, b) => (b.code || '').localeCompare(a.code || ''));
         setTasks(sorted);
-        setLoading(false);
+        tasksLoaded = true;
+        checkLoading();
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, 'tasks');
+        if (error.code === 'permission-denied') {
+          console.warn("🔐 [useFirebaseData] Permission denied for 'tasks'. This is expected if auth is still initializing.");
+        } else {
+          handleFirestoreError(error, OperationType.GET, 'tasks');
+        }
       }
     );
 
@@ -127,31 +142,39 @@ export const useFirebaseData = (currentUserId?: string) => {
         setMessages(messagesData);
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, 'messages');
+        if (error.code === 'permission-denied') {
+          console.warn("🔐 [useFirebaseData] Permission denied for 'messages'. This is expected if auth is still initializing.");
+        } else {
+          handleFirestoreError(error, OperationType.GET, 'messages');
+        }
       }
     );
 
-  // Listen to Discussion Topics
-  const topicsUnsubscribe = onSnapshot(
-    query(collection(db, 'discussion_topics'), orderBy('createdAt', 'desc')),
-    async (snapshot) => {
-      const topicsData = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          ...data,
-          id: doc.id,
-          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString()),
-          closedAt: data.closedAt?.toDate ? data.closedAt.toDate().toISOString() : data.closedAt
-        } as DiscussionTopic;
-      });
-      setDiscussionTopics(topicsData);
-    },
-    (error) => {
-      if (error.code !== 'permission-denied') {
-        console.warn("Discussion topics error:", error.message);
+    // Listen to Discussion Topics
+    const topicsUnsubscribe = onSnapshot(
+      query(collection(db, 'discussion_topics'), orderBy('createdAt', 'desc')),
+      async (snapshot) => {
+        const topicsData = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            ...data,
+            id: doc.id,
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString()),
+            closedAt: data.closedAt?.toDate ? data.closedAt.toDate().toISOString() : data.closedAt
+          } as DiscussionTopic;
+        });
+        
+        // CĐ: KHÔNG TỰ ĐỘNG KHỞI TẠO NẾU TRỐNG. Admin sẽ tự tạo.
+        setDiscussionTopics(topicsData);
+        topicsLoaded = true;
+        checkLoading();
+      },
+      (error) => {
+        if (error.code !== 'permission-denied') {
+          console.warn("Discussion topics error:", error.message);
+        }
       }
-    }
-  );
+    );
 
     // Listen to Discussion Messages
     const discMessagesUnsubscribe = onSnapshot(
@@ -255,22 +278,37 @@ export const useFirebaseData = (currentUserId?: string) => {
       }
     });
 
-    // Listen to Extra Users
-    const extraUsersUnsubscribe = onSnapshot(
-      collection(db, 'extra_users'),
-      (snapshot) => {
-        const usersData = snapshot.docs.map(doc => ({
-          ...doc.data(),
-          id: doc.id
-        } as User));
-        setExtraUsers(usersData);
-      },
-      (error) => {
-        if (error.code !== 'permission-denied') {
-          console.warn("Extra users listener error:", error.message);
+    // Listen to Extra Users - ADMIN ONLY
+    const isAdmin = [
+      "truong.le@tanphuvietnam.vn", 
+      "lenhattruong.tpp@gmail.com", 
+      "lenhattruong.caphef1@gmail.com",
+      "club.nhuatanphu@gmail.com", 
+      "tanphuvietnam.tpp@gmail.com", 
+      "truongln.tanhongngoc@gmail.com"
+    ].includes((auth.currentUser?.email || "").toLowerCase());
+
+    let extraUsersUnsubscribe = () => {};
+    if (isAdmin) {
+      extraUsersUnsubscribe = onSnapshot(
+        collection(db, 'extra_users'),
+        (snapshot) => {
+          const usersData = snapshot.docs.map(doc => ({
+            ...doc.data(),
+            id: doc.id
+          } as User));
+          setExtraUsers(usersData);
+        },
+        (error) => {
+          if (error.code !== 'permission-denied') {
+            console.warn("Extra users listener error:", error.message);
+          }
         }
-      }
-    );
+      );
+    }
+
+    // user_profiles is now handled exclusively by useStaff hook
+    const profilesUnsubscribe = () => {};
 
     return () => {
       tasksUnsubscribe();
@@ -281,17 +319,23 @@ export const useFirebaseData = (currentUserId?: string) => {
       logsUnsubscribe();
       unsubPrivate();
       extraUsersUnsubscribe();
+      profilesUnsubscribe();
       presenceUnsubscribe();
     };
   }, [currentUserId, auth.currentUser?.uid]);
 
+  const lastPresenceData = useRef<{name: string, avatar: string} | null>(null);
   const lastPresenceUpdate = useRef<number>(0);
 
   const updatePresence = useCallback(async (user: User) => {
     try {
       const now = Date.now();
-      // Gating: Chặn đứng vòng lặp, chỉ cho phép cập nhật sau mỗi 4 phút
-      if (now - lastPresenceUpdate.current < 240000) return;
+      const hasChanged = !lastPresenceData.current || 
+                         lastPresenceData.current.name !== user.name || 
+                         lastPresenceData.current.avatar !== user.avatar;
+
+      // Only throttle if data hasn't changed. If it changed (e.g. new avatar), update immediately.
+      if (!hasChanged && (now - lastPresenceUpdate.current < 240000)) return;
 
       await setDoc(doc(db, 'presence', user.id), {
         id: user.id,
@@ -300,7 +344,9 @@ export const useFirebaseData = (currentUserId?: string) => {
         lastActive: serverTimestamp(),
         status: 'online'
       });
+      
       lastPresenceUpdate.current = now;
+      lastPresenceData.current = { name: user.name, avatar: user.avatar };
     } catch (error) {
       console.warn("Failed to update presence:", error);
     }
@@ -331,7 +377,7 @@ export const useFirebaseData = (currentUserId?: string) => {
 
   const saveReportDraft = useCallback(async (draft: Omit<ReportDraft, 'id'>) => {
     try {
-      const draftId = `${draft.monthYear.replace(/\//g, '-')}_${draft.userId}`;
+      const draftId = `${(draft.monthYear || '').replace(/\//g, '-')}_${draft.userId}`;
       await setDoc(doc(db, 'report_drafts', draftId), {
         ...draft,
         updatedAt: serverTimestamp()
@@ -396,39 +442,34 @@ export const useFirebaseData = (currentUserId?: string) => {
 
   const createTopic = useCallback(async (topic: Omit<DiscussionTopic, 'id' | 'createdAt'>) => {
     try {
-      const currentYear = new Date().getFullYear();
+      const now = new Date();
       const sttRef = doc(db, 'settings', 'topic_counter');
-      
+      const dd = String(now.getDate()).padStart(2, '0');
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const yy = String(now.getFullYear()).slice(-2);
+      const dateStr = `${dd}${mm}${yy}`;
+
       await runTransaction(db, async (transaction) => {
         const sttDoc = await transaction.get(sttRef);
-        let nextStt = 1;
+        let nextStt = 0;
 
         if (sttDoc.exists()) {
-          const data = sttDoc.data();
-          if (data.year === currentYear) {
-            nextStt = (data.lastStt || 0) + 1;
-          } else {
-            nextStt = 1;
-          }
-        } else {
-          // Special case for the very first initialization in a new project
-          nextStt = 0; 
+          nextStt = (sttDoc.data().lastStt ?? -1) + 1;
         }
 
-        // New format: P0002026 if nextStt is 0
-        const formattedCode = `P${String(nextStt).padStart(3, '0')}${currentYear}`;
+        const formattedStt = String(nextStt).padStart(3, '0');
+        const finalCode = `P${formattedStt}${dateStr}`;
         
         transaction.set(sttRef, {
           lastStt: nextStt,
-          year: currentYear,
           updatedAt: serverTimestamp()
         });
 
         const topicRef = doc(collection(db, 'discussion_topics'));
         transaction.set(topicRef, {
           ...topic,
-          topicCode: formattedCode,
-          orderCode: String(nextStt).padStart(3, '0'),
+          topicCode: finalCode,
+          orderCode: formattedStt,
           createdAt: serverTimestamp()
         });
       });
@@ -524,6 +565,18 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
+  const updateProfile = useCallback(async (uniqueKey: string, updates: Partial<User>) => {
+    try {
+      // Logic requirement: ID must be uniqueKey, use setDoc with merge: true
+      await setDoc(doc(db, 'user_profiles', uniqueKey), {
+        ...updates,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `user_profiles/${uniqueKey}`);
+    }
+  }, []);
+
   const deleteExtraUser = useCallback(async (userId: string) => {
     try {
       await deleteDoc(doc(db, 'extra_users', userId));
@@ -553,6 +606,135 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
+  const deleteTopicsBulk = useCallback(async (topicIds: string[]) => {
+    try {
+      console.log(`[FORCED DELETE] Starting sequence for ${topicIds.length} topics...`);
+      
+      const allMessageRefs: any[] = [];
+      
+      // Step 1: Batch the fetching of messages to avoid hitting limits or resource exhaustion
+      const CHUNK_SIZE = 10;
+      for (let i = 0; i < topicIds.length; i += CHUNK_SIZE) {
+        const chunk = topicIds.slice(i, i + CHUNK_SIZE);
+        const fetchPromises = chunk.map(id => {
+          const q = query(collection(db, 'discussion_messages'), where('topicId', '==', id));
+          return getDocs(q);
+        });
+        
+        const snapshots = await Promise.all(fetchPromises);
+        snapshots.forEach(snapshot => {
+          snapshot.docs.forEach(doc => allMessageRefs.push(doc.ref));
+        });
+        console.log(`[FORCED DELETE] Fetched messages for chunk ${i/CHUNK_SIZE + 1}. Total messages so far: ${allMessageRefs.length}`);
+      }
+      
+      let batch = writeBatch(db);
+      let count = 0;
+
+      // Step 2: Delete topics
+      for (const topicId of topicIds) {
+        batch.delete(doc(db, 'discussion_topics', topicId));
+        count++;
+        
+        if (count >= 400) {
+          console.log("[FORCED DELETE] Committing topic batch...");
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+
+      // Step 3: Delete messages
+      console.log(`[FORCED DELETE] Deleting ${allMessageRefs.length} messages...`);
+      for (const msgRef of allMessageRefs) {
+        batch.delete(msgRef);
+        count++;
+        
+        if (count >= 400) {
+          console.log("[FORCED DELETE] Committing message batch...");
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+      
+      if (count > 0) {
+        console.log("[FORCED DELETE] Committing final batch...");
+        await batch.commit();
+      }
+      
+      console.log("[FORCED DELETE] Success!");
+      return true;
+    } catch (error) {
+      console.error("CRITICAL DELETE FAILURE:", error);
+      handleFirestoreError(error, OperationType.DELETE, `bulk_discussion_topics`);
+      throw error;
+    }
+  }, []);
+
+  const deleteTasksBulk = useCallback(async (taskIds: string[]) => {
+    try {
+      console.log(`[SYSTEM RESET] Starting bulk deletion of ${taskIds.length} tasks...`);
+      let batch = writeBatch(db);
+      let count = 0;
+
+      for (const taskId of taskIds) {
+        batch.delete(doc(db, 'tasks', taskId));
+        count++;
+
+        if (count >= 400) {
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+
+      if (count > 0) {
+        await batch.commit();
+      }
+      
+      console.log("[SYSTEM RESET] Tasks cleared successfully!");
+      return true;
+    } catch (error) {
+      console.error("BULK TASK DELETE FAILURE:", error);
+      handleFirestoreError(error, OperationType.DELETE, `bulk_tasks`);
+      throw error;
+    }
+  }, []);
+
+  const trashTasksBulk = useCallback(async (taskIds: string[]) => {
+    try {
+      console.log(`[BULK TRASH] Moving ${taskIds.length} tasks to trash...`);
+      let batch = writeBatch(db);
+      let count = 0;
+
+      for (const taskId of taskIds) {
+        batch.update(doc(db, 'tasks', taskId), {
+          deletedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        count++;
+
+        if (count >= 400) {
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+
+      if (count > 0) {
+        await batch.commit();
+      }
+      
+      console.log("[BULK TRASH] Tasks moved successfully!");
+      return true;
+    } catch (error) {
+      console.error("BULK TASK TRASH FAILURE:", error);
+      handleFirestoreError(error, OperationType.UPDATE, `bulk_trash_tasks`);
+      throw error;
+    }
+  }, []);
+
   return {
     tasks,
     messages,
@@ -562,15 +744,19 @@ export const useFirebaseData = (currentUserId?: string) => {
     officialReports,
     logs,
     extraUsers,
+    userProfiles,
     loading,
     addTask,
     updateTask,
     deleteTask,
+    deleteTasksBulk,
+    trashTasksBulk,
     sendMessage,
     sendDiscussionMessage,
     createTopic,
     updateTopic,
     deleteTopic,
+    deleteTopicsBulk,
     sendPrivateMessage,
     updateMessageReactions,
     updateDiscussionMessageReactions,
@@ -580,6 +766,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     saveOfficialReport,
     addExtraUser,
     updateExtraUser,
+    updateProfile,
     deleteExtraUser,
     deleteDiscussionMessage,
     presence,

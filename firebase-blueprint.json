@@ -158,9 +158,13 @@
     }
   },
   "firestore": {
-    "users": {
+    "user_profiles": {
       "schema": "User",
-      "description": "Collection of staff members"
+      "description": "Collection of staff member profiles"
+    },
+    "extra_users": {
+      "schema": "User",
+      "description": "Auto-registration fallback users"
     },
     "messages": {
       "schema": "Message",
@@ -193,6 +197,14 @@
     "presence": {
       "schema": "Presence",
       "description": "Real-time user presence tracking"
+    },
+    "system_logs": {
+      "schema": "object",
+      "description": "System event logs"
+    },
+    "settings": {
+      "schema": "object",
+      "description": "System settings and counters"
     }
   }
 }

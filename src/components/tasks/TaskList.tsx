@@ -20,6 +20,8 @@ interface TaskListProps {
   type: 'active' | 'completed' | 'trash';
   isReadOnly?: boolean;
   highlightedTaskId?: string | null;
+  selectedIds?: string[];
+  onToggleSelect?: (id: string) => void;
 }
 
 export const TaskList: React.FC<TaskListProps> = ({ 
@@ -38,7 +40,9 @@ export const TaskList: React.FC<TaskListProps> = ({
   type,
   isReadOnly = false,
   onRestore,
-  highlightedTaskId
+  highlightedTaskId,
+  selectedIds = [],
+  onToggleSelect
 }) => {
   const sortedTasks = [...tasks].sort((a, b) => {
     // 1. Phê duyệt (Dành cho cấp quản lý xác nhận lính mới) - nếu có status AWAITING_CONFIRMATION
@@ -122,13 +126,31 @@ export const TaskList: React.FC<TaskListProps> = ({
       <table className="w-full text-left border-separate border-spacing-0 table-fixed min-w-full">
         <thead>
           <tr className="bg-blue-600">
-            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[5%] text-center border-b border-l border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">
+            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[3%] text-center border-b border-l border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">
+               <input 
+                 type="checkbox"
+                 className="w-3 h-3 rounded border-blue-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                 checked={tasks.length > 0 && selectedIds.length === tasks.length}
+                 onChange={(e) => {
+                   if (e.target.checked) {
+                     tasks.forEach(t => {
+                       if (!selectedIds.includes(t.id)) onToggleSelect?.(t.id);
+                     });
+                   } else {
+                     tasks.forEach(t => {
+                       if (selectedIds.includes(t.id)) onToggleSelect?.(t.id);
+                     });
+                   }
+                 }}
+               />
+            </th>
+            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[5%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">
               <span translate="no" className="notranslate">Mã</span>
             </th>
-            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[16%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">
+            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[20%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">
               <span translate="no" className="notranslate">Nhân sự</span>
             </th>
-            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)] w-[34%]">
+            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)] w-[30%]">
               <span translate="no" className="notranslate">Nội dung & Mục tiêu</span>
             </th>
             <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[18%] text-center border-b border-r border-blue-700 bg-blue-600 sticky top-0 z-50 shadow-[0_1px_0_0_rgba(0,0,0,0.1)]">
@@ -168,6 +190,8 @@ export const TaskList: React.FC<TaskListProps> = ({
                 isReadOnly={isReadOnly}
                 onRestore={onRestore}
                 highlightedTaskId={highlightedTaskId}
+                isSelected={selectedIds.includes(task.id)}
+                onToggleSelect={onToggleSelect}
               />
             ) : type === 'active' ? (
               <TaskRow 
@@ -189,6 +213,8 @@ export const TaskList: React.FC<TaskListProps> = ({
                 onTogglePriority={handleTogglePriority}
                 isReadOnly={isReadOnly}
                 highlightedTaskId={highlightedTaskId}
+                isSelected={selectedIds.includes(task.id)}
+                onToggleSelect={onToggleSelect}
               />
             ) : (
               <CompletedTaskRow 
@@ -202,8 +228,15 @@ export const TaskList: React.FC<TaskListProps> = ({
                 isChatOpen={showChatModal === task.id}
                 onSendMessage={onSendMessage}
                 onReact={onReact}
-                onUndo={(id) => onUpdate(id, { status: 'IN_PROGRESS', actualEndDate: null, isLocked: false })}
+                onUndo={(id) => onUpdate(id, { 
+                  status: 'IN_PROGRESS', 
+                  actualEndDate: null, 
+                  isLocked: false, 
+                  requestUndo: null as any 
+                })}
                 onUpdate={onUpdate}
+                isSelected={selectedIds.includes(task.id)}
+                onToggleSelect={onToggleSelect}
               />
             )
           ))}

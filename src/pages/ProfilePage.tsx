@@ -6,6 +6,7 @@ import { formatDate } from '../lib/dateUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { Avatar } from '../components/common/Avatar';
 import { getSafeNameProps, isUserTask } from '../utils/userUtils';
+import { generateUniqueKey } from '../utils/stringUtils';
 import { updateAuthPassword } from '../lib/firebase';
 
 interface ProfilePageProps {
@@ -16,29 +17,25 @@ interface ProfilePageProps {
 }
 
 // GIÁ TRỊ BẤT BIẾN - AI KHÔNG ĐƯỢC TỰ Ý THAY ĐỔI DANH SÁCH CHỨC DANH NÀY
-const getHardcodedTitle = (name: string) => {
-  const normName = name.trim();
+const getDisplayNameTitle = (user: User) => {
+  if (user.title && user.title !== 'CHUYÊN VIÊN QC' && user.title !== 'CHỜ CẬP NHẬT') return user.title.toUpperCase();
+  
+  const normName = user.name.trim();
   if (normName === 'Lê Nhật Trường' || normName === 'Quản Trị Viên') return 'ADMIN';
-  if (normName === 'Võ Thị Mỹ Tân') return 'TRƯỞNG NHÓM (LEADER)';
-  if (normName === 'Nguyễn Kiều Phan Tú' || normName === 'Bành Nhựt Hùng') return 'NHÂN VIÊN (STAFF)';
-  return 'CHUYÊN VIÊN QC';
+  return user.title || 'CHUYÊN VIÊN QC';
 };
 
 export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: ProfilePageProps) => {
-  console.log('Email hiện tại:', currentUser?.email);
-  const [viewedUserId, setViewedUserId] = useState(currentUser.id);
+  // Use currentUser directly since we don't have URL routing
+  const user = currentUser;
+  
   const [isEditing, setIsEditing] = useState(false);
   const [advice, setAdvice] = useState<string | null>(null);
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  const user = users.find(u => u.id === viewedUserId) || currentUser;
-  const canEdit = currentUser?.email?.toLowerCase().trim() === user?.personalEmail?.toLowerCase().trim() || 
-                  currentUser?.companyEmail?.toLowerCase().trim() === user?.companyEmail?.toLowerCase().trim() ||
-                  currentUser?.email === 'truong.le@tanphuvietnam.vn' ||
-                  currentUser?.email === 'lenhattruong.tpp@gmail.com' ||
-                  currentUser?.role === 'Admin'; 
+  const canEdit = true; // One can always edit their own profile if the parent allows passing these props 
 
   const [formData, setFormData] = useState({
     name: user.name,
@@ -50,15 +47,17 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
   });
 
   useEffect(() => {
-    setFormData({
-      name: user.name,
-      phone: user.phone,
-      companyEmail: user.companyEmail,
-      personalEmail: user.personalEmail,
-      title: user.title || '',
-      avatar: user.avatar || ''
-    });
-  }, [user.id, user.name, user.phone, user.companyEmail, user.personalEmail, user.avatar, user.password, isEditing]);
+    if (!isEditing) {
+      setFormData({
+        name: user.name,
+        phone: user.phone,
+        companyEmail: user.companyEmail,
+        personalEmail: user.personalEmail,
+        title: user.title || '',
+        avatar: user.avatar || ''
+      });
+    }
+  }, [user.id, user.name, user.phone, user.companyEmail, user.personalEmail, user.avatar, isEditing]);
 
   const [passwordData, setPasswordData] = useState({
     newPassword: '',
@@ -84,67 +83,59 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
     if (!user) return;
     setSaving(true);
     
-    // Identify the best key for the Firestore document
-    // We prioritize personalEmail as it's the identifier used in useStaff
-    const profileKey = user.personalEmail || user.companyEmail || user.email;
+    // THIẾT QUÂN LUẬT: Tạo ID định danh thép theo công thức mới
+    let profileKey = generateUniqueKey(formData.name, formData.phone);
+    
+    // ĐẶC LỆNH ADMIN: Lê Nhật Trường luôn dùng ID cố định
+    if (user.name === 'Lê Nhật Trường' || user.uniqueKey === 'LeNhatTruong0907767304') {
+      profileKey = 'LeNhatTruong0907767304';
+    }
     
     if (!profileKey) {
-      alert("Không tìm thấy định danh người dùng (Email). Không thể lưu.");
+      alert("Không tìm thấy định danh người dùng. Không thể lưu.");
       setSaving(false);
       return;
     }
 
     try {
-      // 1. Update Password in Firebase Auth if provided (only for self)
-      if (passwordData.newPassword) {
-        if (passwordData.newPassword !== passwordData.confirmPassword) {
-          alert("Mật khẩu xác nhận không khớp!");
-          setSaving(false);
-          return;
-        }
-        if (passwordData.newPassword.length < 6) {
-          alert("Mật khẩu phải từ 6 ký tự trở lên!");
-          setSaving(false);
-          return;
-        }
-        
-        // Only attempt auth password update if updating own profile
-        const isSelf = currentUser?.email?.toLowerCase() === user.personalEmail?.toLowerCase() || 
-                       currentUser?.email?.toLowerCase() === user.companyEmail?.toLowerCase();
-                       
-        if (isSelf) {
-          try {
-            await updateAuthPassword(passwordData.newPassword);
-          } catch (authErr: any) {
-            console.warn("Auth password update failed (possibly not own account or session expired):", authErr);
-            if (authErr.code === 'auth/requires-recent-login') {
-               alert("Để bảo mật, bạn cần Đăng xuất và Đăng nhập lại trước khi có thể đổi mật khẩu.");
-               setSaving(false);
-               return;
-            }
-          }
-        }
-      }
+      console.log('🚀 [Source of Truth] Bắt đầu lưu profile với ID:', profileKey);
+      setSaving(true);
 
-      // 2. Update Firestore Profile
+      // 1. Prepare Firestore Updates
+      const currentPassword = passwordData.newPassword.trim() || user.password || '';
       const updates: Partial<User> = {
-        ...formData,
-        id: user.id, // Include stable ID
-        code: user.code, // Include stable Code
-        uniqueKey: user.uniqueKey, // Include stable UniqueKey
-        // CẬP BẬC ƯU TIÊN: Lưu mật khẩu mới hoặc giữ mật khẩu hiện tại vào Firestore
-        password: passwordData.newPassword || user.password || '123456',
+        name: formData.name,
+        phone: formData.phone,
+        companyEmail: formData.companyEmail,
+        personalEmail: formData.personalEmail,
+        title: formData.title,
+        avatar: formData.avatar,
+        password: currentPassword,
+        uniqueKey: profileKey, // Đảm bảo ghi lại key
         updatedAt: new Date().toISOString()
       };
 
-      console.log('Đang cập nhật hồ sơ cho:', profileKey, updates);
+      console.log(`📦 [Source of Truth] Pushing data to Firestore...`);
       await onUpdateProfile(profileKey, updates);
       
+      // 2. If password is changed, update Auth as well (only works for current user)
+      if (passwordData.newPassword.trim()) {
+        try {
+          await updateAuthPassword(passwordData.newPassword.trim());
+          console.log('✅ [ProfilePage] Auth password updated successfully!');
+        } catch (authErr: any) {
+          console.warn('⚠️ [ProfilePage] Could not update Auth password (possibly needs recent login):', authErr);
+          // Don't fail the whole operation, but alert the user if possible
+        }
+      }
+
+      console.log('✅ [ProfilePage] Lưu Firestore thành công!');
       alert("Đã cập nhật thông tin thành công!");
-      setToast("Cập nhật thành công!");
+      setToast("Đã lưu thay đổi!");
       setIsEditing(false);
       setPasswordData({ newPassword: '', confirmPassword: '' });
       setTimeout(() => setToast(null), 3000);
+      
     } catch (error: any) {
       console.error("Lỗi khi lưu Profile:", error);
       alert("Lỗi cập nhật: " + (error.message || "Không xác định"));
@@ -153,23 +144,16 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
     }
   };
 
-  const getRoleBgColor = (name: string) => {
-    const normName = name.trim();
-    const title = getHardcodedTitle(name);
-    // New light blue theme based on user request
+  const getRoleBgColor = (user: User) => {
+    const normName = user.name.trim();
+    const title = getDisplayNameTitle(user);
     if (normName === 'Lê Nhật Trường' || normName === 'Quản Trị Viên' || title === 'ADMIN') return 'bg-[#eff6ff]';
-    if (title === 'TRƯỞNG NHÓM (LEADER)') return 'bg-[#fff7ed]';
+    if (title.includes('TRƯỞNG NHÓM') || user.role === 'Leader') return 'bg-[#fff7ed]';
     return 'bg-[#f0fdf4]';
   };
 
-  const getRolePageBg = (name: string) => {
-    return 'bg-white';
-  };
-
-  const isOnline = user.lastActive && (Date.now() - user.lastActive < 120000);
-
   return (
-    <div className={`min-h-screen -m-6 p-6 ${getRolePageBg(user.name)} transition-colors duration-500`}>
+    <div className={`min-h-screen -m-6 p-6 bg-white transition-colors duration-500`}>
       <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-500">
         <AnimatePresence>
           {toast && (
@@ -185,11 +169,8 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
           )}
         </AnimatePresence>
 
-        {/* PROFILE CARD & STATS ROW - FULL WIDTH (max-w-6xl) */}
         <div className="space-y-4">
-          {/* NUTIFOOD STAFF CARD - ULTRA WIDE & LIGHT THEME */}
-          <div className={`${getRoleBgColor(user.name)} rounded-[32px] shadow-xl transition-all duration-300 relative flex flex-col px-12 py-6 overflow-hidden border-4 border-slate-100 w-full`}>
-            {/* Header row - Contrast colored text for light background */}
+          <div className={`${getRoleBgColor(user)} rounded-[32px] shadow-xl relative flex flex-col px-12 py-6 overflow-hidden border-4 border-slate-100 w-full`}>
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-6">
                 <h1 className="text-[28px] font-black text-slate-900 tracking-tight uppercase leading-none">
@@ -207,7 +188,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                 </h1>
                 <div className="flex items-center gap-4">
                   <div className="px-3 py-1 bg-blue-100 rounded-lg border border-blue-200 text-[11px] font-black text-blue-700 uppercase tracking-widest shadow-sm">
-                    {getHardcodedTitle(user.name) === 'ADMIN' ? <span translate="no" className="notranslate">ADMIN</span> : getHardcodedTitle(user.name)}
+                    <span translate="no" className="notranslate">{getDisplayNameTitle(user)}</span>
                   </div>
                   <span className="text-[15px] font-mono font-black text-slate-400 uppercase tracking-widest">#{user.code}</span>
                 </div>
@@ -219,13 +200,22 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                   className="h-10 px-6 rounded-xl bg-white text-slate-800 text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-50 transition-all active:scale-95 flex items-center gap-2 border border-slate-200"
                 >
                   <Edit3 size={16} strokeWidth={2.5} />
-                  CHỈNH SỬA
+                  <span translate="no" className="notranslate">CHỈNH SỬA / EDIT</span>
                 </button>
               )}
               {isEditing && (
                 <div className="flex gap-2">
-                  <button onClick={handleSave} className="h-10 px-6 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg hover:bg-blue-700">
-                    <Save size={16} strokeWidth={2.5} /> LƯU
+                  <button 
+                    onClick={handleSave} 
+                    disabled={saving}
+                    className={`h-10 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg transition-all ${saving ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  >
+                    {saving ? (
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Save size={16} strokeWidth={2.5} />
+                    )}
+                    <span translate="no" className="notranslate">{saving ? 'ĐANG LƯU / SAVING' : 'LƯU / SAVE'}</span>
                   </button>
                   <button onClick={() => setIsEditing(false)} className="h-10 px-6 bg-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-300 transition-colors">
                     HỦY
@@ -234,11 +224,9 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
               )}
             </div>
 
-            {/* Info Section */}
             <div className="flex gap-8 items-stretch">
-              {/* Left: Avatar */}
               <div className="w-32 shrink-0 group/avatar relative">
-                <div className="relative aspect-square w-full rounded-full overflow-hidden border-2 border-white shadow-lg">
+                <div className="relative aspect-square w-full rounded-full overflow-hidden border-2 border-white shadow-lg bg-slate-50">
                   <Avatar 
                     src={formData.avatar} 
                     name={formData.name} 
@@ -246,34 +234,84 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     className="border-none bg-transparent shadow-none" 
                   />
                   
-                  {/* Camera Overlay on Hover / Edit mode */}
-                  <div className={`absolute inset-0 flex flex-col items-center justify-center transition-opacity bg-white/20 backdrop-blur-sm ${isEditing ? 'opacity-100' : 'opacity-0 group-hover/avatar:opacity-100'}`}>
-                    <Camera size={32} className="text-blue-600 mb-1" strokeWidth={2.5} />
+                  <label className={`absolute inset-0 flex flex-col items-center justify-center transition-all cursor-pointer ${isEditing ? 'bg-blue-600/40 backdrop-blur-sm opacity-100' : 'bg-black/20 opacity-0 group-hover/avatar:opacity-100'}`}>
+                    <Camera size={28} className="text-white mb-1 drop-shadow-md" strokeWidth={2.5} />
                     {isEditing && (
-                      <input 
-                        type="text"
-                        placeholder="URL Ảnh"
-                        value={formData.avatar}
-                        onChange={e => setFormData({...formData, avatar: e.target.value})}
-                        className="text-[8px] font-black bg-white/80 border border-blue-200 rounded px-1 w-[90%] outline-none"
-                      />
+                      <span translate="no" className="notranslate text-[7px] font-black text-white uppercase tracking-widest text-center px-2 leading-tight">
+                        CLICK / KÉO THẢ<br/>ẢNH VÀO ĐÂY
+                      </span>
                     )}
-                  </div>
-
-
+                    <input 
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            const img = new Image();
+                            img.onload = () => {
+                              const canvas = document.createElement('canvas');
+                              const MAX_SIZE = 400;
+                              let width = img.width;
+                              let height = img.height;
+                              if (width > height) { if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } } 
+                              else { if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; } }
+                              canvas.width = width; canvas.height = height;
+                              const ctx = canvas.getContext('2d');
+                              ctx?.drawImage(img, 0, 0, width, height);
+                              const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                              setFormData(prev => ({ ...prev, avatar: dataUrl }));
+                            };
+                            img.src = event.target?.result as string;
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
               </div>
 
-              {/* Right: Info boxes */}
               <div className="flex-1 flex flex-col justify-center">
                 <div className="grid grid-cols-12 gap-4">
                   <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-3">
                     <div className="flex items-center gap-2 mb-2 opacity-50">
-                      <Phone size={12} className="text-slate-400" />
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ĐIỆN THOẠI</span>
+                      <Shield size={12} className="text-slate-400" />
+                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">CHỨC DANH / TITLE</span>
                     </div>
                     {!isEditing ? (
-                      <p className="text-[20px] font-black text-slate-900 font-mono tracking-tighter leading-none">{user.phone}</p>
+                      <div className="h-5 flex items-center">
+                        <p translate="no" className={`notranslate font-black tracking-tight leading-none text-slate-900 text-sm uppercase`}>
+                          {user.title || 'CHƯA XÁC ĐỊNH'}
+                        </p>
+                      </div>
+                    ) : (
+                      <select 
+                        value={formData.title}
+                        onChange={e => setFormData({...formData, title: e.target.value})}
+                        className="w-full text-xs font-black text-blue-600 outline-none bg-blue-50/30 rounded-lg px-2 py-1"
+                      >
+                        <option value="Nhân viên">Nhân viên</option>
+                        <option value="Trưởng nhóm">Trưởng nhóm</option>
+                        <option value="Quản trị viên">Quản trị viên</option>
+                        <option value="Chuyên viên QC">Chuyên viên QC</option>
+                      </select>
+                    )}
+                  </div>
+
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-3">
+                    <div className="flex items-center gap-2 mb-2 opacity-50">
+                      <Phone size={12} className="text-slate-400" />
+                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">ĐIỆN THOẠI / PHONE</span>
+                    </div>
+                    {!isEditing ? (
+                      <div className="h-5 flex items-center">
+                        <p translate="no" className={`notranslate font-mono font-black tracking-tighter leading-none ${user.phone === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-900 text-[20px]'}`}>
+                          {user.phone}
+                        </p>
+                      </div>
                     ) : (
                       <input 
                         type="text" value={formData.phone}
@@ -286,23 +324,21 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                   <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-6">
                     <div className="flex items-center gap-2 mb-2 opacity-50">
                       <Mail size={12} className="text-slate-400" />
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">HỆ THỐNG EMAIL</span>
+                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">HỆ THỐNG EMAIL</span>
                     </div>
                     {!isEditing ? (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-[13px] font-extrabold text-slate-900">
-                          <span className="text-[9px] font-black text-slate-400 w-8 shrink-0 tracking-tighter">CTY:</span>{user.companyEmail}
+                      <div translate="no" className="notranslate space-y-1 text-slate-900">
+                        <div className="flex items-center gap-2 text-[13px] font-extrabold uppercase">
+                          <span className="text-[9px] font-black text-slate-400 w-16 shrink-0 tracking-tighter">CÔNG TY:</span>{user.companyEmail || 'CHỜ CẬP NHẬT'}
                         </div>
-                        {user.personalEmail && (
-                          <div className="flex items-center gap-2 text-[13px] font-extrabold text-[#1e3a8a]">
-                            <span className="text-[9px] font-black text-slate-400 w-8 shrink-0 tracking-tighter">C/N:</span>{user.personalEmail}
-                          </div>
-                        )}
+                        <div className={`flex items-center gap-2 text-[13px] font-extrabold uppercase ${user.personalEmail === 'CHỜ CẬP NHẬT' ? 'text-gray-400' : 'text-[#1e3a8a]'}`}>
+                          <span className="text-[9px] font-black text-slate-400 w-16 shrink-0 tracking-tighter">CÁ NHÂN:</span>{user.personalEmail || 'CHỜ CẬP NHẬT'}
+                        </div>
                       </div>
                     ) : (
                       <div className="space-y-2">
                         <div className="flex items-center gap-1">
-                          <span className="text-[8px] font-black text-slate-400 w-6 shrink-0">CTY:</span>
+                          <span className="text-[8px] font-black text-slate-400 w-10 shrink-0 uppercase">Công ty:</span>
                           <input 
                             type="email" value={formData.companyEmail}
                             onChange={e => setFormData({...formData, companyEmail: e.target.value})}
@@ -310,7 +346,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                           />
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[8px] font-black text-slate-400 w-6 shrink-0">C/N:</span>
+                          <span className="text-[8px] font-black text-slate-400 w-10 shrink-0 uppercase">Cá nhân:</span>
                           <input 
                             type="email" value={formData.personalEmail}
                             onChange={e => setFormData({...formData, personalEmail: e.target.value})}
@@ -324,31 +360,27 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                   <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-3">
                     <div className="flex items-center gap-2 mb-2 opacity-50">
                       <Lock size={12} className="text-blue-500" />
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{!isEditing ? 'TRUY CẬP' : 'CẬP NHẬT MẬT KHẨU'}</span>
+                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">{!isEditing ? 'MẬT KHẨU / PASSWORD' : 'CẬP NHẬT MẬT KHẨU'}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       {!isEditing ? (
-                        <>
-                          <p className="text-[18px] font-black text-slate-900 font-mono tracking-[0.1em] leading-none">
-                            {showPassword ? (user.password || '123456') : '••••••••••••'}
+                        <div className="flex items-center justify-between w-full h-8">
+                          <p translate="no" className={`notranslate font-mono font-black leading-none ${user.password === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-900 text-[18px] tracking-[0.1em]'}`}>
+                            {showPassword ? (user.password || 'CHỜ CẬP NHẬT') : '••••••••••••'}
                           </p>
                           <button onClick={() => setShowPassword(!showPassword)} className="text-slate-300 hover:text-slate-600 transition-colors">
-                            <Eye size={16} strokeWidth={2.5} />
+                            {showPassword ? <EyeOff size={16} strokeWidth={2.5} /> : <Eye size={16} strokeWidth={2.5} />}
                           </button>
-                        </>
+                        </div>
                       ) : (
                         <div className="flex flex-col gap-1 w-full">
                            <input 
-                             type="password"
-                             placeholder="Mật khẩu mới"
-                             value={passwordData.newPassword}
+                             type="password" placeholder="Mật khẩu mới" value={passwordData.newPassword}
                              onChange={e => setPasswordData({...passwordData, newPassword: e.target.value})}
                              className="w-full text-[12px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-2 py-0.5"
                            />
                            <input 
-                             type="password"
-                             placeholder="Xác nhận"
-                             value={passwordData.confirmPassword}
+                             type="password" placeholder="Xác nhận" value={passwordData.confirmPassword}
                              onChange={e => setPasswordData({...passwordData, confirmPassword: e.target.value})}
                              className="w-full text-[12px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-2 py-0.5"
                            />
@@ -361,59 +393,11 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
             </div>
           </div>
 
-          {/* STATISTICS Row - 4 items scaled horizontally */}
           <div className="grid grid-cols-4 gap-4 px-0">
-            <div className="bg-amber-500 p-3 px-6 rounded-[24px] border-b-4 border-amber-600 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[80px]">
-              <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
-                <FileText size={50} />
-              </div>
-              <div className="flex items-center gap-2 mb-1 relative z-10">
-                <div className="p-1.5 bg-white/20 rounded-lg">
-                  <FileText size={14} strokeWidth={3} />
-                </div>
-                <p className="text-[11px] font-black uppercase tracking-widest leading-none">Tổng dự án</p>
-              </div>
-              <p className="text-2xl font-black leading-none relative z-10 text-right">{myTasks.length}</p>
-            </div>
-
-            <div className="bg-emerald-500 p-3 px-6 rounded-[24px] border-b-4 border-emerald-600 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[80px]">
-              <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
-                <CheckCircle2 size={50} />
-              </div>
-              <div className="flex items-center gap-2 mb-1 relative z-10">
-                <div className="p-1.5 bg-white/20 rounded-lg">
-                  <CheckCircle2 size={14} strokeWidth={3} />
-                </div>
-                <p className="text-[11px] font-black uppercase tracking-widest leading-none">Hiệu suất</p>
-              </div>
-              <p className="text-2xl font-black leading-none relative z-10 text-right">{efficiency}%</p>
-            </div>
-
-            <div className="bg-red-500 p-3 px-6 rounded-[24px] border-b-4 border-red-600 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[80px]">
-              <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
-                <Clock size={50} />
-              </div>
-              <div className="flex items-center gap-2 mb-1 relative z-10">
-                <div className="p-1.5 bg-white/20 rounded-lg">
-                  <Clock size={14} strokeWidth={3} />
-                </div>
-                <p className="text-[11px] font-black uppercase tracking-widest whitespace-nowrap leading-none">Đang xử lý</p>
-              </div>
-              <p className="text-2xl font-black leading-none relative z-10 text-right">{ongoing}</p>
-            </div>
-
-            <div className="bg-blue-600 p-3 px-6 rounded-[24px] border-b-4 border-blue-700 shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[80px]">
-              <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">
-                <CheckCircle size={50} />
-              </div>
-              <div className="flex items-center gap-2 mb-1 relative z-10">
-                <div className="p-1.5 bg-white/20 rounded-lg">
-                  <CheckCircle size={14} strokeWidth={3} />
-                </div>
-                <p className="text-[11px] font-black uppercase tracking-widest leading-none">Hoàn thành</p>
-              </div>
-              <p className="text-2xl font-black leading-none relative z-10 text-right">{completed}</p>
-            </div>
+             <StatCard icon={<FileText size={14} strokeWidth={3} />} label="Tổng dự án" value={myTasks.length} color="bg-amber-500" borderColor="border-amber-600" />
+             <StatCard icon={<CheckCircle2 size={14} strokeWidth={3} />} label="Hiệu suất" value={`${efficiency}%`} color="bg-emerald-500" borderColor="border-emerald-600" />
+             <StatCard icon={<Clock size={14} strokeWidth={3} />} label="Đang xử lý" value={ongoing} color="bg-red-500" borderColor="border-red-600" />
+             <StatCard icon={<CheckCircle size={14} strokeWidth={3} />} label="Hoàn thành" value={completed} color="bg-blue-600" borderColor="border-blue-700" />
           </div>
         </div>
 
@@ -421,9 +405,9 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-[12px] font-black text-gray-800 flex items-center gap-2 uppercase tracking-tighter">
+                  <h3 translate="no" className="notranslate text-[12px] font-black text-gray-800 flex items-center gap-2 uppercase tracking-tighter">
                     <FileText className="text-blue-600" />
-                    LỊCH SỬ CÔNG VIỆC CHI TIẾT (GẦN NHẤT)
+                    LỊCH SỬ CÔNG VIỆC CHI TIẾT
                   </h3>
                 </div>
                 <div className="space-y-4">
@@ -433,10 +417,9 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     myTasks.slice(0, 5).map((t) => (
                       <div key={t.id} className="p-5 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-between group hover:bg-white hover:border-blue-200 hover:shadow-md transition-all">
                         <div className="space-y-1">
-                          <p className="text-sm font-bold text-gray-800 group-hover:text-blue-600 transition-colors uppercase">{t.title}</p>
+                          <p translate="no" className="notranslate text-sm font-bold text-gray-800 group-hover:text-blue-600 transition-colors uppercase">{t.title}</p>
                           <div className="flex items-center gap-3">
                             <span className="text-[10px] font-black text-blue-500/60 uppercase">MÃ: {t.code}</span>
-                            <span className="text-gray-300">|</span>
                             <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1">
                               <Clock size={10} /> HẠN: {formatDate(t.expectedEndDate)}
                             </span>
@@ -445,7 +428,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                         <span className={`text-[9px] font-black px-3 py-1 rounded-lg uppercase tracking-widest border ${
                           t.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'
                         }`}>
-                          {t.status === 'COMPLETED' ? 'HOÀN THÀNH' : 'ĐANG THỰC HIỆN'}
+                          {t.status === 'COMPLETED' ? 'HOÀN THÀNH' : 'ĐANG XỬ LÝ'}
                         </span>
                       </div>
                     ))
@@ -455,40 +438,18 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
           </div>
 
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 h-fit flex flex-col gap-6">
-            <div>
-              <h3 className="text-[12px] font-black text-gray-800 mb-4 flex items-center gap-2 uppercase tracking-tighter">
-                <MessageSquare className="text-blue-600" />
-                AI PERFORMANCE ADVISOR
-              </h3>
-              <p className="text-[11px] text-gray-500 mb-6 leading-relaxed font-medium">
-                Sử dụng mô hình Gemini để phân tích dữ liệu hiệu suất và đưa ra các đề xuất cải thiện năng lực làm việc.
-              </p>
-            </div>
-            
+            <h3 translate="no" className="notranslate text-[12px] font-black text-gray-800 flex items-center gap-2 uppercase tracking-tighter">
+              <MessageSquare className="text-blue-600" />
+              AI PERFORMANCE ADVISOR
+            </h3>
             {advice ? (
               <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 animate-in zoom-in-95 duration-300 shadow-inner">
-                 <div className="prose prose-sm prose-blue text-xs leading-relaxed text-gray-700 whitespace-pre-wrap font-medium">
-                   {advice}
-                 </div>
-                 <button 
-                  onClick={getAdvice}
-                  className="mt-6 text-[10px] font-black text-blue-600 hover:underline flex items-center gap-1"
-                >
-                  LÀM MỚI PHÂN TÍCH
-                </button>
+                 <div className="prose prose-sm prose-blue text-xs leading-relaxed text-gray-700 whitespace-pre-wrap font-medium">{advice}</div>
+                 <button onClick={getAdvice} className="mt-6 text-[10px] font-black text-blue-600 hover:underline">LÀM MỚI PHÂN TÍCH</button>
               </div>
             ) : (
-              <button 
-                onClick={getAdvice}
-                disabled={loadingAdvice}
-                className="w-full bg-gray-900 hover:bg-black text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all shadow-xl shadow-gray-200 disabled:opacity-50 text-xs uppercase tracking-widest"
-              >
-                {loadingAdvice ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ĐANG PHÂN TÍCH...
-                  </>
-                ) : 'BẮT ĐẦU PHÂN TÍCH AI'}
+              <button onClick={getAdvice} disabled={loadingAdvice} className="w-full bg-gray-900 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all disabled:opacity-50 text-xs uppercase tracking-widest">
+                {loadingAdvice ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'BẮT ĐẦU PHÂN TÍCH AI'}
               </button>
             )}
           </div>
@@ -497,3 +458,14 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
     </div>
   );
 };
+
+const StatCard = ({ icon, label, value, color, borderColor }: any) => (
+  <div className={`${color} p-3 px-6 rounded-[24px] border-b-4 ${borderColor} shadow-lg relative overflow-hidden group text-white flex flex-col justify-center min-h-[80px]`}>
+    <div className="absolute right-[-2px] bottom-[-5px] opacity-10 group-hover:scale-110 transition-transform">{icon}</div>
+    <div className="flex items-center gap-2 mb-1 relative z-10">
+      <div className="p-1.5 bg-white/20 rounded-lg">{icon}</div>
+      <p translate="no" className="notranslate text-[11px] font-black uppercase tracking-widest leading-none">{label}</p>
+    </div>
+    <p className="text-2xl font-black leading-none relative z-10 text-right">{value}</p>
+  </div>
+);

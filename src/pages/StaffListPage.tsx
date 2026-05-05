@@ -5,7 +5,9 @@ import { Avatar } from '../components/common/Avatar';
 import { PermissionMatrixModal } from '../components/staff/PermissionMatrixModal';
 import { DelegationLetterModal } from '../components/staff/DelegationLetterModal';
 import { motion, AnimatePresence } from 'motion/react';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react'; 
+import { generateUniqueKey } from '../utils/stringUtils';
+import { updateAuthPassword } from '../lib/firebase';
 
 interface StaffListPageProps {
   onNavigate?: (tab: string) => void;
@@ -23,21 +25,23 @@ interface StaffListPageProps {
 }
 
 // GIÁ TRỊ BẤT BIẾN - AI KHÔNG ĐƯỢC TỰ Ý THAY ĐỔI DANH SÁCH CHỨC DANH NÀY
-const getHardcodedTitle = (name: string) => {
-  const normName = name.trim();
+const getDisplayNameTitle = (user: User) => {
+  // Ưu tiên hiển thị chức danh do người dùng chọn hoặc được admin cập nhật
+  if (user.title && user.title !== 'CHUYÊN VIÊN QC' && user.title !== 'CHỜ CẬP NHẬT') return user.title.toUpperCase();
+  
+  const normName = user.name.trim();
   if (normName === 'Lê Nhật Trường' || normName === 'Quản Trị Viên') return 'ADMIN';
-  if (normName === 'Võ Thị Mỹ Tân') return 'TRƯỞNG NHÓM (LEADER)';
-  if (normName === 'Nguyễn Kiều Phan Tú' || normName === 'Bành Nhựt Hùng') return 'NHÂN VIÊN (STAFF)';
-  return 'CHUYÊN VIÊN QC';
+  // Nếu không có title và không phải các tên đặc biệt, mới trả về mặc định
+  return user.title || 'CHUYÊN VIÊN QC';
 };
 
-const getRoleBgColor = (name: string) => {
-  const title = getHardcodedTitle(name);
-  const normName = name.trim();
+const getRoleBgColor = (user: User) => {
+  const title = getDisplayNameTitle(user);
+  const normName = user.name.trim();
   // Admin & Lê Nhật Trường -> Đỏ
   if (normName === 'Lê Nhật Trường' || normName === 'Quản Trị Viên' || title === 'ADMIN') return 'bg-[#FF3B30]'; 
   // Leader -> Cam
-  if (title === 'TRƯỞNG NHÓM (LEADER)') return 'bg-[#FF9500]'; 
+  if (title.includes('TRƯỞNG NHÓM') || user.role === 'Leader') return 'bg-[#FF9500]'; 
   // Staff -> Xanh lá
   return 'bg-[#00C16E]'; 
 };
@@ -61,20 +65,28 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
   onDeleteStaff
 }) => {
   const [search, setSearch] = useState('');
-  const [filterRole, setFilterRole] = useState<'All' | UserRoleType>('All');
+  const [filterRole, setFilterRole] = useState<'All' | UserRoleType | 'PENDING'>('All');
   const [delegationLetterUser, setDelegationLetterUser] = useState<User | null>(null);
   const [permissionMatrixUser, setPermissionMatrixUser] = useState<User | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState<User | null>(null);
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+  const [seenUpdates, setSeenUpdates] = useState<Record<string, boolean>>({});
+  const [seenPasswordUpdates, setSeenPasswordUpdates] = useState<Record<string, boolean>>({});
 
   const togglePassword = (id: string) => {
     setVisiblePasswords(prev => ({ ...prev, [id]: !prev[id] }));
+    setSeenPasswordUpdates(prev => ({ ...prev, [id]: true }));
+  };
+
+  const markUpdateAsSeen = (id: string) => {
+    setSeenUpdates(prev => ({ ...prev, [id]: true }));
   };
 
   const [formData, setFormData] = useState<Partial<User>>({
     name: '',
     role: 'Staff',
+    title: 'Nhân viên',
     phone: '',
     companyEmail: '',
     personalEmail: '',
@@ -97,18 +109,20 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                          email.toLowerCase().includes(search.toLowerCase()) ||
                          code.toLowerCase().includes(search.toLowerCase());
     
-    let matchesRole = true;
-    if (filterRole !== 'All') {
-      matchesRole = s.role === filterRole;
+    let matchesFilter = true;
+    if (filterRole === 'PENDING') {
+      matchesFilter = s.status === 'PENDING';
+    } else if (filterRole !== 'All') {
+      matchesFilter = s.role === filterRole;
     }
     
-    return matchesSearch && matchesRole;
+    return matchesSearch && matchesFilter;
   });
 
-  const roles: (UserRoleType | 'All')[] = ['All', 'Admin', 'Leader', 'Staff'];
+  const filterOptions: ('All' | UserRoleType | 'PENDING')[] = ['All', 'Admin', 'Leader', 'Staff', 'PENDING'];
 
   const handleExport = () => {
-    const headers = ['Mã NV', 'Họ Tên', 'Viết tắt', 'Chức vụ', 'SĐT', 'Zalo', 'Email Cơ quan', 'Email Cá nhân', 'Trạng thái'];
+    const headers = ['Mã NV', 'Họ Tên', 'Viết tắt', 'Chức vụ', 'SĐT', 'Zalo', 'Email Công ty', 'Email Cá nhân', 'Trạng thái'];
     const csvContent = [
       headers.join(','),
       ...users.map(u => [
@@ -127,20 +141,48 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
     const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `Bao_cao_nhan_su_${new Date().toLocaleDateString('vi-VN').replace(/\//g, '-')}.csv`;
+    link.download = `Bao_cao_nhan_su_${(new Date().toLocaleDateString('vi-VN') || '').replace(/\//g, '-')}.csv`;
     link.click();
   };
 
   const removeAccents = (str: string) => {
-    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
+    return (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
   };
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, avatar: reader.result as string }));
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_SIZE = 400; // Optimal size for avatar
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height *= MAX_SIZE / width;
+              width = MAX_SIZE;
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width *= MAX_SIZE / height;
+              height = MAX_SIZE;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          // Convert to JPEG with quality 0.8 to keep size small (~20-50KB)
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          setFormData(prev => ({ ...prev, avatar: dataUrl }));
+        };
+        img.src = event.target?.result as string;
       };
       reader.readAsDataURL(file);
     }
@@ -151,17 +193,24 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
     if (!formData.name || !formData.phone || !formData.companyEmail) return;
 
     if (editingStaff) {
-      onUpdateStaff?.(editingStaff.id, formData);
+      onUpdateStaff?.(editingStaff.uniqueKey || editingStaff.id, formData);
+      
+      // If editing OWN profile and password changed, sync with Auth
+      if (editingStaff.id === currentUser.id && formData.password && formData.password !== editingStaff.password) {
+        updateAuthPassword(formData.password).catch(err => {
+          console.warn("Could not sync Auth password from staff list:", err);
+        });
+      }
+      
       setEditingStaff(null);
     } else {
-      const nameNoAccents = removeAccents(formData.name).replace(/\s+/g, '');
-      const uniqueKey = `${nameNoAccents}${formData.phone}`;
+      const uniqueKey = generateUniqueKey(formData.name || '', formData.phone || '');
       
       const newStaff: User = {
         ...(formData as User),
         id: `EXTRA_${Date.now()}`,
         uniqueKey,
-        avatar: formData.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${nameNoAccents}`
+        avatar: formData.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${uniqueKey}`
       };
       onAddStaff?.(newStaff);
     }
@@ -324,7 +373,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Số điện thoại</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1"><span translate="no" className="notranslate">SỐ ĐIỆN THOẠI / PHONE</span></label>
                     <input 
                       type="text" required value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
@@ -332,22 +381,42 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Vai trò</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Chức vụ</label>
                     <select 
-                      value={formData.role} onChange={e => setFormData({...formData, role: e.target.value as UserRoleType})}
+                      value={formData.role} 
+                      onChange={e => {
+                        const val = e.target.value as any;
+                        setFormData({...formData, role: val, title: val === 'Leader' ? 'Trưởng nhóm' : (val === 'Admin' ? 'Quản trị viên' : 'Nhân viên')});
+                      }}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm appearance-none"
                     >
-                      <option value="Staff"><span translate="no" className="notranslate">Nhân sự (Staff)</span></option>
-                      <option value="Leader">Nhóm trưởng (Leader)</option>
-                      <option value="Admin"><span translate="no" className="notranslate">Quản trị (Admin)</span></option>
+                      <option value="Staff">Nhân viên</option>
+                      <option value="Leader">Trưởng nhóm</option>
+                      <option value="Admin">Quản trị viên</option>
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1"><span translate="no" className="notranslate">Email cá nhân / Công ty</span></label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Chức danh</label>
                     <input 
-                      type="email" required value={formData.companyEmail} onChange={e => setFormData({...formData, companyEmail: e.target.value})}
+                      type="text" required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
-                      placeholder="Email cá nhân / Công ty"
+                      placeholder="VD: Nhân viên QC"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Email Công ty</label>
+                    <input 
+                      type="email" value={formData.companyEmail} onChange={e => setFormData({...formData, companyEmail: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
+                      placeholder="xyz@tanphu.vn"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Email Cá nhân</label>
+                    <input 
+                      type="email" required value={formData.personalEmail} onChange={e => setFormData({...formData, personalEmail: e.target.value})}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
+                      placeholder="abc@gmail.com"
                     />
                   </div>
                   <div className="space-y-1">
@@ -357,6 +426,29 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
                       placeholder="QC-xxx"
                     />
+                  </div>
+                  <div className="col-span-2 space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Mật khẩu (Ghi nhận / Đăng nhập)</label>
+                    <div className="relative group/pass">
+                      <input 
+                        type={visiblePasswords['modal'] ? "text" : "password"}
+                        value={formData.password || ''} onChange={e => setFormData({...formData, password: e.target.value})}
+                        className="w-full px-4 py-3 bg-blue-50/30 border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
+                        placeholder="Nhập mật khẩu mới"
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => togglePassword('modal')}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors"
+                      >
+                        {visiblePasswords['modal'] ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                    <p className="text-[9px] text-slate-400 font-bold italic px-1 mt-1">
+                      {editingStaff?.id === currentUser.id 
+                        ? "* Đổi mật khẩu tại đây sẽ cập nhật cả mật khẩu đăng nhập thực tế của bạn." 
+                        : "* Lưu ý: Đổi mật khẩu cho người khác chỉ ghi nhận vào hồ sơ, không thay đổi mật khẩu đăng nhập thực tế của họ."}
+                    </p>
                   </div>
                 </div>
 
@@ -429,17 +521,17 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
           />
         </div>
         <div className="flex items-center gap-1.5 bg-slate-50/80 rounded-[22px] px-2 py-1.5 border border-slate-50">
-          {roles.map(role => (
+          {filterOptions.map(option => (
             <button
-              key={role}
-              onClick={() => setFilterRole(role)}
+              key={option}
+              onClick={() => setFilterRole(option)}
               className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
-                filterRole === role 
+                filterRole === option 
                   ? 'bg-white text-blue-600 shadow-md shadow-blue-50' 
-                  : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+                  : (option === 'PENDING' ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50/50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50')
               }`}
             >
-              {role === 'All' ? 'TẤT CẢ' : (role === 'Admin' ? <span translate="no" className="notranslate">ADMIN</span> : role)}
+              {option === 'All' ? 'TẤT CẢ' : (option === 'Admin' ? <span translate="no" className="notranslate">ADMIN</span> : (option === 'PENDING' ? 'CHỜ DUYỆT' : option))}
             </button>
           ))}
         </div>
@@ -462,12 +554,27 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
               layout
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
+              onClick={() => markUpdateAsSeen(staff.id)}
               className="group relative bg-[#132d6b] rounded-[48px] shadow-[0_40px_100px_rgba(19,45,107,0.4)] transition-all duration-500 pl-4 pr-10 py-6 flex flex-row flex-nowrap gap-8 overflow-hidden border border-white/10 w-[670px] h-[340px] shrink-0 mx-auto hover:shadow-[0_50px_120px_rgba(19,45,107,0.5)] hover:-translate-y-2"
             >
+              {/* Updated Badge - Top Left */}
+              {staff.updatedFieldsAt && (Date.now() - new Date(staff.updatedFieldsAt).getTime() < 86400000) && !seenUpdates[staff.id] && (
+                <div className="absolute top-8 left-8 z-50 flex items-center gap-1.5 bg-rose-600 text-white text-[8px] font-black px-3 py-1 rounded-full shadow-lg animate-bounce border border-rose-400">
+                  <span className="w-1 h-1 bg-white rounded-full animate-ping" />
+                  MỚI CẬP NHẬT
+                </div>
+              )}
+
               {/* Left Column: Avatar & ID Section (Frozen: 176px) */}
               <div className="flex flex-col items-center shrink-0 w-[176px] relative z-10">
                 {/* Circular Avatar Frame */}
-                <div className="relative w-28 h-28 bg-white/5 backdrop-blur-md rounded-full flex items-center justify-center p-1.5 border-2 border-white/10 shadow-2xl mb-4">
+                <div className="relative w-28 h-28 bg-white/5 backdrop-blur-md rounded-full flex items-center justify-center p-1.5 border-2 border-white/10 shadow-2xl mb-4 group/avatar-id">
+                  {/* Field Update Indicator for Avatar */}
+                  {staff.updatedFields?.includes('avatar') && staff.updatedFieldsAt && (Date.now() - new Date(staff.updatedFieldsAt).getTime() < 86400000) && !seenUpdates[staff.id] && (
+                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 border-2 border-white rounded-full flex items-center justify-center z-20 shadow-lg animate-pulse" title="Ảnh đại diện vừa được đổi">
+                      <Camera size={10} className="text-white" />
+                    </div>
+                  )}
                   <div className="w-full h-full rounded-full overflow-hidden border-2 border-white/20 bg-slate-800 shadow-inner">
                     <Avatar 
                       src={staff.avatar} 
@@ -481,11 +588,11 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                 {/* ID & Copy Link */}
                 <div className="flex flex-col items-center gap-1">
                    <p className="text-xl font-mono font-black text-white tracking-[0.1em] whitespace-nowrap">
-                     #{staff.code || '2020.00292'}
+                     #{staff.code || '202000292'}
                    </p>
                    <button 
                      onClick={() => {
-                       navigator.clipboard.writeText(staff.code || '2020.00292');
+                       navigator.clipboard.writeText(staff.code || '202000292');
                      }}
                      className="text-[10px] font-black text-blue-300/60 hover:text-blue-300 uppercase tracking-widest transition-colors cursor-pointer"
                    >
@@ -507,13 +614,22 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
               {/* Center Column: Information & Security (Flexible) */}
               <div className="flex-1 flex flex-col justify-between relative z-10 min-w-0">
                 <div className="pt-2">
-                  <div className="mb-6 text-left">
-                    <h3 translate="no" className="text-2xl font-black text-white tracking-tight uppercase leading-relaxed mb-0">
+                  <div className="mb-6 text-left relative">
+                    <h3 translate="no" className="text-2xl font-black text-white tracking-tight uppercase leading-relaxed mb-0 flex items-center gap-2">
                       {staff.name}
+                      {staff.updatedFields?.includes('name') && staff.updatedFieldsAt && (Date.now() - new Date(staff.updatedFieldsAt).getTime() < 86400000) && !seenUpdates[staff.id] && (
+                        <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" title="Tên vừa được đổi" />
+                      )}
+                      {staff.status === 'PENDING' && (
+                        <div className="ml-2 flex items-center gap-1 px-2.5 py-1 bg-amber-500 text-[9px] font-black text-white rounded-full animate-pulse shadow-lg shadow-amber-500/30 border border-amber-400">
+                           <AlertCircle size={10} strokeWidth={3} />
+                           <span>CHỜ DUYỆT</span>
+                        </div>
+                      )}
                     </h3>
                     <div className="flex items-center gap-4">
                       <p className="text-[14px] font-black text-blue-200/40 uppercase tracking-[0.2em] leading-none whitespace-nowrap">
-                        {getHardcodedTitle(staff.name) === 'ADMIN' ? <span translate="no" className="notranslate">ADMIN</span> : getHardcodedTitle(staff.name)}
+                        {getDisplayNameTitle(staff) === 'ADMIN' ? <span translate="no" className="notranslate">ADMIN</span> : getDisplayNameTitle(staff)}
                       </p>
                       {starCount > 0 && (
                         <div className="flex gap-1">
@@ -526,40 +642,61 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                   </div>
 
                   <div className="space-y-3 mb-6">
-                    <div className="flex items-center gap-4 text-white">
+                    <div className="flex items-center gap-4 text-white relative group/field">
                       <div className="w-9 h-9 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-blue-400 shrink-0">
                         <Phone size={14} strokeWidth={2.5} />
                       </div>
-                      <span className="text-lg font-mono font-black tracking-tight whitespace-nowrap">{staff.phone}</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-4 text-white">
-                      <div className="w-9 h-9 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-blue-400 shrink-0">
-                        <Mail size={14} strokeWidth={2.5} />
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-black text-blue-300/40 uppercase tracking-widest leading-none mb-1">SỐ ĐIỆN THOẠI</span>
+                        <span translate="no" className={`notranslate text-lg font-mono font-black tracking-tight whitespace-nowrap leading-none ${staff.phone === 'CHỜ CẬP NHẬT' ? 'text-gray-400' : 'text-white'}`}>
+                          {staff.phone}
+                        </span>
                       </div>
-                      <span className="text-sm font-bold lowercase tracking-tight">{staff.companyEmail}</span>
+                      {staff.updatedFields?.includes('phone') && staff.updatedFieldsAt && (Date.now() - new Date(staff.updatedFieldsAt).getTime() < 86400000) && !seenUpdates[staff.id] && (
+                        <div className="absolute left-7 -top-1 w-3 h-3 bg-rose-500 border border-white rounded-full animate-pulse" />
+                      )}
                     </div>
 
-                    {staff.personalEmail && (
-                      <div className="flex items-center gap-4 text-white/40">
-                        <div className="w-9 h-9 rounded-full border border-white/5 bg-white/5 flex items-center justify-center text-blue-400/30 shrink-0">
-                          <Mail size={14} strokeWidth={2.5} />
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center gap-4 text-white relative group/field">
+                        <div className="w-9 h-9 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-blue-400 shrink-0">
+                          <Mail size={13} strokeWidth={2.5} />
                         </div>
-                        <span className="text-sm font-medium lowercase tracking-tight">{staff.personalEmail}</span>
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-black text-blue-300/40 uppercase tracking-widest leading-none mb-1">EMAIL CÔNG TY</span>
+                          <span translate="no" className="notranslate text-xs font-bold lowercase tracking-tight leading-none">{staff.companyEmail || 'CHỜ CẬP NHẬT'}</span>
+                        </div>
                       </div>
-                    )}
+                      
+                      <div className="flex items-center gap-4 text-white/70 relative group/field">
+                        <div className="w-9 h-9 rounded-full border border-white/5 bg-white/5 flex items-center justify-center text-blue-400/50 shrink-0">
+                          <Mail size={13} strokeWidth={2.5} />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[9px] font-black text-blue-300/40 uppercase tracking-widest leading-none mb-1">EMAIL CÁ NHÂN</span>
+                          <span translate="no" className="notranslate text-xs font-bold lowercase tracking-tight leading-none">{staff.personalEmail || 'CHỜ CẬP NHẬT'}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 {/* Security Box */}
-                <div className="bg-white rounded-full h-14 w-full max-w-[340px] px-5 flex items-center shadow-2xl">
+                <div className="bg-white rounded-full h-14 w-full max-w-[340px] px-5 flex items-center shadow-2xl relative">
+                  {staff.updatedFields?.includes('password') && staff.updatedFieldsAt && (Date.now() - new Date(staff.updatedFieldsAt).getTime() < 86400000) && !seenPasswordUpdates[staff.id] && (
+                    <div className="absolute -top-1 -right-1 bg-rose-600 text-[6px] font-black text-white px-2 py-0.5 rounded-full border border-white animate-bounce shadow-lg z-20">
+                      <span translate="no" className="notranslate">MẬT KHẨU MỚI</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-4 w-full">
                     <Lock size={18} className="text-slate-200 shrink-0" strokeWidth={2.5} />
-                    <div className="flex-1 flex flex-col items-center justify-center min-w-0">
-                      <span className="text-[7px] font-black text-slate-300 uppercase tracking-[0.3em] mb-0.5 whitespace-nowrap">BẢO MẬT HỆ THỐNG</span>
-                      <span className="text-lg font-mono font-black text-slate-800 tracking-[0.4em] leading-none">
-                        {isVisible ? (staff.password || '123456') : '•••••'}
-                      </span>
+                    <div className="flex-1 flex flex-col items-center justify-center min-w-0 px-2">
+                      <span translate="no" className="notranslate text-[7px] font-black text-slate-300 uppercase tracking-[0.3em] mb-0.5 whitespace-nowrap">BẢO MẬT HỆ THỐNG / MẬT KHẨU / PASSWORD</span>
+                      <div className="flex items-center justify-center h-5">
+                        <span translate="no" className={`notranslate font-mono font-black leading-none ${isVisible ? (staff.password === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-800 text-lg tracking-[0.4em]') : 'text-slate-800 text-lg tracking-[0.4em]'}`}>
+                          {isVisible ? (staff.password || 'CHỜ CẬP NHẬT') : '•••••'}
+                        </span>
+                      </div>
                     </div>
                     <button 
                       onClick={() => togglePassword(staff.id)}
@@ -573,6 +710,16 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
 
               {/* Right Column: Operation Cluster (Frozen: 80px) */}
               <div className="flex flex-col gap-4 justify-center items-center relative z-10 w-[80px] shrink-0">
+                {isTruong && staff.status === 'PENDING' && (
+                  <button 
+                    onClick={() => onUpdateStaff?.(staff.id, { status: 'ACTIVE' })}
+                    className="w-16 h-16 rounded-full bg-green-500 text-white flex flex-col items-center justify-center hover:bg-green-600 transition-all shadow-xl group/btn transform hover:scale-110 active:scale-95"
+                  >
+                    <CheckCircle2 size={24} strokeWidth={2.5} className="mb-0.5" />
+                    <span className="text-[9px] font-black uppercase tracking-tighter">DUYỆT</span>
+                  </button>
+                )}
+
                 <button 
                   onClick={() => setPermissionMatrixUser(staff)}
                   className="w-16 h-16 rounded-full bg-white text-[#132d6b] flex flex-col items-center justify-center hover:bg-slate-50 transition-all shadow-xl group/btn flex-none"

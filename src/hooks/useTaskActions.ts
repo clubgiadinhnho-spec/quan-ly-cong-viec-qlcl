@@ -10,6 +10,7 @@ interface UseTaskActionsProps {
   firebaseUpdateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   firebaseDeleteTask: (id: string) => Promise<void>;
   firebaseAddLog?: (log: any) => Promise<void>;
+  firebaseSendPrivateMsg?: (content: string, senderId: string, receiverId: string) => Promise<void>;
 }
 
 export const useTaskActions = ({
@@ -19,12 +20,13 @@ export const useTaskActions = ({
   firebaseAddTask,
   firebaseUpdateTask,
   firebaseDeleteTask,
-  firebaseAddLog
+  firebaseAddLog,
+  firebaseSendPrivateMsg
 }: UseTaskActionsProps) => {
 
   const addTask = useCallback(async (taskData: any) => {
     const lastNum = tasks.reduce((max, t) => {
-      const num = parseInt(t.code.replace(/\D/g, '')) || 0;
+      const num = parseInt((t.code || '').replace(/\D/g, '')) || 0;
       return num > max ? num : max;
     }, 0);
     
@@ -85,9 +87,21 @@ export const useTaskActions = ({
     const task = tasks.find(t => t.id === id);
     if (!task) return;
 
+    // Logic đặc biệt cho yêu cầu hoàn tác
+    if (updates.requestUndo === 'PENDING' && currentUser && firebaseSendPrivateMsg) {
+      const admins = allUsers.filter(u => u.role === 'Admin');
+      const message = `[HỆ THỐNG] Nhân viên ${currentUser.name} yêu cầu HOÀN TÁC công việc: ${task.code} - ${task.title}. Bấm vào đây để xem chi tiết. #UNDO_${id}`;
+      
+      admins.forEach(admin => {
+        if (admin.id !== currentUser.id) {
+          firebaseSendPrivateMsg(message, currentUser.id, admin.id);
+        }
+      });
+    }
+
     const preparedUpdates = prepareTaskUpdates(task, updates, currentUser, allUsers);
     firebaseUpdateTask(id, preparedUpdates);
-  }, [tasks, currentUser, firebaseUpdateTask]);
+  }, [tasks, currentUser, allUsers, firebaseUpdateTask, firebaseSendPrivateMsg]);
 
   const addTaskComment = useCallback((taskId: string, content: string) => {
     if (!currentUser) return;

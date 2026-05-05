@@ -2,10 +2,10 @@ import React from 'react';
 import { User, UserPresence } from '../../types';
 
 interface HeaderProps {
-  title: string;
-  badge?: string;
+  title: React.ReactNode;
+  badge?: React.ReactNode;
   onAction?: () => void;
-  actionLabel?: string;
+  actionLabel?: React.ReactNode;
   actionIcon?: React.ElementType;
   users?: User[];
   onlineUsers?: UserPresence[];
@@ -48,12 +48,12 @@ export const Header = ({
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-4">
           <h2 className="text-[24px] font-black text-blue-900 tracking-tight uppercase leading-none">
-            <span translate="no" className="notranslate">{title}</span>
+            {title}
           </h2>
           {badge && (
-            <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold uppercase tracking-wider">
+            <div className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold uppercase tracking-wider">
               {badge}
-            </span>
+            </div>
           )}
         </div>
         

@@ -1,14 +1,23 @@
 import { User } from '../types';
 
+export const SYSTEM_ADMIN_EMAILS = [
+  "truong.le@tanphuvietnam.vn", 
+  "lenhattruong.tpp@gmail.com", 
+  "lenhattruong.caphef1@gmail.com",
+  "club.nhuatanphu@gmail.com", 
+  "tanphuvietnam.tpp@gmail.com", 
+  "truongln.tanhongngoc@gmail.com"
+];
+
 export const FIXED_STAFF: User[] = [
   {
-    id: 'ADMIN_TRUONG',
+    id: 'LeNhatTruong0907767304',
     name: 'Lê Nhật Trường',
     code: 'ADMIN-01',
     uniqueKey: 'LeNhatTruong0907767304',
     abbreviation: 'LNT',
     role: 'Admin',
-    phone: '0907767304',
+    phone: '',
     companyEmail: 'truong.le@tanphuvietnam.vn',
     personalEmail: 'lenhattruong.tpp@gmail.com',
     status: 'ACTIVE',
@@ -26,44 +35,5 @@ export const FIXED_STAFF: User[] = [
     personalEmail: 'admin@gmail.com',
     status: 'ACTIVE',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin'
-  },
-  {
-    id: 'LEADER_TAN',
-    name: 'Võ Thị Mỹ Tân',
-    code: '2020.00292',
-    uniqueKey: 'VoThiMyTan0345993542',
-    abbreviation: 'VMT',
-    role: 'Leader',
-    phone: '0345993542',
-    companyEmail: 'tan.vo@tanphuvietnam.vn',
-    personalEmail: 'vtmytan@gmail.com',
-    status: 'ACTIVE',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Tan&mouth=smile&eyebrows=default&eyes=default&hair=long'
-  },
-  {
-    id: 'STAFF_TU',
-    name: 'Nguyễn Kiều Phan Tú',
-    code: '2017.00308',
-    uniqueKey: 'NguyenKieuPhanTu0936564244',
-    abbreviation: 'NKPT',
-    role: 'Staff',
-    phone: '0936564244',
-    companyEmail: 'tu.nguyen@tanphuvietnam.vn',
-    personalEmail: 'phantu2011@gmail.com',
-    status: 'ACTIVE',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Tu&gender=male&hair=short'
-  },
-  {
-    id: 'STAFF_HUNG',
-    name: 'Bành Nhựt Hùng',
-    code: '2023.00532',
-    uniqueKey: 'BanhNhutHung0909367135',
-    abbreviation: 'BNH',
-    role: 'Staff',
-    phone: '0909367135',
-    companyEmail: 'hung.banh@tanphuvietnam.vn',
-    personalEmail: 'ptupix20@gmail.com',
-    status: 'ACTIVE',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hung&gender=male&hair=short'
   }
 ];

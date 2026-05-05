@@ -1,15 +1,49 @@
 import React from 'react';
-import { LogEntry, User } from '../types';
-import { Search, Lock, Info, Activity, Clock } from 'lucide-react';
+import { LogEntry, User, Task } from '../types';
+import { Search, Lock, Info, Activity, Clock, Trash2, ShieldAlert } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface SystemHistoryPageProps {
   logs: LogEntry[];
   allUsers: User[];
   currentUser: User;
+  tasks: Task[];
+  onDeleteTasksBulk: (ids: string[]) => Promise<void>;
+  setConfirmModal: (modal: any) => void;
 }
 
-export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({ logs, allUsers, currentUser }) => {
+export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({ 
+  logs, 
+  allUsers, 
+  currentUser,
+  tasks,
+  onDeleteTasksBulk,
+  setConfirmModal
+}) => {
+  const handleResetTasks = () => {
+    if (tasks.length === 0) {
+      alert("Không có công việc nào để dọn dẹp!");
+      return;
+    }
+
+    setConfirmModal({
+      show: true,
+      title: "CẢNH BÁO: RESET TOÀN BỘ CÔNG VIỆC",
+      message: `Bạn đang yêu cầu XÓA VĨNH VIỄN ${tasks.length} công việc trong hệ thống. Hành động này KHÔNG THỂ khôi phục. Bạn có chắc chắn muốn làm trống BẢNG CÔNG VIỆC không?`,
+      onConfirm: async () => {
+        try {
+          const allIds = tasks.map(t => t.id);
+          await onDeleteTasksBulk(allIds);
+          alert(`Đã dọn dẹp thành công ${allIds.length} công việc!`);
+        } catch (error) {
+          alert("Lỗi khi dọn dẹp công việc.");
+        } finally {
+          setConfirmModal((p: any) => ({ ...p, show: false }));
+        }
+      }
+    });
+  };
+
   const getLogIcon = (type: string) => {
     switch (type) {
       case 'DELEGATION_CHANGE': return <Lock size={20} />;
@@ -63,109 +97,140 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({ logs, allU
              <Activity className="text-blue-500" size={28} strokeWidth={1.5} />
           </div>
         </div>
+
+        {/* Reset Actions Section for Admins */}
+        <div className="flex justify-end pt-4">
+           <button 
+             onClick={handleResetTasks}
+             className="flex items-center gap-2.5 px-6 py-3 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-200 active:scale-95 border-b-4 border-red-800"
+           >
+             <Trash2 size={16} strokeWidth={2.5} />
+             DỌN DẸP TOÀN BỘ CÔNG VIỆC (RESET)
+           </button>
+        </div>
       </div>
 
-      {/* Modern Table Layout */}
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
-        <table className="w-full border-collapse">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr>
-              <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center w-[100px]">ID / Loại</th>
-              <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nội dung hoạt động</th>
-              <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[250px]">Tác nhân & Đối tượng</th>
-              <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[180px] text-right">Ngày giờ thực hiện</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {logs.length > 0 ? (
-              logs.map((log, idx) => {
-                const actor = allUsers.find(u => u.id === log.userId);
-                const target = allUsers.find(u => u.id === log.targetId);
-                
-                return (
-                  <motion.tr 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.02 }}
-                    key={log.id} 
-                    className="group hover:bg-blue-50/20 transition-colors"
-                  >
-                    <td className="px-6 py-5 align-top">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className={`p-2 rounded-lg ${getLogColor(log.type)}`}>
-                          {getLogIcon(log.type)}
-                        </div>
-                        <span className="text-[10px] font-mono text-slate-300 font-bold">#{log.id.slice(0, 8).toUpperCase()}</span>
-                      </div>
-                    </td>
-                    
-                    <td className="px-6 py-5 align-top">
-                      <div className="max-w-xl">
-                        <p className="text-[14px] font-black text-slate-800 leading-tight mb-2 group-hover:text-blue-600 transition-colors uppercase tracking-tight">
-                          {log.details}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter ${
-                            log.type === 'ERROR' ? 'bg-red-50 text-red-500' : 'bg-slate-100 text-slate-400'
-                          }`}>
-                            TYPE_{log.type}
+      {/* Modern Table Layout - Redesigned with Frames and clear columns */}
+      <div className="bg-white rounded-2xl shadow-2xl border-2 border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-slate-900 text-white">
+                <th className="px-5 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-center border-r border-slate-800 w-[80px]">STT</th>
+                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-left border-r border-slate-800 w-[220px]">Nhân sự thực hiện (Ai)</th>
+                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-left border-r border-slate-800 w-[180px]">Phân loại (Sửa gì)</th>
+                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-left border-r border-slate-800">Nội dung điều chỉnh</th>
+                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-right w-[200px]">Ngày giờ (Lúc nào)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y-2 divide-slate-100">
+              {logs.length > 0 ? (
+                [...logs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map((log, idx) => {
+                  const actor = allUsers.find(u => u.id === log.userId);
+                  const target = allUsers.find(u => u.id === log.targetId);
+                  
+                  return (
+                    <motion.tr 
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.01 }}
+                      key={log.id} 
+                      className={`group transition-all duration-300 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/40`}
+                    >
+                      {/* STT / ID */}
+                      <td className="px-5 py-6 text-center border-r border-slate-100 align-middle">
+                        <div className="flex flex-col items-center">
+                          <span translate="no" className="notranslate text-sm font-black text-slate-400 group-hover:text-blue-600 transition-colors">
+                            {String(logs.length - idx).padStart(2, '0')}
+                          </span>
+                          <span translate="no" className="notranslate text-[8px] font-mono text-slate-300 font-bold tracking-tighter mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            #{(log.id || '').slice(0, 6).toUpperCase()}
                           </span>
                         </div>
-                      </div>
-                    </td>
-
-                    <td className="px-6 py-5 align-top">
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                           <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest w-12">Tác nhân</span>
-                           <span className={`text-[11px] font-black px-2 py-0.5 rounded border ${
-                             log.userId === 'SYSTEM' 
-                               ? 'bg-slate-800 text-white border-slate-700' 
-                               : 'bg-white text-slate-700 border-slate-200'
-                           }`}>
-                             {actor?.name || 'VÔ DANH (SYSTEM)'}
-                           </span>
-                        </div>
-                        
-                        {target && (
-                          <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-blue-300" />
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest w-12">Đối tượng</span>
-                            <span className="text-[11px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 uppercase">
-                              {target.name}
+                      </td>
+                      
+                      {/* Nhân sự thực hiện (Ai) */}
+                      <td className="px-6 py-6 border-r border-slate-100 align-middle">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full border-2 border-white shadow-md flex items-center justify-center text-white shrink-0 font-black text-xs ${
+                            log.userId === 'SYSTEM' ? 'bg-slate-800' : 'bg-blue-600'
+                          }`}>
+                            <span translate="no" className="notranslate">
+                              {log.userId === 'SYSTEM' ? 'SYS' : (actor?.name?.substring(0, 2).toUpperCase() || '??')}
                             </span>
                           </div>
-                        )}
-                      </div>
-                    </td>
+                          <div className="flex flex-col">
+                            <span translate="no" className="notranslate text-[13px] font-black text-slate-800 uppercase tracking-tight leading-none mb-1">
+                              {actor?.name || 'HỆ THỐNG'}
+                            </span>
+                            <span translate="no" className="notranslate text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                              {actor?.role || 'HỆ THỐNG'}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
 
-                    <td className="px-6 py-5 text-right align-top">
-                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 inline-flex flex-col items-end gap-1">
-                        <div className="flex items-center gap-1.5 text-blue-600 font-mono text-[12px] font-black">
-                          <Clock size={12} strokeWidth={2.5} />
-                          {new Date(log.timestamp).toLocaleTimeString('vi-VN')}
+                      {/* Phân loại (Sửa gì) */}
+                      <td className="px-6 py-6 border-r border-slate-100 align-middle">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-current/20 shadow-sm ${getLogColor(log.type)}`}>
+                            {getLogIcon(log.type)}
+                          </div>
+                          <div className="flex flex-col">
+                            <span translate="no" className={`notranslate text-[10px] font-black uppercase tracking-wider ${
+                              log.type === 'ERROR' ? 'text-red-600' : 'text-slate-600'
+                            }`}>
+                              {(log.type || 'SYSTEM').replace('_', ' ')}
+                            </span>
+                          </div>
                         </div>
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5 pr-0.5">
-                          {new Date(log.timestamp).toLocaleDateString('vi-VN')}
+                      </td>
+
+                      {/* Nội dung điều chỉnh */}
+                      <td className="px-6 py-6 border-r border-slate-100 align-middle">
+                        <div className="space-y-2">
+                          <p translate="no" className="notranslate text-[14px] font-bold text-slate-700 leading-snug group-hover:text-blue-900 transition-colors">
+                            {log.details || 'Không có nội dung chi tiết'}
+                          </p>
+                          {target && (
+                            <div className="flex items-center gap-2 bg-blue-50/50 border border-blue-100/50 rounded-md py-1 px-2 w-fit">
+                              <span translate="no" className="notranslate text-[9px] font-black text-blue-500 uppercase tracking-widest">Đối tượng:</span>
+                              <span translate="no" className="notranslate text-[10px] font-black text-blue-700 uppercase">
+                                {target.name || 'HỆ THỐNG'}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    </td>
-                  </motion.tr>
-                );
-              })
-            ) : (
-              <tr>
-                <td colSpan={4} className="p-20 text-center">
-                  <div className="w-16 h-16 bg-slate-50 text-slate-200 rounded-xl flex items-center justify-center mx-auto mb-4 border-2 border-slate-100 border-dashed">
-                    <Search size={32} />
-                  </div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Chưa có bản ghi hoạt động nào được ghi nhận.</p>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                      </td>
+
+                      {/* Ngày giờ (Lúc nào) */}
+                      <td className="px-6 py-6 text-right border-slate-100 align-middle bg-slate-50/30">
+                        <div className="flex flex-col items-end gap-1.5">
+                          <div translate="no" className="notranslate flex items-center gap-1.5 text-blue-700 font-mono text-[13px] font-black bg-blue-100/50 px-2.5 py-1 rounded-md border border-blue-200/50">
+                            <Clock size={14} strokeWidth={3} />
+                            {new Date(log.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          <div translate="no" className="notranslate flex items-center gap-1.5 text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] pr-1">
+                            {new Date(log.timestamp).toLocaleDateString('vi-VN')}
+                          </div>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={5} className="p-24 text-center">
+                    <div className="w-20 h-20 bg-slate-50 text-slate-200 rounded-2xl flex items-center justify-center mx-auto mb-6 border-4 border-slate-100 border-dashed animate-pulse">
+                      <Search size={40} />
+                    </div>
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] italic">Không tìm thấy bất kỳ dữ liệu nhật ký nào.</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

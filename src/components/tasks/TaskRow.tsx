@@ -27,12 +27,14 @@ interface TaskRowProps {
   isReadOnly?: boolean;
   onRestore?: (id: string) => void;
   highlightedTaskId?: string | null;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 export const TaskRow: React.FC<TaskRowProps> = ({ 
   task, user, users, onUpdate, onDelete, onViewHistory, onOpenChat, 
   isChatOpen, onSendMessage, onReact, onTogglePriority, onSetPriority, onEdit, idx, setConfirmModal,
-  isReadOnly = false, onRestore, highlightedTaskId
+  isReadOnly = false, onRestore, highlightedTaskId, isSelected, onToggleSelect
 }) => {
   const assigneeName = getTaskAssigneeName(task, users);
   const assignee = getUserById(assigneeName, users) || getUserById(task.assigneeId, users);
@@ -40,7 +42,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   // Auto-scroll when highlighted
   React.useEffect(() => {
     if (highlightedTaskId === task.id) {
-      const element = document.getElementById(`task-row-${task.id}`);
+      const element = document.getElementById(`task-${task.id}`);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -142,20 +144,28 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   return (
     <motion.tr 
-      id={`task-row-${task.id}`}
+      id={`task-${task.id}`}
       initial={false}
       animate={{ 
         backgroundColor: highlightedTaskId === task.id ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
         boxShadow: highlightedTaskId === task.id ? 'inset 0 0 0 2px rgba(59, 130, 246, 0.5)' : 'inset 0 0 0 0px transparent'
       }}
       transition={{ duration: 0.4 }}
-      className={`group transition-all ${finalRowClass} relative ${highlightedTaskId === task.id ? 'z-10' : ''}`}
+      className={`group transition-all ${finalRowClass} relative ${highlightedTaskId === task.id ? 'z-10' : ''} ${isSelected ? 'bg-blue-50/50' : ''}`}
     >
-      <td className={`p-2 text-center text-[10px] border-b border-l border-r border-gray-300 align-top relative ${task.isHighlighted || task.priorityOrder ? 'text-gray-600' : 'text-gray-300'}`}>
-        <div className="flex flex-col items-center pt-1">
+      <td className="p-2 text-center border-b border-l border-r border-gray-300 align-middle">
+         <input 
+           type="checkbox" 
+           checked={isSelected}
+           onChange={() => onToggleSelect?.(task.id)}
+           className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer shadow-sm transition-all"
+         />
+      </td>
+      <td className={`p-2 text-center text-[10px] border-b border-r border-gray-300 align-top relative h-px ${task.isHighlighted || task.priorityOrder ? 'text-gray-600' : 'text-gray-300'}`}>
+        <div className="flex flex-col items-center pt-1 h-full justify-between">
           <div translate="no" className="notranslate leading-none text-[10px] mb-3">{task.code}</div>
           {deadlineStatus && (
-            <div className="flex flex-col items-center gap-1.5 transition-all">
+            <div className="flex flex-col items-center gap-1.5 transition-all mt-auto mb-1">
               <div 
                 className={`animate-[pulse_0.6s_infinite] p-1.5 rounded-full shadow-md border-2 ${
                   deadlineStatus === 'overdue' 
@@ -234,16 +244,20 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 <div className="relative mt-1" onClick={(e) => e.stopPropagation()}>
                   <button 
                     onClick={() => onOpenChat(isChatOpen ? '' : task.id)}
-                    className={`p-1 px-2 rounded-md transition-all w-fit flex items-center gap-1.5 ${
+                    className={`p-1 px-2 rounded-md transition-all w-fit flex items-center gap-1.5 border ${
                       isChatOpen 
-                        ? 'text-blue-700 bg-blue-100 shadow-inner' 
-                        : 'text-blue-600 hover:bg-blue-50 border border-blue-100 bg-white'
+                        ? 'text-blue-700 bg-blue-100 shadow-inner border-blue-200' 
+                        : showBadge
+                          ? 'text-white bg-red-600 border-red-400 animate-[pulse_0.8s_infinite] shadow-[0_0_15px_rgba(220,38,38,0.4)]'
+                          : (task.comments?.length || 0) > 0
+                            ? 'text-red-600 bg-red-50 border-red-200 animate-[pulse_2s_infinite]'
+                            : 'text-blue-600 hover:bg-blue-50 border-blue-100 bg-white'
                     }`}
                   >
-                    <MessageSquare size={14} fill={showBadge ? "rgba(37, 99, 235, 0.1)" : "none"} />
+                    <MessageSquare size={14} fill={showBadge ? "white" : (task.comments?.length || 0) > 0 ? "rgba(220, 38, 38, 0.1)" : "none"} />
                     <span className="text-[10px] font-black tracking-tight uppercase">CHAT</span>
                     {showBadge && (
-                      <span className="flex items-center justify-center min-w-[16px] h-[16px] px-1 bg-emerald-500 text-white text-[9px] font-black rounded-full shadow-[0_0_10px_rgba(16,185,129,0.4)] animate-pulse border border-emerald-400">
+                      <span className="flex items-center justify-center min-w-[16px] h-[16px] px-1 bg-white text-red-600 text-[9px] font-black rounded-full shadow-sm animate-bounce border border-red-100">
                         {unreadCount}
                       </span>
                     )}
@@ -340,7 +354,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               <div className="flex flex-col min-w-0">
                 <p className="text-[7px] font-black text-blue-600 uppercase tracking-tighter leading-none mb-0.5 font-sans">Lần cập trước:</p>
                 <p className="text-[8px] text-gray-500 line-clamp-1 italic leading-none truncate font-sans">
-                  {task.history[task.history.length - 2]?.content.replace('Cập nhật tiến độ: ', '') || 'Khởi tạo'}
+                  {(task.history[task.history.length - 2]?.content || '').replace('Cập nhật tiến độ: ', '') || 'Khởi tạo'}
                 </p>
               </div>
               <p className="text-[7px] font-black text-blue-400 bg-blue-50/50 px-0.5 rounded leading-none uppercase tracking-tighter shrink-0 ml-1 font-sans">V{task.history.length - 1}</p>

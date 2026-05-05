@@ -52,8 +52,6 @@ export const Sidebar = ({
     { id: 'emerald-light', bg: 'bg-emerald-50', dot: 'bg-emerald-400', isDark: false },
     { id: 'orange-light', bg: 'bg-orange-50', dot: 'bg-orange-400', isDark: false },
     { id: 'orange-dark', bg: 'bg-orange-300', dot: 'bg-orange-500', isDark: false },
-    { id: 'red-dark', bg: 'bg-red-400', dot: 'bg-red-500', isDark: true },
-    { id: 'emerald-dark', bg: 'bg-emerald-500', dot: 'bg-emerald-600', isDark: true },
     { id: 'navy', bg: 'bg-slate-800', dot: 'bg-slate-700', isDark: true },
     { id: 'indigo-dark', bg: 'bg-indigo-950', dot: 'bg-indigo-900', isDark: true },
   ];
@@ -106,7 +104,7 @@ export const Sidebar = ({
             { id: 'tasks', label: <span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>, icon: ClipboardList, count: activeTasksCount, color: 'bg-blue-500 text-white shadow-blue-100' },
             { id: 'pending_confirmation', label: <span translate="no" className="notranslate"> ĐỀ XUẤT MỚI</span>, icon: Sparkles, count: pendingTasksCount, color: 'bg-emerald-500 text-white shadow-emerald-200', isAlert: true, isSubItem: true },
             { id: 'completed_tasks', label: <span translate="no" className="notranslate">CÔNG VIỆC HOÀN THÀNH</span>, icon: CheckCircle2, count: completedTasksCount, color: 'bg-indigo-500 text-white shadow-indigo-100', isSubItem: true },
-            ...((user.role === 'Admin' || user.role === 'Leader' || user.delegatedPermissions?.canManageStaff) && user.name !== 'Võ Thị Mỹ Tân'
+            ...((user.role === 'Admin' || user.role === 'Leader' || user.delegatedPermissions?.canManageStaff)
               ? [{ id: 'staff_list', label: <span translate="no" className="notranslate">QUẢN LÝ NHÂN SỰ</span>, icon: Users, count: totalStaffCount, color: 'bg-amber-500 text-white shadow-amber-100' }] 
               : []),
             { id: 'profile', label: <span translate="no" className="notranslate">TRANG CÁ NHÂN</span>, icon: UserIcon },
@@ -165,8 +163,12 @@ export const Sidebar = ({
             {!isCollapsed && (
               <div className="flex-1 min-w-0 text-left flex items-center justify-between gap-1 overflow-hidden">
                 <div className="min-w-0">
-                  <p className={`text-[12px] font-black uppercase truncate transition-colors ${activeTab === 'group_chat' ? (isDark ? 'text-white' : 'text-rose-600') : (isDark ? 'text-white/80 group-hover:text-white' : 'text-gray-700 group-hover:text-rose-600')}`}>Room Thảo Luận</p>
-                  <p className={`text-[8px] font-bold uppercase tracking-widest truncate ${isDark ? 'text-white/40' : 'text-gray-400'}`}>Cộng đồng QLCL</p>
+                  <p className={`text-[12px] font-black uppercase truncate transition-colors ${activeTab === 'group_chat' ? (isDark ? 'text-white' : 'text-rose-600') : (isDark ? 'text-white/80 group-hover:text-white' : 'text-gray-700 group-hover:text-rose-600')}`}>
+                    <span translate="no" className="notranslate">Room Thảo Luận</span>
+                  </p>
+                  <p className={`text-[8px] font-bold uppercase tracking-widest truncate ${isDark ? 'text-white/40' : 'text-gray-400'}`}>
+                    <span translate="no" className="notranslate">Cộng đồng QLCL</span>
+                  </p>
                 </div>
                 <div className="flex items-center gap-2 flex-none">
                   <div className="relative group-hover:scale-110 transition-transform">
@@ -211,9 +213,9 @@ export const Sidebar = ({
           <Avatar src={user.avatar} name={user.name} size={isCollapsed ? "md" : "lg"} />
           {!isCollapsed ? (
             <div className="flex-1 min-w-0">
-              <p translate="no" className={`text-sm font-bold truncate notranslate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              <div className={`text-sm font-bold truncate notranslate ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 <span translate="no" className="notranslate">{user.name}</span>
-              </p>
+              </div>
               <p className={`text-[10px] font-semibold uppercase ${isDark ? 'text-white/60' : (hasDelegatedPermissions(user) ? 'text-amber-600' : 'text-gray-500')}`}>
                 {user.role === 'Admin' ? <span translate="no" className="notranslate">ADMIN</span> : user.role} {user.delegatedPermissions && (() => {
                   const count = Object.values(user.delegatedPermissions).filter(Boolean).length;

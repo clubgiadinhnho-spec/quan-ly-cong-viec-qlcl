@@ -22,7 +22,9 @@ import {
   Settings,
   Download,
   Loader2,
-  Edit3
+  Edit3,
+  ListChecks,
+  CheckSquare
 } from 'lucide-react';
 import { User, DiscussionTopic, DiscussionMessage } from '../types';
 import { formatDateTime } from '../lib/dateUtils';
@@ -40,6 +42,7 @@ interface GroupChatPageProps {
   onCreateTopic: (title: string, desc: string, orderCode: string) => void;
   onUpdateTopic: (topicId: string, updates: Partial<DiscussionTopic>) => void;
   onDeleteTopic: (topicId: string) => void;
+  onDeleteTopicsBulk?: (topicIds: string[]) => Promise<any>;
   onDeleteMessage?: (messageId: string) => void;
   onAddLog?: (type: any, details: string, metadata?: any) => void;
   presence?: string[];
@@ -55,6 +58,7 @@ export const GroupChatPage = ({
   onCreateTopic,
   onUpdateTopic,
   onDeleteTopic,
+  onDeleteTopicsBulk,
   onDeleteMessage,
   onAddLog,
   presence = []
@@ -63,15 +67,19 @@ export const GroupChatPage = ({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showCreateTopic, setShowCreateTopic] = useState(false);
   const [showDeleteTopicConfirm, setShowDeleteTopicConfirm] = useState<string | null>(null);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [newTopicTitle, setNewTopicTitle] = useState('');
   const [newTopicDesc, setNewTopicDesc] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<any[]>([]);
   const [showEmojiFor, setShowEmojiFor] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'OPEN' | 'CLOSED' | 'DELETED'>('OPEN');
   const [editTopic, setEditTopic] = useState<DiscussionTopic | null>(null);
+  const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
+  const [isBulkMode, setIsBulkMode] = useState(false);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -83,44 +91,73 @@ export const GroupChatPage = ({
     }
   }, [selectedTopicId]);
 
-  // Consolidated Topic selection logic to avoid redundant updates
-  useEffect(() => {
-    if (topics.length === 0) return;
+  const handleBulkDelete = async () => {
+    if (selectedBulkIds.length === 0) return;
 
-    const active = topics.find(t => t.id === selectedTopicId);
-    
-    // Case 1: No topic selected yet
-    if (!selectedTopicId) {
-      const freeChat = topics.find(t => t.orderCode === '000' && t.status === 'OPEN');
-      if (freeChat) {
-        setSelectedTopicId(freeChat.id);
-      } else {
-        const firstOpen = topics.find(t => t.status === 'OPEN');
-        if (firstOpen) setSelectedTopicId(firstOpen.id);
+    try {
+      setIsDeleting(true);
+      if (!onDeleteTopicsBulk) {
+        window.alert("Lỗi: Chức năng xóa hàng loạt không khả dụng.");
+        return;
       }
+      
+      await onDeleteTopicsBulk(selectedBulkIds);
+      
+      onAddLog?.('SYSTEM', `Xóa cưỡng bức ${selectedBulkIds.length} chủ đề.`);
+      
+      // If current selected topic is being deleted, deselect it
+      if (selectedTopicId && selectedBulkIds.includes(selectedTopicId)) {
+        setSelectedTopicId(null);
+      }
+
+      setSelectedBulkIds([]);
+      setIsBulkMode(false);
+      setShowBulkDeleteConfirm(false);
+      
+      // Removed window.location.reload() to maintain a smooth SPA experience
+    } catch (err) {
+      window.alert("Thất bại: " + (err instanceof Error ? err.message : "Lỗi không xác định"));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const toggleBulkSelection = (id: string) => {
+    setSelectedBulkIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    const currentTabTopics = topics
+      .filter(t => t.status === activeTab)
+      .map(t => t.id);
+    
+    if (selectedBulkIds.length === currentTabTopics.length) {
+      setSelectedBulkIds([]);
+    } else {
+      setSelectedBulkIds(currentTabTopics);
+    }
+  };
+
+const handleCreateTopic = () => {
+    if (!newTopicTitle.trim()) return;
+
+    const upperTitle = newTopicTitle.trim().toUpperCase();
+    const upperDesc = newTopicDesc.trim().toUpperCase();
+    
+    // Validation: Prevent duplicate titles
+    const isDuplicate = topics.some(t => t.title.toUpperCase() === upperTitle && t.status !== 'DELETED');
+    if (isDuplicate) {
+      window.alert(`LỖI: Tên chủ đề "${upperTitle}" đã tồn tại. Vui lòng đặt tên khác.`);
       return;
     }
 
-    // Case 2: Selected topic doesn't match current activeTab status
-    if (!active || active.status !== activeTab) {
-      if (activeTab === 'OPEN') {
-        const freeTopic = topics.find(t => t.orderCode === '000' && t.status === 'OPEN');
-        if (freeTopic) setSelectedTopicId(freeTopic.id);
-      }
-      // If we are in CLOSED or DELETED tab, we usually stay on the selected one if user explicitly clicked it, 
-      // but if coming from another tab we might need a default.
-      // However, the tab switch itself often triggers a re-eval and the list filters automatically.
-    }
-  }, [topics, activeTab, selectedTopicId]);
-
-  const handleCreateTopic = () => {
-    if (!newTopicTitle.trim()) return;
-
-    onCreateTopic(newTopicTitle.toUpperCase(), newTopicDesc, '');
+    onCreateTopic(upperTitle, upperDesc, '');
     
     // Add Log
-    onAddLog?.('SYSTEM', `Đã yêu cầu tạo chủ đề thảo luận mới: ${newTopicTitle.toUpperCase()}`, { 
-      topicTitle: newTopicTitle.toUpperCase()
+    onAddLog?.('SYSTEM', `Đã yêu cầu tạo chủ đề thảo luận mới: ${upperTitle}`, { 
+      topicTitle: upperTitle
     });
 
     setShowCreateTopic(false);
@@ -176,7 +213,7 @@ export const GroupChatPage = ({
       }
 
       const content = await zip.generateAsync({ type: "blob" });
-      saveAs(content, `TanPhu_Archive_${topic.title.replace(/\s+/g, '_')}.zip`);
+      saveAs(content, `TanPhu_Archive_${(topic.title || '').replace(/\s+/g, '_')}.zip`);
     } catch (error) {
       console.error("Download failed:", error);
     } finally {
@@ -274,12 +311,6 @@ export const GroupChatPage = ({
   const toggleTopicStatus = (topic: DiscussionTopic) => {
     const newStatus = topic.status === 'OPEN' ? 'CLOSED' : 'OPEN';
     onUpdateTopic(topic.id, { status: newStatus });
-    
-    // Auto-switch to "000" if closing
-    if (newStatus === 'CLOSED') {
-      const freeChat = topics.find(t => t.orderCode === '000');
-      if (freeChat) setSelectedTopicId(freeChat.id);
-    }
   };
 
   const getAuthor = (id: string) => users.find(u => u.id === id);
@@ -292,7 +323,9 @@ export const GroupChatPage = ({
           <div className="w-10 h-10 rounded-lg bg-[#132d6b] flex items-center justify-center shadow-sm">
             <MessageSquare size={20} className="text-white" strokeWidth={2.5} />
           </div>
-          <span className="text-xl font-black text-[#132d6b] uppercase tracking-tight">ROOM THẢO LUẬN</span>
+          <span className="text-xl font-black text-[#132d6b] uppercase tracking-tight">
+            <span translate="no" className="notranslate">ROOM THẢO LUẬN</span>
+          </span>
           <div className="flex h-2.5 w-2.5 relative">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border border-white"></span>
@@ -307,11 +340,11 @@ export const GroupChatPage = ({
               </div>
             ))}
           </div>
-          <div className="px-3 py-1 bg-slate-100 rounded-lg flex items-center gap-2 border border-slate-200">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">
-              {presence.length} TRỰC TUYẾN
-            </span>
-          </div>
+              <div className="px-3 py-1 bg-slate-100 rounded-lg flex items-center gap-2 border border-slate-200">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">
+                  <span translate="no" className="notranslate">{presence.length} TRỰC TUYẾN</span>
+                </span>
+              </div>
         </div>
       </div>
 
@@ -323,7 +356,7 @@ export const GroupChatPage = ({
           className="flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden shrink-0 relative"
         >
           <div className="p-4 pb-2">
-            <div className={`flex items-center justify-between mb-4 ${isSidebarCollapsed ? 'flex-col gap-4' : 'flex-row'}`}>
+            <div className={`flex items-center justify-between mb-2 ${isSidebarCollapsed ? 'flex-col gap-4' : 'flex-row'}`}>
               <div className="flex items-center gap-2">
                 {!isSidebarCollapsed && (
                   <h2 className="text-[18px] font-black text-blue-600 tracking-widest uppercase leading-none">
@@ -332,168 +365,265 @@ export const GroupChatPage = ({
                 )}
                 <button 
                   onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                  className={`p-1.5 bg-slate-50 text-slate-400 hover:text-blue-600 rounded-lg transition-all border border-slate-100 shadow-sm ${isSidebarCollapsed ? 'mb-1' : ''}`}
+                  className={`p-1 bg-slate-50 text-slate-400 hover:text-blue-600 rounded-lg transition-all border border-slate-100 shadow-sm ${isSidebarCollapsed ? 'mb-1' : ''}`}
                   title={isSidebarCollapsed ? "Mở rộng" : "Thu nhỏ"}
                 >
-                  <ChevronRight size={16} className={`transition-transform duration-300 ${isSidebarCollapsed ? '' : 'rotate-180'}`} />
+                  <ChevronRight size={14} className={`transition-transform duration-300 ${isSidebarCollapsed ? '' : 'rotate-180'}`} />
                 </button>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
                 {/* Manual creation button */}
+                {currentUser?.role === 'Admin' && (
+                  <button
+                    onClick={() => {
+                      setIsBulkMode(!isBulkMode);
+                      if (!isBulkMode) setSelectedBulkIds([]);
+                    }}
+                    className={`flex items-center justify-center transition-all shadow-md active:scale-90 border relative ${
+                      isBulkMode 
+                        ? 'bg-amber-500 border-amber-600 text-white' 
+                        : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600'
+                    } ${isSidebarCollapsed ? 'w-10 h-10 rounded-lg' : 'w-7 h-7 rounded-lg'}`}
+                    title={isBulkMode ? "Hủy chế độ chọn" : "Bật chế độ chọn nhiều để xóa"}
+                  >
+                    {isBulkMode ? <X size={isSidebarCollapsed ? 18 : 14} strokeWidth={2.5} /> : <ListChecks size={isSidebarCollapsed ? 18 : 14} strokeWidth={2.5} />}
+                    {selectedBulkIds.length > 0 && isBulkMode && (
+                      <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                        {selectedBulkIds.length}
+                      </span>
+                    )}
+                  </button>
+                )}
                 <button 
                   onClick={() => setShowCreateTopic(true)}
-                  className={`bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-md flex items-center justify-center hover:scale-105 active:scale-95 ${isSidebarCollapsed ? 'w-12 h-12' : 'w-10 h-10'}`}
-                  title="Tạo chủ đề"
+                  className={`bg-blue-600 text-white transition-all shadow-md flex items-center justify-center hover:scale-110 active:scale-90 ${isSidebarCollapsed ? 'w-10 h-10 rounded-lg' : 'w-7 h-7 rounded-lg'}`}
+                  title="Tạo chủ đề mới"
                 >
-                  <Plus size={isSidebarCollapsed ? 24 : 20} strokeWidth={3} />
+                  <Plus size={isSidebarCollapsed ? 20 : 16} strokeWidth={3} />
                 </button>
               </div>
             </div>
+          </div>
 
-            <div className={`flex gap-1 p-1 bg-slate-100 rounded-lg mb-3 ${isSidebarCollapsed ? 'flex-col' : 'flex-row'}`}>
+          {isBulkMode && (
+            <div className="mx-1 mb-2 px-2 py-1 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-between shadow-sm animate-in zoom-in duration-200">
+              <div className="flex items-center gap-1.5">
+                <button 
+                  onClick={toggleSelectAll}
+                  className="flex items-center gap-1 p-0.5 bg-white border border-amber-200 rounded-lg hover:bg-amber-100 transition-all font-black text-[9px] px-1.5"
+                  title="Chọn tất cả"
+                >
+                  <div className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center ${selectedBulkIds.length > 0 ? 'bg-amber-500 border-amber-600' : 'bg-white border-slate-300'}`}>
+                    {selectedBulkIds.length > 0 && <CheckSquare size={9} className="text-white" />}
+                  </div>
+                  <span className="text-amber-600 uppercase">Tất cả</span>
+                </button>
+              </div>
+              
+              <div className="flex items-center gap-1">
+                {selectedBulkIds.length > 0 && (
+                  <button 
+                    onClick={() => setShowBulkDeleteConfirm(true)}
+                    disabled={isDeleting}
+                    className="p-1 px-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all flex items-center justify-center gap-1 shadow-sm disabled:opacity-50 relative z-50 pointer-events-auto"
+                  >
+                    {isDeleting ? <Loader2 size={10} className="animate-spin" /> : <Trash2 size={10} />}
+                    <span className="text-[8px] font-black uppercase">XÓA {selectedBulkIds.length}</span>
+                  </button>
+                )}
+                <button 
+                  onClick={() => {
+                    setIsBulkMode(false);
+                    setSelectedBulkIds([]);
+                  }}
+                  className="p-1 bg-white text-slate-400 border border-slate-200 rounded-lg hover:text-red-500 transition-all"
+                  title="Hủy"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            </div>
+          )}
+
+            <div className={`flex gap-1 p-1 bg-slate-100 rounded-lg mb-2 ${isSidebarCollapsed ? 'flex-col' : 'flex-row'}`}>
               <button 
                 onClick={() => setActiveTab('OPEN')}
-                className={`flex-1 py-1.5 text-[9px] font-black rounded-md transition-all uppercase tracking-wider flex items-center justify-center ${activeTab === 'OPEN' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}
+                className={`flex-1 py-1 text-[9px] font-black rounded-md transition-all uppercase tracking-wider flex items-center justify-center ${activeTab === 'OPEN' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}
                 title="Đang mở"
               >
                 {isSidebarCollapsed ? <Hash size={14} /> : <span translate="no" className="notranslate">ĐANG MỞ</span>}
               </button>
               <button 
                 onClick={() => setActiveTab('CLOSED')}
-                className={`flex-1 py-1.5 text-[9px] font-black rounded-md transition-all uppercase tracking-wider flex items-center justify-center ${activeTab === 'CLOSED' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400'}`}
+                className={`flex-1 py-1 text-[9px] font-black rounded-md transition-all uppercase tracking-wider flex items-center justify-center ${activeTab === 'CLOSED' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400'}`}
                 title="Đã đóng"
               >
                 {isSidebarCollapsed ? <Archive size={14} /> : <span translate="no" className="notranslate">ĐÃ ĐÓNG</span>}
               </button>
               <button 
                 onClick={() => setActiveTab('DELETED')}
-                className={`flex-1 py-1.5 text-[9px] font-black rounded-md transition-all uppercase tracking-wider flex items-center justify-center ${activeTab === 'DELETED' ? 'bg-red-600 text-white shadow-sm' : 'text-slate-400'}`}
+                className={`flex-1 py-1 text-[9px] font-black rounded-md transition-all uppercase tracking-wider flex items-center justify-center ${activeTab === 'DELETED' ? 'bg-red-600 text-white shadow-sm' : 'text-slate-400'}`}
                 title="Đã xóa"
               >
                 {isSidebarCollapsed ? <Trash2 size={14} /> : <span translate="no" className="notranslate">ĐÃ XÓA</span>}
               </button>
             </div>
-          </div>
 
             <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-1 custom-scrollbar">
-            {[...topics]
-              .sort((a, b) => {
-                const isA000 = a.topicCode?.includes('000');
-                const isB000 = b.topicCode?.includes('000');
-                if (isA000 && !isB000) return -1;
-                if (!isA000 && isB000) return 1;
-                
-                return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-              })
-              .filter(t => t.status === activeTab)
-              .map((topic) => {
-              const isActive = selectedTopicId === topic.id;
-              const isSystemTopic = topic.topicCode?.includes('000');
+            {(() => {
+              const isFreeExchange = (title: string) => title.toUpperCase().includes('TRAO ĐỔI TỰ DO');
               
-              // Formatting: P.0012026 -> P.001 and 2026
-              const rawCode = topic.topicCode || `P${topic.orderCode || '000'}${new Date(topic.createdAt).getFullYear()}`;
-              const pPart = rawCode.slice(0, 4); 
-              const yPart = rawCode.slice(4);
-              
-              return (
-                <div key={topic.id} className="relative group">
-                  <div
-                    onClick={() => setSelectedTopicId(topic.id)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => e.key === 'Enter' && setSelectedTopicId(topic.id)}
-                    className={`w-full flex items-start gap-2 rounded-lg transition-all relative p-1.5 border min-h-[42px] h-auto cursor-pointer ${
-                      isSystemTopic
-                        ? 'bg-red-50 border-red-200'
-                        : isActive 
-                          ? 'bg-blue-50 border-blue-200 shadow-sm' 
-                          : 'bg-white border-slate-100 hover:bg-slate-50 hover:border-slate-200 shadow-sm'
-                    }`}
-                  >
-                    <div className={`shrink-0 w-11 h-11 rounded flex flex-col items-center justify-center font-sans font-black leading-none border transition-colors ${
-                      isSystemTopic
-                        ? 'bg-red-600 text-white border-red-700'
-                        : isActive 
-                          ? 'bg-blue-600 text-white border-blue-700' 
-                          : 'bg-slate-50 text-slate-400 group-hover:text-blue-500 transition-colors border-slate-200'
-                    }`}>
-                      <span translate="no" className="notranslate text-[10px] uppercase">{pPart}</span>
-                      <span translate="no" className="notranslate text-[8px] opacity-80 mt-0.5">{yPart}</span>
-                    </div>
-                    
-                    {!isSidebarCollapsed && (
-                      <div className="text-left flex-1 min-w-0 flex items-start justify-between gap-1 ml-1 px-1">
-                        <p className={`whitespace-normal uppercase text-[11px] leading-snug pt-1 flex-1 ${
-                          isSystemTopic
-                            ? 'text-red-600 font-black'
-                            : isActive 
-                              ? 'text-blue-700 font-black' 
-                              : 'text-blue-600 font-bold'
-                        }`}>
-                          {topic.title.toUpperCase()}
-                        </p>
-                        <div className={`flex items-center gap-1.5 shrink-0 pt-1.5 ${isActive ? 'text-blue-600/80' : 'text-slate-600'}`}>
-                          <div className="w-[1px] h-6 bg-slate-200 mt-0.5 shrink-0" />
-                          <div className="flex flex-col items-end leading-none">
-                            {currentUser.role === 'Admin' && isActive && !isSystemTopic && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditTopic(topic);
-                                }}
-                                className="absolute -top-1.5 -right-1 p-1 bg-white shadow-sm border border-slate-200 rounded-md text-blue-600 opacity-0 group-hover:opacity-100 transition-all hover:bg-blue-50 z-10"
-                              >
-                                <Edit3 size={10} />
-                              </button>
-                            )}
-                            <p className="text-[7px] font-bold uppercase truncate max-w-[70px]">
-                              {topic.createdBy === 'SYSTEM' ? 'Hệ thống' : (getAuthor(topic.createdBy)?.name.split(' ').pop() || 'Tân Phú')}
-                            </p>
-                            <p className="text-[6px] font-sans font-medium opacity-60">
-                              {formatDateTime(topic.createdAt).split(' ')[0]}
-                            </p>
-                          </div>
+              const getTopicLastActivity = (topicId: string, createdAt: any) => {
+                const topicMessages = messages.filter(m => m.topicId === topicId);
+                if (topicMessages.length === 0) return new Date(createdAt).getTime();
+                return Math.max(...topicMessages.map(m => new Date(m.timestamp).getTime()));
+              };
+
+              return [...topics]
+                .filter(t => t.status === activeTab)
+                .sort((a, b) => {
+                  // 1. Priority for "Trao đổi tự do"
+                  const aFree = isFreeExchange(a.title);
+                  const bFree = isFreeExchange(b.title);
+                  if (aFree && !bFree) return -1;
+                  if (!aFree && bFree) return 1;
+                  
+                  // 2. Sort the rest by last activity (last message time)
+                  const aActivity = getTopicLastActivity(a.id, a.createdAt);
+                  const bActivity = getTopicLastActivity(b.id, b.createdAt);
+                  return bActivity - aActivity;
+                })
+                .map((topic) => {
+                  const isActive = selectedTopicId === topic.id;
+                  const isFree = isFreeExchange(topic.title);
+                  
+                  // Formatting logic: Only keep the main ID (PSTT)
+                  const rawCode = topic.topicCode || `P${topic.orderCode || '???'}`;
+                  const pPart = rawCode.length > 6 ? rawCode.slice(0, rawCode.length - 6) : rawCode;
+                  
+                  return (
+                    <div key={topic.id} className="relative group flex items-center gap-2">
+                      {isBulkMode && (
+                        <div 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleBulkSelection(topic.id);
+                          }}
+                          className={`shrink-0 w-6 h-6 rounded-md border flex items-center justify-center transition-all cursor-pointer ${
+                            selectedBulkIds.includes(topic.id) 
+                              ? 'bg-blue-600 border-blue-700 shadow-sm' 
+                              : 'bg-white border-slate-300 hover:border-blue-400'
+                          }`}
+                        >
+                          {selectedBulkIds.includes(topic.id) && <CheckSquare size={14} className="text-white" />}
                         </div>
+                      )}
+                      <div
+                        onClick={() => isBulkMode ? toggleBulkSelection(topic.id) : setSelectedTopicId(topic.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => e.key === 'Enter' && setSelectedTopicId(topic.id)}
+                        className={`w-full flex items-start gap-1.5 rounded-lg transition-all relative p-1.5 border min-h-[38px] h-auto cursor-pointer ${
+                          isActive 
+                            ? isFree ? 'bg-red-50 border-red-200 shadow-sm ring-2 ring-red-100/50' : 'bg-blue-50 border-blue-200 shadow-sm ring-2 ring-blue-100/50'
+                            : 'bg-white border-slate-100 hover:bg-slate-50 hover:border-slate-200 shadow-sm'
+                        }`}
+                      >
+                        <div className={`shrink-0 w-9 h-9 rounded flex items-center justify-center font-sans leading-none border transition-all ${
+                          isActive 
+                            ? isFree ? 'bg-red-600 text-white border-red-700 shadow-sm' : 'bg-blue-600 text-white border-blue-700 shadow-sm'
+                            : isFree 
+                              ? 'bg-red-50 text-red-600 group-hover:bg-red-100 border-red-100 shadow-inner'
+                              : 'bg-blue-50 text-blue-600 group-hover:bg-blue-100 border-blue-100 shadow-inner'
+                        }`}>
+                          <span translate="no" className="notranslate text-[10px] font-black uppercase tracking-tighter">{pPart}</span>
+                        </div>
+                        
+                        {!isSidebarCollapsed && (
+                          <div className="text-left flex-1 min-w-0 flex items-start justify-between gap-1 px-0.5">
+                            <p className={`whitespace-normal uppercase text-[10px] leading-tight pt-1 flex-1 ${
+                              isActive 
+                                ? isFree ? 'text-red-700 font-black' : 'text-blue-700 font-black'
+                                : isFree ? 'text-red-600 font-bold' : 'text-blue-600 font-bold'
+                            }`}>
+                              {topic.title.toUpperCase()}
+                            </p>
+                            <div className={`flex items-center gap-1 shrink-0 pt-0.5 ${isActive ? isFree ? 'text-red-600/80' : 'text-blue-600/80' : 'text-slate-600'}`}>
+                              <div className="w-[1px] h-4 bg-slate-200 mt-0.5 shrink-0" />
+                              <div className="flex flex-col items-end leading-none relative group/actions">
+                                {currentUser.role === 'Admin' && (
+                                  <div className="absolute -top-6 -right-1 flex items-center gap-1 opacity-0 group-hover/actions:opacity-100 transition-all z-10">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditTopic(topic);
+                                      }}
+                                      className="p-1 bg-white shadow-md border border-slate-200 rounded-md text-blue-600 hover:bg-blue-50"
+                                      title="Chỉnh sửa"
+                                    >
+                                      <Edit3 size={11} />
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowDeleteTopicConfirm(topic.id);
+                                      }}
+                                      className="p-1 bg-white shadow-md border border-slate-200 rounded-md text-red-500 hover:bg-red-50"
+                                      title="Xóa nhanh"
+                                    >
+                                      <Trash2 size={11} />
+                                    </button>
+                                  </div>
+                                )}
+                                <p className="text-[7px] font-bold uppercase truncate max-w-[70px]">
+                                  {getAuthor(topic.createdBy)?.name.split(' ').pop() || 'Tân Phú'}
+                                </p>
+                                <p className="text-[6px] font-sans font-medium opacity-60">
+                                  {formatDateTime(topic.createdAt).split(' ')[0]}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  {/* Actions for closed/deleted topics */}
-                  <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
-                    {activeTab === 'CLOSED' && (
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleTopicStatus(topic);
-                        }}
-                        className="w-6 h-6 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center hover:bg-emerald-200 shadow-sm border border-emerald-200"
-                        title="Mở lại chủ đề"
-                      >
-                        <Unlock size={12} strokeWidth={2.5} />
-                      </button>
-                    )}
-                    {activeTab === 'DELETED' && (
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onUpdateTopic(topic.id, { status: 'OPEN' });
-                          const logCode = topic.topicCode || `P${topic.orderCode || '000'}${new Date(topic.createdAt).getFullYear()}`;
-                          onAddLog?.('SYSTEM', `Đã khôi phục chủ đề: [${logCode}] ${topic.title}`);
-                        }}
-                        className="w-6 h-6 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center hover:bg-emerald-200 shadow-sm border border-emerald-200"
-                        title="Khôi phục chủ đề"
-                      >
-                        <RotateCcw size={12} strokeWidth={2.5} />
-                      </button>
-                    )}
-                  </div>
+                      {/* Actions for closed/deleted topics */}
+                      <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
+                        {activeTab === 'CLOSED' && (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleTopicStatus(topic);
+                            }}
+                            className="w-6 h-6 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center hover:bg-emerald-200 shadow-sm border border-emerald-200"
+                            title="Mở lại chủ đề"
+                          >
+                            <Unlock size={12} strokeWidth={2.5} />
+                          </button>
+                        )}
+                        {activeTab === 'DELETED' && (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onUpdateTopic(topic.id, { status: 'OPEN' });
+                              const logCode = topic.topicCode || `P${topic.orderCode || '???'}${new Date(topic.createdAt).getFullYear()}`;
+                              onAddLog?.('SYSTEM', `Đã khôi phục chủ đề: [${logCode}] ${topic.title}`);
+                            }}
+                            className="w-6 h-6 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center hover:bg-emerald-200 shadow-sm border border-emerald-200"
+                            title="Khôi phục chủ đề"
+                          >
+                            <RotateCcw size={12} strokeWidth={2.5} />
+                          </button>
+                        )}
+                      </div>
 
-                  {activeTab === 'OPEN' && topic.status === 'CLOSED' && (
-                    <Lock size={10} className="text-slate-300 absolute right-1.5 top-1.5" />
-                  )}
-                </div>
-              );
-            })}
+                      {activeTab === 'OPEN' && topic.status === 'CLOSED' && (
+                        <Lock size={10} className="text-slate-300 absolute right-1.5 top-1.5" />
+                      )}
+                    </div>
+                  );
+                });
+            })()}
           </div>
         </motion.div>
 
@@ -504,24 +634,32 @@ export const GroupChatPage = ({
               {/* Chat Header - Integrated */}
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-20">
                 <div className="flex items-center gap-4">
-                  <div className={`shrink-0 w-11 h-11 rounded-lg flex flex-col items-center justify-center font-sans font-black leading-none border transition-colors ${
-                    activeTopic.topicCode?.includes('000') 
-                      ? 'bg-red-600 text-white border-red-700' 
-                      : 'bg-slate-50 text-slate-400 border-slate-100'
-                  }`}>
-                    {(() => {
-                      const raw = activeTopic.topicCode || `P${activeTopic.orderCode || '000'}${new Date(activeTopic.createdAt).getFullYear()}`;
-                      return (
-                        <>
-                          <span translate="no" className="notranslate text-[10px] uppercase font-black tracking-tighter">{raw.slice(0, 4)}</span>
-                          <span translate="no" className="notranslate text-[9px] opacity-90 mt-0.5">{raw.slice(4)}</span>
-                        </>
-                      );
-                    })()}
-                  </div>
+                  {(() => {
+                    const isFree = activeTopic.title.toUpperCase().includes('TRAO ĐỔI TỰ DO');
+                    return (
+                      <div className={`shrink-0 w-11 h-11 rounded-lg flex items-center justify-center font-sans leading-none border transition-all ${
+                        isFree 
+                          ? 'bg-red-50 text-red-600 border-red-100 shadow-inner' 
+                          : 'bg-blue-50 text-blue-600 border-blue-100 shadow-inner'
+                      }`}>
+                        {(() => {
+                          const raw = activeTopic.topicCode || `P${activeTopic.orderCode || '???'}`;
+                          const pPart = raw.length > 6 ? raw.slice(0, raw.length - 6) : raw;
+                          
+                          return (
+                            <span translate="no" className="notranslate text-[12px] font-black uppercase tracking-tighter leading-none">{pPart}</span>
+                          );
+                        })()}
+                      </div>
+                    );
+                  })()}
                   <div className="min-w-0">
-                    <h1 className="text-[18px] font-black text-slate-900 leading-tight mb-0.5 uppercase pt-0.5 truncate">{activeTopic.title}</h1>
-                    <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider truncate">{activeTopic.description || 'Hệ thống thảo luận bảo mật'}</p>
+                    <h1 className={`text-[18px] font-black leading-tight mb-0.5 uppercase pt-0.5 truncate ${
+                      activeTopic.title.toUpperCase().includes('TRAO ĐỔI TỰ DO') ? 'text-red-700' : 'text-slate-900'
+                    }`}>{activeTopic.title}</h1>
+              <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider truncate">
+                <span translate="no" className="notranslate">{activeTopic.description || 'Hệ thống thảo luận bảo mật'}</span>
+              </p>
                   </div>
                 </div>
 
@@ -608,7 +746,7 @@ export const GroupChatPage = ({
                         <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                           {showAvatar && (
                             <span className={`text-[9px] font-black uppercase mb-1 px-1 tracking-wider ${isMe ? 'text-[#132d6b]' : 'text-slate-500'}`}>
-                              {author?.name}
+                              <span translate="no" className="notranslate">{author?.name}</span>
                             </span>
                           )}
                           <div 
@@ -795,7 +933,9 @@ export const GroupChatPage = ({
               className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 p-8"
             >
               <div className="flex items-center justify-between mb-8">
-                 <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Chỉnh sửa chủ đề</h2>
+                 <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                   <span translate="no" className="notranslate">Chỉnh sửa chủ đề</span>
+                 </h2>
                  <button onClick={() => setEditTopic(null)} className="w-8 h-8 text-slate-400 hover:text-slate-600 transition-all">
                     <X size={20} />
                  </button>
@@ -803,33 +943,51 @@ export const GroupChatPage = ({
 
               <div className="space-y-4">
                  <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block px-1">Tên chủ đề</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block px-1">
+                      <span translate="no" className="notranslate">Tên chủ đề</span>
+                    </label>
                     <input 
                       type="text" 
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 ring-blue-100 font-bold text-slate-700"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 ring-blue-100 font-bold text-slate-700 uppercase"
                       value={editTopic.title}
-                      onChange={(e) => setEditTopic({ ...editTopic, title: e.target.value })}
+                      onChange={(e) => setEditTopic({ ...editTopic, title: e.target.value.toUpperCase() })}
                     />
                  </div>
                  <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block px-1">Mô tả mục tiêu</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block px-1">
+                      <span translate="no" className="notranslate">Mô tả mục tiêu</span>
+                    </label>
                     <textarea 
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 ring-blue-100 font-bold text-slate-700 min-h-[100px] resize-none"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 ring-blue-100 font-bold text-slate-700 min-h-[100px] resize-none uppercase"
                       value={editTopic.description}
-                      onChange={(e) => setEditTopic({ ...editTopic, description: e.target.value })}
+                      onChange={(e) => setEditTopic({ ...editTopic, description: e.target.value.toUpperCase() })}
                     />
                  </div>
                  <button 
                   disabled={!editTopic.title.trim()}
                   onClick={() => {
-                    const upperTitle = editTopic.title.toUpperCase();
-                    onUpdateTopic(editTopic.id, { title: upperTitle, description: editTopic.description });
+                    const upperTitle = editTopic.title.trim().toUpperCase();
+                    const upperDesc = editTopic.description.trim().toUpperCase();
+                    
+                    // Validation: Prevent duplicate titles (excluding self)
+                    const isDuplicate = topics.some(t => 
+                      t.id !== editTopic.id && 
+                      t.title.toUpperCase() === upperTitle && 
+                      t.status !== 'DELETED'
+                    );
+                    
+                    if (isDuplicate) {
+                      window.alert(`LỖI: Tên chủ đề "${upperTitle}" đã tồn tại. Vui lòng đặt tên khác.`);
+                      return;
+                    }
+
+                    onUpdateTopic(editTopic.id, { title: upperTitle, description: upperDesc });
                     onAddLog?.('SYSTEM', `Đã cập nhật chủ đề: [${editTopic.orderCode}] ${upperTitle}`);
                     setEditTopic(null);
                   }}
                   className="w-full py-4 bg-[#132d6b] text-white rounded-xl font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-900/10"
                  >
-                   CẬP NHẬT
+                   <span translate="no" className="notranslate">CẬP NHẬT</span>
                  </button>
               </div>
             </motion.div>
@@ -848,7 +1006,9 @@ export const GroupChatPage = ({
               className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 p-8"
             >
               <div className="flex items-center justify-between mb-8">
-                 <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Tạo chủ đề mới</h2>
+                 <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                   <span translate="no" className="notranslate">Tạo chủ đề mới</span>
+                 </h2>
                  <button onClick={() => setShowCreateTopic(false)} className="w-8 h-8 text-slate-400 hover:text-slate-600 transition-all">
                     <X size={20} />
                  </button>
@@ -856,23 +1016,27 @@ export const GroupChatPage = ({
 
               <div className="space-y-4">
                  <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block px-1">Tên chủ đề</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block px-1">
+                      <span translate="no" className="notranslate">Tên chủ đề</span>
+                    </label>
                     <input 
                       autoFocus
                       type="text" 
                       placeholder="Nhập tiêu đề..."
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 ring-blue-100 font-bold text-slate-700"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 ring-blue-100 font-bold text-slate-700 uppercase"
                       value={newTopicTitle}
-                      onChange={(e) => setNewTopicTitle(e.target.value)}
+                      onChange={(e) => setNewTopicTitle(e.target.value.toUpperCase())}
                     />
                  </div>
                  <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block px-1">Mô tả (Tùy chọn)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block px-1">
+                      <span translate="no" className="notranslate">Mô tả</span>
+                    </label>
                     <textarea 
                       placeholder="Mục tiêu thảo luận..."
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 ring-blue-100 font-bold text-slate-700 min-h-[80px] resize-none"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 ring-blue-100 font-bold text-slate-700 min-h-[80px] resize-none uppercase"
                       value={newTopicDesc}
-                      onChange={(e) => setNewTopicDesc(e.target.value)}
+                      onChange={(e) => setNewTopicDesc(e.target.value.toUpperCase())}
                     />
                  </div>
                  <button 
@@ -880,8 +1044,52 @@ export const GroupChatPage = ({
                   onClick={handleCreateTopic}
                   className="w-full py-4 bg-[#132d6b] text-white rounded-xl font-black uppercase tracking-widest transition-all disabled:opacity-20 shadow-lg shadow-blue-900/10"
                  >
-                   XÁC NHẬN TẠO
+                   <span translate="no" className="notranslate">XÁC NHẬN TẠO</span>
                  </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showBulkDeleteConfirm && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 p-8 text-center"
+            >
+              <div className="w-16 h-16 bg-red-50 text-red-500 rounded-xl flex items-center justify-center mx-auto mb-6">
+                <Trash2 size={32} />
+              </div>
+              <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">
+                <span translate="no" className="notranslate">XÓA NHIỀU MỤC?</span>
+              </h2>
+              <p className="text-[13px] text-slate-500 font-medium mb-8">
+                <span translate="no" className="notranslate">
+                  Bạn đã chọn {selectedBulkIds.length} chủ đề. Hành động này sẽ xóa vĩnh viễn dữ liệu và không thể khôi phục.
+                </span>
+              </p>
+              
+              <div className="space-y-2">
+                <button 
+                  disabled={isDeleting}
+                  onClick={handleBulkDelete}
+                  className="w-full py-3.5 bg-red-600 text-white rounded-xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/20 disabled:opacity-50"
+                >
+                  {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  <span translate="no" className="notranslate">{isDeleting ? 'ĐANG XÓA...' : `XÁC NHẬN XÓA ${selectedBulkIds.length} MỤC`}</span>
+                </button>
+                <button 
+                  disabled={isDeleting}
+                  onClick={() => setShowBulkDeleteConfirm(false)}
+                  className="w-full py-3.5 bg-slate-100 text-slate-500 rounded-xl font-black uppercase tracking-widest text-[11px] hover:bg-slate-200 transition-all"
+                >
+                  <span translate="no" className="notranslate">HUỶ BỎ</span>
+                </button>
               </div>
             </motion.div>
           </div>
@@ -906,12 +1114,14 @@ export const GroupChatPage = ({
                   <Trash2 size={32} />
                 </div>
                 <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">
-                  {isActuallyDeleted ? 'Xóa vĩnh viễn?' : 'Chuyển vào thùng rác?'}
+                  <span translate="no" className="notranslate">{isActuallyDeleted ? 'Xóa vĩnh viễn?' : 'Chuyển vào thùng rác?'}</span>
                 </h2>
                 <p className="text-[13px] text-slate-500 font-medium mb-8">
-                  {isActuallyDeleted 
-                    ? 'Hành động này không thể hoàn tác. Toàn bộ dữ liệu chủ đề sẽ biến mất mãi mãi.' 
-                    : 'Chủ đề sẽ được chuyển vào tab ĐÃ XÓA. Bạn có thể khôi phục lại sau nếu cần.'}
+                  <span translate="no" className="notranslate">
+                    {isActuallyDeleted 
+                      ? 'Hành động này không thể hoàn tác. Toàn bộ dữ liệu chủ đề sẽ biến mất mãi mãi.' 
+                      : 'Chủ đề sẽ được chuyển vào tab ĐÃ XÓA. Bạn có thể khôi phục lại sau nếu cần.'}
+                  </span>
                 </p>
                 
                 <div className="space-y-2">
@@ -923,20 +1133,21 @@ export const GroupChatPage = ({
                       }}
                       className="w-full py-3.5 bg-[#132d6b] text-white rounded-xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center justify-center gap-2"
                     >
-                      <Download size={14} /> TẢI VỀ & XÓA TẠM
+                      <Download size={14} />
+                      <span translate="no" className="notranslate">TẢI VỀ & XÓA TẠM</span>
                     </button>
                   )}
                   <button 
                     onClick={() => handleTopicDelete(showDeleteTopicConfirm)}
                     className="w-full py-3.5 bg-red-500 text-white rounded-xl font-black uppercase tracking-widest text-[11px] transition-all"
                   >
-                    {isActuallyDeleted ? 'XÁC NHẬN XÓA VĨNH VIỄN' : 'XÁC NHẬN XÓA TẠM'}
+                    <span translate="no" className="notranslate">{isActuallyDeleted ? 'XÁC NHẬN XÓA VĨNH VIỄN' : 'XÁC NHẬN XÓA TẠM'}</span>
                   </button>
                   <button 
                     onClick={() => setShowDeleteTopicConfirm(null)}
                     className="w-full py-3.5 bg-slate-100 text-slate-500 rounded-xl font-black uppercase tracking-widest text-[11px] hover:bg-slate-200 transition-all"
                   >
-                    HUỶ BỎ
+                    <span translate="no" className="notranslate">HUỶ BỎ</span>
                   </button>
                 </div>
               </motion.div>

@@ -50,7 +50,7 @@ export const ReportPage = ({
   const loadDraft = async () => {
     if (!currentUser) return;
     try {
-      const draftId = `${reportPeriod.replace(/\//g, '-')}_${currentUser.id}`;
+      const draftId = `${(reportPeriod || '').replace(/\//g, '-')}_${currentUser.id}`;
       const draftDoc = await getDoc(doc(db, 'report_drafts', draftId));
       if (draftDoc.exists()) {
         const data = draftDoc.data() as ReportDraft;
@@ -144,7 +144,7 @@ export const ReportPage = ({
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
       pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
-      pdf.save(`BAO_CAO_QC_${reportPeriod.replace(/\//g, '_')}.pdf`);
+      pdf.save(`BAO_CAO_QC_${(reportPeriod || '').replace(/\//g, '_')}.pdf`);
     } catch (err) {
       console.error("PDF Export error:", err);
       alert("Lỗi khi tạo file PDF. Vui lòng thử lại.");

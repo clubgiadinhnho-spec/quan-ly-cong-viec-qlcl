@@ -1,127 +1,190 @@
 import { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth'; // Import for local auth listener
+import { db, auth } from '../lib/firebase';
 import { User } from '../types';
-import { FIXED_STAFF } from '../constants/staff';
+import { FIXED_STAFF, SYSTEM_ADMIN_EMAILS } from '../constants/staff'; // Import admin list
+import { generateUniqueKey } from '../utils/stringUtils';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  const jsonErr = JSON.stringify(errInfo);
+  console.error('Firestore Error: ', jsonErr);
+  throw new Error(jsonErr);
+}
 
 export const useStaff = () => {
   const [firestoreProfiles, setFirestoreProfiles] = useState<Record<string, User>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Listen to user_profiles collection for real-time updates as requested
-    const unsub = onSnapshot(collection(db, 'user_profiles'), (snapshot) => {
-      const p: Record<string, User> = {};
-      snapshot.docs.forEach(doc => {
-        // Use email as key (lowercase) or the doc ID if it's already an email
-        const data = doc.data();
-        const key = (data.personalEmail || doc.id).toLowerCase();
-        p[key] = { ...data, id: doc.id } as User;
-      });
-      setFirestoreProfiles(p);
-      setLoading(false);
-    }, (error) => {
-      // If it's a permission error and we are not yet signed in, it might be transient 
-      // but with our new 'allow read: if true' rule, this shouldn't happen.
-      if (error.code !== 'permission-denied') {
-        console.error("Staff profiles listener error:", error);
+    // Listen to Firebase Auth to determine role and profile key
+    const unsubAuth = onAuthStateChanged(auth, (fbUser) => {
+      if (!fbUser) {
+        setFirestoreProfiles({});
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      const email = (fbUser.email || "").toLowerCase();
+      const isAdmin = SYSTEM_ADMIN_EMAILS.map(e => e.toLowerCase()).includes(email);
+      
+      // Find matching staff to get current uniqueKey
+      const staffMember = FIXED_STAFF.find(s => 
+        (s.companyEmail || "").toLowerCase() === email || 
+        (s.personalEmail || "").toLowerCase() === email
+      );
+
+      let unsubSnapshot: () => void;
+
+      if (isAdmin) {
+        console.log("👑 [useStaff] Admin detected. Syncing ALL profiles real-time.");
+        unsubSnapshot = onSnapshot(collection(db, 'user_profiles'), (snapshot) => {
+          const p: Record<string, User> = {};
+          snapshot.docs.forEach(doc => {
+            p[doc.id] = { ...doc.data(), id: doc.id } as User;
+          });
+          setFirestoreProfiles(p);
+          setLoading(false);
+        }, (err) => {
+          console.error("❌ [useStaff] Admin snapshot error:", err);
+          setLoading(false);
+        });
+      } else if (staffMember) {
+        const myKey = staffMember.uniqueKey;
+        console.log(`👤 [useStaff] User detected: ${staffMember.name}. Syncing profile: ${myKey}`);
+        unsubSnapshot = onSnapshot(doc(db, 'user_profiles', myKey), (docSnap) => {
+          if (docSnap.exists()) {
+            setFirestoreProfiles({ [myKey]: { ...docSnap.data(), id: docSnap.id } as User });
+          } else {
+            console.warn(`⚠️ [useStaff] No Firestore document found for key: ${myKey}`);
+          }
+          setLoading(false);
+        }, (err) => {
+          console.error("❌ [useStaff] User snapshot error:", err);
+          setLoading(false);
+        });
+      } else {
+        setLoading(false);
+      }
+
+      return () => {
+        if (unsubSnapshot) unsubSnapshot();
+      };
     });
 
-    return () => unsub();
+    return () => unsubAuth();
   }, []);
 
   const allStaff = useMemo(() => {
-    // VIẾT LẠI LOGIC GỘP (MERGE) BẮT BUỘC:
-    // Bước 1: Lấy 5 người từ file staff.ts làm khung.
-    const baseStaff = [...FIXED_STAFF];
-
-    // Bước 2: So khớp theo Email. Nếu trên Firestore có dữ liệu, GHI ĐÈ Password, Phone, Avatar.
-    const firestoreUsers = Object.values(firestoreProfiles) as User[];
-    
-    // GỘP DỮ LIỆU (MERGE) BẮT BUỘC:
-    // Bước 1: Lấy 5 người từ file staff.ts làm khung.
+    // SOURCE OF TRUTH LOGIC:
+    // 1. Dùng FIXED_STAFF làm khung xương (Skeleton)
     const merged = FIXED_STAFF.map(fixed => {
-      const pEmail = fixed.personalEmail?.toLowerCase();
-      const cEmail = fixed.companyEmail?.toLowerCase();
-      
-      // Bước 2: So khớp theo Email (Cá nhân hoặc Công ty) hoặc ID hoặc Code
-      const firestoreUser = firestoreUsers.find(fu => {
-        const fuPEmail = fu.personalEmail?.toLowerCase();
-        const fuCEmail = fu.companyEmail?.toLowerCase();
-        const fuId = fu.id?.toLowerCase();
-        const fuCode = fu.code?.toLowerCase();
-        
-        return (fuPEmail && (fuPEmail === pEmail || fuPEmail === cEmail)) || 
-               (fuCEmail && (fuCEmail === pEmail || fuCEmail === cEmail)) ||
-               (fuId === pEmail) ||
-               (fuId === cEmail) ||
-               (fuCode === fixed.code?.toLowerCase());
-      });
+      const firestoreUser = firestoreProfiles[fixed.uniqueKey] as User | undefined;
 
       if (firestoreUser) {
-        // CẤP BẬC ƯU TIÊN: Dữ liệu Firestore GHI ĐÈ dữ liệu mẫu
-        // Giữ lại id và code gốc để không làm hỏng UI/Mapping nghiệp vụ
+        // CẤP BẬC ƯU TIÊN: Firestore ghi đè 100% các thông tin linh động
         return { 
           ...fixed, 
           ...firestoreUser,
+          // Giữ lại các ID định danh thép
+          uniqueKey: fixed.uniqueKey,
           id: fixed.id, 
           code: fixed.code,
-          // Ưu tiên các trường yêu cầu: Mật khẩu, SĐT, Avatar
-          password: firestoreUser.password || fixed.password || '123456',
-          phone: firestoreUser.phone || fixed.phone,
-          avatar: firestoreUser.avatar || fixed.avatar
+          // Bắt buộc lấy password, phone từ Firestore hoặc hiện "CHỜ CẬP NHẬT"
+          // Ta không dùng fallback '123456' hay dữ liệu trong staff.ts nữa
+          password: firestoreUser.password || 'CHỜ CẬP NHẬT',
+          phone: firestoreUser.phone || 'CHỜ CẬP NHẬT',
+          personalEmail: firestoreUser.personalEmail || 'CHỜ CẬP NHẬT'
         } as User;
       }
-      // Mặc định mật khẩu là 123456 nếu chưa có trên Firestore
-      return { ...fixed, password: fixed.password || '123456' };
+      
+      // Nếu Firestore không có document cho người này -> Báo "CHỜ CẬP NHẬT"
+      return { 
+        ...fixed, 
+        password: 'CHỜ CẬP NHẬT',
+        phone: 'CHỜ CẬP NHẬT',
+        personalEmail: 'CHỜ CẬP NHẬT'
+      } as User;
     });
 
-    // Bước 3: Trả về danh sách đã gộp (Cộng thêm người mới nếu có)
-    const matchedEmails = new Set();
-    merged.forEach(s => {
-      if (s.personalEmail) matchedEmails.add(s.personalEmail.toLowerCase());
-      if (s.companyEmail) matchedEmails.add(s.companyEmail.toLowerCase());
-    });
-    
-    firestoreUsers.forEach(fUser => {
-      const fPEmail = fUser.personalEmail?.toLowerCase();
-      const fCEmail = fUser.companyEmail?.toLowerCase();
-      if ((fPEmail && matchedEmails.has(fPEmail)) || (fCEmail && matchedEmails.has(fCEmail))) {
-        return;
+    // 2. Thêm những người dùng mới chỉ có trong Firestore
+    const fixedKeys = new Set(FIXED_STAFF.map(s => s.uniqueKey));
+    (Object.values(firestoreProfiles) as User[]).forEach(fUser => {
+      if (!fixedKeys.has(fUser.uniqueKey)) {
+        merged.push({
+          ...fUser,
+          // Đảm bảo không bị trống
+          password: fUser.password || 'CHỜ CẬP NHẬT',
+          phone: fUser.phone || 'CHỜ CẬP NHẬT'
+        });
       }
-      merged.push({
-        ...fUser,
-        password: fUser.password || '123456'
-      });
     });
 
     return merged;
   }, [firestoreProfiles]);
 
-  const updateProfile = async (email: string, updates: Partial<User>) => {
+  const updateProfile = async (uniqueKey: string, updates: Partial<User>) => {
     try {
-      const docId = email.toLowerCase();
-      const docRef = doc(db, 'user_profiles', docId);
-      
-      // Ensure we store the password in the 'password' field as requested
+      const docRef = doc(db, 'user_profiles', uniqueKey);
+      // Đảm bảo uniqueKey luôn tồn tại trong document
       await setDoc(docRef, {
         ...updates,
+        uniqueKey,
         updatedAt: new Date().toISOString()
       }, { merge: true });
+      console.log(`✅ [Source of Truth] Đã cập nhật Firestore cho: ${uniqueKey}`);
     } catch (error) {
-      console.error("Error updating profile:", error);
-      throw error;
+      handleFirestoreError(error, OperationType.WRITE, `user_profiles/${uniqueKey}`);
     }
   };
 
-  const deleteProfile = async (email: string) => {
+  const deleteProfile = async (uniqueKey: string) => {
     try {
-      await deleteDoc(doc(db, 'user_profiles', email.toLowerCase()));
+      await deleteDoc(doc(db, 'user_profiles', uniqueKey));
     } catch (error) {
-      console.error("Error deleting profile:", error);
-      throw error;
+      handleFirestoreError(error, OperationType.DELETE, `user_profiles/${uniqueKey}`);
     }
   };
 

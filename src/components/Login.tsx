@@ -2,24 +2,28 @@ import React, { useState } from 'react';
 import { User } from '../types';
 import { LogIn, UserPlus, Mail, Lock, ShieldCheck, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { loginWithEmail, registerWithEmail, loginWithGoogle, logout } from '../lib/firebase';
+import { loginWithEmail, registerWithEmail, loginWithGoogle, logout, db, findProfileByEmail, syncProfileUid } from '../lib/firebase';
 import { FcGoogle } from 'react-icons/fc';
+import { generateUniqueKey } from '../utils/stringUtils';
+import { doc, getDoc, enableNetwork } from 'firebase/firestore';
 
 interface LoginProps {
   users: User[];
   onLogin: (user: User) => void;
+  onAddStaff: (u: User) => Promise<void>;
 }
 
-export default function Login({ users, onLogin, onAddStaff }: { users: User[], onLogin: (u: User) => void, onAddStaff: (u: User) => Promise<void> }) {
+export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
   const [mode, setMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
   const [email, setEmail] = useState(() => localStorage.getItem('qc_remember_email') || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   
-  // Registration specific states
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newCompanyEmail, setNewCompanyEmail] = useState('');
+  const [newRole, setNewRole] = useState<User['role']>('Staff');
+  const [newTitle, setNewTitle] = useState('Nhân viên');
 
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -27,66 +31,100 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
 
   const isPasswordMatch = mode === 'REGISTER' ? (password === confirmPassword && password.length >= 6) : true;
 
-  const removeAccents = (str: string) => {
-    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
-  };
-
-  const validateEmail = (email: string) => {
+  const validateEmail = (emailStr: string) => {
     const user = users.find(u => 
-      (u.companyEmail || '').toLowerCase() === email.toLowerCase() ||
-      (u.personalEmail || '').toLowerCase() === email.toLowerCase()
+      (u.companyEmail || '').toLowerCase() === emailStr.toLowerCase() ||
+      (u.personalEmail || '').toLowerCase() === emailStr.toLowerCase()
     );
     return user;
   };
+
+  const isSystemAdmin = (emailStr: string) => [
+    "truong.le@tanphuvietnam.vn", 
+    "lenhattruong.tpp@gmail.com", 
+    "lenhattruong.caphef1@gmail.com",
+    "club.nhuatanphu@gmail.com", 
+    "tanphuvietnam.tpp@gmail.com", 
+    "truongln.tanhongngoc@gmail.com"
+  ].includes(emailStr.toLowerCase());
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
-    const staffMember = validateEmail(email);
-    if (!staffMember) {
-      setError('Email này không có trong danh sách nhân sự được cấp phép.');
-      return;
-    }
+    // ÉP BUỘC MẠNG ONLINE
+    try { await enableNetwork(db); } catch (e) {}
 
     setLoading(true);
     try {
-      let fbUser;
-      
-      // Flexible login: auto-register if password is default and user exists in list
-      if (password === '123456') {
-        try {
-          fbUser = await loginWithEmail(email, password);
-        } catch (err: any) {
-          if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-            // Auto register
-            fbUser = await registerWithEmail(email, password, staffMember.name);
-          } else {
-            throw err;
+      const fbUser = await loginWithEmail(email, password);
+      if (fbUser) {
+        // THIẾT QUÂN LUẬT: TÌM HỒ SƠ THEO MỌI CÁCH (UID HOẶC EMAIL)
+        let staffMember = users.find(u => u.id === fbUser.uid);
+        let foundViaEmail = false;
+        let profileDocId = '';
+
+        if (!staffMember) {
+          // NẾU KHÔNG THẤY THEO UID, TÌM THEO EMAIL
+          const emailMatch = await findProfileByEmail(email);
+          if (emailMatch) {
+            staffMember = emailMatch.data as User;
+            profileDocId = emailMatch.docId;
+            foundViaEmail = true;
+            // TỰ ĐỘNG ĐỒNG BỘ UID MỚI VÀO HỒ SƠ FIRESTORE
+            await syncProfileUid(profileDocId, fbUser.uid);
+            // Cập nhật lại model cục bộ
+            staffMember.id = fbUser.uid;
           }
         }
-      } else {
-        fbUser = await loginWithEmail(email, password);
-      }
 
-      if (fbUser) {
+        const systemAdmin = isSystemAdmin(email);
+
+        if (!staffMember && !systemAdmin) {
+          // Bất đắc dĩ không thấy hồ sơ ở cả 2 nơi (Auth OK nhưng Firestore trắng trơn)
+          setError(
+            <span translate="no" className="notranslate">Xác thực thành công nhưng hệ thống chưa có hồ sơ nhân sự của bạn. Vui lòng liên hệ Admin.</span> as any
+          );
+          setLoading(false);
+          await logout();
+          return;
+        }
+
+        if (staffMember && staffMember.status !== 'ACTIVE' && !systemAdmin) {
+          setError(
+            <span translate="no" className="notranslate">Tài khoản của bạn đang chờ phê duyệt (Trạng thái: {staffMember.status}).</span> as any
+          );
+          setLoading(false);
+          await logout();
+          return;
+        }
+
         localStorage.setItem('qc_remember_email', email);
-        const userToLogin = { ...staffMember, id: fbUser.uid, lastActive: Date.now() } as User;
+        
+        const userToLogin = staffMember 
+          ? { ...staffMember, id: fbUser.uid, lastActive: Date.now() } as User
+          : {
+              id: fbUser.uid,
+              name: "System Admin",
+              role: "Admin",
+              companyEmail: email,
+              personalEmail: email,
+              status: "ACTIVE",
+              uniqueKey: `ADMIN_${fbUser.uid}`,
+              lastActive: Date.now()
+            } as User;
+
         onLogin(userToLogin);
       }
     } catch (err: any) {
       console.error("Login error:", err);
+      let msg = "Lỗi đăng nhập: " + err.message;
       if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-        if (password === '123456') {
-           setError('Tài khoản đã tồn tại với mật khẩu khác. Vui lòng thử lại.');
-        } else {
-           setError('Email hoặc mật khẩu không chính xác. (Lưu ý: Nếu bạn vừa đổi mật khẩu và gặp lỗi, hãy thử lại sau vài giây hoặc dùng mật khẩu cũ).');
-        }
-      } else if (err.code === 'auth/operation-not-allowed') {
-        setError('Phương thức Đăng nhập bằng Email chưa được bật trong Firebase Console.');
-      } else {
-        setError('Lỗi đăng nhập: ' + err.message);
+        msg = "Email hoặc mật khẩu không chính xác.";
       }
+      setError(
+        <span translate="no" className="notranslate">{msg}</span> as any
+      );
     } finally {
       setLoading(false);
     }
@@ -100,16 +138,29 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
       if (fbUser) {
         const staffMember = validateEmail(fbUser.email || '');
         if (!staffMember) {
-           setError('Email Google này không có trong danh sách nhân sự được cấp phép.');
-           await logout(); // Import logout if needed, but App.tsx handles onAuthStateChanged
+           setError(
+             <span translate="no" className="notranslate">Email Google này không có trong danh sách nhân sự được cấp phép.</span> as any
+           );
+           await logout();
            return;
         }
+
+        if (staffMember.status !== 'ACTIVE') {
+          setError(
+            <span translate="no" className="notranslate">Tài khoản của bạn đang chờ quản trị viên phê duyệt.</span> as any
+          );
+          await logout();
+          return;
+        }
+
         const userToLogin = { ...staffMember, id: fbUser.uid, lastActive: Date.now() } as User;
         onLogin(userToLogin);
       }
     } catch (err: any) {
       console.error("Google login error:", err);
-      setError('Lỗi đăng nhập Google: ' + err.message);
+      setError(
+        <span translate="no" className="notranslate">Lỗi đăng nhập Google: {err.message}</span> as any
+      );
     } finally {
       setLoading(false);
     }
@@ -117,76 +168,130 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError(''); // CLEAR ERROR AT START
 
     if (password !== confirmPassword) {
-      setError('Mật khẩu xác nhận không khớp.');
+      setError(
+        <span translate="no" className="notranslate">MẬT KHẨU XÁC NHẬN KHÔNG KHỚP.</span> as any
+      );
       return;
     }
 
     if (password.length < 6) {
-      setError('Mật khẩu phải có ít nhất 6 ký tự.');
+      setError(
+        <span translate="no" className="notranslate">MẬT KHẨU PHẢI CÓ ÍT NHẤT 6 KÝ TỰ.</span> as any
+      );
       return;
     }
 
     setLoading(true);
     try {
-      // 1. Generate uniqueKey
-      const nameNoAccents = removeAccents(newName).replace(/\s+/g, '');
-      const uniqueKey = `${nameNoAccents}${newPhone}`;
+      const uniqueKey = generateUniqueKey(newName, newPhone);
+      
+      // LỆNH KHÓA ĐỊNH DANH NHÂN SỰ: Kiểm tra trước khi tạo
+      const docRef = doc(db, 'user_profiles', uniqueKey);
+      const docSnap = await getDoc(docRef);
 
-      // 2. Check if user already exists (by personalEmail or Phone/uniqueKey)
-      // Check in the merged list 'users'
+      if (docSnap.exists()) {
+        setError(
+          <span translate="no" className="notranslate">NHÂN VIÊN NÀY ĐÃ CÓ TRÊN HỆ THỐNG</span> as any
+        );
+        setLoading(false);
+        return;
+      }
+      
       const existingInList = users.find(u => 
         (u.personalEmail || '').toLowerCase() === email.toLowerCase() ||
+        (u.companyEmail || '').toLowerCase() === email.toLowerCase() ||
         u.uniqueKey === uniqueKey ||
         u.phone === newPhone
       );
 
-      // 3. Register with Firebase Auth
-      const fbUser = await registerWithEmail(email, password, newName);
-      
-      if (fbUser) {
-        let userToLogin: User;
-
-        if (existingInList) {
-          // If already in list (hardcoded or extra), use their info but update ID to Firebase UID
-          userToLogin = { 
-            ...existingInList, 
-            id: fbUser.uid, 
-            personalEmail: email, // update email to what they used for auth
-            lastActive: Date.now() 
-          };
+      // Create Auth Account first
+      let fbUser;
+      try {
+        fbUser = await registerWithEmail(email, password, newName);
+      } catch (authErr: any) {
+        // LỆNH SỬA LỖI ĐĂNG KÝ: Nếu email đã tồn tại trong Auth, chuyển sang Login để lấy thông tin Auth
+        if (authErr.code === 'auth/email-already-in-use') {
+          console.log("Email existed in Auth, attempting to proceed with profile creation...");
+          fbUser = await loginWithEmail(email, password);
         } else {
-          // New user completely - add to Firestore extra_users via onAddStaff
-          userToLogin = {
-            id: fbUser.uid,
-            name: newName,
-            phone: newPhone,
-            companyEmail: newCompanyEmail,
-            personalEmail: email,
-            uniqueKey,
-            role: 'Staff',
-            status: 'ACTIVE',
-            code: `QC-${Math.floor(100+Math.random()*900)}`,
-            abbreviation: nameNoAccents.substring(0, 3).toUpperCase(),
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${nameNoAccents}`,
-            lastActive: Date.now()
-          };
-          await onAddStaff(userToLogin);
+          throw authErr;
         }
+      }
+      
+    if (fbUser) {
+        // CHỜ MỘT CHÚT ĐỂ AUTH STATE ĐƯỢC ĐỒNG BỘ
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        // Prepare profile data
+        const userToLogin: User = {
+          id: fbUser.uid,
+          name: newName,
+          phone: newPhone,
+          companyEmail: newCompanyEmail,
+          personalEmail: email,
+          password: password,
+          uniqueKey: uniqueKey, 
+          role: newRole,
+          title: newTitle,
+          status: 'PENDING',
+          code: `QC-${Math.floor(100+Math.random()*900)}`,
+          abbreviation: newName.substring(0, 3).toUpperCase(),
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${uniqueKey}`,
+          lastActive: Date.now()
+        };
+
+        // LỆNH SỬA LỖI ĐĂNG KÝ: Luôn lưu vào Firestore với ID là uniqueKey
+        await onAddStaff(userToLogin);
 
         localStorage.setItem('qc_remember_email', email);
-        onLogin(userToLogin);
+        
+        // Show success message as requested
+        setError(
+          <span translate="no" className="notranslate" style={{ color: '#10b981' }}>
+            ĐĂNG KÝ THÀNH CÔNG! CHÀO MỪNG BẠN.
+          </span> as any
+        );
+        
+        // Logout immediately for normal users to wait for approval
+        if (!isSystemAdmin(email)) {
+          await logout();
+          setTimeout(() => {
+            setMode('LOGIN');
+            setError('');
+          }, 3000);
+        } else {
+          // If admin happens to register, let them in
+          onLogin(userToLogin);
+        }
       }
     } catch (err: any) {
       console.error("Registration error:", err);
+      
+      let errorMessage = err.message;
+      try {
+        const parsed = JSON.parse(err.message);
+        if (parsed.error) errorMessage = parsed.error;
+      } catch (e) {}
+
       if (err.code === 'auth/email-already-in-use') {
-        setError('Email này đã được đăng ký tài khoản.');
+        setError(
+          <span translate="no" className="notranslate">Email này đã được đăng ký tài khoản. Vui lòng đăng nhập hoặc dùng email khác.</span> as any
+        );
+      } else if (err.code === 'auth/wrong-password') {
+        setError(
+          <span translate="no" className="notranslate">Email đã tồn tại nhưng sai mật khẩu. Vui lòng nhập đúng mật khẩu để tiếp tục.</span> as any
+        );
       } else if (err.code === 'auth/operation-not-allowed') {
-        setError('Phương thức Đăng ký bằng Email chưa được bật trong Firebase Console.');
+        setError(
+          <span translate="no" className="notranslate">Phương thức Đăng ký bằng Email chưa được bật trong Firebase Console.</span> as any
+        );
       } else {
-        setError('Lỗi đăng ký: ' + err.message);
+        setError(
+          <span translate="no" className="notranslate">Lỗi đăng ký: {errorMessage}</span> as any
+        );
       }
     } finally {
       setLoading(false);
@@ -216,13 +321,13 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
               onClick={() => { setMode('LOGIN'); setError(''); }}
               className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${mode === 'LOGIN' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
             >
-              Đăng nhập
+              <span translate="no" className="notranslate">Đăng nhập</span>
             </button>
             <button 
               onClick={() => { setMode('REGISTER'); setError(''); }}
               className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${mode === 'REGISTER' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}
             >
-              Đăng ký mới
+              <span translate="no" className="notranslate">Đăng ký mới</span>
             </button>
           </div>
 
@@ -230,7 +335,9 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
             {mode === 'REGISTER' && (
               <>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">Họ và Tên</label>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <span translate="no" className="notranslate">Họ và Tên</span>
+                  </label>
                   <input
                     type="text" required value={newName} onChange={(e) => setNewName(e.target.value)}
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-medium"
@@ -238,7 +345,9 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">Số điện thoại</label>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <span translate="no" className="notranslate">Số điện thoại</span>
+                  </label>
                   <input
                     type="tel" required value={newPhone} onChange={(e) => setNewPhone(e.target.value)}
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-medium"
@@ -246,24 +355,43 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">Email Công ty (Tùy chọn)</label>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <span translate="no" className="notranslate">Email Công ty</span>
+                  </label>
                   <input
                     type="email" value={newCompanyEmail} onChange={(e) => setNewCompanyEmail(e.target.value)}
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-medium"
                     placeholder="xyz@tanphu.vn"
                   />
                 </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <span translate="no" className="notranslate">Chức danh</span>
+                  </label>
+                  <select
+                    value={newRole}
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      setNewRole(val);
+                      setNewTitle(val === 'Leader' ? 'Trưởng nhóm' : (val === 'Admin' ? 'Quản trị viên' : 'Nhân viên'));
+                    }}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-bold"
+                  >
+                    <option value="Staff">Nhân viên</option>
+                    <option value="Leader">Trưởng nhóm</option>
+                  </select>
+                </div>
               </>
             )}
 
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <Mail size={12} /> <span translate="no" className="notranslate">{mode === 'REGISTER' ? 'Email cá nhân / Công ty' : 'Email cá nhân / Công ty'}</span>
+                <Mail size={12} /> <span translate="no" className="notranslate">Email đăng nhập (Cá nhân)</span>
               </label>
               <input
                 type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-medium"
-                placeholder="example@gmail.com"
+                placeholder="abc@gmail.com"
               />
             </div>
 
@@ -315,7 +443,12 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
               <motion.div 
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-3 bg-red-50 border border-red-100 text-red-600 text-[10px] font-black rounded-lg text-center uppercase tracking-tight"
+                className={`p-3 border text-[10px] font-black rounded-lg text-center uppercase tracking-tight ${
+                  (error.toString().includes('THÀNH CÔNG')) || 
+                  (React.isValidElement(error) && JSON.stringify(error).includes('THÀNH CÔNG'))
+                    ? 'bg-emerald-50 border-emerald-100 text-emerald-600'
+                    : 'bg-red-50 border-red-100 text-red-600'
+                }`}
               >
                 {error}
               </motion.div>
@@ -329,29 +462,10 @@ export default function Login({ users, onLogin, onAddStaff }: { users: User[], o
               {loading ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : mode === 'LOGIN' ? (
-                <>ĐĂNG NHẬP <LogIn size={16} /></>
+                <><span translate="no" className="notranslate">ĐĂNG NHẬP</span> <LogIn size={16} /></>
               ) : (
-                <>XÁC NHẬN ĐĂNG KÝ <UserPlus size={16} /></>
+                <><span translate="no" className="notranslate">XÁC NHẬN ĐĂNG KÝ</span> <UserPlus size={16} /></>
               )}
-            </button>
-
-            <div className="relative py-2">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-100"></div>
-              </div>
-              <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-widest">
-                <span className="bg-white px-4 text-gray-400">Hoặc</span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={loading}
-              className="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-bold py-3.5 rounded-xl flex items-center justify-center gap-3 transition-all uppercase tracking-widest text-xs"
-            >
-              <FcGoogle size={20} />
-              Đăng nhập với Google
             </button>
           </form>
         </div>

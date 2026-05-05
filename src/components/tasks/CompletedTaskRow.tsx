@@ -5,7 +5,7 @@ import { formatDate } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
 import { AnimatePresence } from 'motion/react';
 
-import { getUserById, getSafeNameProps, getTaskAssigneeName } from '../../utils/userUtils';
+import { getUserById, getSafeNameProps, getTaskAssigneeName, isUserTask } from '../../utils/userUtils';
 
 import { Avatar } from '../common/Avatar';
 
@@ -31,6 +31,8 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
 }) => {
   const assigneeName = getTaskAssigneeName(task, users);
   const assignee = getUserById(assigneeName, users) || getUserById(task.assigneeId, users);
+  const isOwner = isUserTask(task, user);
+  const isManager = user.role === 'Admin' || user.role === 'Leader';
 
   const [lastReadCount, setLastReadCount] = React.useState(task.comments?.length || 0);
 
@@ -203,7 +205,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           {task.requestUndo === 'PENDING' ? (
             <div className="w-full flex flex-col gap-1">
               <span className="text-[7px] font-black text-amber-600 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 animate-pulse uppercase">Chờ hoàn tác</span>
-              {(user.role === 'Admin' || user.role === 'Leader') && (
+              {isManager && (
                 <div className="flex flex-col gap-1">
                   <button 
                     onClick={() => onUndo(task.id)} 
@@ -220,10 +222,10 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                 </div>
               )}
             </div>
-          ) : (
+          ) : (isManager || isOwner) ? (
             <button 
               onClick={() => {
-                if (user.role === 'Admin' || user.role === 'Leader') {
+                if (isManager) {
                   onUndo(task.id);
                 } else {
                   onUpdate(task.id, { 
@@ -231,7 +233,6 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                     undoRequestAt: new Date().toISOString(),
                     undoRequestBy: user.name
                   });
-                  // Optionally trigger a notification logic passed down or handled in Parent
                 }
               }} 
               className={`w-full px-1 py-2 text-[10px] rounded font-black transition-all uppercase tracking-tighter shadow-md ${
@@ -242,7 +243,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
             >
               H.TÁC
             </button>
-          )}
+          ) : null}
           <button 
              onClick={() => onUpdate(task.id, { isHighlighted: !task.isHighlighted })}
              className={`w-full px-1 py-2 text-[10px] rounded font-black transition-all uppercase tracking-tighter shadow-md border ${

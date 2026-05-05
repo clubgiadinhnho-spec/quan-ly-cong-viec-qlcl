@@ -228,10 +228,15 @@ export const Sidebar = ({
           ) : null}
           <button 
             onClick={onLogout}
-            className={`p-1.5 transition-colors ${isDark ? 'text-white/40 hover:text-red-400' : 'text-gray-400 hover:text-red-500'}`}
+            className={`flex items-center gap-2 p-2 px-3 rounded-xl transition-all ${
+              isDark 
+                ? 'text-white/60 hover:bg-red-500/20 hover:text-red-400' 
+                : 'text-gray-500 hover:bg-red-50 hover:text-red-600'
+            } ${isCollapsed ? 'justify-center w-10 h-10' : 'flex-1'}`}
             title="Đăng xuất"
           >
-            <LogOut size={isCollapsed ? 18 : 16} />
+            <LogOut size={isCollapsed ? 20 : 18} />
+            {!isCollapsed && <span className="text-[11px] font-black uppercase tracking-widest">Đăng xuất</span>}
           </button>
         </div>
       </div>

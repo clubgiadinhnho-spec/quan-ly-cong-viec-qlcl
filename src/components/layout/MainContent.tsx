@@ -13,6 +13,7 @@ import { ReportPage } from '../../pages/ReportPage';
 import { StaffListPage } from '../../pages/StaffListPage';
 import { SystemHistoryPage } from '../../pages/SystemHistoryPage';
 import { downloadSampleExcel } from '../../utils/excelUtils';
+import { isUserTask } from '../../utils/userUtils';
 
 interface MainContentProps {
   activeTab: string;
@@ -305,7 +306,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                   }`}
                 >
                   <UserIcon size={14} />
-                  Cá nhân ({tasks.filter(t => t.assigneeId === effectiveUser.id && t.status === "COMPLETED").length})
+                  Cá nhân ({tasks.filter(t => (t.status === "COMPLETED" || t.status === "Hoàn thành") && isUserTask(t, effectiveUser)).length})
                 </button>
                 <button
                   onClick={() => setViewScope("all")}
@@ -314,7 +315,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                   }`}
                 >
                   <UsersIcon size={14} />
-                  Phòng QLCL ({tasks.filter(t => t.status === "COMPLETED").length})
+                  Phòng QLCL ({tasks.filter(t => t.status === "COMPLETED" || t.status === "Hoàn thành").length})
                 </button>
               </div>
               <div className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full border border-green-100">

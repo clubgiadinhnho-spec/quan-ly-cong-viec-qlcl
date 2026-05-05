@@ -533,6 +533,7 @@ export const useFirebaseData = (currentUserId?: string) => {
   }, []);
 
   const addLog = useCallback(async (log: Omit<LogEntry, 'id' | 'timestamp'>) => {
+    if (log.userId === 'SYSTEM') return; // Do not record system-generated logs as per user request
     try {
       await addDoc(collection(db, 'system_logs'), {
         ...log,

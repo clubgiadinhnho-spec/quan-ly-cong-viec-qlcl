@@ -81,9 +81,17 @@ export const useTaskActions = ({
       authorId: currentUser?.id || '',
     };
     await firebaseAddTask(newTask);
-  }, [tasks, currentUser, firebaseAddTask]);
 
-  const updateTask = useCallback((id: string, updates: Partial<Task>) => {
+    if (firebaseAddLog && currentUser) {
+      await firebaseAddLog({
+        type: 'TASK_CREATE',
+        userId: currentUser.id,
+        details: `Nhân viên ${currentUser.name} đã khởi tạo công việc mới: [${newTask.code}] ${newTask.title}`,
+      });
+    }
+  }, [tasks, currentUser, firebaseAddTask, firebaseAddLog]);
+
+  const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
 
@@ -100,8 +108,19 @@ export const useTaskActions = ({
     }
 
     const preparedUpdates = prepareTaskUpdates(task, updates, currentUser, allUsers);
-    firebaseUpdateTask(id, preparedUpdates);
-  }, [tasks, currentUser, allUsers, firebaseUpdateTask, firebaseSendPrivateMsg]);
+    await firebaseUpdateTask(id, preparedUpdates);
+
+    // Logging if there are history changes
+    if (firebaseAddLog && currentUser && preparedUpdates.history && preparedUpdates.history.length > task.history.length) {
+      const latestEntry = preparedUpdates.history[preparedUpdates.history.length - 1];
+      await firebaseAddLog({
+        type: 'TASK_UPDATE',
+        userId: currentUser.id,
+        details: `Nhân viên ${currentUser.name} đã cập nhật công việc [${task.code}]: ${latestEntry.content}`,
+        targetId: id
+      });
+    }
+  }, [tasks, currentUser, allUsers, firebaseUpdateTask, firebaseSendPrivateMsg, firebaseAddLog]);
 
   const addTaskComment = useCallback((taskId: string, content: string) => {
     if (!currentUser) return;

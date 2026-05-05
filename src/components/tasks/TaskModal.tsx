@@ -8,12 +8,13 @@ interface TaskModalProps {
   onSave: (task: any) => void;
   users: User[];
   task?: Task;
+  currentUser: User;
 }
 
-export const TaskModal = ({ onClose, onSave, users, task }: TaskModalProps) => {
+export const TaskModal = ({ onClose, onSave, users, task, currentUser }: TaskModalProps) => {
   const [title, setTitle] = useState(task?.title || '');
   const [objective, setObjective] = useState(task?.objective || '');
-  const [assigneeId, setAssigneeId] = useState(task?.assigneeId || '');
+  const [assigneeId, setAssigneeId] = useState(task?.assigneeId || (currentUser.role === 'Staff' ? currentUser.id : ''));
   const [expectedDate, setExpectedDate] = useState(task?.expectedEndDate || '');
   const [extensionDate, setExtensionDate] = useState(task?.extensionDate || '');
   const [attachment, setAttachment] = useState<File | null>(null);

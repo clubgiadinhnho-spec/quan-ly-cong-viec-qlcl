@@ -46,20 +46,56 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
 
   const getLogIcon = (type: string) => {
     switch (type) {
-      case 'DELEGATION_CHANGE': return <Lock size={20} />;
-      case 'TASK_UPDATE': return <Activity size={20} />;
-      default: return <Info size={20} />;
+      case 'DELEGATION_CHANGE': return <Lock size={18} />;
+      case 'DELEGATED_ACTION': return <ShieldAlert size={18} />;
+      case 'TASK_CREATE': return <Activity size={18} />;
+      case 'TASK_UPDATE': return <Activity size={18} />;
+      case 'TASK_DELETE': return <Trash2 size={18} />;
+      case 'TASK_RESTORE': return <Activity size={18} />;
+      case 'TASK_PERMANENT_DELETE': return <ShieldAlert size={18} />;
+      case 'TASK_LOCK': return <Lock size={18} />;
+      case 'PROFILE_UPDATE': return <Activity size={18} />;
+      default: return <Info size={18} />;
+    }
+  };
+
+  const getLogLabel = (type: string) => {
+    if (!type) return 'HỆ THỐNG';
+    switch (type) {
+      case 'TASK_CREATE': return 'KHỞI TẠO';
+      case 'TASK_UPDATE': return 'CẬP NHẬT';
+      case 'TASK_DELETE': return 'XÓA TẠM';
+      case 'TASK_RESTORE': return 'KHÔI PHỤC';
+      case 'TASK_PERMANENT_DELETE': return 'XÓA VĨNH VIỄN';
+      case 'TASK_LOCK': return 'CHỐT DS';
+      case 'DELEGATION_CHANGE': return 'PHÂN QUYỀN';
+      case 'DELEGATED_ACTION': return 'ỦY QUYỀN';
+      case 'PROFILE_UPDATE': return 'HỒ SƠ';
+      case 'ERROR': return 'LỖI HỆ THỐNG';
+      case 'SYSTEM': return 'HỆ THỐNG';
+      default: return type.replace('_', ' ');
     }
   };
 
   const getLogColor = (type: string) => {
     switch (type) {
-      case 'DELEGATION_CHANGE': return 'bg-amber-100 text-amber-600';
-      case 'TASK_UPDATE': return 'bg-blue-100 text-blue-600 text-blue-600';
-      case 'ERROR': return 'bg-red-100 text-red-600';
-      default: return 'bg-slate-100 text-slate-600';
+      case 'DELEGATION_CHANGE': return 'bg-amber-100 text-amber-600 border-amber-200';
+      case 'DELEGATED_ACTION': return 'bg-orange-100 text-orange-600 border-orange-200';
+      case 'TASK_CREATE': return 'bg-green-100 text-green-600 border-green-200';
+      case 'TASK_UPDATE': return 'bg-blue-100 text-blue-600 border-blue-200';
+      case 'TASK_DELETE': return 'bg-orange-100 text-orange-600 border-orange-200';
+      case 'TASK_RESTORE': return 'bg-emerald-100 text-emerald-600 border-emerald-200';
+      case 'TASK_PERMANENT_DELETE': return 'bg-red-100 text-red-600 border-red-200';
+      case 'TASK_LOCK': return 'bg-indigo-100 text-indigo-600 border-indigo-200';
+      case 'PROFILE_UPDATE': return 'bg-purple-100 text-purple-600 border-purple-200';
+      case 'ERROR': return 'bg-red-100 text-red-600 border-red-200';
+      default: return 'bg-slate-100 text-slate-600 border-slate-200';
     }
   };
+
+  const filteredLogs = logs
+    .filter(log => log.userId !== 'SYSTEM')
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   return (
     <div className="max-w-[1200px] mx-auto space-y-6 pb-24 animate-in fade-in duration-500 font-sans">
@@ -89,7 +125,7 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
              <div className="text-right">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Tổng nhật ký</p>
                 <div className="flex items-baseline gap-1 justify-end">
-                  <p className="text-3xl font-black text-blue-600 leading-none">{logs.length}</p>
+                  <p className="text-3xl font-black text-blue-600 leading-none">{filteredLogs.length}</p>
                   <span className="text-[10px] font-bold text-blue-400 uppercase">Dòng</span>
                 </div>
              </div>
@@ -117,15 +153,15 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
             <thead>
               <tr className="bg-slate-900 text-white">
                 <th className="px-5 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-center border-r border-slate-800 w-[80px]">STT</th>
-                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-left border-r border-slate-800 w-[220px]">Nhân sự thực hiện (Ai)</th>
-                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-left border-r border-slate-800 w-[180px]">Phân loại (Sửa gì)</th>
+                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-left border-r border-slate-800 w-[220px]">Nhân sự thực hiện</th>
+                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-left border-r border-slate-800 w-[180px]">Phân loại</th>
                 <th className="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-left border-r border-slate-800">Nội dung điều chỉnh</th>
-                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-right w-[200px]">Ngày giờ (Lúc nào)</th>
+                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-right w-[200px]">Ngày giờ</th>
               </tr>
             </thead>
             <tbody className="divide-y-2 divide-slate-100">
-              {logs.length > 0 ? (
-                [...logs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map((log, idx) => {
+              {filteredLogs.length > 0 ? (
+                filteredLogs.map((log, idx) => {
                   const actor = allUsers.find(u => u.id === log.userId);
                   const target = allUsers.find(u => u.id === log.targetId);
                   
@@ -141,7 +177,7 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
                       <td className="px-5 py-6 text-center border-r border-slate-100 align-middle">
                         <div className="flex flex-col items-center">
                           <span translate="no" className="notranslate text-sm font-black text-slate-400 group-hover:text-blue-600 transition-colors">
-                            {String(logs.length - idx).padStart(2, '0')}
+                            {String(filteredLogs.length - idx).padStart(2, '0')}
                           </span>
                           <span translate="no" className="notranslate text-[8px] font-mono text-slate-300 font-bold tracking-tighter mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             #{(log.id || '').slice(0, 6).toUpperCase()}
@@ -173,14 +209,17 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
                       {/* Phân loại (Sửa gì) */}
                       <td className="px-6 py-6 border-r border-slate-100 align-middle">
                         <div className="flex items-center gap-2">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-current/20 shadow-sm ${getLogColor(log.type)}`}>
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${getLogColor(log.type)}`}>
                             {getLogIcon(log.type)}
                           </div>
                           <div className="flex flex-col">
                             <span translate="no" className={`notranslate text-[10px] font-black uppercase tracking-wider ${
-                              log.type === 'ERROR' ? 'text-red-600' : 'text-slate-600'
+                              log.type === 'ERROR' || log.type === 'TASK_PERMANENT_DELETE' ? 'text-red-600' : 
+                              log.type === 'TASK_CREATE' ? 'text-green-600' :
+                              log.type === 'TASK_DELETE' ? 'text-orange-600' :
+                              'text-slate-600'
                             }`}>
-                              {(log.type || 'SYSTEM').replace('_', ' ')}
+                              {getLogLabel(log.type)}
                             </span>
                           </div>
                         </div>

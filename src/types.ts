@@ -20,7 +20,18 @@ export interface UserPermissions {
 export interface LogEntry {
   id: string;
   timestamp: string;
-  type: 'DELEGATION_CHANGE' | 'DELEGATED_ACTION' | 'SYSTEM' | 'TASK_UPDATE' | 'ERROR' | 'PROFILE_UPDATE';
+  type: 
+    | 'DELEGATION_CHANGE' 
+    | 'DELEGATED_ACTION' 
+    | 'SYSTEM' 
+    | 'TASK_CREATE'
+    | 'TASK_UPDATE' 
+    | 'TASK_DELETE' 
+    | 'TASK_RESTORE' 
+    | 'TASK_PERMANENT_DELETE'
+    | 'TASK_LOCK'
+    | 'ERROR' 
+    | 'PROFILE_UPDATE';
   userId: string; // The person who performed the action
   targetId?: string; // The person who was the target (e.g. delegated to)
   details: string;

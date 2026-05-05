@@ -1,4 +1,34 @@
-import { Task, User, ProgressUpdate, TaskComment } from '../types';
+import { Task, User, ProgressUpdate, TaskComment, RecurrenceType, CycleHistoryEntry } from '../types';
+
+export const calculateNextDueDate = (currentDateStr: string, recurrence: RecurrenceType): string => {
+  const current = new Date(currentDateStr);
+  if (isNaN(current.getTime())) return currentDateStr;
+
+  const next = new Date(current);
+  switch (recurrence) {
+    case 'DAILY':
+      next.setDate(next.getDate() + 1);
+      break;
+    case 'TRI_DAILY':
+      next.setDate(next.getDate() + 3);
+      break;
+    case 'WEEKLY':
+      next.setDate(next.getDate() + 7);
+      break;
+    case 'BI_WEEKLY':
+      next.setDate(next.getDate() + 14);
+      break;
+    case 'TRI_WEEKLY':
+      next.setDate(next.getDate() + 21);
+      break;
+    case 'MONTHLY':
+      next.setMonth(next.getMonth() + 1);
+      break;
+    default:
+      return currentDateStr;
+  }
+  return next.toISOString().split('T')[0];
+};
 
 export const createHistoryEntry = (
   currentHistory: ProgressUpdate[],
@@ -7,7 +37,7 @@ export const createHistoryEntry = (
 ): ProgressUpdate[] => {
   const newHistory = [...(currentHistory || [])];
   newHistory.push({
-    version: newHistory.length + 1,
+    version: (newHistory.length > 0 ? newHistory[newHistory.length - 1].version : 0) + 1,
     content: changes.join(' | '),
     timestamp: new Date().toISOString(),
     authorId: authorId
@@ -24,8 +54,35 @@ export const prepareTaskUpdates = (
   const newUpdates: any = { ...updates };
   const changes: string[] = [];
 
+  // Handle Recurring Task "Done" Magic
+  if (updates.status === 'COMPLETED' && task.recurrence && task.recurrence !== 'NONE') {
+    const nextDueDate = calculateNextDueDate(task.expectedEndDate || new Date().toISOString(), task.recurrence);
+    
+    // 1. Capture current report to cycleHistory
+    const cycleEntry: CycleHistoryEntry = {
+      version: (task.cycleHistory?.length || 0) + 1,
+      reportContent: task.currentUpdate || 'Không có báo cáo chi tiết',
+      completedAt: new Date().toISOString(),
+      nextDeadline: nextDueDate
+    };
+    
+    newUpdates.cycleHistory = [...(task.cycleHistory || []), cycleEntry];
+    
+    // 2. Push to history with special message
+    changes.push(`[CHU KỲ] Hoàn thành kỳ hiện tại. Báo cáo: ${task.currentUpdate || '(Trống)'}`);
+    changes.push(`[CHU KỲ] Tự động gia hạn đến: ${nextDueDate}`);
+    
+    // 3. Keep status in progress, clear update field
+    newUpdates.status = task.status; // Revert status change from updates
+    if (newUpdates.status === 'COMPLETED') newUpdates.status = 'IN_PROGRESS'; // Safety
+    newUpdates.currentUpdate = '';
+    newUpdates.expectedEndDate = nextDueDate;
+    newUpdates.actualEndDate = null;
+    delete newUpdates.isLocked; // Don't lock recurring task when cycle rolls
+  }
+
   // Track progress update changes
-  if (updates.currentUpdate !== undefined && updates.currentUpdate !== task.currentUpdate) {
+  if (updates.currentUpdate !== undefined && updates.currentUpdate !== task.currentUpdate && !updates.status) {
     changes.push(`Cập nhật tiến độ: ${updates.currentUpdate || '(Trống)'}`);
   }
   

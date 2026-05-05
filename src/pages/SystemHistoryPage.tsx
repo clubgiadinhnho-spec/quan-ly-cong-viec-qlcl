@@ -1,15 +1,18 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { LogEntry, User, Task } from '../types';
-import { Search, Lock, Info, Activity, Clock, Trash2, ShieldAlert } from 'lucide-react';
-import { motion } from 'motion/react';
+import { formatDate } from '../lib/dateUtils';
+import { Trash2, History, Activity } from 'lucide-react';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 interface SystemHistoryPageProps {
   logs: LogEntry[];
   allUsers: User[];
   currentUser: User;
   tasks: Task[];
-  onDeleteTasksBulk: (ids: string[]) => Promise<void>;
-  setConfirmModal: (modal: any) => void;
+  onResetSystem: () => Promise<void>;
+  onDeleteLogsBulk: (logIds: string[]) => Promise<boolean>;
+  setConfirmModal: any;
 }
 
 export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({ 
@@ -17,255 +20,299 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
   allUsers, 
   currentUser,
   tasks,
-  onDeleteTasksBulk,
+  onResetSystem,
+  onDeleteLogsBulk,
   setConfirmModal
 }) => {
-  const handleResetTasks = () => {
-    if (tasks.length === 0) {
-      alert("Không có công việc nào để dọn dẹp!");
-      return;
-    }
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
 
+  // Migration logic for old logs - More aggressive check
+  useEffect(() => {
+    const fixOldLogs = async () => {
+      const logsToFix = logs.filter(log => {
+        const isCurrentBoss = log.userId === 'LeNhatTruong0907767304' || 
+                             log.userId === currentUser.id || 
+                             (currentUser as any).uid === log.userId;
+        
+        const isNameMissing = !log.userName || log.userName === 'NHÂN SỰ';
+        
+        // Even if ID doesn't match, if the details are "System Reset" or "Lock Tasks", it was likely the boss
+        const isBossAction = log.details?.includes('Reset toàn bộ') || log.details?.includes('Chốt dữ liệu');
+        
+        return (isCurrentBoss || isBossAction) && isNameMissing;
+      });
+
+      if (logsToFix.length > 0) {
+        console.log(`[MIGRATION] Fixing ${logsToFix.length} logs for Admin status...`);
+        for (const log of logsToFix) {
+          try {
+            await updateDoc(doc(db, 'system_logs', log.id), {
+              userName: 'Lê Nhật Trường',
+              userId: 'LeNhatTruong0907767304'
+            });
+          } catch (e) {
+            console.error("Migration failed for log:", log.id, e);
+          }
+        }
+      }
+    };
+
+    if (logs.length > 0 && currentUser) {
+      fixOldLogs();
+    }
+  }, [logs, currentUser]);
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.length === logs.length) setSelectedIds([]);
+    else setSelectedIds(logs.map(l => l.id));
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.length === 0) return;
     setConfirmModal({
       show: true,
-      title: "CẢNH BÁO: RESET TOÀN BỘ CÔNG VIỆC",
-      message: `Bạn đang yêu cầu XÓA VĨNH VIỄN ${tasks.length} công việc trong hệ thống. Hành động này KHÔNG THỂ khôi phục. Bạn có chắc chắn muốn làm trống BẢNG CÔNG VIỆC không?`,
+      title: "XÁC NHẬN XÓA NHẬT KÝ",
+      message: `Bạn có chắc muốn xóa vĩnh viễn ${selectedIds.length} dòng nhật ký đã chọn không? Hành động này không thể khôi phục.`,
       onConfirm: async () => {
-        try {
-          const allIds = tasks.map(t => t.id);
-          await onDeleteTasksBulk(allIds);
-          alert(`Đã dọn dẹp thành công ${allIds.length} công việc!`);
-        } catch (error) {
-          alert("Lỗi khi dọn dẹp công việc.");
-        } finally {
-          setConfirmModal((p: any) => ({ ...p, show: false }));
-        }
+        await onDeleteLogsBulk(selectedIds);
+        setSelectedIds([]);
+        setConfirmModal((p: any) => ({ ...p, show: false }));
       }
     });
   };
 
-  const getLogIcon = (type: string) => {
+  const getUserName = (log: LogEntry) => {
+    if (log.userName === 'Lê Nhật Trường') return 'Lê Nhật Trường';
+    if (log.userName && log.userName !== 'NHÂN SỰ') return log.userName;
+    if (log.userId === 'SYSTEM') return 'HỆ THỐNG';
+    
+    // Check if ID matches boss
+    if (log.userId === 'LeNhatTruong0907767304' || log.userId === currentUser.id || (currentUser as any).uid === log.userId) {
+      return 'Lê Nhật Trường';
+    }
+
+    // Find in all users list
+    const user = allUsers.find(u => u.id === log.userId || (u as any).uid === log.userId || (u as any).uniqueKey === log.userId);
+    if (user) return user.name;
+
+    return 'NHÂN SỰ';
+  };
+
+  const getUserAvatar = (log: LogEntry) => {
+    if (log.userId === 'SYSTEM') return 'https://api.dicebear.com/7.x/avataaars/svg?seed=system';
+    
+    // 1. If name is explicitly the boss, use boss avatar (Highest priority)
+    if (log.userName === 'Lê Nhật Trường' || log.userId === 'LeNhatTruong0907767304') {
+      return currentUser.avatar;
+    }
+
+    // 2. Prioritize current user if IDs match
+    if (log.userId === currentUser.id || 
+        log.userId === (currentUser as any).uid || 
+        log.userId === (currentUser as any).uniqueKey) {
+      return currentUser.avatar;
+    }
+
+    // 3. Find in all users list
+    const user = allUsers.find(u => 
+      u.id === log.userId || 
+      (u as any).uid === log.userId || 
+      (u as any).uniqueKey === log.userId || 
+      u.uniqueKey === log.userId
+    );
+    if (user && user.avatar) return user.avatar;
+
+    // 4. Record level fallback (if log has a specific name, seed with that)
+    const seed = log.userName || log.userId;
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`;
+  };
+
+  const getLogTypeLabel = (type: string) => {
     switch (type) {
-      case 'DELEGATION_CHANGE': return <Lock size={18} />;
-      case 'DELEGATED_ACTION': return <ShieldAlert size={18} />;
-      case 'TASK_CREATE': return <Activity size={18} />;
-      case 'TASK_UPDATE': return <Activity size={18} />;
-      case 'TASK_DELETE': return <Trash2 size={18} />;
-      case 'TASK_RESTORE': return <Activity size={18} />;
-      case 'TASK_PERMANENT_DELETE': return <ShieldAlert size={18} />;
-      case 'TASK_LOCK': return <Lock size={18} />;
-      case 'PROFILE_UPDATE': return <Activity size={18} />;
-      default: return <Info size={18} />;
+      case 'TASK_CREATE': return 'Tạo việc';
+      case 'TASK_UPDATE': return 'Cập nhật';
+      case 'TASK_DELETE': return 'Xóa (Thùng rác)';
+      case 'TASK_RESTORE': return 'Khôi phục';
+      case 'TASK_PERMANENT_DELETE': return 'Xóa vĩnh viễn';
+      case 'TASK_LOCK': return 'Chốt dữ liệu';
+      case 'DELEGATED_ACTION': return 'Quyền ủy quyền';
+      case 'SYSTEM': return 'HÀNG NGÀY';
+      default: return type;
     }
   };
 
-  const getLogLabel = (type: string) => {
-    if (!type) return 'HỆ THỐNG';
+  const getLogTypeColor = (type: string) => {
     switch (type) {
-      case 'TASK_CREATE': return 'KHỞI TẠO';
-      case 'TASK_UPDATE': return 'CẬP NHẬT';
-      case 'TASK_DELETE': return 'XÓA TẠM';
-      case 'TASK_RESTORE': return 'KHÔI PHỤC';
-      case 'TASK_PERMANENT_DELETE': return 'XÓA VĨNH VIỄN';
-      case 'TASK_LOCK': return 'CHỐT DS';
-      case 'DELEGATION_CHANGE': return 'PHÂN QUYỀN';
-      case 'DELEGATED_ACTION': return 'ỦY QUYỀN';
-      case 'PROFILE_UPDATE': return 'HỒ SƠ';
-      case 'ERROR': return 'LỖI HỆ THỐNG';
-      case 'SYSTEM': return 'HỆ THỐNG';
-      default: return type.replace('_', ' ');
+      case 'TASK_CREATE': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'TASK_UPDATE': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'TASK_DELETE': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'TASK_PERMANENT_DELETE': return 'bg-red-100 text-red-700 border-red-200';
+      case 'TASK_LOCK': return 'bg-slate-100 text-slate-700 border-slate-200';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
-  const getLogColor = (type: string) => {
-    switch (type) {
-      case 'DELEGATION_CHANGE': return 'bg-amber-100 text-amber-600 border-amber-200';
-      case 'DELEGATED_ACTION': return 'bg-orange-100 text-orange-600 border-orange-200';
-      case 'TASK_CREATE': return 'bg-green-100 text-green-600 border-green-200';
-      case 'TASK_UPDATE': return 'bg-blue-100 text-blue-600 border-blue-200';
-      case 'TASK_DELETE': return 'bg-orange-100 text-orange-600 border-orange-200';
-      case 'TASK_RESTORE': return 'bg-emerald-100 text-emerald-600 border-emerald-200';
-      case 'TASK_PERMANENT_DELETE': return 'bg-red-100 text-red-600 border-red-200';
-      case 'TASK_LOCK': return 'bg-indigo-100 text-indigo-600 border-indigo-200';
-      case 'PROFILE_UPDATE': return 'bg-purple-100 text-purple-600 border-purple-200';
-      case 'ERROR': return 'bg-red-100 text-red-600 border-red-200';
-      default: return 'bg-slate-100 text-slate-600 border-slate-200';
-    }
+  const handleResetAll = () => {
+    setConfirmModal({
+      show: true,
+      title: "CẢNH BÁO: RESET TOÀN BỘ",
+      message: "Bạn có chắc chắn muốn xóa vĩnh viễn TOÀN BỘ công việc, nhật ký và thảo luận hiện có trong hệ thống không? Hành động này không thể khôi phục.",
+      onConfirm: async () => {
+        await onResetSystem();
+        setConfirmModal((p: any) => ({ ...p, show: false }));
+      }
+    });
   };
-
-  const filteredLogs = logs
-    .filter(log => log.userId !== 'SYSTEM')
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   return (
-    <div className="max-w-[1200px] mx-auto space-y-6 pb-24 animate-in fade-in duration-500 font-sans">
-      {/* Dynamic Header Section */}
-      <div className="bg-gradient-to-br from-slate-50 to-blue-50/30 rounded-xl border border-slate-200/60 p-8 shadow-sm relative overflow-hidden group">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-blue-400/5 rounded-full blur-3xl -mr-40 -mt-40 transition-transform duration-1000 group-hover:scale-110" />
-        
-        <div className="flex items-center justify-between relative z-10">
-          <div className="flex items-center gap-6">
-            <div className="w-16 h-16 bg-white rounded-xl shadow-md border border-blue-100 flex items-center justify-center text-blue-600 shrink-0 group-hover:rotate-6 transition-transform">
-              <Search size={32} strokeWidth={2.5} />
+    <div className="bg-[#f8fafc] min-h-screen">
+      <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/60 overflow-hidden border border-slate-100 mb-8">
+        <div className="p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
+            <div className="w-16 h-16 bg-white rounded-2xl shadow-lg border border-slate-100 flex items-center justify-center text-blue-600">
+              <History size={32} strokeWidth={2.5} />
             </div>
             <div>
-              <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none mb-2">
-                NHẬT KÝ HỆ THỐNG
-              </h1>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                <p className="text-[10px] text-blue-600/60 font-black uppercase tracking-[0.2em]">
-                  GIÁM SÁT BIẾN ĐỘNG & QUẢN TRỊ RỦI RO
-                </p>
-              </div>
+              <h2 className="text-3xl font-black text-[#0f172a] tracking-tight translate-y-1">
+                <span translate="no" className="notranslate uppercase">NHẬT KÝ HỆ THỐNG</span>
+              </h2>
+              <p className="text-blue-500 text-[11px] font-black mt-1 uppercase tracking-[0.2em] flex items-center gap-2">
+                <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                GIÁM SÁT BIẾN ĐỘNG & QUẢN TRỊ RỦI RO
+              </p>
             </div>
           </div>
 
-          <div className="bg-white/80 backdrop-blur-sm px-6 py-4 rounded-xl border border-blue-100/50 shadow-sm flex items-center gap-5">
-             <div className="text-right">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Tổng nhật ký</p>
-                <div className="flex items-baseline gap-1 justify-end">
-                  <p className="text-3xl font-black text-blue-600 leading-none">{filteredLogs.length}</p>
-                  <span className="text-[10px] font-bold text-blue-400 uppercase">Dòng</span>
+          <div className="flex flex-col items-end gap-3 self-stretch md:self-auto">
+            <div className="flex items-center gap-3">
+              <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex items-center gap-6 min-w-[180px]">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Tổng nhật ký</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-black text-blue-600 leading-none">{logs.length}</span>
+                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest translate-y-[-2px]">Dòng</span>
+                  </div>
                 </div>
-             </div>
-             <div className="w-px h-12 bg-blue-100/60"></div>
-             <Activity className="text-blue-500" size={28} strokeWidth={1.5} />
+                <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500">
+                  <Activity size={24} strokeWidth={2.5} />
+                </div>
+              </div>
+
+              {selectedIds.length > 0 && (
+                <button 
+                  onClick={handleBulkDelete}
+                  className="px-6 py-4 bg-red-600 text-white rounded-2xl font-black text-[12px] uppercase tracking-widest shadow-lg shadow-red-200 hover:bg-red-700 transition-all flex items-center justify-center gap-2 animate-in fade-in slide-in-from-right-4"
+                >
+                  <Trash2 size={20} strokeWidth={3} />
+                  Xóa {selectedIds.length} mục
+                </button>
+              )}
+            </div>
+
+            <button 
+              onClick={handleResetAll}
+              className="w-full md:w-auto px-6 py-3 bg-slate-100 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center gap-2 opacity-60 hover:opacity-100"
+            >
+              <Trash2 size={14} strokeWidth={3} />
+              DỌN DẸP TOÀN BỘ HỆ THỐNG
+            </button>
           </div>
         </div>
 
-        {/* Reset Actions Section for Admins */}
-        <div className="flex justify-end pt-4">
-           <button 
-             onClick={handleResetTasks}
-             className="flex items-center gap-2.5 px-6 py-3 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-200 active:scale-95 border-b-4 border-red-800"
-           >
-             <Trash2 size={16} strokeWidth={2.5} />
-             DỌN DẸP TOÀN BỘ CÔNG VIỆC (RESET)
-           </button>
-        </div>
-      </div>
-
-      {/* Modern Table Layout - Redesigned with Frames and clear columns */}
-      <div className="bg-white rounded-2xl shadow-2xl border-2 border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse border border-slate-200">
             <thead>
-              <tr className="bg-slate-900 text-white">
-                <th className="px-5 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-center border-r border-slate-800 w-[80px]">STT</th>
-                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-left border-r border-slate-800 w-[220px]">Nhân sự thực hiện</th>
-                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-left border-r border-slate-800 w-[180px]">Phân loại</th>
-                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-left border-r border-slate-800">Nội dung điều chỉnh</th>
-                <th className="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-right w-[200px]">Ngày giờ</th>
+              <tr className="bg-slate-900/80 text-white">
+                <th className="px-4 py-5 text-center border border-slate-700/50 w-[50px]">
+                  <input 
+                    type="checkbox" 
+                    className="w-4 h-4 rounded border-slate-500 accent-blue-500 cursor-pointer"
+                    checked={logs.length > 0 && selectedIds.length === logs.length}
+                    onChange={toggleAll}
+                  />
+                </th>
+                <th className="px-4 py-5 text-[11px] font-black uppercase tracking-[0.2em] text-center border border-slate-700/50 w-[60px]">STT</th>
+                <th className="px-4 py-5 text-[11px] font-black uppercase tracking-[0.2em] text-left border border-slate-700/50 w-[250px]">NHÂN SỰ</th>
+                <th className="px-4 py-5 text-[11px] font-black uppercase tracking-[0.2em] text-left border border-slate-700/50 w-[140px]">PHÂN LOẠI</th>
+                <th className="px-6 py-5 text-[11px] font-black uppercase tracking-[0.2em] text-left border border-slate-700/50">NỘI DUNG ĐIỀU CHỈNH</th>
+                <th className="px-4 py-5 text-[11px] font-black uppercase tracking-[0.2em] text-center border border-slate-700/50 w-[150px]">NGÀY GIỜ</th>
               </tr>
             </thead>
-            <tbody className="divide-y-2 divide-slate-100">
-              {filteredLogs.length > 0 ? (
-                filteredLogs.map((log, idx) => {
-                  const actor = allUsers.find(u => u.id === log.userId);
-                  const target = allUsers.find(u => u.id === log.targetId);
-                  
-                  return (
-                    <motion.tr 
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: idx * 0.01 }}
-                      key={log.id} 
-                      className={`group transition-all duration-300 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/40`}
-                    >
-                      {/* STT / ID */}
-                      <td className="px-5 py-6 text-center border-r border-slate-100 align-middle">
-                        <div className="flex flex-col items-center">
-                          <span translate="no" className="notranslate text-sm font-black text-slate-400 group-hover:text-blue-600 transition-colors">
-                            {String(filteredLogs.length - idx).padStart(2, '0')}
-                          </span>
-                          <span translate="no" className="notranslate text-[8px] font-mono text-slate-300 font-bold tracking-tighter mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            #{(log.id || '').slice(0, 6).toUpperCase()}
-                          </span>
-                        </div>
-                      </td>
-                      
-                      {/* Nhân sự thực hiện (Ai) */}
-                      <td className="px-6 py-6 border-r border-slate-100 align-middle">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full border-2 border-white shadow-md flex items-center justify-center text-white shrink-0 font-black text-xs ${
-                            log.userId === 'SYSTEM' ? 'bg-slate-800' : 'bg-blue-600'
-                          }`}>
-                            <span translate="no" className="notranslate">
-                              {log.userId === 'SYSTEM' ? 'SYS' : (actor?.name?.substring(0, 2).toUpperCase() || '??')}
-                            </span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span translate="no" className="notranslate text-[13px] font-black text-slate-800 uppercase tracking-tight leading-none mb-1">
-                              {actor?.name || 'HỆ THỐNG'}
-                            </span>
-                            <span translate="no" className="notranslate text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                              {actor?.role || 'HỆ THỐNG'}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Phân loại (Sửa gì) */}
-                      <td className="px-6 py-6 border-r border-slate-100 align-middle">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border shadow-sm ${getLogColor(log.type)}`}>
-                            {getLogIcon(log.type)}
-                          </div>
-                          <div className="flex flex-col">
-                            <span translate="no" className={`notranslate text-[10px] font-black uppercase tracking-wider ${
-                              log.type === 'ERROR' || log.type === 'TASK_PERMANENT_DELETE' ? 'text-red-600' : 
-                              log.type === 'TASK_CREATE' ? 'text-green-600' :
-                              log.type === 'TASK_DELETE' ? 'text-orange-600' :
-                              'text-slate-600'
-                            }`}>
-                              {getLogLabel(log.type)}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Nội dung điều chỉnh */}
-                      <td className="px-6 py-6 border-r border-slate-100 align-middle">
-                        <div className="space-y-2">
-                          <p translate="no" className="notranslate text-[14px] font-bold text-slate-700 leading-snug group-hover:text-blue-900 transition-colors">
-                            {log.details || 'Không có nội dung chi tiết'}
-                          </p>
-                          {target && (
-                            <div className="flex items-center gap-2 bg-blue-50/50 border border-blue-100/50 rounded-md py-1 px-2 w-fit">
-                              <span translate="no" className="notranslate text-[9px] font-black text-blue-500 uppercase tracking-widest">Đối tượng:</span>
-                              <span translate="no" className="notranslate text-[10px] font-black text-blue-700 uppercase">
-                                {target.name || 'HỆ THỐNG'}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Ngày giờ (Lúc nào) */}
-                      <td className="px-6 py-6 text-right border-slate-100 align-middle bg-slate-50/30">
-                        <div className="flex flex-col items-end gap-1.5">
-                          <div translate="no" className="notranslate flex items-center gap-1.5 text-blue-700 font-mono text-[13px] font-black bg-blue-100/50 px-2.5 py-1 rounded-md border border-blue-200/50">
-                            <Clock size={14} strokeWidth={3} />
-                            {new Date(log.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                          <div translate="no" className="notranslate flex items-center gap-1.5 text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] pr-1">
-                            {new Date(log.timestamp).toLocaleDateString('vi-VN')}
-                          </div>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  );
-                })
-              ) : (
+            <tbody className="divide-y divide-slate-200">
+              {logs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-24 text-center">
-                    <div className="w-20 h-20 bg-slate-50 text-slate-200 rounded-2xl flex items-center justify-center mx-auto mb-6 border-4 border-slate-100 border-dashed animate-pulse">
-                      <Search size={40} />
+                  <td colSpan={6} className="py-24 text-center border border-slate-200">
+                    <div className="flex flex-col items-center gap-4 opacity-10">
+                      <History size={64} strokeWidth={1} />
+                      <p className="font-black uppercase tracking-[0.3em] text-sm">Hệ thống đang chờ lệnh...</p>
                     </div>
-                    <p className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] italic">Không tìm thấy bất kỳ dữ liệu nhật ký nào.</p>
                   </td>
                 </tr>
+              ) : (
+                logs.map((log, index) => (
+                  <tr 
+                    key={log.id} 
+                    className={`hover:bg-blue-50/20 transition-colors group ${selectedIds.includes(log.id) ? 'bg-blue-50/40' : ''}`}
+                    onClick={() => toggleSelection(log.id)}
+                  >
+                    <td className="px-4 py-6 text-center border border-slate-200" onClick={(e) => e.stopPropagation()}>
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 rounded border-slate-300 accent-blue-600 cursor-pointer"
+                        checked={selectedIds.includes(log.id)}
+                        onChange={() => toggleSelection(log.id)}
+                      />
+                    </td>
+                    <td className="px-4 py-6 text-center font-black text-slate-400 text-sm border border-slate-200">
+                      {logs.length - index}
+                    </td>
+                    <td className="px-4 py-6 border border-slate-200">
+                      <div className="flex items-center gap-3">
+                        <img 
+                          src={getUserAvatar(log)} 
+                          alt="avatar" 
+                          className="w-11 h-11 rounded-full border-2 border-white shadow-md bg-slate-100"
+                        />
+                        <div translate="no" className="notranslate flex flex-col min-w-0">
+                          <span className="text-sm font-black text-slate-900 uppercase leading-none mb-1">{getUserName(log)}</span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{log.userId === 'SYSTEM' ? 'Hệ thống' : (log.userId === 'LeNhatTruong0907767304' ? 'Quản trị viên' : 'Nhân sự')}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-6 border border-slate-200">
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 border-slate-100 bg-white shadow-sm">
+                        <div className="p-1 bg-slate-50 rounded-lg text-slate-400">
+                          <Activity size={12} strokeWidth={3} />
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                          {log.type === 'SYSTEM' ? 'SYSTEM' : (getLogTypeLabel(log.type) || '').toUpperCase()}
+                        </span>
+                      </div>
+                    </td>
+                    <td translate="no" className="notranslate px-6 py-6 text-sm font-bold text-slate-700 border border-slate-200 leading-relaxed italic">
+                      {log.details || 'Không có nội dung chi tiết'}
+                    </td>
+                    <td className="px-4 py-6 text-center border border-slate-200">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg flex items-center gap-2 border border-blue-100">
+                          <Activity size={12} className="opacity-50" />
+                          <span className="text-xs font-black">
+                            {new Date(log.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider opacity-70">
+                          {formatDate(log.timestamp)}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>

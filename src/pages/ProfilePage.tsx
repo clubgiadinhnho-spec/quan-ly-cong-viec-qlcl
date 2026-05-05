@@ -190,7 +190,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                   <div className="px-3 py-1 bg-blue-100 rounded-lg border border-blue-200 text-[11px] font-black text-blue-700 uppercase tracking-widest shadow-sm">
                     <span translate="no" className="notranslate">{getDisplayNameTitle(user)}</span>
                   </div>
-                  <span className="text-[15px] font-mono font-black text-slate-400 uppercase tracking-widest">#{user.code}</span>
+                  <span className="text-[15px] font-sans font-bold text-slate-400 tracking-widest uppercase">#{user.code}</span>
                 </div>
               </div>
 
@@ -308,7 +308,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     </div>
                     {!isEditing ? (
                       <div className="h-5 flex items-center">
-                        <p translate="no" className={`notranslate font-mono font-black tracking-tighter leading-none ${user.phone === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-900 text-[20px]'}`}>
+                        <p translate="no" className={`notranslate font-sans font-bold tracking-tight leading-none ${user.phone === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-900 text-[18px]'}`}>
                           {user.phone}
                         </p>
                       </div>
@@ -316,7 +316,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                       <input 
                         type="text" value={formData.phone}
                         onChange={e => setFormData({...formData, phone: e.target.value})}
-                        className="w-full text-[18px] font-black text-blue-600 font-mono outline-none bg-blue-50/30 rounded-lg px-2 py-0.5"
+                        className="w-full text-[16px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded-lg px-2 py-0.5"
                       />
                     )}
                   </div>
@@ -328,11 +328,13 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     </div>
                     {!isEditing ? (
                       <div translate="no" className="notranslate space-y-1 text-slate-900">
-                        <div className="flex items-center gap-2 text-[13px] font-extrabold uppercase">
-                          <span className="text-[9px] font-black text-slate-400 w-16 shrink-0 tracking-tighter">CÔNG TY:</span>{user.companyEmail || 'CHỜ CẬP NHẬT'}
+                        <div className="flex items-center gap-2 text-[13px] font-bold">
+                          <span className="text-[9px] font-black text-slate-400 w-16 shrink-0 tracking-tighter uppercase">CÔNG TY:</span>
+                          <span className="lowercase">{user.companyEmail || 'CHỜ CẬP NHẬT'}</span>
                         </div>
-                        <div className={`flex items-center gap-2 text-[13px] font-extrabold uppercase ${user.personalEmail === 'CHỜ CẬP NHẬT' ? 'text-gray-400' : 'text-[#1e3a8a]'}`}>
-                          <span className="text-[9px] font-black text-slate-400 w-16 shrink-0 tracking-tighter">CÁ NHÂN:</span>{user.personalEmail || 'CHỜ CẬP NHẬT'}
+                        <div className={`flex items-center gap-2 text-[13px] font-bold ${user.personalEmail === 'CHỜ CẬP NHẬT' ? 'text-gray-400' : 'text-[#1e3a8a]'}`}>
+                          <span className="text-[9px] font-black text-slate-400 w-16 shrink-0 tracking-tighter uppercase">CÁ NHÂN:</span>
+                          <span className="lowercase">{user.personalEmail || 'CHỜ CẬP NHẬT'}</span>
                         </div>
                       </div>
                     ) : (
@@ -342,7 +344,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                           <input 
                             type="email" value={formData.companyEmail}
                             onChange={e => setFormData({...formData, companyEmail: e.target.value})}
-                            className="flex-1 text-[11px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-1 py-0.5"
+                            className="flex-1 text-[13px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-1 py-0.5 lowercase"
                           />
                         </div>
                         <div className="flex items-center gap-1">
@@ -350,7 +352,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                           <input 
                             type="email" value={formData.personalEmail}
                             onChange={e => setFormData({...formData, personalEmail: e.target.value})}
-                            className="flex-1 text-[11px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-1 py-0.5"
+                            className="flex-1 text-[13px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-1 py-0.5 lowercase"
                           />
                         </div>
                       </div>

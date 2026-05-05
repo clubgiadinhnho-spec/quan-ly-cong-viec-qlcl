@@ -9,7 +9,6 @@ interface UseTaskActionsProps {
   firebaseAddTask: (task: Omit<Task, 'id'>) => Promise<void>;
   firebaseUpdateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   firebaseDeleteTask: (id: string) => Promise<void>;
-  firebaseAddLog?: (log: any) => Promise<void>;
   firebaseSendPrivateMsg?: (content: string, senderId: string, receiverId: string) => Promise<void>;
 }
 
@@ -20,7 +19,6 @@ export const useTaskActions = ({
   firebaseAddTask,
   firebaseUpdateTask,
   firebaseDeleteTask,
-  firebaseAddLog,
   firebaseSendPrivateMsg
 }: UseTaskActionsProps) => {
 
@@ -44,15 +42,6 @@ export const useTaskActions = ({
 
     const isManagement = currentUser?.role === 'Admin' || currentUser?.role === 'Leader' || !!currentUser?.delegatedPermissions?.canCreateTask;
 
-    if (currentUser?.role === 'Staff' && !!currentUser?.delegatedPermissions?.canCreateTask && firebaseAddLog) {
-      await firebaseAddLog({
-        type: 'DELEGATED_ACTION',
-        userId: currentUser.id,
-        details: `Nhân viên ${currentUser.name} sử dụng quyền ủy quyền để khởi tạo công việc mới: ${taskData.title}`,
-        metadata: { taskId: taskData.id }
-      });
-    }
-
     const newTask: Omit<Task, 'id'> = {
       code: `C${String(lastNum + 1).padStart(4, '0')}`,
       issueDate: new Date().toISOString().split('T')[0],
@@ -74,6 +63,7 @@ export const useTaskActions = ({
       priority: taskData.priority || 'MEDIUM',
       isHighlighted: false,
       isLocked: false,
+      recurrence: taskData.recurrence || 'NONE',
       attachmentUrl,
       attachmentName,
       updatedAt: new Date().toISOString(),
@@ -81,15 +71,7 @@ export const useTaskActions = ({
       authorId: currentUser?.id || '',
     };
     await firebaseAddTask(newTask);
-
-    if (firebaseAddLog && currentUser) {
-      await firebaseAddLog({
-        type: 'TASK_CREATE',
-        userId: currentUser.id,
-        details: `Nhân viên ${currentUser.name} đã khởi tạo công việc mới: [${newTask.code}] ${newTask.title}`,
-      });
-    }
-  }, [tasks, currentUser, firebaseAddTask, firebaseAddLog]);
+  }, [tasks, currentUser, firebaseAddTask]);
 
   const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
     const task = tasks.find(t => t.id === id);
@@ -109,18 +91,7 @@ export const useTaskActions = ({
 
     const preparedUpdates = prepareTaskUpdates(task, updates, currentUser, allUsers);
     await firebaseUpdateTask(id, preparedUpdates);
-
-    // Logging if there are history changes
-    if (firebaseAddLog && currentUser && preparedUpdates.history && preparedUpdates.history.length > task.history.length) {
-      const latestEntry = preparedUpdates.history[preparedUpdates.history.length - 1];
-      await firebaseAddLog({
-        type: 'TASK_UPDATE',
-        userId: currentUser.id,
-        details: `Nhân viên ${currentUser.name} đã cập nhật công việc [${task.code}]: ${latestEntry.content}`,
-        targetId: id
-      });
-    }
-  }, [tasks, currentUser, allUsers, firebaseUpdateTask, firebaseSendPrivateMsg, firebaseAddLog]);
+  }, [tasks, currentUser, allUsers, firebaseUpdateTask, firebaseSendPrivateMsg]);
 
   const addTaskComment = useCallback((taskId: string, content: string) => {
     if (!currentUser) return;

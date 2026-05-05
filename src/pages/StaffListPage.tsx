@@ -260,7 +260,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                   <div className="space-y-1.5 text-center">
                     <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">MÃ CHUẨN</p>
                     <div className="bg-slate-50 rounded-2xl py-3 border border-slate-100 flex items-center justify-center">
-                      <p className="text-lg font-mono font-black text-blue-800">{selectedQRUser.code}</p>
+                      <p className="text-lg font-sans font-bold text-blue-800 uppercase">#{selectedQRUser.code}</p>
                     </div>
                   </div>
                   <div className="space-y-1.5 text-center">
@@ -648,7 +648,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                       </div>
                       <div className="flex flex-col">
                         <span className="text-[9px] font-black text-blue-300/40 uppercase tracking-widest leading-none mb-1">SỐ ĐIỆN THOẠI</span>
-                        <span translate="no" className={`notranslate text-lg font-mono font-black tracking-tight whitespace-nowrap leading-none ${staff.phone === 'CHỜ CẬP NHẬT' ? 'text-gray-400' : 'text-white'}`}>
+                        <span translate="no" className={`notranslate text-lg font-sans font-bold tracking-tight whitespace-nowrap leading-none ${staff.phone === 'CHỜ CẬP NHẬT' ? 'text-gray-400' : 'text-white'}`}>
                           {staff.phone}
                         </span>
                       </div>
@@ -664,7 +664,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                         </div>
                         <div className="flex flex-col">
                           <span className="text-[9px] font-black text-blue-300/40 uppercase tracking-widest leading-none mb-1">EMAIL CÔNG TY</span>
-                          <span translate="no" className="notranslate text-xs font-bold lowercase tracking-tight leading-none">{staff.companyEmail || 'CHỜ CẬP NHẬT'}</span>
+                          <span translate="no" className="notranslate text-sm font-bold lowercase tracking-tight leading-none">{staff.companyEmail || 'CHỜ CẬP NHẬT'}</span>
                         </div>
                       </div>
                       
@@ -674,7 +674,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                         </div>
                         <div className="flex flex-col">
                           <span className="text-[9px] font-black text-blue-300/40 uppercase tracking-widest leading-none mb-1">EMAIL CÁ NHÂN</span>
-                          <span translate="no" className="notranslate text-xs font-bold lowercase tracking-tight leading-none">{staff.personalEmail || 'CHỜ CẬP NHẬT'}</span>
+                          <span translate="no" className="notranslate text-sm font-bold lowercase tracking-tight leading-none">{staff.personalEmail || 'CHỜ CẬP NHẬT'}</span>
                         </div>
                       </div>
                     </div>

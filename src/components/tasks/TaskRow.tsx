@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw, Trash2, Bell } from 'lucide-react';
+import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw, Trash2, Bell, RefreshCw } from 'lucide-react';
 import { Task, User } from '../../types';
 import { formatDate } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
@@ -163,7 +163,22 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       </td>
       <td className={`p-2 text-center text-[10px] border-b border-r border-gray-300 align-top relative h-px ${task.isHighlighted || task.priorityOrder ? 'text-gray-600' : 'text-gray-300'}`}>
         <div className="flex flex-col items-center pt-1 h-full justify-between">
-          <div translate="no" className="notranslate leading-none text-[10px] mb-3">{task.code}</div>
+          <div className="flex flex-col items-center gap-1 mb-3">
+            <div translate="no" className="notranslate leading-none text-[10px]">{task.code}</div>
+            {task.recurrence && task.recurrence !== 'NONE' && (
+              <div className="flex flex-col items-center gap-1">
+                <RefreshCw size={11} className="text-emerald-500 animate-[spin_4s_linear_infinite]" strokeWidth={3} />
+                <span translate="no" className="notranslate text-[7px] font-black text-emerald-600 leading-none uppercase bg-emerald-50 px-1 py-0.5 rounded border border-emerald-100 shadow-sm">
+                  {task.recurrence === 'DAILY' && 'HÀNG NGÀY'}
+                  {task.recurrence === 'TRI_DAILY' && '2-3 NGÀY/LẦN'}
+                  {task.recurrence === 'WEEKLY' && 'HÀNG TUẦN'}
+                  {task.recurrence === 'BI_WEEKLY' && 'HÀNG 2 TUẦN'}
+                  {task.recurrence === 'TRI_WEEKLY' && 'HÀNG 3 TUẦN'}
+                  {task.recurrence === 'MONTHLY' && 'HÀNG THÁNG'}
+                </span>
+              </div>
+            )}
+          </div>
           {deadlineStatus && (
             <div className="flex flex-col items-center gap-1.5 transition-all mt-auto mb-1">
               <div 

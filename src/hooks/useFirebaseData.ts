@@ -5,6 +5,7 @@ import {
   where,
   or,
   orderBy, 
+  limit,
   onSnapshot, 
   addDoc, 
   updateDoc, 
@@ -224,7 +225,7 @@ export const useFirebaseData = (currentUserId?: string) => {
 
     // Listen to System Logs
     const logsUnsubscribe = onSnapshot(
-      query(collection(db, 'system_logs'), orderBy('timestamp', 'desc')),
+      query(collection(db, 'system_logs'), orderBy('timestamp', 'desc'), limit(50)),
       (snapshot) => {
         const logsData = snapshot.docs.map(doc => ({
           ...doc.data(),
@@ -307,8 +308,22 @@ export const useFirebaseData = (currentUserId?: string) => {
       );
     }
 
-    // user_profiles is now handled exclusively by useStaff hook
-    const profilesUnsubscribe = () => {};
+    // Listen to user_profiles for internal metadata (logging)
+    const profilesUnsubscribe = onSnapshot(
+      collection(db, 'user_profiles'),
+      (snapshot) => {
+        const usersData = snapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id
+        } as User));
+        setUserProfiles(usersData);
+      },
+      (error) => {
+        if (error.code !== 'permission-denied') {
+          console.warn("User profiles listener error:", error.message);
+        }
+      }
+    );
 
     return () => {
       tasksUnsubscribe();
@@ -352,28 +367,85 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
-  const addTask = useCallback(async (task: Omit<Task, 'id'>) => {
+  const addLog = useCallback(async (entry: Omit<LogEntry, 'id' | 'timestamp'>) => {
     try {
-      await addDoc(collection(db, 'tasks'), {
+      // Find user name if not provided
+      let userName = entry.userName;
+      if (!userName && entry.userId !== 'SYSTEM') {
+        const profile = userProfiles.find(u => u.id === entry.userId || (u as any).uid === entry.userId || (u as any).uniqueKey === entry.userId);
+        if (profile) userName = profile.name;
+        else if (entry.userId === currentUserId) userName = 'Lê Nhật Trường'; // Fallback for the boss
+      }
+
+      await addDoc(collection(db, 'system_logs'), {
+        ...entry,
+        userName: userName || null,
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Failed to add log:", error);
+    }
+  }, [userProfiles, currentUserId]);
+
+  const addTask = useCallback(async (task: Omit<Task, 'id'>, authorName?: string) => {
+    try {
+      const docRef = await addDoc(collection(db, 'tasks'), {
         ...task,
         createdAt: serverTimestamp()
+      });
+      
+      await addLog({
+        type: 'TASK_CREATE',
+        userId: auth.currentUser?.uid || currentUserId || task.authorId || 'SYSTEM',
+        userName: authorName,
+        details: `Tạo công việc mới: ${task.title} (Mã: ${task.code})`,
+        metadata: { taskId: docRef.id, taskCode: task.code }
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'tasks');
     }
-  }, []);
+  }, [currentUserId, addLog]);
 
-  const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
+  const updateTask = useCallback(async (id: string, updates: Partial<Task>, modifierName?: string) => {
     try {
       const taskRef = doc(db, 'tasks', id);
       await updateDoc(taskRef, {
         ...updates,
         updatedAt: serverTimestamp()
       });
+
+      // Log specific actions
+      let logType: LogEntry['type'] = 'TASK_UPDATE';
+      let logDetails = `Cập nhật công việc (ID: ${id.slice(-6)})`;
+
+      if (updates.isLocked === true) {
+        logType = 'TASK_LOCK';
+        logDetails = `Chốt dữ liệu công việc (ID: ${id.slice(-6)})`;
+      } else if (updates.isLocked === false) {
+        logDetails = `Mở khóa dữ liệu công việc (ID: ${id.slice(-6)})`;
+      } else if (updates.requestDelete === true) {
+        logDetails = `Yêu cầu xóa công việc (ID: ${id.slice(-6)})`;
+      } else if (updates.deletedAt === null) {
+        logType = 'TASK_RESTORE';
+        logDetails = `Khôi phục công việc từ thùng rác (ID: ${id.slice(-6)})`;
+      } else if (updates.deletedAt) {
+        logType = 'TASK_DELETE';
+        logDetails = `Di chuyển công việc vào thùng rác (ID: ${id.slice(-6)})`;
+      } else if (updates.status) {
+        logDetails = `Thay đổi trạng thái công việc thành ${updates.status} (ID: ${id.slice(-6)})`;
+      }
+
+      await addLog({
+        type: logType,
+        userId: auth.currentUser?.uid || currentUserId || 'SYSTEM',
+        userName: modifierName,
+        details: logDetails,
+        metadata: { taskId: id, updates }
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `tasks/${id}`);
     }
-  }, []);
+  }, [currentUserId, addLog]);
 
   const saveReportDraft = useCallback(async (draft: Omit<ReportDraft, 'id'>) => {
     try {
@@ -398,13 +470,20 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
-  const deleteTask = useCallback(async (id: string) => {
+  const deleteTask = useCallback(async (id: string, modifierName?: string) => {
     try {
       await deleteDoc(doc(db, 'tasks', id));
+      await addLog({
+        type: 'TASK_PERMANENT_DELETE',
+        userId: auth.currentUser?.uid || currentUserId || 'SYSTEM',
+        userName: modifierName,
+        details: `Xóa vĩnh viễn công việc (ID: ${id.slice(-6)})`,
+        metadata: { taskId: id }
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `tasks/${id}`);
     }
-  }, []);
+  }, [currentUserId, addLog]);
 
   const sendMessage = useCallback(async (content: string, authorId: string, attachments?: any[]) => {
     try {
@@ -529,18 +608,6 @@ export const useFirebaseData = (currentUserId?: string) => {
       await updateDoc(doc(db, 'direct_messages', msgId), { reactions });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `direct_messages/${msgId}`);
-    }
-  }, []);
-
-  const addLog = useCallback(async (log: Omit<LogEntry, 'id' | 'timestamp'>) => {
-    if (log.userId === 'SYSTEM') return; // Do not record system-generated logs as per user request
-    try {
-      await addDoc(collection(db, 'system_logs'), {
-        ...log,
-        timestamp: serverTimestamp()
-      });
-    } catch (error) {
-      console.error("Failed to add log:", error);
     }
   }, []);
 
@@ -673,7 +740,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
-  const deleteTasksBulk = useCallback(async (taskIds: string[]) => {
+  const deleteTasksBulk = useCallback(async (taskIds: string[], modifierName?: string) => {
     try {
       console.log(`[SYSTEM RESET] Starting bulk deletion of ${taskIds.length} tasks...`);
       let batch = writeBatch(db);
@@ -694,6 +761,14 @@ export const useFirebaseData = (currentUserId?: string) => {
         await batch.commit();
       }
       
+      await addLog({
+        type: 'TASK_PERMANENT_DELETE',
+        userId: auth.currentUser?.uid || currentUserId || 'SYSTEM',
+        userName: modifierName,
+        details: `Xóa vĩnh viễn hàng loạt (${taskIds.length} công việc)`,
+        metadata: { taskIds }
+      });
+
       console.log("[SYSTEM RESET] Tasks cleared successfully!");
       return true;
     } catch (error) {
@@ -701,9 +776,9 @@ export const useFirebaseData = (currentUserId?: string) => {
       handleFirestoreError(error, OperationType.DELETE, `bulk_tasks`);
       throw error;
     }
-  }, []);
+  }, [currentUserId, addLog]);
 
-  const trashTasksBulk = useCallback(async (taskIds: string[]) => {
+  const trashTasksBulk = useCallback(async (taskIds: string[], modifierName?: string) => {
     try {
       console.log(`[BULK TRASH] Moving ${taskIds.length} tasks to trash...`);
       let batch = writeBatch(db);
@@ -727,11 +802,88 @@ export const useFirebaseData = (currentUserId?: string) => {
         await batch.commit();
       }
       
+      await addLog({
+        type: 'TASK_DELETE',
+        userId: auth.currentUser?.uid || currentUserId || 'SYSTEM',
+        userName: modifierName,
+        details: `Di chuyển hàng loạt công việc vào thùng rác (${taskIds.length} công việc)`,
+        metadata: { taskIds }
+      });
+
       console.log("[BULK TRASH] Tasks moved successfully!");
       return true;
     } catch (error) {
       console.error("BULK TASK TRASH FAILURE:", error);
       handleFirestoreError(error, OperationType.UPDATE, `bulk_trash_tasks`);
+      throw error;
+    }
+  }, [currentUserId, addLog]);
+
+  const resetSystem = useCallback(async (modifierName?: string) => {
+    try {
+      // 1. Delete all tasks
+      const tasksSnap = await getDocs(collection(db, 'tasks'));
+      const taskIds = tasksSnap.docs.map(d => d.id);
+      for (const id of taskIds) {
+        await deleteDoc(doc(db, 'tasks', id));
+      }
+
+      // 2. Delete all logs
+      const logsSnap = await getDocs(collection(db, 'system_logs'));
+      const logIds = logsSnap.docs.map(d => d.id);
+      for (const id of logIds) {
+        await deleteDoc(doc(db, 'system_logs', id));
+      }
+
+      // 3. Delete all topics
+      const topicsSnap = await getDocs(collection(db, 'discussion_topics'));
+      const topicIds = topicsSnap.docs.map(d => d.id);
+      for (const id of topicIds) {
+        await deleteDoc(doc(db, 'discussion_topics', id));
+      }
+
+      // 4. Delete all discussion messages
+      const msgsSnap = await getDocs(collection(db, 'discussion_messages'));
+      const messageIds = msgsSnap.docs.map(d => d.id);
+      for (const id of messageIds) {
+        await deleteDoc(doc(db, 'discussion_messages', id));
+      }
+
+      await addLog({
+        type: 'SYSTEM',
+        userId: auth.currentUser?.uid || currentUserId || 'SYSTEM',
+        userName: modifierName,
+        details: `Reset toàn bộ hệ thống (Xóa sạch dữ liệu)`,
+        metadata: { action: 'SYSTEM_RESET' }
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'reset_system');
+    }
+  }, [currentUserId, addLog]);
+
+  const deleteLogsBulk = useCallback(async (logIds: string[]) => {
+    try {
+      let batch = writeBatch(db);
+      let count = 0;
+
+      for (const logId of logIds) {
+        batch.delete(doc(db, 'system_logs', logId));
+        count++;
+
+        if (count >= 400) {
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+
+      if (count > 0) {
+        await batch.commit();
+      }
+      
+      return true;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `bulk_logs`);
       throw error;
     }
   }, []);
@@ -762,7 +914,6 @@ export const useFirebaseData = (currentUserId?: string) => {
     updateMessageReactions,
     updateDiscussionMessageReactions,
     updatePrivateMessageReactions,
-    addLog,
     saveReportDraft,
     saveOfficialReport,
     addExtraUser,
@@ -771,6 +922,8 @@ export const useFirebaseData = (currentUserId?: string) => {
     deleteExtraUser,
     deleteDiscussionMessage,
     presence,
-    updatePresence
+    updatePresence,
+    resetSystem,
+    deleteLogsBulk
   };
 };

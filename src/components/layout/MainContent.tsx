@@ -53,14 +53,12 @@ interface MainContentProps {
   deleteTopic: any;
   deleteTopicsBulk: any;
   deleteDiscussionMessage: any;
-  firebaseAddLog: any;
   updateProfile: any;
   officialReports: OfficialReport[];
   firebaseSaveReportDraft: any;
   firebaseSaveOfficialReport: any;
   permanentDeleteTask: any;
   restoreTask: any;
-  logs: LogEntry[];
   setActiveTab: (tab: string) => void;
   setShowDirectChat: (u: User | null) => void;
   unreadCounts: Record<string, number>;
@@ -70,6 +68,9 @@ interface MainContentProps {
   deleteProfile: any;
   deleteTasksBulk: any;
   trashTasksBulk: any;
+  logs: LogEntry[];
+  resetSystem: () => Promise<void>;
+  deleteLogsBulk: (logIds: string[]) => Promise<boolean>;
 }
 
 export const MainContent: React.FC<MainContentProps> = (props) => {
@@ -80,9 +81,10 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
     showChatModal, addTaskComment, updateTaskCommentReactions, setEditingTask, setConfirmModal,
     highlightedTaskId, lockTasks, discussionTopics, discussionMessages, sendDiscussionMessage,
     updateDiscussionMessageReactions, createTopic, updateTopic, deleteTopic, deleteTopicsBulk, deleteDiscussionMessage,
-    firebaseAddLog, updateProfile, officialReports, firebaseSaveReportDraft, firebaseSaveOfficialReport,
-    permanentDeleteTask, restoreTask, logs, setActiveTab, setShowDirectChat, unreadCounts, groupUnreadCount,
-    setSimulatedUser, firebaseSendPrivateMsg, deleteProfile, deleteTasksBulk, trashTasksBulk
+    updateProfile, officialReports, firebaseSaveReportDraft, firebaseSaveOfficialReport,
+    permanentDeleteTask, restoreTask, setActiveTab, setShowDirectChat, unreadCounts, groupUnreadCount,
+    setSimulatedUser, firebaseSendPrivateMsg, deleteProfile, deleteTasksBulk, trashTasksBulk, logs, resetSystem,
+    deleteLogsBulk
   } = props;
 
   const [selectedTaskIds, setSelectedTaskIds] = React.useState<string[]>([]);
@@ -102,7 +104,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
       onConfirm: async () => {
         try {
           // Use the optimized batch function
-          await trashTasksBulk(selectedTaskIds);
+          await trashTasksBulk(selectedTaskIds, effectiveUser.name);
           
           setSelectedTaskIds([]);
           alert(`Đã chuyển ${selectedTaskIds.length} công việc vào thùng rác.`);
@@ -356,7 +358,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
               title, description: desc, createdBy: effectiveUser.id, creatorAvatar: effectiveUser.avatar, status: "OPEN", orderCode,
             })}
             onUpdateTopic={updateTopic} onDeleteTopic={deleteTopic} onDeleteTopicsBulk={deleteTopicsBulk} onDeleteMessage={deleteDiscussionMessage}
-            onAddLog={firebaseAddLog} presence={presence.map(p => p.id)}
+            presence={presence.map(p => p.id)}
           />
         </motion.div>
       )}
@@ -451,7 +453,8 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
               allUsers={allUsers} 
               currentUser={effectiveUser!} 
               tasks={tasks}
-              onDeleteTasksBulk={deleteTasksBulk}
+              onResetSystem={() => resetSystem(effectiveUser.name)}
+              onDeleteLogsBulk={deleteLogsBulk}
               setConfirmModal={setConfirmModal}
             />
           </div>

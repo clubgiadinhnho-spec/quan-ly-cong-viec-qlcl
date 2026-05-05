@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Edit2, Plus } from 'lucide-react';
-import { Task, User } from '../../types';
+import { Task, User, RecurrenceType } from '../../types';
 
 interface TaskModalProps {
   onClose: () => void;
@@ -17,6 +17,7 @@ export const TaskModal = ({ onClose, onSave, users, task, currentUser }: TaskMod
   const [assigneeId, setAssigneeId] = useState(task?.assigneeId || (currentUser.role === 'Staff' ? currentUser.id : ''));
   const [expectedDate, setExpectedDate] = useState(task?.expectedEndDate || '');
   const [extensionDate, setExtensionDate] = useState(task?.extensionDate || '');
+  const [recurrence, setRecurrence] = useState<RecurrenceType>(task?.recurrence || 'NONE');
   const [attachment, setAttachment] = useState<File | null>(null);
 
   const isEdit = !!task;
@@ -35,10 +36,39 @@ export const TaskModal = ({ onClose, onSave, users, task, currentUser }: TaskMod
         </h2>
         
         <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Người thực hiện</label>
+              <select 
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                value={assigneeId}
+                onChange={(e) => setAssigneeId(e.target.value)}
+              >
+                <option value="">Chọn nhân sự</option>
+                {users.map((u) => <option key={u.id} value={u.id} className="notranslate">{u.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-blue-600 mb-1 uppercase">Chu kỳ (Lặp lại)</label>
+              <select 
+                className="w-full px-4 py-3 bg-blue-50 border border-blue-100 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
+                value={recurrence}
+                onChange={(e) => setRecurrence(e.target.value as RecurrenceType)}
+              >
+                <option value="NONE" translate="no" className="notranslate">KHÔNG LẶP</option>
+                <option value="DAILY" translate="no" className="notranslate">HÀNG NGÀY (+1 NGÀY)</option>
+                <option value="TRI_DAILY" translate="no" className="notranslate">2-3 NGÀY/LẦN (+3 NGÀY)</option>
+                <option value="WEEKLY" translate="no" className="notranslate">HÀNG TUẦN (+7 NGÀY)</option>
+                <option value="BI_WEEKLY" translate="no" className="notranslate">HÀNG 2 TUẦN (+14 NGÀY)</option>
+                <option value="TRI_WEEKLY" translate="no" className="notranslate">HÀNG 3 TUẦN (+21 NGÀY)</option>
+                <option value="MONTHLY" translate="no" className="notranslate">HÀNG THÁNG (+1 THÁNG)</option>
+              </select>
+            </div>
+          </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Hạng mục công việc *</label>
             <textarea 
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-24 resize-none"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-20 resize-none"
               placeholder="Nhập tên công việc..."
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -54,17 +84,6 @@ export const TaskModal = ({ onClose, onSave, users, task, currentUser }: TaskMod
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Người thực hiện</label>
-              <select 
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                value={assigneeId}
-                onChange={(e) => setAssigneeId(e.target.value)}
-              >
-                <option value="">Chọn nhân sự</option>
-                {users.map((u) => <option key={u.id} value={u.id} className="notranslate">{u.name}</option>)}
-              </select>
-            </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Hạn hoàn thành</label>
               <input 
@@ -128,6 +147,7 @@ export const TaskModal = ({ onClose, onSave, users, task, currentUser }: TaskMod
                 assignedTo: assignee?.name || '',
                 expectedEndDate: expectedDate,
                 extensionDate: extensionDate || null,
+                recurrence,
                 attachment 
               });
             }}

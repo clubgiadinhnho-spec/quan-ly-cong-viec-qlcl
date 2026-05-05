@@ -44,7 +44,6 @@ interface GroupChatPageProps {
   onDeleteTopic: (topicId: string) => void;
   onDeleteTopicsBulk?: (topicIds: string[]) => Promise<any>;
   onDeleteMessage?: (messageId: string) => void;
-  onAddLog?: (type: any, details: string, metadata?: any) => void;
   presence?: string[];
 }
 
@@ -60,7 +59,6 @@ export const GroupChatPage = ({
   onDeleteTopic,
   onDeleteTopicsBulk,
   onDeleteMessage,
-  onAddLog,
   presence = []
 }: GroupChatPageProps) => {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
@@ -102,8 +100,6 @@ export const GroupChatPage = ({
       }
       
       await onDeleteTopicsBulk(selectedBulkIds);
-      
-      onAddLog?.('SYSTEM', `Xóa cưỡng bức ${selectedBulkIds.length} chủ đề.`);
       
       // If current selected topic is being deleted, deselect it
       if (selectedTopicId && selectedBulkIds.includes(selectedTopicId)) {
@@ -155,11 +151,6 @@ const handleCreateTopic = () => {
 
     onCreateTopic(upperTitle, upperDesc, '');
     
-    // Add Log
-    onAddLog?.('SYSTEM', `Đã yêu cầu tạo chủ đề thảo luận mới: ${upperTitle}`, { 
-      topicTitle: upperTitle
-    });
-
     setShowCreateTopic(false);
     setNewTopicTitle('');
     setNewTopicDesc('');
@@ -226,11 +217,9 @@ const handleCreateTopic = () => {
     if (topic && topic.status !== 'DELETED') {
       // Soft delete
       onUpdateTopic(topicId, { status: 'DELETED' });
-      onAddLog?.('SYSTEM', `Đã chuyển chủ đề vào thùng rác: [${topic.orderCode}] ${topic.title}`);
     } else {
       // Permanent delete
       onDeleteTopic(topicId);
-      onAddLog?.('SYSTEM', `Đã xóa vĩnh viễn chủ đề: [${topic?.orderCode}] ${topic?.title}`);
     }
     
     if (selectedTopicId === topicId) setSelectedTopicId(null);
@@ -606,8 +595,6 @@ const handleCreateTopic = () => {
                             onClick={(e) => {
                               e.stopPropagation();
                               onUpdateTopic(topic.id, { status: 'OPEN' });
-                              const logCode = topic.topicCode || `P${topic.orderCode || '???'}${new Date(topic.createdAt).getFullYear()}`;
-                              onAddLog?.('SYSTEM', `Đã khôi phục chủ đề: [${logCode}] ${topic.title}`);
                             }}
                             className="w-6 h-6 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center hover:bg-emerald-200 shadow-sm border border-emerald-200"
                             title="Khôi phục chủ đề"
@@ -982,7 +969,6 @@ const handleCreateTopic = () => {
                     }
 
                     onUpdateTopic(editTopic.id, { title: upperTitle, description: upperDesc });
-                    onAddLog?.('SYSTEM', `Đã cập nhật chủ đề: [${editTopic.orderCode}] ${upperTitle}`);
                     setEditTopic(null);
                   }}
                   className="w-full py-4 bg-[#132d6b] text-white rounded-xl font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-900/10"

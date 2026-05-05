@@ -62,8 +62,9 @@ export default function App() {
     deleteTask: firebaseDeleteTask, trashTasksBulk, sendMessage: firebaseSendMessage, sendDiscussionMessage,
     createTopic, updateTopic, deleteTopic, deleteTopicsBulk, deleteTasksBulk, sendPrivateMessage: firebaseSendPrivateMsg,
     updateDiscussionMessageReactions, updatePrivateMessageReactions: firebaseUpdatePrivateMessageReactions,
-    discussionTopics, discussionMessages, deleteDiscussionMessage, addLog: firebaseAddLog,
-    saveReportDraft: firebaseSaveReportDraft, saveOfficialReport: firebaseSaveOfficialReport, updatePresence,
+    discussionTopics, discussionMessages, deleteDiscussionMessage,
+    saveReportDraft: firebaseSaveReportDraft, saveOfficialReport: firebaseSaveOfficialReport, updatePresence, resetSystem,
+    deleteLogsBulk
   } = useFirebaseData(simulatedUser?.id || currentUser?.id);
 
   const { allStaff, loading: staffLoading, updateProfile, deleteProfile } = useStaff();
@@ -124,7 +125,6 @@ export default function App() {
     firebaseAddTask, 
     firebaseUpdateTask, 
     firebaseDeleteTask, 
-    firebaseAddLog,
     firebaseSendPrivateMsg
   });
 
@@ -243,42 +243,26 @@ export default function App() {
   }, [effectiveUser?.id, effectiveUser?.avatar, effectiveUser?.name, authReady, updatePresence]);
 
   const addTask = useCallback(async (taskData: any) => {
-    if (editingTask) { await updateTask(editingTask.id, taskData); setEditingTask(null); }
-    else { await baseAddTask(taskData); setShowTaskModal(false); }
-  }, [baseAddTask, updateTask, editingTask]);
+    if (editingTask) { await firebaseUpdateTask(editingTask.id, taskData, effectiveUser?.name); setEditingTask(null); }
+    else { await firebaseAddTask(taskData, effectiveUser?.name); setShowTaskModal(false); }
+  }, [firebaseAddTask, firebaseUpdateTask, editingTask, effectiveUser]);
 
   const deleteTaskLocal = useCallback((id: string) => {
-    const task = tasks.find(t => t.id === id);
     setConfirmModal({ show: true, title: "XÁC NHẬN XÓA", message: "Công việc này sẽ được chuyển vào THÙNG RÁC.", onConfirm: async () => {
-      await firebaseUpdateTask(id, { deletedAt: new Date().toISOString() });
-      if (firebaseAddLog && effectiveUser && task) {
-        await firebaseAddLog({
-          type: 'TASK_DELETE',
-          userId: effectiveUser.id,
-          details: `Nhân viên ${effectiveUser.name} đã chuyển công việc [${task.code}] ${task.title} vào thùng rác.`,
-          targetId: task.id
-        });
-      }
+      await firebaseUpdateTask(id, { deletedAt: new Date().toISOString() }, effectiveUser?.name);
       setConfirmModal(p => ({ ...p, show: false }));
     }});
-  }, [tasks, firebaseUpdateTask, firebaseAddLog, effectiveUser]);
+  }, [firebaseUpdateTask, effectiveUser]);
 
   const lockTasks = useCallback(() => {
     setConfirmModal({ show: true, title: "CHỐT DANH SÁCH", message: "Hành động này sẽ CHỐT dữ liệu công việc trong 2 tuần qua.", onConfirm: async () => {
       const tasksToLock = tasks.filter(t => !t.isLocked);
       for (const t of tasksToLock) {
-        await firebaseUpdateTask(t.id, { isLocked: true, prevProgress: t.currentUpdate || t.prevProgress, currentUpdate: "" });
-      }
-      if (firebaseAddLog && effectiveUser) {
-        await firebaseAddLog({
-          type: 'TASK_LOCK',
-          userId: effectiveUser.id,
-          details: `Quản trị viên ${effectiveUser.name} đã CHỐT danh sách công việc.`,
-        });
+        await firebaseUpdateTask(t.id, { isLocked: true, prevProgress: t.currentUpdate || t.prevProgress, currentUpdate: "" }, effectiveUser?.name);
       }
       setConfirmModal(p => ({ ...p, show: false }));
     }});
-  }, [tasks, firebaseUpdateTask, firebaseAddLog, effectiveUser]);
+  }, [tasks, firebaseUpdateTask, effectiveUser]);
 
   // Derived counts for sidebar
   const counts = useMemo(() => {
@@ -337,50 +321,26 @@ export default function App() {
   }, [tasks, activeTab, search, viewScope, effectiveUser]);
 
   const restoreTaskLocal = useCallback(async (id: string) => {
-    const task = tasks.find(t => t.id === id);
     await firebaseUpdateTask(id, { deletedAt: null as any });
-    if (firebaseAddLog && effectiveUser && task) {
-      await firebaseAddLog({
-        type: 'TASK_RESTORE',
-        userId: effectiveUser.id,
-        details: `Nhân viên ${effectiveUser.name} đã KHÔI PHỤC công việc [${task.code}] ${task.title} từ thùng rác.`,
-        targetId: task.id
-      });
-    }
-  }, [tasks, firebaseUpdateTask, firebaseAddLog, effectiveUser]);
+  }, [firebaseUpdateTask]);
 
   const permanentDeleteTaskLocal = useCallback((id: string) => {
-    const task = tasks.find(t => t.id === id);
     setConfirmModal({
       show: true,
       title: "XÓA VĨNH VIỄN",
       message: "Hành động này không thể hoàn tác. Bạn chắc chắn muốn xóa vĩnh viễn công việc này?",
       onConfirm: async () => {
         await firebaseDeleteTask(id);
-        if (firebaseAddLog && effectiveUser && task) {
-          await firebaseAddLog({
-            type: 'TASK_PERMANENT_DELETE',
-            userId: effectiveUser.id,
-            details: `Nhân viên ${effectiveUser.name} đã XÓA VĨNH VIỄN công việc [${task.code}] ${task.title}.`,
-          });
-        }
         setConfirmModal(p => ({ ...p, show: false }));
       }
     });
-  }, [tasks, firebaseDeleteTask, firebaseAddLog, effectiveUser]);
+  }, [firebaseDeleteTask]);
 
   const trashTasksBulkLocal = useCallback(async (ids: string[]) => {
     for (const id of ids) {
       await firebaseUpdateTask(id, { deletedAt: new Date().toISOString() });
     }
-    if (firebaseAddLog && effectiveUser) {
-      await firebaseAddLog({
-        type: 'TASK_DELETE',
-        userId: effectiveUser.id,
-        details: `Nhân viên ${effectiveUser.name} đã chuyển ${ids.length} công việc vào thùng rác.`,
-      });
-    }
-  }, [firebaseUpdateTask, firebaseAddLog, effectiveUser]);
+  }, [firebaseUpdateTask]);
 
   const deleteTasksBulkLocal = useCallback((ids: string[]) => {
     setConfirmModal({
@@ -389,17 +349,10 @@ export default function App() {
       message: `Bạn chắc chắn muốn xóa vĩnh viễn ${ids.length} công việc đã chọn?`,
       onConfirm: async () => {
         await deleteTasksBulk(ids);
-        if (firebaseAddLog && effectiveUser) {
-          await firebaseAddLog({
-            type: 'TASK_PERMANENT_DELETE',
-            userId: effectiveUser.id,
-            details: `Nhân viên ${effectiveUser.name} đã XÓA VĨNH VIỄN ${ids.length} công việc.`,
-          });
-        }
         setConfirmModal(p => ({ ...p, show: false }));
       }
     });
-  }, [deleteTasksBulk, firebaseAddLog, effectiveUser]);
+  }, [deleteTasksBulk]);
 
   if (!authReady || staffLoading) return (
     <div className="min-h-screen flex items-center justify-center font-black text-blue-600 uppercase bg-white animate-pulse">
@@ -429,10 +382,11 @@ export default function App() {
             setConfirmModal={setConfirmModal} highlightedTaskId={highlightedTaskId} lockTasks={lockTasks} discussionTopics={discussionTopics}
             discussionMessages={discussionMessages} sendDiscussionMessage={sendDiscussionMessage} updateDiscussionMessageReactions={updateDiscussionMessageReactions}
             createTopic={createTopic} updateTopic={updateTopic} deleteTopic={deleteTopic} deleteTopicsBulk={deleteTopicsBulk} deleteTasksBulk={deleteTasksBulkLocal} trashTasksBulk={trashTasksBulkLocal} deleteDiscussionMessage={deleteDiscussionMessage}
-            firebaseAddLog={firebaseAddLog} updateProfile={updateProfile} officialReports={officialReports} firebaseSaveReportDraft={firebaseSaveReportDraft}
+            updateProfile={updateProfile} officialReports={officialReports} firebaseSaveReportDraft={firebaseSaveReportDraft}
             firebaseSaveOfficialReport={firebaseSaveOfficialReport} permanentDeleteTask={permanentDeleteTaskLocal} restoreTask={restoreTaskLocal}
             logs={logs} setActiveTab={setActiveTab} setShowDirectChat={setShowDirectChat} unreadCounts={unreadCounts} groupUnreadCount={groupUnreadCount}
             setSimulatedUser={setSimulatedUser} firebaseSendPrivateMsg={firebaseSendPrivateMsg} deleteProfile={deleteProfile}
+            resetSystem={resetSystem} deleteLogsBulk={deleteLogsBulk}
           />
         </div>
       </main>

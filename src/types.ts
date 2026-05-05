@@ -33,6 +33,7 @@ export interface LogEntry {
     | 'ERROR' 
     | 'PROFILE_UPDATE';
   userId: string; // The person who performed the action
+  userName?: string; // Explicit name tracking for logs
   targetId?: string; // The person who was the target (e.g. delegated to)
   details: string;
   metadata?: any;
@@ -107,6 +108,15 @@ export interface PrivateMessage {
   }[];
 }
 
+export type RecurrenceType = 'NONE' | 'DAILY' | 'TRI_DAILY' | 'WEEKLY' | 'BI_WEEKLY' | 'TRI_WEEKLY' | 'MONTHLY';
+
+export interface CycleHistoryEntry {
+  version: number;
+  reportContent: string;
+  completedAt: string;
+  nextDeadline: string;
+}
+
 export interface Task {
   id: string;
   code: string;
@@ -130,6 +140,8 @@ export interface Task {
   priorityOrder?: number;
   isHighlighted: boolean;
   isLocked: boolean; // Chốt 2 tuần/lần
+  recurrence?: RecurrenceType;
+  cycleHistory?: CycleHistoryEntry[];
   attachmentUrl?: string;
   attachmentName?: string;
   updatedAt: string;

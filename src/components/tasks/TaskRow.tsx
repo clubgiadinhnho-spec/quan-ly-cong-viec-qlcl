@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw, Trash2, Bell, RefreshCw } from 'lucide-react';
+import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw, Trash2, Bell, RefreshCw, Highlighter, Check, ThumbsUp } from 'lucide-react';
 import { Task, User } from '../../types';
 import { formatDate } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
@@ -7,6 +7,14 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Avatar } from '../common/Avatar';
 
 import { getUserById, getSafeNameProps, getTaskAssigneeName, isUserTask } from '../../utils/userUtils';
+
+const HIGHLIGHT_COLORS: Record<string, string> = {
+  'amber': '!bg-amber-100 hover:!bg-amber-200 ring-inset ring-2 ring-amber-400/50',
+  'emerald': '!bg-emerald-100 hover:!bg-emerald-200 ring-inset ring-2 ring-emerald-400/50',
+  'blue': '!bg-blue-100 hover:!bg-blue-200 ring-inset ring-2 ring-blue-400/50',
+  'red': '!bg-red-100 hover:!bg-red-200 ring-inset ring-2 ring-red-400/50',
+  'purple': '!bg-purple-100 hover:!bg-purple-200 ring-inset ring-2 ring-purple-400/50',
+};
 
 interface TaskRowProps {
   task: Task;
@@ -58,6 +66,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   
   const canEditPriority = isAdmin;
   const [lastReadCount, setLastReadCount] = React.useState(task.comments?.length || 0);
+  const [showColorPicker, setShowColorPicker] = React.useState(false);
 
   // When chat opens, update last read count to current number of comments
   React.useEffect(() => {
@@ -70,20 +79,12 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const showBadge = unreadCount > 0 && !isChatOpen;
 
   const getPriorityRowClass = (priority: number | undefined) => {
-    if (!priority) return '';
-    switch (priority) {
-      case 1: return 'bg-red-50/90 hover:bg-red-100/95 ring-inset ring-2 ring-red-200/50';
-      case 2: return 'bg-orange-50/90 hover:bg-orange-100/95 ring-inset ring-2 ring-orange-200/50';
-      case 3: return 'bg-yellow-50/90 hover:bg-yellow-100/95 ring-inset ring-2 ring-yellow-200/50';
-      case 4: return 'bg-green-50/90 hover:bg-green-100/95 ring-inset ring-2 ring-green-200/50';
-      case 5: return 'bg-blue-50/90 hover:bg-blue-100/95 ring-inset ring-2 ring-blue-200/50';
-      case 6: return 'bg-indigo-50/90 hover:bg-indigo-100/95 ring-inset ring-2 ring-indigo-200/50';
-      default: return 'bg-purple-50/90 hover:bg-purple-100/95 ring-inset ring-2 ring-purple-200/50';
-    }
+    return '';
   };
 
   const priorityRowClass = getPriorityRowClass(task.priorityOrder);
-  const finalRowClass = task.isHighlighted ? 'bg-amber-100/80 hover:bg-amber-200/80 ring-inset ring-2 ring-amber-400/50' : (priorityRowClass || 'hover:bg-gray-50/50');
+  const highlightClass = task.highlightColor ? HIGHLIGHT_COLORS[task.highlightColor] : (task.isHighlighted ? HIGHLIGHT_COLORS['amber'] : '');
+  const finalRowClass = highlightClass || priorityRowClass || 'hover:bg-gray-50/50';
 
   // Deadline Warning Logic
   const getDeadlineStatus = (): 'overdue' | 'warning' | null => {
@@ -205,7 +206,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         </div>
       </td>
       <td 
-        className={`p-2 border-b border-r border-gray-300 align-top h-px ${task.isHighlighted ? 'border-l-4 border-amber-500' : task.priorityOrder === 1 ? 'border-l-4 border-red-500' : ''} ${isManager ? 'cursor-pointer hover:bg-blue-50/50' : ''}`}
+        className={`p-2 border-b border-r border-gray-300 align-top h-px ${task.highlightColor || task.isHighlighted ? 'border-l-4 border-amber-500' : ''} ${isManager ? 'cursor-pointer hover:bg-blue-50/50' : ''}`}
         onClick={() => isManager && onEdit(task)}
       >
         <div className="flex flex-col h-full gap-1">
@@ -224,6 +225,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   <span translate="no" className="notranslate">{assigneeName}</span>
                 </p>
               </div>
+              <p className="text-[6px] font-black text-black uppercase tracking-widest leading-none mt-1 whitespace-nowrap">
+                <span translate="no" className="notranslate">{assignee ? (assignee.title || assignee.role) : 'NHÂN SỰ'}</span>
+              </p>
               <div className="flex flex-col gap-1.5 mt-2">
                 <p className="text-[9px] text-gray-500 font-bold opacity-80 leading-tight">
                   <span translate="no" className="notranslate">GIAO:</span> {formatDate(task.issueDate)}
@@ -383,14 +387,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         </div>
       </td>
       <td className="p-1 border-b border-r border-gray-300 align-top h-px">
-        <div className="h-full min-h-[60px] text-[10px] text-gray-700 leading-tight px-1 py-1 bg-white/30 rounded border border-gray-100/50 break-words whitespace-normal font-medium">
+        <div className="h-full min-h-[60px] text-[10px] text-gray-700 leading-tight px-1 py-1 rounded border border-gray-100/50 break-words whitespace-normal font-medium">
           {task.prevProgress || ''}
         </div>
       </td>
       <td className="p-1 border-b border-r border-gray-300 align-top h-px">
         <div className="flex flex-col gap-1 h-full min-h-[60px]">
           <textarea 
-            className="flex-1 w-full text-[10px] font-medium p-1.5 bg-white border border-gray-200 rounded shadow-sm outline-none focus:border-blue-500 transition-all resize-none leading-tight min-h-[60px] disabled:bg-transparent disabled:border-transparent disabled:p-0 disabled:shadow-none placeholder:font-normal text-gray-800"
+            className="flex-1 w-full text-[10px] font-medium p-1.5 bg-white/40 border border-gray-200 rounded shadow-sm outline-none focus:border-blue-500 transition-all resize-none leading-tight min-h-[60px] disabled:bg-transparent disabled:border-transparent disabled:p-0 disabled:shadow-none placeholder:font-normal text-gray-800"
             placeholder="..."
             defaultValue={task.currentUpdate}
             onBlur={(e) => {
@@ -416,7 +420,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             className={`w-[32px] h-[32px] flex flex-col items-center justify-center transition-all rounded-lg shadow-lg border-2 ${
               task.priorityOrder 
                 ? `${
-                    task.priorityOrder === 1 ? 'bg-red-600 text-white border-red-400 animate-pulse ring-4 ring-red-100' :
+                    task.priorityOrder === 1 ? 'bg-red-600 text-white border-red-400' :
                     task.priorityOrder === 2 ? 'bg-orange-500 text-white border-orange-300 ring-4 ring-orange-50' :
                     task.priorityOrder === 3 ? 'bg-yellow-400 text-black border-yellow-200 ring-4 ring-yellow-50' :
                     task.priorityOrder === 4 ? 'bg-green-500 text-white border-green-300 ring-4 ring-green-50' :
@@ -450,21 +454,23 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       </td>
       {!isReadOnly && (
         <td className="py-2 px-1 text-center border-b border-r border-gray-300 align-middle">
-          <div className="flex flex-col items-center justify-center gap-3 w-full max-w-[60px] mx-auto min-h-full py-1">
+          <div className="flex flex-col items-center justify-center gap-1.5 w-full max-w-[44px] mx-auto min-h-full py-1">
             {task.deletedAt ? (
               <div className="flex flex-col gap-2 w-full">
                 <button 
                   onClick={() => onRestore && onRestore(task.id)}
-                  className="w-full px-1 py-2 text-[10px] bg-emerald-500 text-white rounded font-black hover:bg-emerald-600 transition-all uppercase tracking-tighter shadow-md"
+                  title="HỒI PHỤC"
+                  className="w-8 h-8 flex items-center justify-center bg-emerald-500 text-white rounded-full hover:bg-emerald-600 transition-all shadow-md mx-auto"
                 >
-                  HỒI PHỤC
+                  <RotateCcw size={16} strokeWidth={3} />
                 </button>
                 {canDelete && (
                   <button 
                     onClick={() => onDelete && onDelete(task.id)}
-                    className="w-full px-1 py-2 text-[10px] bg-red-600 text-white rounded font-black hover:bg-red-700 transition-all uppercase tracking-tighter shadow-md border border-red-400"
+                    title="XÓA VĨNH VIỄN"
+                    className="w-8 h-8 flex items-center justify-center bg-red-600 text-white rounded-full hover:bg-red-700 transition-all shadow-md border border-red-400 mx-auto"
                   >
-                    XÓA VĨNH VIỄN
+                    <Trash2 size={16} strokeWidth={3} />
                   </button>
                 )}
               </div>
@@ -473,9 +479,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 {task.status === 'AWAITING_CONFIRMATION' && isManager && (
                   <button 
                       onClick={() => handleConfirmTask(true)}
-                      className="w-full px-1 py-2 text-[10px] bg-blue-600 text-white rounded font-black hover:bg-blue-700 transition-all uppercase tracking-tighter shadow-md"
+                      title="XÁC NHẬN"
+                      className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg group/btn"
                     >
-                      XÁC NHẬN
+                      <ThumbsUp size={20} strokeWidth={3} className="group-hover/btn:scale-110 transition-transform" />
                     </button>
                 )}
                 {task.status === 'AWAITING_CONFIRMATION' && !isManager && (
@@ -484,9 +491,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 {task.status === 'PENDING_APPROVAL' && canApprove && (
                   <button 
                       onClick={handleApprove}
-                      className="w-full px-1 py-2 text-[10px] bg-blue-600 text-white rounded font-black hover:bg-blue-700 transition-all uppercase tracking-tighter shadow-md border border-blue-400"
+                      title="XÁC NHẬN HOÀN THÀNH"
+                      className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg border-2 border-blue-400 group/btn"
                     >
-                      XÁC NHẬN
+                      <CheckCircle size={20} strokeWidth={3} className="group-hover/btn:scale-110 transition-transform" />
                     </button>
                 )}
                 {task.status === 'PENDING_APPROVAL' && !canApprove && (
@@ -503,35 +511,78 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 {task.status !== 'PENDING_APPROVAL' && (isOwner || isManager || canApprove) && !task.isLocked && !task.requestDelete && task.status !== 'COMPLETED' && task.status !== 'AWAITING_CONFIRMATION' && (
                   <button 
                      onClick={handleStatusAction}
-                     className={`w-full px-1 py-2 text-[10px] rounded font-black transition-all uppercase tracking-tighter shadow-md ${
-                       canApprove ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-blue-600 text-white hover:bg-blue-700 ring-2 ring-blue-100'
+                     title={canApprove ? 'XÁC NHẬN HOÀN THÀNH (XONG)' : 'GỬI HOÀN THÀNH'}
+                     className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-lg group/btn ${
+                       canApprove ? 'bg-amber-500 text-white hover:bg-amber-600 ring-2 ring-amber-100' : 'bg-blue-600 text-white hover:bg-blue-700 ring-2 ring-blue-100'
                      }`}
                    >
-                     <span translate="no" className="notranslate">{canApprove ? 'XONG' : 'GỬI HT'}</span>
+                     <CheckCircle size={20} strokeWidth={3} className="group-hover/btn:scale-110 transition-transform" />
                    </button>
                 )}
+                
                 {(isManager || isOwner || canApprove) && (
-                  <button 
-                     onClick={() => onUpdate(task.id, { isHighlighted: !task.isHighlighted })}
-                     className={`w-full px-1 py-2 text-[10px] rounded font-black transition-all uppercase tracking-tighter shadow-md border ${
-                       task.isHighlighted 
-                         ? 'bg-emerald-500 text-white border-emerald-600' 
-                         : 'bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50'
-                     }`}
-                   >
-                     <span translate="no" className="notranslate">LƯU Ý</span>
-                   </button>
+                  <div className="relative">
+                    <button 
+                       onClick={() => setShowColorPicker(!showColorPicker)}
+                       title="LƯU Ý / HIGHLIGHT"
+                       className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-lg border-2 group/btn ${
+                         task.highlightColor || task.isHighlighted
+                           ? 'bg-emerald-500 text-white border-emerald-600 ring-2 ring-emerald-100' 
+                           : 'bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50'
+                       }`}
+                     >
+                       <Highlighter size={20} strokeWidth={3} className="group-hover/btn:rotate-12 transition-transform" />
+                     </button>
+                     
+                     <AnimatePresence>
+                        {showColorPicker && (
+                          <motion.div 
+                            initial={{ opacity: 0, x: 10, scale: 0.9 }}
+                            animate={{ opacity: 1, x: 0, scale: 1 }}
+                            exit={{ opacity: 0, x: 10, scale: 0.9 }}
+                            className="absolute right-full mr-2 top-0 bg-white border border-gray-200 rounded-lg shadow-xl p-1.5 flex flex-col gap-1.5 z-[100]"
+                          >
+                            {Object.keys(HIGHLIGHT_COLORS).map(color => (
+                              <button
+                                key={color}
+                                onClick={() => {
+                                  onUpdate(task.id, { highlightColor: color, isHighlighted: true });
+                                  setShowColorPicker(false);
+                                }}
+                                className={`w-6 h-6 rounded-full border border-gray-200 transition-transform hover:scale-125 ${HIGHLIGHT_COLORS[color].split(' ')[0]}`}
+                              />
+                            ))}
+                            <button
+                              onClick={() => {
+                                onUpdate(task.id, { highlightColor: null, isHighlighted: false });
+                                setShowColorPicker(false);
+                              }}
+                              title="Bỏ highlight"
+                              className="w-6 h-6 rounded-full border border-gray-300 flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-500 transition-colors"
+                            >
+                              <X size={12} strokeWidth={3} />
+                            </button>
+                          </motion.div>
+                        )}
+                     </AnimatePresence>
+                  </div>
                 )}
+
                 {canDelete && (
                    <button 
                      onClick={() => onDelete(task.id)}
-                     className={`w-full px-1 py-2 text-[10px] rounded font-black transition-all uppercase tracking-tighter shadow-md border ${
+                     title={task.requestDelete ? 'XÁC NHẬN XÓA (DUYỆT XÓA)' : 'XÓA'}
+                     className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-lg border-2 group/btn ${
                        task.requestDelete 
                          ? 'bg-red-600 text-white border-red-400 ring-2 ring-red-100 animate-pulse' 
                          : 'bg-red-500 text-white border-red-600 hover:bg-red-600'
                      }`}
                    >
-                     <span translate="no" className="notranslate">{task.requestDelete ? 'DUYỆT XÓA' : 'XÓA'}</span>
+                     {task.requestDelete ? (
+                        <Check size={20} strokeWidth={4} className="group-hover/btn:scale-125 transition-transform" />
+                     ) : (
+                        <Trash2 size={20} strokeWidth={3} className="group-hover/btn:animate-shake transition-transform" />
+                     )}
                    </button>
                 )}
 
@@ -548,15 +599,16 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                          }
                        });
                      }}
-                     className="w-full px-1 py-2 text-[10px] bg-white text-red-500 border border-red-200 rounded font-black hover:bg-red-50 hover:text-red-600 transition-all uppercase tracking-tighter shadow-sm"
+                     title="YÊU CẦU XÓA"
+                     className="w-10 h-10 flex items-center justify-center bg-white text-red-500 border-2 border-red-200 rounded-xl hover:bg-red-50 hover:text-red-600 transition-all shadow-sm group/btn"
                    >
-                     YÊU CẦU XÓA
+                     <Trash2 size={18} strokeWidth={3} className="group-hover/btn:opacity-100 opacity-70 transition-opacity" />
                    </button>
                 )}
 
                 {task.requestDelete && !canDelete && (
                   <div className="flex flex-col gap-1 w-full">
-                    <span className="text-[8px] font-black text-red-500 bg-red-50 px-2 py-1 rounded border border-red-200 uppercase tracking-tighter text-center leading-none">Chờ duyệt xóa</span>
+                    <span className="text-[8px] font-black text-red-500 bg-red-50 px-1 py-1 rounded border border-red-200 uppercase tracking-tighter text-center leading-none">Chờ duyệt xóa</span>
                     <button 
                       onClick={() => onUpdate(task.id, { requestDelete: false })}
                       className="w-full py-1 text-[7px] font-bold text-gray-400 hover:text-blue-500 uppercase tracking-tighter"
@@ -583,9 +635,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                          }
                        });
                      }}
-                     className="w-full px-1 py-2 text-[10px] bg-gray-100 text-gray-600 border border-gray-200 rounded font-black hover:bg-gray-200 transition-all uppercase tracking-tighter shadow-sm"
+                     title="HOÀN TÁC"
+                     className="w-10 h-10 flex items-center justify-center bg-gray-100 text-gray-600 border-2 border-gray-200 rounded-xl hover:bg-gray-200 transition-all shadow-sm group/btn"
                    >
-                     HOÀN TÁC
+                     <RotateCcw size={20} strokeWidth={3} className="group-hover/btn:-rotate-45 transition-transform" />
                    </button>
                 )}
               </>

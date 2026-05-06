@@ -138,6 +138,7 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   priorityOrder?: number;
+  highlightColor?: string | null; // e.g. 'amber', 'emerald', 'blue', 'red', 'purple'
   isHighlighted: boolean;
   isLocked: boolean; // Chốt 2 tuần/lần
   recurrence?: RecurrenceType;

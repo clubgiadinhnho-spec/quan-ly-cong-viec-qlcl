@@ -88,19 +88,46 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
   };
 
   const getUserName = (log: LogEntry) => {
-    if (log.userName === 'Lê Nhật Trường') return 'Lê Nhật Trường';
-    if (log.userName && log.userName !== 'NHÂN SỰ') return log.userName;
     if (log.userId === 'SYSTEM') return 'HỆ THỐNG';
     
-    // Check if ID matches boss
-    if (log.userId === 'LeNhatTruong0907767304' || log.userId === currentUser.id || (currentUser as any).uid === log.userId) {
-      return 'Lê Nhật Trường';
-    }
+    // Ưu tiên thông tin từ danh sách users hiện có
+    const user = allUsers.find(u => 
+      u.id === log.userId || 
+      (u as any).uid === log.userId || 
+      (u as any).uniqueKey === log.userId || 
+      u.uniqueKey === log.userId
+    ) || (
+      (currentUser.id === log.userId || (currentUser as any).uid === log.userId || currentUser.uniqueKey === log.userId) ? currentUser : null
+    );
 
-    // Find in all users list
-    const user = allUsers.find(u => u.id === log.userId || (u as any).uid === log.userId || (u as any).uniqueKey === log.userId);
     if (user) return user.name;
+    if (log.userName && log.userName !== 'NHÂN SỰ') return log.userName;
+    
+    // Fallback cho trường hợp ID cụ thể nếu không tìm thấy user object
+    if (log.userId === 'LeNhatTruong0907767304') return 'Lê Nhật Trường';
 
+    return 'NHÂN SỰ';
+  };
+
+  const getUserTitle = (log: LogEntry) => {
+    if (log.userId === 'SYSTEM') return 'HỆ THỐNG';
+    
+    // Prioritize finding in allUsers including the current user context
+    const user = allUsers.find(u => 
+      u.id === log.userId || 
+      (u as any).uid === log.userId || 
+      (u as any).uniqueKey === log.userId ||
+      u.uniqueKey === log.userId
+    ) || (
+      (currentUser.id === log.userId || (currentUser as any).uid === log.userId || currentUser.uniqueKey === log.userId) ? currentUser : null
+    );
+    
+    if (user && user.title) return user.title.toUpperCase();
+    
+    // Fallback logic dựa trên ID hoặc Tên nếu không tìm thấy object user
+    if (log.userId === 'LeNhatTruong0907767304' || log.userName === 'Lê Nhật Trường') return 'TRƯỜNG PHÒNG';
+    if (log.userName === 'QUẢN TRỊ VIÊN') return 'ADMIN';
+    
     return 'NHÂN SỰ';
   };
 
@@ -281,7 +308,7 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
                         />
                         <div translate="no" className="notranslate flex flex-col min-w-0">
                           <span className="text-sm font-black text-slate-900 uppercase leading-none mb-1">{getUserName(log)}</span>
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{log.userId === 'SYSTEM' ? 'Hệ thống' : (log.userId === 'LeNhatTruong0907767304' ? 'Quản trị viên' : 'Nhân sự')}</span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{getUserTitle(log)}</span>
                         </div>
                       </div>
                     </td>

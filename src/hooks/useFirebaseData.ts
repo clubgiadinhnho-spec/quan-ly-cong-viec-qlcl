@@ -54,6 +54,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     const presenceUnsubscribe = onSnapshot(
       collection(db, 'presence'),
       (snapshot) => {
+        const now = new Date().toISOString();
         const presenceData = snapshot.docs.map(doc => {
           const data = doc.data();
           let ts: string;
@@ -66,7 +67,7 @@ export const useFirebaseData = (currentUserId?: string) => {
           } else if (typeof data.lastActive === 'string') {
             ts = data.lastActive;
           } else {
-            ts = new Date().toISOString();
+            ts = now;
           }
           return {
             ...data,
@@ -76,10 +77,10 @@ export const useFirebaseData = (currentUserId?: string) => {
         });
 
         // Lọc người dùng online: Hoạt động trong 5 phút qua
-        const now = Date.now();
+        const nowMs = Date.now();
         const onlineUsers = presenceData.filter(p => {
           const lastActiveTime = new Date(p.lastActive).getTime();
-          return (now - lastActiveTime) < (5 * 60 * 1000);
+          return (nowMs - lastActiveTime) < (5 * 60 * 1000);
         });
         setPresence(onlineUsers);
       },
@@ -94,16 +95,17 @@ export const useFirebaseData = (currentUserId?: string) => {
     const tasksUnsubscribe = onSnapshot(
       collection(db, 'tasks'),
       (snapshot) => {
-        const tasksData = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            ...data,
-            id: doc.id,
-            updatedAt: (data.updatedAt as any)?.toDate ? (data.updatedAt as any).toDate().toISOString() : (data.updatedAt || new Date().toISOString()),
-            issueDate: data.issueDate || new Date().toISOString().split('T')[0],
-            code: data.code || 'N/A'
-          } as Task;
-        });
+          const now = new Date().toISOString();
+          const tasksData = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              ...data,
+              id: doc.id,
+              updatedAt: (data.updatedAt as any)?.toDate ? (data.updatedAt as any).toDate().toISOString() : (data.updatedAt || now),
+              issueDate: data.issueDate || now.split('T')[0],
+              code: data.code || 'N/A'
+            } as Task;
+          });
         
         // In-memory sort by code (desc)
         const sorted = tasksData.sort((a, b) => (b.code || '').localeCompare(a.code || ''));
@@ -124,6 +126,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     const messagesUnsubscribe = onSnapshot(
       query(collection(db, 'messages'), orderBy('timestamp', 'asc')),
       (snapshot) => {
+        const now = new Date().toISOString();
         const messagesData = snapshot.docs.map(doc => {
           const data = doc.data();
           let ts: string;
@@ -132,7 +135,7 @@ export const useFirebaseData = (currentUserId?: string) => {
           } else if (typeof data.timestamp === 'string') {
             ts = data.timestamp;
           } else {
-            ts = new Date().toISOString();
+            ts = now;
           }
           return {
             ...data,
@@ -155,12 +158,13 @@ export const useFirebaseData = (currentUserId?: string) => {
     const topicsUnsubscribe = onSnapshot(
       query(collection(db, 'discussion_topics'), orderBy('createdAt', 'desc')),
       async (snapshot) => {
+        const now = new Date().toISOString();
         const topicsData = snapshot.docs.map(doc => {
           const data = doc.data();
           return {
             ...data,
             id: doc.id,
-            createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || new Date().toISOString()),
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || now),
             closedAt: data.closedAt?.toDate ? data.closedAt.toDate().toISOString() : data.closedAt
           } as DiscussionTopic;
         });
@@ -181,6 +185,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     const discMessagesUnsubscribe = onSnapshot(
       query(collection(db, 'discussion_messages'), orderBy('timestamp', 'asc')),
       (snapshot) => {
+        const now = new Date().toISOString();
         const messagesData = snapshot.docs.map(doc => {
           const data = doc.data();
           let ts: string;
@@ -189,7 +194,7 @@ export const useFirebaseData = (currentUserId?: string) => {
           } else if (typeof data.timestamp === 'string') {
             ts = data.timestamp;
           } else {
-            ts = new Date().toISOString();
+            ts = now;
           }
           return {
             ...data,
@@ -255,6 +260,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     );
 
     const unsubPrivate = onSnapshot(qPrivate, (snapshot) => {
+      const now = new Date().toISOString();
       const messagesData = snapshot.docs.map(doc => {
         const data = doc.data();
         let ts: string;
@@ -263,7 +269,7 @@ export const useFirebaseData = (currentUserId?: string) => {
         } else if (typeof data.timestamp === 'string') {
           ts = data.timestamp;
         } else {
-          ts = new Date().toISOString();
+          ts = now;
         }
         return {
           ...data,
@@ -435,7 +441,23 @@ export const useFirebaseData = (currentUserId?: string) => {
         logType = 'TASK_DELETE';
         logDetails = `Di chuyển công việc ${taskCode} vào thùng rác`;
       } else if (updates.status) {
-        logDetails = `Thay đổi trạng thái công việc ${taskCode} thành ${updates.status}`;
+        logDetails = `Thay đổi trạng thái công việc ${taskCode} thành "${updates.status.toUpperCase()}"`;
+      } else {
+        // Detailed log based on what fields were touched
+        const changedFields = Object.keys(updates).filter(k => k !== 'updatedAt');
+        if (changedFields.length > 0) {
+          const fieldMap: Record<string, string> = {
+            title: 'Tên công việc',
+            description: 'Mô tả',
+            assigneeId: 'Người phụ trách',
+            assigneeName: 'Tên người phụ trách',
+            issueDate: 'Ngày phát hành',
+            type: 'Phân loại',
+            priority: 'Độ ưu tiên'
+          };
+          const labels = changedFields.map(f => fieldMap[f] || f).join(', ');
+          logDetails = `Cập nhật ${labels} cho công việc ${taskCode}`;
+        }
       }
 
       await addLog({
@@ -509,7 +531,8 @@ export const useFirebaseData = (currentUserId?: string) => {
     attachments?: any[]
   ) => {
     try {
-      const realAuthorId = auth.currentUser?.uid || authorId;
+      // Prioritize the provided authorId (uniqueKey) over Firebase UID for consistent identity scaling
+      const realAuthorId = authorId || auth.currentUser?.uid || 'anonymous';
       await addDoc(collection(db, 'discussion_messages'), {
         topicId,
         authorId: realAuthorId,

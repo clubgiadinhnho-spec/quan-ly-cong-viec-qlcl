@@ -21,10 +21,17 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
   const [newMessage, setNewMessage] = useState('');
   const [showEmojiFor, setShowEmojiFor] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   
   // Drag tracking values
   const dragX = useMotionValue(0);
   const dragY = useMotionValue(0);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -85,7 +92,7 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
       <div className="p-3 border-b border-gray-100 flex items-center justify-between cursor-move active:cursor-grabbing bg-gray-50/50 rounded-t-3xl">
         <div className="flex items-center gap-2">
           <div className="p-1 px-2 bg-blue-600 text-white rounded-full text-[8px] font-black uppercase italic tracking-tighter shadow-sm shadow-blue-100">
-            HỘI THOẠI
+            TRAO ĐỔI TỰ DO
           </div>
           <span className="text-[10px] font-black text-gray-400 uppercase">{task.code}</span>
         </div>
@@ -108,6 +115,7 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
       <div className="p-3 border-b border-gray-100 bg-white">
         <div className="relative flex gap-2 items-end">
           <textarea
+            ref={inputRef}
             className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl py-2 px-3 text-[11px] outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all resize-none h-12"
             placeholder="Viết tin nhắn mới..."
             value={newMessage}
@@ -137,7 +145,7 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
         {(!task.comments || task.comments.length === 0) ? (
           <div className="h-full flex flex-col items-center justify-center text-center">
             <MessageSquare className="text-gray-200 mb-2" size={24} />
-            <p className="text-[10px] text-gray-400 italic">Chưa có trao đổi...</p>
+            <p className="text-[10px] text-gray-400 italic">TRAO ĐỔI TỰ DO...</p>
           </div>
         ) : (
           task.comments.map((comment) => {

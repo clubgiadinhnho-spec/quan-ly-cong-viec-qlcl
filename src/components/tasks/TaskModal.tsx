@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Edit2, Plus, Info } from 'lucide-react';
+import { Edit2, Plus, Info, Paperclip, X } from 'lucide-react';
 import { Task, User, RecurrenceType } from '../../types';
+import imageCompression from 'browser-image-compression';
 
 interface TaskModalProps {
   onClose: () => void;
@@ -41,6 +42,8 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser }: 
   const [extensionDate, setExtensionDate] = useState(task?.extensionDate || '');
   const [recurrence, setRecurrence] = useState<RecurrenceType>(task?.recurrence || 'NONE');
   const [attachment, setAttachment] = useState<File | null>(null);
+  const [attachmentData, setAttachmentData] = useState<{ url: string, name: string } | null>(null);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [isManualEdit, setIsManualEdit] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
@@ -256,19 +259,79 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser }: 
                   accept="image/*,application/pdf"
                   className="hidden"
                   id="task-attachment"
-                  onChange={(e) => setAttachment(e.target.files?.[0] || null)}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+
+                    setIsProcessingFile(true);
+                    let processedFile: File | Blob = file;
+
+                    if (file.type.startsWith('image/')) {
+                      try {
+                        const options = {
+                          maxSizeMB: 0.7,
+                          maxWidthOrHeight: 1920,
+                          useWebWorker: true,
+                        };
+                        processedFile = await imageCompression(file, options);
+                        if (processedFile.size > 850 * 1024) {
+                          processedFile = await imageCompression(file, { ...options, maxSizeMB: 0.5 });
+                        }
+                      } catch (error) {
+                        console.error("Compression failed:", error);
+                      }
+                    }
+
+                    // Total limit ~800KB for Firestore safety
+                    if (processedFile.size > 800 * 1024) {
+                      alert(`Tệp "${file.name}" quá lớn (${(processedFile.size / 1024 / 1024).toFixed(2)}MB). Giới hạn tối đa là 800KB để lưu vào hệ thống.`);
+                      setIsProcessingFile(false);
+                      return;
+                    }
+
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      setAttachmentData({
+                        url: reader.result as string,
+                        name: file.name
+                      });
+                      setAttachment(file);
+                      setIsProcessingFile(false);
+                    };
+                    reader.readAsDataURL(processedFile);
+                  }}
                 />
-                <label 
-                  htmlFor="task-attachment"
-                  className="flex items-center justify-between w-full px-4 py-3 bg-gray-50 border border-gray-200 border-dashed rounded-lg cursor-pointer group-hover:border-blue-400 group-hover:bg-blue-50/30 transition-all"
-                >
-                  <span className="text-gray-400 text-sm truncate pr-4">
-                    {attachment ? attachment.name : "Chọn file PDF hoặc Ảnh..."}
-                  </span>
-                  <span className="text-[10px] font-bold bg-gray-200 text-gray-600 px-2 py-1 rounded group-hover:bg-blue-600 group-hover:text-white uppercase transition-all">
-                    Browse
-                  </span>
-                </label>
+                <div className="flex flex-col gap-2">
+                  <label 
+                    htmlFor="task-attachment"
+                    className={`flex items-center justify-between w-full px-4 py-3 bg-gray-50 border border-gray-200 border-dashed rounded-lg cursor-pointer group-hover:border-blue-400 group-hover:bg-blue-50/30 transition-all ${isProcessingFile ? 'opacity-50 cursor-wait' : ''}`}
+                  >
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <Paperclip size={16} className="text-gray-400 shrink-0" />
+                      <span className="text-gray-400 text-sm truncate pr-4">
+                        {isProcessingFile ? "Đang xử lý..." : (attachment ? attachment.name : "Chọn file PDF hoặc Ảnh...")}
+                      </span>
+                    </div>
+                    {!isProcessingFile && (
+                      <span className="text-[10px] font-bold bg-gray-200 text-gray-600 px-2 py-1 rounded group-hover:bg-blue-600 group-hover:text-white uppercase transition-all">
+                        {attachment ? "Thay đổi" : "Browse"}
+                      </span>
+                    )}
+                  </label>
+                  
+                  {attachmentData && !isProcessingFile && (
+                    <div className="flex items-center justify-between p-2 bg-blue-50 rounded-lg border border-blue-100 text-xs text-blue-700">
+                      <span className="truncate flex-1 font-bold italic">{attachmentData.name} (Ready)</span>
+                      <button 
+                        type="button"
+                        onClick={() => { setAttachment(null); setAttachmentData(null); }}
+                        className="p-1 hover:bg-blue-100 rounded-full text-blue-600"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -279,7 +342,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser }: 
             <span translate="no" className="notranslate">HỦY</span>
           </button>
           <button 
-            disabled={!title || !assigneeId}
+            disabled={!title || !assigneeId || isProcessingFile}
             onClick={() => {
               const assignee = users.find(u => u.id === assigneeId);
               // Final validation/defaults
@@ -299,6 +362,8 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser }: 
                 extensionDate: extensionDate || null,
                 recurrence,
                 attachment,
+                attachmentUrl: attachmentData?.url || "",
+                attachmentName: attachmentData?.name || "",
                 code: nextCode // Include the pre-generated code
               });
             }}

@@ -340,22 +340,28 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
       )}
 
             {activeTab === "group_chat" && (
-        <motion.div key="group_chat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        <motion.div 
+          key="group_chat" 
+          initial={{ opacity: 0 }} 
+          animate={{ opacity: 1 }} 
+          exit={{ opacity: 0 }}
+          className="h-full flex flex-col overflow-hidden"
+        >
           <HolidayBanner />
           <GroupChatPage
             currentUser={effectiveUser} users={allUsers} topics={discussionTopics} messages={discussionMessages}
-            onSendMessage={(topicId, content, attachments) => sendDiscussionMessage(topicId, content, effectiveUser.id, attachments)}
+            onSendMessage={(topicId, content, attachments) => sendDiscussionMessage(topicId, content, effectiveUser.uniqueKey, attachments)}
             onReact={(msgId, emoji) => {
               const msg = discussionMessages.find((m) => m.id === msgId);
               if (!msg) return;
               const reactions = [...(msg.reactions || [])];
-              const idx = reactions.findIndex(r => r.userId === effectiveUser.id && r.emoji === emoji);
+              const idx = reactions.findIndex(r => (r.userId === effectiveUser.id || r.userId === effectiveUser.uniqueKey) && r.emoji === emoji);
               if (idx > -1) reactions.splice(idx, 1);
-              else reactions.push({ userId: effectiveUser.id, emoji });
+              else reactions.push({ userId: effectiveUser.uniqueKey, emoji });
               updateDiscussionMessageReactions(msgId, reactions);
             }}
             onCreateTopic={(title, desc, orderCode) => createTopic({
-              title, description: desc, createdBy: effectiveUser.id, creatorAvatar: effectiveUser.avatar, status: "OPEN", orderCode,
+              title, description: desc, createdBy: effectiveUser.uniqueKey, creatorAvatar: effectiveUser.avatar, status: "OPEN", orderCode,
             })}
             onUpdateTopic={updateTopic} onDeleteTopic={deleteTopic} onDeleteTopicsBulk={deleteTopicsBulk} onDeleteMessage={deleteDiscussionMessage}
             presence={presence.map(p => p.id)}

@@ -28,10 +28,10 @@ export const useTaskActions = ({
       return num > max ? num : max;
     }, 0);
     
-    let attachmentUrl = "";
-    let attachmentName = "";
+    let attachmentUrl = taskData.attachmentUrl || "";
+    let attachmentName = taskData.attachmentName || "";
 
-    if (taskData.attachment instanceof File) {
+    if (!attachmentUrl && taskData.attachment instanceof File) {
       attachmentName = taskData.attachment.name;
       attachmentUrl = await new Promise<string>((resolve) => {
         const reader = new FileReader();

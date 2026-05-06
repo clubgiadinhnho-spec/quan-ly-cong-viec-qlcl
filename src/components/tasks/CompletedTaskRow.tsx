@@ -1,13 +1,21 @@
 import React from 'react';
-import { MessageSquare, Paperclip } from 'lucide-react';
+import { MessageSquare, Paperclip, Highlighter, Check, X, RotateCcw, ThumbsUp, Info } from 'lucide-react';
 import { Task, User } from '../../types';
 import { formatDate } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 
 import { getUserById, getSafeNameProps, getTaskAssigneeName, isUserTask } from '../../utils/userUtils';
 
 import { Avatar } from '../common/Avatar';
+
+const HIGHLIGHT_COLORS: Record<string, string> = {
+  'amber': '!bg-amber-100 hover:!bg-amber-200 ring-inset ring-2 ring-amber-400/50',
+  'emerald': '!bg-emerald-100 hover:!bg-emerald-200 ring-inset ring-2 ring-emerald-400/50',
+  'blue': '!bg-blue-100 hover:!bg-blue-200 ring-inset ring-2 ring-blue-400/50',
+  'red': '!bg-red-100 hover:!bg-red-200 ring-inset ring-2 ring-red-400/50',
+  'purple': '!bg-purple-100 hover:!bg-purple-200 ring-inset ring-2 ring-purple-400/50',
+};
 
 interface CompletedTaskRowProps {
   task: Task;
@@ -35,6 +43,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
   const isManager = user.role === 'Admin';
 
   const [lastReadCount, setLastReadCount] = React.useState(task.comments?.length || 0);
+  const [showColorPicker, setShowColorPicker] = React.useState(false);
 
   // When chat opens, update last read count to current number of comments
   React.useEffect(() => {
@@ -46,8 +55,10 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
   const unreadCount = (task.comments?.length || 0) - lastReadCount;
   const showBadge = unreadCount > 0 && !isChatOpen;
 
+  const highlightClass = task.highlightColor ? HIGHLIGHT_COLORS[task.highlightColor] : (task.isHighlighted ? HIGHLIGHT_COLORS['amber'] : '');
+
   return (
-    <tr id={`task-${task.id}`} className={`hover:bg-gray-50/50 transition-all ${isSelected ? 'bg-blue-50/50' : ''} ${task.isHighlighted ? 'ring-2 ring-emerald-400 ring-inset bg-emerald-50/20' : ''}`}>
+    <tr id={`task-${task.id}`} className={`hover:bg-gray-50/50 transition-all ${isSelected ? 'bg-blue-50/50' : ''} ${highlightClass}`}>
       <td className="p-2 text-center border-b border-l border-r border-gray-300 align-middle">
          <input 
            type="checkbox" 
@@ -57,12 +68,17 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
          />
       </td>
       <td className="p-2 text-center text-[10px] font-bold text-gray-300 border-b border-r border-gray-300 align-top">{task.code}</td>
-      <td className="p-2 border-b border-r border-gray-300 align-top h-px">
+      <td 
+        className={`p-2 border-b border-r border-gray-300 align-top h-px ${task.highlightColor || task.isHighlighted ? 'border-l-4 border-amber-500' : ''}`}
+      >
         <div className="flex flex-col h-full gap-1">
           <div className="flex items-start gap-1.5">
             <Avatar src={assignee?.avatar} name={assigneeName} size="sm" />
             <div className="min-w-0 flex-1">
               <p {...getSafeNameProps()} className="text-[11px] font-bold text-gray-900 leading-none truncate notranslate" title={assigneeName}>{assigneeName}</p>
+              <p className="text-[6px] font-black text-black uppercase tracking-widest leading-none mt-1 whitespace-nowrap">
+                <span translate="no" className="notranslate">{assignee ? (assignee.title || assignee.role) : 'NHÂN SỰ'}</span>
+              </p>
               <div className="flex flex-col gap-0.5 mt-0.5">
                 <p className="text-[8px] text-gray-500 font-medium italic opacity-70 leading-none">G: {formatDate(task.issueDate)}</p>
                 <p className="text-[8px] text-blue-600 font-black italic leading-none">Hạn: {formatDate(task.expectedEndDate)}</p>
@@ -141,7 +157,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
       </td>
       <td className="p-1 border-b border-r border-gray-300 align-top h-px">
         <div className="flex flex-col gap-1 h-full min-h-[60px] justify-between">
-          <div className="bg-gray-50/50 p-1.5 rounded border border-gray-100 flex-1">
+          <div className="p-1.5 rounded border border-gray-100 flex-1">
             <p className="text-[10px] text-gray-700 leading-tight break-words whitespace-normal font-medium">{task.currentUpdate}</p>
           </div>
           <div className="flex items-center justify-between px-1 mt-auto pt-1 border-t border-gray-50 border-dotted">
@@ -201,23 +217,25 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
         )}
       </td>
       <td className="py-2 px-1 text-center border-b border-r border-gray-300 align-middle">
-        <div className="flex flex-col items-center justify-center gap-2 w-full max-w-[70px] mx-auto min-h-full py-1">
+        <div className="flex flex-col items-center justify-center gap-1.5 w-full max-w-[44px] mx-auto min-h-full py-1">
           {task.requestUndo === 'PENDING' ? (
-            <div className="w-full flex flex-col gap-1">
-              <span className="text-[7px] font-black text-amber-600 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 animate-pulse uppercase">Chờ hoàn tác</span>
+            <div className="w-full flex flex-col gap-1 items-center">
+              <span className="text-[7px] font-black text-amber-600 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 animate-pulse uppercase">Đợi duyệt HT</span>
               {isManager && (
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-row gap-1">
                   <button 
                     onClick={() => onUndo(task.id)} 
-                    className="w-full px-1 py-1 text-[8px] bg-green-600 text-white rounded font-black hover:bg-green-700 transition-all uppercase shadow-sm"
+                    title="DUYỆT HOÀN TÁC"
+                    className="w-8 h-8 flex items-center justify-center bg-green-600 text-white rounded-full hover:bg-green-700 transition-all shadow-sm"
                   >
-                    DUYỆT
+                    <Check size={16} strokeWidth={4} />
                   </button>
                   <button 
                     onClick={() => onUpdate(task.id, { requestUndo: 'REJECTED' })} 
-                    className="w-full px-1 py-1 text-[8px] bg-red-500 text-white rounded font-black hover:bg-red-600 transition-all uppercase shadow-sm"
+                    title="BÁC HOÀN TÁC"
+                    className="w-8 h-8 flex items-center justify-center bg-red-500 text-white rounded-full hover:bg-red-600 transition-all shadow-sm"
                   >
-                    BÁC
+                    <X size={16} strokeWidth={4} />
                   </button>
                 </div>
               )}
@@ -235,26 +253,71 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                   });
                 }
               }} 
-              className={`w-full px-1 py-2 text-[10px] rounded font-black transition-all uppercase tracking-tighter shadow-md ${
+              title="YÊU CẦU HOÀN TÁC"
+              disabled={task.requestUndo === 'REJECTED'}
+              className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-lg group/btn ${
                 task.requestUndo === 'REJECTED' 
-                  ? 'bg-gray-400 text-white cursor-not-allowed opacity-50' 
-                  : 'bg-amber-500 text-white hover:bg-amber-600'
+                  ? 'bg-gray-200 text-white cursor-not-allowed opacity-50' 
+                  : 'bg-amber-500 text-white hover:bg-amber-600 ring-2 ring-amber-100'
               }`}
             >
-              H.TÁC
+              <RotateCcw size={20} strokeWidth={3} className="group-hover/btn:-rotate-45 transition-transform" />
             </button>
           ) : null}
+
+          <div className="relative">
+            <button 
+               onClick={() => setShowColorPicker(!showColorPicker)}
+               title="LƯU Ý / HIGHLIGHT"
+               className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-lg border-2 group/btn ${
+                 task.highlightColor || task.isHighlighted
+                   ? 'bg-emerald-500 text-white border-emerald-600 ring-2 ring-emerald-100' 
+                   : 'bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50'
+               }`}
+             >
+               <Highlighter size={20} strokeWidth={3} className="group-hover/btn:rotate-12 transition-transform" />
+             </button>
+             
+             <AnimatePresence>
+                {showColorPicker && (
+                  <motion.div 
+                    initial={{ opacity: 0, x: 10, scale: 0.9 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: 10, scale: 0.9 }}
+                    className="absolute right-full mr-2 top-0 bg-white border border-gray-200 rounded-lg shadow-xl p-1.5 flex flex-col gap-1.5 z-[100]"
+                  >
+                    {Object.keys(HIGHLIGHT_COLORS).map(color => (
+                      <button
+                        key={color}
+                        onClick={() => {
+                          onUpdate(task.id, { highlightColor: color, isHighlighted: true });
+                          setShowColorPicker(false);
+                        }}
+                        className={`w-6 h-6 rounded-full border border-gray-200 transition-transform hover:scale-125 ${HIGHLIGHT_COLORS[color].split(' ')[0]}`}
+                      />
+                    ))}
+                    <button
+                      onClick={() => {
+                        onUpdate(task.id, { highlightColor: null, isHighlighted: false });
+                        setShowColorPicker(false);
+                      }}
+                      title="Bỏ highlight"
+                      className="w-6 h-6 rounded-full border border-gray-300 flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-500 transition-colors"
+                    >
+                      <X size={12} strokeWidth={3} />
+                    </button>
+                  </motion.div>
+                )}
+             </AnimatePresence>
+          </div>
+
           <button 
-             onClick={() => onUpdate(task.id, { isHighlighted: !task.isHighlighted })}
-             className={`w-full px-1 py-2 text-[10px] rounded font-black transition-all uppercase tracking-tighter shadow-md border ${
-               task.isHighlighted 
-                 ? 'bg-emerald-500 text-white border-emerald-600' 
-                 : 'bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50'
-             }`}
-           >
-             LƯU Ý
-           </button>
-          <button onClick={() => onViewHistory(task.id)} className="w-full px-1 py-2 text-[9px] bg-blue-600 text-white rounded font-black hover:bg-blue-700 transition-all uppercase tracking-tighter shadow-md">CHI TIẾT</button>
+            onClick={() => onViewHistory(task.id)} 
+            title="XEM CHI TIẾT"
+            className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg border-2 border-blue-400 group/btn"
+          >
+            <Info size={20} strokeWidth={3} className="group-hover/btn:scale-110 transition-transform" />
+          </button>
         </div>
       </td>
     </tr>

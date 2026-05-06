@@ -51,3 +51,23 @@ export function formatDateTime(dateString: string | null | undefined): string {
     return dateString;
   }
 }
+
+export function formatFullDateTime(dateString: string | null | undefined): string {
+  if (!dateString) return '—';
+  
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    
+    const d = date.getDate().toString().padStart(2, '0');
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const y = date.getFullYear();
+    const hh = date.getHours().toString().padStart(2, '0');
+    const mm = date.getMinutes().toString().padStart(2, '0');
+    const ss = date.getSeconds().toString().padStart(2, '0');
+    
+    return `${hh}:${mm}:${ss} ${d}/${m}/${y}`;
+  } catch (e) {
+    return dateString;
+  }
+}

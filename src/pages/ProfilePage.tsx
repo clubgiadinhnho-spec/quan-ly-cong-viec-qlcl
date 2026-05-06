@@ -261,6 +261,13 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                               const ctx = canvas.getContext('2d');
                               ctx?.drawImage(img, 0, 0, width, height);
                               const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                              
+                              // GIỚI HẠN CỨNG: Chuỗi Base64 dài quá mức sẽ làm treo Firestore
+                              if (dataUrl.length > 800 * 1024) {
+                                alert("Ảnh đại diện quá lớn ngay cả khi nén. Vui lòng chọn ảnh khác.");
+                                return;
+                              }
+                              
                               setFormData(prev => ({ ...prev, avatar: dataUrl }));
                             };
                             img.src = event.target?.result as string;
@@ -283,7 +290,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     </div>
                     {!isEditing ? (
                       <div className="h-5 flex items-center">
-                        <p translate="no" className={`notranslate font-black tracking-tight leading-none text-slate-900 text-[13px] uppercase`}>
+                        <p translate="no" className={`notranslate font-sans font-bold tracking-tight leading-none text-slate-900 text-[13px] uppercase whitespace-nowrap`}>
                           {user.title || 'CHƯA XÁC ĐỊNH'}
                         </p>
                       </div>

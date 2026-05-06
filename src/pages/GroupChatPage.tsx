@@ -24,10 +24,11 @@ import {
   Loader2,
   Edit3,
   ListChecks,
-  CheckSquare
+  CheckSquare,
+  Search
 } from 'lucide-react';
 import { User, DiscussionTopic, DiscussionMessage } from '../types';
-import { formatDateTime } from '../lib/dateUtils';
+import { formatDateTime, formatFullDateTime } from '../lib/dateUtils';
 import { ReactionPicker, ReactionBadge } from '../components/common/ReactionPicker';
 import { Avatar } from '../components/common/Avatar';
 import imageCompression from 'browser-image-compression';
@@ -62,6 +63,19 @@ export const GroupChatPage = ({
   presence = []
 }: GroupChatPageProps) => {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+
+  // Auto-select "TRAO ĐỔI TỰ DO" topic on mount if no topic selected
+  useEffect(() => {
+    if (!selectedTopicId && topics.length > 0) {
+      const freeExchangeTopic = topics.find(t => 
+        t.title.toUpperCase().includes('TRAO ĐỔI TỰ DO') && t.status === 'OPEN'
+      );
+      if (freeExchangeTopic) {
+        setSelectedTopicId(freeExchangeTopic.id);
+      }
+    }
+  }, [topics, selectedTopicId]);
+
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showCreateTopic, setShowCreateTopic] = useState(false);
   const [showDeleteTopicConfirm, setShowDeleteTopicConfirm] = useState<string | null>(null);
@@ -69,7 +83,6 @@ export const GroupChatPage = ({
   const [isDownloading, setIsDownloading] = useState(false);
   const [newTopicTitle, setNewTopicTitle] = useState('');
   const [newTopicDesc, setNewTopicDesc] = useState('');
-  const [newMessage, setNewMessage] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<any[]>([]);
@@ -78,9 +91,27 @@ export const GroupChatPage = ({
   const [editTopic, setEditTopic] = useState<DiscussionTopic | null>(null);
   const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([]);
   const [isBulkMode, setIsBulkMode] = useState(false);
+  const [activeFontSize, setActiveFontSize] = useState('16px');
+  const [activeColor, setActiveColor] = useState('#1e293b');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [hasContent, setHasContent] = useState(false);
 
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    const scrollToBottom = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    // Scroll immediately
+    scrollToBottom();
+
+    // Scroll again after a short delay to account for image/content rendering
+    const timer = setTimeout(scrollToBottom, 100);
+    return () => clearTimeout(timer);
+  }, [messages, selectedTopicId]);
 
   // Auto-focus input when topic changes
   useEffect(() => {
@@ -229,22 +260,23 @@ const handleCreateTopic = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, selectedTopicId]);
-
   const activeTopic = topics.find(t => t.id === selectedTopicId);
   const filteredMessages = messages.filter(m => m.topicId === selectedTopicId);
 
   const handleSend = () => {
-    if (!newMessage.trim() && pendingAttachments.length === 0) return;
+    const htmlContent = inputRef.current?.innerHTML || '';
+    if (!htmlContent.trim() && pendingAttachments.length === 0) return;
     if (!selectedTopicId) return;
 
-    onSendMessage(selectedTopicId, newMessage, pendingAttachments);
-    setNewMessage('');
+    onSendMessage(selectedTopicId, htmlContent, pendingAttachments);
+    if (inputRef.current) inputRef.current.innerHTML = '';
+    setHasContent(false);
     setPendingAttachments([]);
+  };
+
+  const execCommand = (command: string, value: string = '') => {
+    document.execCommand(command, false, value);
+    if (inputRef.current) inputRef.current.focus();
   };
 
   const compressAndUpload = async (file: File) => {
@@ -256,11 +288,30 @@ const handleCreateTopic = () => {
       if (file.type.startsWith('image/')) {
         type = 'image';
         const options = {
-          maxSizeMB: 0.1, // Compress to ~100KB max
-          maxWidthOrHeight: 1280,
+          maxSizeMB: 0.8, // Target size under 800KB
+          maxWidthOrHeight: 1920,
           useWebWorker: true,
+          initialQuality: 0.7 // Start with lower quality for faster/better compression
         };
-        processedFile = await imageCompression(file, options);
+        try {
+          processedFile = await imageCompression(file, options);
+          // If still over 0.9MB after first compression, try once more with tighter constraints
+          if (processedFile.size > 0.9 * 1024 * 1024) {
+            processedFile = await imageCompression(file, { ...options, maxSizeMB: 0.5, maxWidthOrHeight: 1280 });
+          }
+        } catch (error) {
+          console.error("Compression error, trying basic compression:", error);
+          // Fallback if needed
+        }
+      }
+
+      // STRICT SIZE CHECK: Firestore doc limit is 1MB total.
+      // Base64 encoding increases size by ~33%, so we limit raw file to ~700KB to be safe
+      const MAX_FILE_SIZE = 700 * 1024; // 700KB
+      if (processedFile.size > MAX_FILE_SIZE) {
+        setIsUploading(false);
+        alert(`File "${file.name}" quá lớn (${(processedFile.size / 1024 / 1024).toFixed(2)}MB). Vui lòng chọn file dưới 700KB hoặc giảm kích thước ảnh.`);
+        return;
       }
 
       const reader = new FileReader();
@@ -285,15 +336,25 @@ const handleCreateTopic = () => {
     const files = e.target.files;
     if (!files) return;
     Array.from(files).forEach(compressAndUpload);
+    if (e.target) e.target.value = '';
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData.items;
+    let hasImage = false;
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
         const file = items[i].getAsFile();
-        if (file) compressAndUpload(file);
+        if (file) {
+          compressAndUpload(file);
+          hasImage = true;
+        }
       }
+    }
+    // If it's just text or HTML, it will be handled by contentEditable automatically
+    // But we prevent the default if we handled an image to avoid double paste (if image is also as text)
+    if (hasImage) {
+      // e.preventDefault(); // If we want to skip the text part
     }
   };
 
@@ -302,95 +363,78 @@ const handleCreateTopic = () => {
     onUpdateTopic(topic.id, { status: newStatus });
   };
 
-  const getAuthor = (id: string) => users.find(u => u.id === id);
+  const getAuthor = (id: string) => users.find(u => u.id === id || u.uniqueKey === id);
 
   return (
-    <div className="max-w-full h-[calc(100vh-80px)] flex flex-col animate-in fade-in duration-500 relative bg-slate-50 rounded-2xl p-2 shadow-sm border border-slate-200 font-sans">
-      {/* Header - Compact & Professional */}
-      <div className="mb-2 flex items-center justify-between px-4 py-3 bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-[#132d6b] flex items-center justify-center shadow-sm">
-            <MessageSquare size={20} className="text-white" strokeWidth={2.5} />
-          </div>
-          <span className="text-xl font-black text-[#132d6b] uppercase tracking-tight">
-            <span translate="no" className="notranslate">ROOM THẢO LUẬN</span>
-          </span>
-          <div className="flex h-2.5 w-2.5 relative">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border border-white"></span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-6">
-          <div className="hidden md:flex -space-x-2">
-            {presence.slice(0, 3).map(uid => (
-              <div key={uid} className="w-8 h-8 rounded-full border-2 border-white shadow-sm overflow-hidden bg-slate-100">
-                <Avatar src={users.find(u => u.id === uid)?.avatar} size="full" />
-              </div>
-            ))}
-          </div>
-              <div className="px-3 py-1 bg-slate-100 rounded-lg flex items-center gap-2 border border-slate-200">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">
-                  <span translate="no" className="notranslate">{presence.length} TRỰC TUYẾN</span>
-                </span>
-              </div>
-        </div>
-      </div>
-
-      <div className="flex-1 flex gap-2 min-h-0">
-        {/* Sidebar: Topics List - Collapsible logic */}
+    <div className="max-w-full h-full flex flex-col animate-in fade-in duration-500 relative bg-[#f0f2f5] p-2 sm:pt-4 sm:px-4 sm:pb-3 font-sans">
+      {/* Unified App Window Style Container */}
+      <div className="flex-1 flex overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50">
+        
+        {/* Sidebar: Topics List */}
         <motion.div 
           animate={{ width: isSidebarCollapsed ? 80 : 340 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden shrink-0 relative"
+          className="flex flex-col bg-slate-50 border-r border-slate-200 overflow-hidden shrink-0 relative"
         >
-          <div className="p-4 pb-2">
-            <div className={`flex items-center justify-between mb-2 ${isSidebarCollapsed ? 'flex-col gap-4' : 'flex-row'}`}>
-              <div className="flex items-center gap-2">
+          {/* Sidebar Header */}
+          <div className="p-4 bg-white border-b border-slate-100">
+            <div className={`flex items-center justify-between mb-4 ${isSidebarCollapsed ? 'flex-col gap-3' : 'flex-row'}`}>
+              <div className="flex items-center gap-3">
+                <div className={`rounded-xl bg-[#132d6b] flex items-center justify-center shadow-lg shadow-blue-900/20 shrink-0 transition-all ${isSidebarCollapsed ? 'w-12 h-12' : 'w-10 h-10'}`}>
+                  <MessageSquare size={isSidebarCollapsed ? 24 : 20} className="text-white" strokeWidth={2.5} />
+                </div>
                 {!isSidebarCollapsed && (
-                  <h2 className="text-[18px] font-black text-blue-600 tracking-widest uppercase leading-none">
-                    <span translate="no" className="notranslate">CHỦ ĐỀ</span>
-                  </h2>
-                )}
-                <button 
-                  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                  className={`p-1 bg-slate-50 text-slate-400 hover:text-blue-600 rounded-lg transition-all border border-slate-100 shadow-sm ${isSidebarCollapsed ? 'mb-1' : ''}`}
-                  title={isSidebarCollapsed ? "Mở rộng" : "Thu nhỏ"}
-                >
-                  <ChevronRight size={14} className={`transition-transform duration-300 ${isSidebarCollapsed ? '' : 'rotate-180'}`} />
-                </button>
-              </div>
-              <div className="flex items-center gap-1 flex-wrap">
-                {/* Manual creation button */}
-                {currentUser?.role === 'Admin' && (
-                  <button
-                    onClick={() => {
-                      setIsBulkMode(!isBulkMode);
-                      if (!isBulkMode) setSelectedBulkIds([]);
-                    }}
-                    className={`flex items-center justify-center transition-all shadow-md active:scale-90 border relative ${
-                      isBulkMode 
-                        ? 'bg-amber-500 border-amber-600 text-white' 
-                        : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600'
-                    } ${isSidebarCollapsed ? 'w-10 h-10 rounded-lg' : 'w-7 h-7 rounded-lg'}`}
-                    title={isBulkMode ? "Hủy chế độ chọn" : "Bật chế độ chọn nhiều để xóa"}
-                  >
-                    {isBulkMode ? <X size={isSidebarCollapsed ? 18 : 14} strokeWidth={2.5} /> : <ListChecks size={isSidebarCollapsed ? 18 : 14} strokeWidth={2.5} />}
-                    {selectedBulkIds.length > 0 && isBulkMode && (
-                      <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm">
-                        {selectedBulkIds.length}
+                  <div className="flex flex-col">
+                    <h2 className="text-[16px] font-black text-[#132d6b] uppercase tracking-tight leading-none mb-1">
+                      <span translate="no" className="notranslate">ROOM THẢO LUẬN</span>
+                    </h2>
+                    <div className="flex items-center gap-1.5 px-0.5">
+                      <div className="flex h-2 w-2 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </div>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">
+                        <span translate="no" className="notranslate">{presence.length} TRỰC TUYẾN</span>
                       </span>
-                    )}
-                  </button>
+                    </div>
+                  </div>
                 )}
-                <button 
-                  onClick={() => setShowCreateTopic(true)}
-                  className={`bg-blue-600 text-white transition-all shadow-md flex items-center justify-center hover:scale-110 active:scale-90 ${isSidebarCollapsed ? 'w-10 h-10 rounded-lg' : 'w-7 h-7 rounded-lg'}`}
-                  title="Tạo chủ đề mới"
-                >
-                  <Plus size={isSidebarCollapsed ? 20 : 16} strokeWidth={3} />
-                </button>
               </div>
+              <button 
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className={`p-1.5 bg-white text-slate-400 hover:text-blue-600 rounded-lg transition-all border border-slate-100 shadow-sm ${isSidebarCollapsed ? 'w-full flex justify-center' : ''}`}
+              >
+                <ChevronRight size={16} className={`transition-transform duration-300 ${isSidebarCollapsed ? '' : 'rotate-180'}`} />
+              </button>
+            </div>
+
+            <div className={`flex gap-2 ${isSidebarCollapsed ? 'flex-col items-center' : 'items-center'}`}>
+              {currentUser?.role === 'Admin' && (
+                <button
+                  onClick={() => {
+                    setIsBulkMode(!isBulkMode);
+                    if (!isBulkMode) setSelectedBulkIds([]);
+                  }}
+                  className={`flex items-center justify-center transition-all border relative ${
+                    isBulkMode 
+                      ? 'bg-amber-500 border-amber-600 text-white shadow-lg shadow-amber-200' 
+                      : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600 shadow-sm'
+                  } ${isSidebarCollapsed ? 'w-12 h-12 rounded-xl' : 'px-3 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest flex-1'}`}
+                  title="Quản lý"
+                >
+                  {isBulkMode ? <X size={20} strokeWidth={2.5} /> : <div className="flex items-center gap-2 font-black uppercase"><ListChecks size={isSidebarCollapsed ? 20 : 14} strokeWidth={2.5} /> {!isSidebarCollapsed && "QUẢN LÝ"}</div>}
+                  {selectedBulkIds.length > 0 && isBulkMode && !isSidebarCollapsed && (
+                    <span className="ml-2 bg-white text-amber-600 px-1.5 rounded-md">{selectedBulkIds.length}</span>
+                  )}
+                </button>
+              )}
+              <button 
+                onClick={() => setShowCreateTopic(true)}
+                className={`bg-blue-600 text-white transition-all shadow-lg shadow-blue-200 flex items-center justify-center hover:scale-105 active:scale-95 ${isSidebarCollapsed ? 'w-12 h-12 rounded-xl' : 'px-3 h-8 rounded-lg text-[10px] font-black uppercase tracking-widest flex-1'}`}
+                title="Tạo mới"
+              >
+                {isSidebarCollapsed ? <Plus size={24} strokeWidth={3} /> : <div className="flex items-center gap-2"><Plus size={14} strokeWidth={3} /> TẠO MỚI</div>}
+              </button>
             </div>
           </div>
 
@@ -434,27 +478,58 @@ const handleCreateTopic = () => {
             </div>
           )}
 
-            <div className={`flex gap-1 p-1 bg-slate-100 rounded-lg mb-2 ${isSidebarCollapsed ? 'flex-col' : 'flex-row'}`}>
+          {/* Sidebar Search Area */}
+          {!isSidebarCollapsed && (
+            <div className="px-4 py-3 bg-white border-b border-slate-50">
+              <div className="relative group">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+                <input 
+                  type="text"
+                  placeholder="Tìm kiếm chủ đề..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-slate-100 border border-slate-100 rounded-xl pl-9 pr-4 py-2 text-[12px] font-medium outline-none focus:bg-white focus:border-blue-200 focus:ring-4 focus:ring-blue-50 transition-all placeholder:text-slate-400"
+                />
+                {searchQuery && (
+                  <button 
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-rose-500 transition-colors"
+                  >
+                    <X size={12} strokeWidth={3} />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="flex-1 flex flex-col overflow-hidden px-2 pt-3">
+            <div className={`flex gap-1 p-1 bg-slate-200/50 rounded-2xl mb-4 ${isSidebarCollapsed ? 'flex-col items-center' : 'flex-row'}`}>
               <button 
                 onClick={() => setActiveTab('OPEN')}
-                className={`flex-1 py-1 text-[9px] font-black rounded-md transition-all uppercase tracking-wider flex items-center justify-center ${activeTab === 'OPEN' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}
+                className={`py-2 px-3 text-[10px] font-black rounded-xl transition-all uppercase tracking-widest flex items-center justify-center gap-2 focus:outline-none ${
+                    isSidebarCollapsed ? 'w-12 h-12' : 'flex-1'
+                } ${activeTab === 'OPEN' ? 'bg-white shadow-md text-blue-600 border border-white' : 'text-slate-500 hover:text-slate-700'}`}
                 title="Đang mở"
               >
-                {isSidebarCollapsed ? <Hash size={14} /> : <span translate="no" className="notranslate">ĐANG MỞ</span>}
+                {isSidebarCollapsed ? <Hash size={20} strokeWidth={2.5} /> : <><MessageSquare size={13} /> <span translate="no" className="notranslate">DANH SÁCH</span></>}
               </button>
               <button 
                 onClick={() => setActiveTab('CLOSED')}
-                className={`flex-1 py-1 text-[9px] font-black rounded-md transition-all uppercase tracking-wider flex items-center justify-center ${activeTab === 'CLOSED' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400'}`}
+                className={`py-2 px-3 text-[10px] font-black rounded-xl transition-all uppercase tracking-widest flex items-center justify-center gap-2 focus:outline-none ${
+                    isSidebarCollapsed ? 'w-12 h-12' : 'flex-1'
+                } ${activeTab === 'CLOSED' ? 'bg-slate-800 text-white shadow-lg shadow-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
                 title="Đã đóng"
               >
-                {isSidebarCollapsed ? <Archive size={14} /> : <span translate="no" className="notranslate">ĐÃ ĐÓNG</span>}
+                {isSidebarCollapsed ? <Archive size={20} strokeWidth={2.5} /> : <><Archive size={13} /> <span translate="no" className="notranslate">LƯU TRỮ</span></>}
               </button>
               <button 
                 onClick={() => setActiveTab('DELETED')}
-                className={`flex-1 py-1 text-[9px] font-black rounded-md transition-all uppercase tracking-wider flex items-center justify-center ${activeTab === 'DELETED' ? 'bg-red-600 text-white shadow-sm' : 'text-slate-400'}`}
+                className={`py-2 px-3 text-[10px] font-black rounded-xl transition-all uppercase tracking-widest flex items-center justify-center gap-2 focus:outline-none ${
+                    isSidebarCollapsed ? 'w-12 h-12' : 'flex-1'
+                } ${activeTab === 'DELETED' ? 'bg-rose-600 text-white shadow-lg shadow-rose-200' : 'text-slate-500 hover:text-slate-700'}`}
                 title="Đã xóa"
               >
-                {isSidebarCollapsed ? <Trash2 size={14} /> : <span translate="no" className="notranslate">ĐÃ XÓA</span>}
+                {isSidebarCollapsed ? <Trash2 size={20} strokeWidth={2.5} /> : <><Trash2 size={13} /> <span translate="no" className="notranslate">THÙNG RÁC</span></>}
               </button>
             </div>
 
@@ -469,7 +544,14 @@ const handleCreateTopic = () => {
               };
 
               return [...topics]
-                .filter(t => t.status === activeTab)
+                .filter(t => {
+                  const matchTab = t.status === activeTab;
+                  const matchSearch = searchQuery.trim() === '' || 
+                    t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (t.topicCode && t.topicCode.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                    (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()));
+                  return matchTab && matchSearch;
+                })
                 .sort((a, b) => {
                   // 1. Priority for "Trao đổi tự do"
                   const aFree = isFreeExchange(a.title);
@@ -491,20 +573,20 @@ const handleCreateTopic = () => {
                   const pPart = rawCode.length > 6 ? rawCode.slice(0, rawCode.length - 6) : rawCode;
                   
                   return (
-                    <div key={topic.id} className="relative group flex items-center gap-2">
+                    <div key={topic.id} className="relative group flex items-center gap-2 px-1">
                       {isBulkMode && (
                         <div 
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleBulkSelection(topic.id);
                           }}
-                          className={`shrink-0 w-6 h-6 rounded-md border flex items-center justify-center transition-all cursor-pointer ${
+                          className={`shrink-0 w-8 h-8 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${
                             selectedBulkIds.includes(topic.id) 
-                              ? 'bg-blue-600 border-blue-700 shadow-sm' 
-                              : 'bg-white border-slate-300 hover:border-blue-400'
+                              ? 'bg-blue-600 border-blue-700 shadow-lg shadow-blue-200' 
+                              : 'bg-white border-slate-300 hover:border-blue-400 shadow-sm'
                           }`}
                         >
-                          {selectedBulkIds.includes(topic.id) && <CheckSquare size={14} className="text-white" />}
+                          {selectedBulkIds.includes(topic.id) && <CheckSquare size={16} className="text-white" />}
                         </div>
                       )}
                       <div
@@ -512,65 +594,51 @@ const handleCreateTopic = () => {
                         role="button"
                         tabIndex={0}
                         onKeyDown={(e) => e.key === 'Enter' && setSelectedTopicId(topic.id)}
-                        className={`w-full flex items-start gap-1.5 rounded-lg transition-all relative p-1.5 border min-h-[38px] h-auto cursor-pointer ${
+                        className={`w-full flex items-center gap-3 rounded-xl transition-all relative border cursor-pointer overflow-hidden ${
+                          isSidebarCollapsed ? 'justify-center p-1 font-sans' : 'items-start p-2'
+                        } ${
                           isActive 
-                            ? isFree ? 'bg-red-50 border-red-200 shadow-sm ring-2 ring-red-100/50' : 'bg-blue-50 border-blue-200 shadow-sm ring-2 ring-blue-100/50'
-                            : 'bg-white border-slate-100 hover:bg-slate-50 hover:border-slate-200 shadow-sm'
+                            ? isFree 
+                              ? 'bg-rose-50/80 border-rose-200 shadow-lg shadow-rose-100 ring-1 ring-rose-200' 
+                              : 'bg-blue-50/80 border-blue-200 shadow-lg shadow-blue-100 ring-1 ring-blue-200'
+                            : 'bg-white border-slate-100 hover:bg-white hover:border-slate-300 hover:shadow-md shadow-sm'
                         }`}
                       >
-                        <div className={`shrink-0 w-9 h-9 rounded flex items-center justify-center font-sans leading-none border transition-all ${
+                        <div className={`shrink-0 rounded-xl flex items-center justify-center font-sans border transition-all ${
+                          isSidebarCollapsed ? 'w-12 h-12 text-[12px]' : 'w-11 h-11 text-[11px]'
+                        } ${
                           isActive 
-                            ? isFree ? 'bg-red-600 text-white border-red-700 shadow-sm' : 'bg-blue-600 text-white border-blue-700 shadow-sm'
+                            ? isFree ? 'bg-rose-600 text-white border-rose-700 shadow-inner' : 'bg-blue-600 text-white border-blue-700 shadow-inner'
                             : isFree 
-                              ? 'bg-red-50 text-red-600 group-hover:bg-red-100 border-red-100 shadow-inner'
-                              : 'bg-blue-50 text-blue-600 group-hover:bg-blue-100 border-blue-100 shadow-inner'
+                              ? 'bg-rose-50 text-rose-600 group-hover:bg-rose-100 border-rose-100'
+                              : 'bg-blue-50 text-blue-600 group-hover:bg-blue-100 border-blue-100'
                         }`}>
-                          <span translate="no" className="notranslate text-[10px] font-black uppercase tracking-tighter">{pPart}</span>
+                          <span translate="no" className="notranslate font-black uppercase tracking-tighter leading-none">{pPart}</span>
                         </div>
                         
                         {!isSidebarCollapsed && (
-                          <div className="text-left flex-1 min-w-0 flex items-start justify-between gap-1 px-0.5">
-                            <p className={`whitespace-normal uppercase text-[10px] leading-tight pt-1 flex-1 ${
-                              isActive 
-                                ? isFree ? 'text-red-700 font-black' : 'text-blue-700 font-black'
-                                : isFree ? 'text-red-600 font-bold' : 'text-blue-600 font-bold'
-                            }`}>
-                              {topic.title.toUpperCase()}
-                            </p>
-                            <div className={`flex items-center gap-1 shrink-0 pt-0.5 ${isActive ? isFree ? 'text-red-600/80' : 'text-blue-600/80' : 'text-slate-600'}`}>
-                              <div className="w-[1px] h-4 bg-slate-200 mt-0.5 shrink-0" />
-                              <div className="flex flex-col items-end leading-none relative group/actions">
-                                {currentUser.role === 'Admin' && (
-                                  <div className="absolute -top-6 -right-1 flex items-center gap-1 opacity-0 group-hover/actions:opacity-100 transition-all z-10">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEditTopic(topic);
-                                      }}
-                                      className="p-1 bg-white shadow-md border border-slate-200 rounded-md text-blue-600 hover:bg-blue-50"
-                                      title="Chỉnh sửa"
-                                    >
-                                      <Edit3 size={11} />
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setShowDeleteTopicConfirm(topic.id);
-                                      }}
-                                      className="p-1 bg-white shadow-md border border-slate-200 rounded-md text-red-500 hover:bg-red-50"
-                                      title="Xóa nhanh"
-                                    >
-                                      <Trash2 size={11} />
-                                    </button>
-                                  </div>
-                                )}
-                                <p className="text-[7px] font-bold uppercase truncate max-w-[70px]">
-                                  {getAuthor(topic.createdBy)?.name.split(' ').pop() || 'Tân Phú'}
+                          <div className="text-left flex-1 min-w-0 flex flex-col justify-center py-0.5">
+                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                              <p className={`whitespace-nowrap uppercase text-[12px] leading-none truncate font-black tracking-tight ${
+                                isActive 
+                                  ? isFree ? 'text-rose-700' : 'text-blue-700'
+                                  : isFree ? 'text-rose-600' : 'text-blue-600'
+                              }`}>
+                                {topic.title.toUpperCase()}
+                              </p>
+                              <div className="flex flex-col items-end shrink-0 min-w-[70px] opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                <p translate="no" className={`notranslate text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md mb-0.5 ${isActive ? 'bg-white/50 text-blue-800' : 'bg-slate-100 text-slate-500'}`}>
+                                  {getAuthor(topic.createdBy)?.name.split(' ').pop() || 'ADMIN'}
                                 </p>
-                                <p className="text-[6px] font-sans font-medium opacity-60">
+                                <p className="text-[7px] font-sans font-black opacity-40 shrink-0 uppercase tracking-tight">
                                   {formatDateTime(topic.createdAt).split(' ')[0]}
                                 </p>
                               </div>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                               <p className="text-[10px] font-medium text-slate-400 truncate uppercase tracking-tighter max-w-[120px]">
+                                 {topic.description || 'HỆ THỐNG THẢO LUẬN'}
+                               </p>
                             </div>
                           </div>
                         )}
@@ -611,286 +679,337 @@ const handleCreateTopic = () => {
                   );
                 });
             })()}
+            </div>
           </div>
         </motion.div>
 
-        {/* Main Chat Area - Minimalist Zen */}
-        <div className="flex-1 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden relative font-sans">
+        {/* Main Chat Area - Zalo Style Layout */}
+        <div className="flex-1 bg-white flex flex-col h-full overflow-hidden relative font-sans">
           {activeTopic ? (
             <>
-              {/* Chat Header - Integrated */}
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-20">
+              {/* 1. Header (Fixed at top) */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md z-20 sticky top-0 shadow-sm">
                 <div className="flex items-center gap-4">
                   {(() => {
                     const isFree = activeTopic.title.toUpperCase().includes('TRAO ĐỔI TỰ DO');
                     return (
-                      <div className={`shrink-0 w-11 h-11 rounded-lg flex items-center justify-center font-sans leading-none border transition-all ${
+                      <div className={`shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center font-sans leading-none border-2 transition-all ${
                         isFree 
-                          ? 'bg-red-50 text-red-600 border-red-100 shadow-inner' 
-                          : 'bg-blue-50 text-blue-600 border-blue-100 shadow-inner'
+                          ? 'bg-rose-50 text-rose-600 border-rose-100 shadow-inner ring-4 ring-rose-50/50' 
+                          : 'bg-blue-50 text-blue-600 border-blue-100 shadow-inner ring-4 ring-blue-50/50'
                       }`}>
                         {(() => {
                           const raw = activeTopic.topicCode || `P${activeTopic.orderCode || '???'}`;
                           const pPart = raw.length > 6 ? raw.slice(0, raw.length - 6) : raw;
                           
                           return (
-                            <span translate="no" className="notranslate text-[12px] font-black uppercase tracking-tighter leading-none">{pPart}</span>
+                            <span translate="no" className="notranslate text-[14px] font-black uppercase tracking-tighter leading-none">{pPart}</span>
                           );
                         })()}
                       </div>
                     );
                   })()}
                   <div className="min-w-0">
-                    <h1 className={`text-[18px] font-black leading-tight mb-0.5 uppercase pt-0.5 truncate ${
-                      activeTopic.title.toUpperCase().includes('TRAO ĐỔI TỰ DO') ? 'text-red-700' : 'text-slate-900'
-                    }`}>{activeTopic.title}</h1>
-              <p className="text-[11px] text-slate-400 font-medium uppercase tracking-wider truncate">
-                <span translate="no" className="notranslate">{activeTopic.description || 'Hệ thống thảo luận bảo mật'}</span>
-              </p>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h1 className={`text-[19px] font-black leading-tight uppercase pt-0.5 truncate ${
+                        activeTopic.title.toUpperCase().includes('TRAO ĐỔI TỰ DO') ? 'text-rose-700' : 'text-slate-900'
+                      }`}>{activeTopic.title}</h1>
+                      <div className="hidden sm:flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{presence.length} ACTIVE</span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest truncate">
+                      <span translate="no" className="notranslate">{activeTopic.description || 'Hệ thống thảo luận bảo mật'}</span>
+                    </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => handleDownloadTopic(activeTopic.id)}
-                    disabled={isDownloading}
-                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                    title="Tải về dữ liệu"
-                  >
-                    {isDownloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-                  </button>
+                  <div className="flex items-center bg-slate-100/50 p-1 rounded-xl border border-slate-200/50">
+                    <button 
+                      onClick={() => handleDownloadTopic(activeTopic.id)}
+                      disabled={isDownloading}
+                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                      title="Tải về dữ liệu"
+                    >
+                      {isDownloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                    </button>
 
-                  {currentUser.role === 'Admin' && (
-                    <>
-                      <button 
-                        onClick={() => setEditTopic(activeTopic)}
-                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                        title="Chỉnh sửa chủ đề"
-                      >
-                        <Edit3 size={18} strokeWidth={1.5} />
-                      </button>
-
-                      <button 
-                        onClick={() => setShowDeleteTopicConfirm(activeTopic.id)}
-                        className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                        title="Xóa chủ đề"
-                      >
-                        <Trash2 size={18} strokeWidth={1.5} />
-                      </button>
-
-                      {activeTopic.status === 'OPEN' ? (
+                    {currentUser.role === 'Admin' && (
+                      <>
+                        <div className="w-[1px] h-4 bg-slate-200 mx-1" />
                         <button 
-                          onClick={() => toggleTopicStatus(activeTopic)}
-                          className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-all border border-slate-200 shadow-sm"
-                          title="Đóng chủ đề"
+                          onClick={() => setEditTopic(activeTopic)}
+                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                          title="Chỉnh sửa chủ đề"
                         >
-                          <X size={18} />
+                          <Edit3 size={18} strokeWidth={1.5} />
                         </button>
-                      ) : (
+
                         <button 
-                          onClick={() => toggleTopicStatus(activeTopic)}
-                          className="p-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-all border border-emerald-100 shadow-sm"
-                          title="Mở lại chủ đề"
+                          onClick={(e) => { e.stopPropagation(); toggleTopicStatus(activeTopic); }}
+                          className={`p-2 rounded-lg transition-all ${activeTopic.status === 'OPEN' ? 'text-slate-400 hover:text-emerald-600 hover:bg-white hover:shadow-sm' : 'text-emerald-500 bg-white shadow-sm'}`}
+                          title={activeTopic.status === 'OPEN' ? "Đóng chủ đề" : "Mở lại chủ đề"}
                         >
-                          <Unlock size={18} />
+                          {activeTopic.status === 'OPEN' ? <Lock size={18} /> : <Unlock size={18} />}
                         </button>
-                      )}
-                    </>
-                  )}
+
+                        <button 
+                          onClick={() => setShowDeleteTopicConfirm(activeTopic.id)}
+                          className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                          title="Xóa chủ đề"
+                        >
+                          <Trash2 size={18} strokeWidth={1.5} />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Messages Area */}
+              {/* 2. Messages List (Scrollable area) */}
               <div 
-                ref={scrollRef}
-                className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-slate-50/10"
+                className="flex-1 overflow-y-auto p-4 space-y-6 bg-[#f4f7f9] custom-scrollbar"
               >
                 {filteredMessages.map((msg, idx) => {
                   const author = getAuthor(msg.authorId);
-                  const isMe = msg.authorId === currentUser.id;
-                  const showAvatar = idx === 0 || filteredMessages[idx - 1].authorId !== msg.authorId;
+                  
+                  // "Thiết quân luật" logic nhận diện: Sử dụng uniqueKey
+                  const isMe = msg.authorId === (currentUser?.uniqueKey || '');
 
                   return (
                     <motion.div 
                       key={msg.id}
-                      initial={{ opacity: 0, y: 5 }}
+                      initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+                      className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} mb-4 px-4`}
                     >
-                      <div className={`flex items-end gap-2 max-w-[90%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                        <div className="flex-none pb-1">
-                          {showAvatar ? (
-                            <div className="relative group">
-                              <Avatar src={author?.avatar} name={author?.name} size="sm" />
-                              {presence.includes(msg.authorId) && (
-                                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
-                              )}
-                            </div>
-                          ) : (
-                            <div className="w-10" />
+                      <div className={`flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-start gap-3 max-w-[80%]`}>
+                        {/* Avatar */}
+                        <div className="flex-shrink-0 relative">
+                          <img 
+                            src={(isMe ? currentUser.avatar : author?.avatar) || '/default-avatar.png'} 
+                            className={`w-10 h-10 rounded-full border-2 ${isMe ? 'border-blue-500' : 'border-slate-200'}`}
+                          />
+                          {presence.includes(msg.authorId) && (
+                            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full shadow-sm" />
                           )}
                         </div>
+
+                        {/* Nội dung */}
                         <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                          {showAvatar && (
-                            <span className={`text-[9px] font-black uppercase mb-1 px-1 tracking-wider ${isMe ? 'text-[#132d6b]' : 'text-slate-500'}`}>
-                              <span translate="no" className="notranslate">{author?.name}</span>
+                          {/* Tên và Thời gian */}
+                          <div className={`flex items-center gap-2 mb-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                            <span translate="no" className="notranslate text-[12px] font-bold text-gray-600">
+                              {isMe ? "TÔI (ADMIN)" : (author?.name || 'Thành viên')}
                             </span>
-                          )}
-                          <div 
-                            className={`group relative p-3 px-5 rounded-xl border transition-all ${
-                              isMe 
-                                ? 'bg-[#132d6b] border-[#132d6b] text-white rounded-br-none shadow-md shadow-blue-900/10' 
-                                : msg.content.startsWith('📜') 
-                                  ? 'bg-amber-50 border-amber-200 text-amber-900 rounded-bl-none shadow-sm'
-                                  : 'bg-white border-slate-200 text-slate-700 rounded-bl-none shadow-sm'
-                            }`}
-                          >
-                            <p className={`text-[13px] leading-snug whitespace-pre-wrap ${msg.content.startsWith('📜') ? 'font-black italic' : 'font-medium'}`}>
-                              {msg.content}
-                            </p>
-                            
-                            {msg.attachments && msg.attachments.length > 0 && (
-                              <div className="mt-2 space-y-1.5">
-                                {msg.attachments.map((file, fIdx) => (
-                                  <div key={fIdx} className="rounded-lg overflow-hidden border border-white/20 shadow-sm">
-                                    {file.type === 'image' ? (
-                                      <img src={file.url} alt={file.name} className="max-w-full h-auto max-h-60 object-cover cursor-zoom-in" onClick={() => window.open(file.url, '_blank')} />
-                                    ) : (
-                                      <div className={`flex items-center gap-2 p-2 ${isMe ? 'bg-white/10' : 'bg-slate-50'}`}>
-                                        <FileText size={16} className={isMe ? 'text-white' : 'text-blue-600'} />
-                                        <div className="min-w-0">
-                                          <p className="text-[11px] font-black truncate uppercase">{file.name}</p>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                            <span translate="no" className="notranslate text-[10px] text-gray-400">
+                              {formatFullDateTime(msg.timestamp).split(' ')[1]}
+                            </span>
+                          </div>
 
-                            <div className={`absolute -bottom-5 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all ${isMe ? 'right-0' : 'left-0'}`}>
-                              <span className="text-[8px] text-slate-400 font-black uppercase">{formatDateTime(msg.timestamp)}</span>
-                            </div>
-
-                            {/* Reaction Trigger */}
-                            <div className={`absolute top-0 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all z-20 ${isMe ? '-left-10' : '-right-10'} flex flex-col gap-1`}>
-                              <button 
-                                onClick={() => setShowEmojiFor(showEmojiFor === msg.id ? null : msg.id)}
-                                className="w-8 h-8 bg-white shadow-md border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-blue-600 hover:scale-110 active:scale-95"
-                              >
-                                <Smile size={16} />
-                              </button>
+                          {/* Bong bóng tin nhắn */}
+                          <div className={`p-3 rounded-2xl shadow-sm relative group ${
+                            isMe 
+                            ? 'bg-blue-600 text-white rounded-tr-none' 
+                            : 'bg-white text-black border border-gray-200 rounded-tl-none'
+                          }`}>
+                            <div 
+                              translate="no" 
+                              className="notranslate" 
+                              style={{ fontSize: '17px', lineHeight: '1.5' }}
+                              dangerouslySetInnerHTML={{ __html: msg.content }}
+                            />
                               
-                              {currentUser.role === 'Admin' && (
-                                <button 
-                                  onClick={() => onDeleteMessage?.(msg.id)}
-                                  className="w-8 h-8 bg-white shadow-md border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-500 hover:scale-110 active:scale-95"
-                                  title="Xóa tin nhắn"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              )}
-
-                              {showEmojiFor === msg.id && (
-                                <div className="absolute top-7 z-50">
-                                  <ReactionPicker onSelect={(emoji) => {
-                                    onReact(msg.id, emoji);
-                                    setShowEmojiFor(null);
-                                  }} />
+                              {/* Attachments List */}
+                              {msg.attachments && msg.attachments.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                  {msg.attachments.map((file, fIdx) => (
+                                    <div key={fIdx} className="rounded-xl overflow-hidden border border-white/20 shadow-sm transition-transform hover:scale-[1.01]">
+                                      {file.type === 'image' ? (
+                                        <img 
+                                          src={file.url} 
+                                          alt={file.name} 
+                                          className="max-w-full h-auto max-h-80 object-cover cursor-zoom-in hover:brightness-95 transition-all" 
+                                          onClick={() => window.open(file.url, '_blank')} 
+                                        />
+                                      ) : (
+                                        <div className={`flex items-center gap-3 p-3 ${isMe ? 'bg-white/10' : 'bg-slate-50'}`}>
+                                          <FileText size={20} className={isMe ? 'text-white' : 'text-blue-600'} />
+                                          <div className="min-w-0">
+                                            <p translate="no" className="notranslate text-[12px] font-black truncate uppercase tracking-tight">{file.name}</p>
+                                            <p translate="no" className={`notranslate text-[10px] opacity-60 ${isMe ? 'text-white' : 'text-slate-500'}`}>
+                                              {(file.size / 1024).toFixed(1)} KB
+                                            </p>
+                                          </div>
+                                          <button 
+                                            onClick={() => window.open(file.url, '_blank')}
+                                            className={`ml-auto p-1.5 rounded-lg transition-all ${isMe ? 'hover:bg-white/10 text-white' : 'hover:bg-blue-100 text-blue-600'}`}
+                                          >
+                                            <Download size={14} />
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
                                 </div>
                               )}
+
+                              {/* Message Actions (Hovered) */}
+                              <div className={`absolute top-0 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all z-20 ${isMe ? '-left-12' : '-right-12'} flex flex-col gap-1.5`}>
+                                <button 
+                                  onClick={() => setShowEmojiFor(showEmojiFor === msg.id ? null : msg.id)}
+                                  className="w-9 h-9 bg-white shadow-lg border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-amber-500 hover:scale-110 active:scale-95 transition-all"
+                                >
+                                  <Smile size={18} />
+                                </button>
+                                
+                                {(currentUser.id === msg.authorId || currentUser.role === 'Admin') && (
+                                  <button 
+                                    onClick={() => onDeleteMessage?.(msg.id)}
+                                    className="w-9 h-9 bg-white shadow-lg border border-slate-200 rounded-xl flex items-center justify-center text-slate-300 hover:text-red-500 hover:scale-110 active:scale-95 transition-all"
+                                    title="Xóa tin nhắn"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                                
+                                <ReactionPicker 
+                                  isOpen={showEmojiFor === msg.id}
+                                  onSelect={(emoji) => {
+                                    onReact(msg.id, emoji);
+                                    setShowEmojiFor(null);
+                                  }} 
+                                  onClose={() => setShowEmojiFor(null)}
+                                  position="top"
+                                />
+                              </div>
                             </div>
 
-                            {/* Reaction Badges */}
+                            {/* Reactions Badge Group */}
                             {msg.reactions && msg.reactions.length > 0 && (
-                              <div className={`absolute -bottom-3 flex gap-1 ${isMe ? 'right-0' : 'left-0'}`}>
+                              <div className={`absolute -bottom-3 flex flex-wrap gap-1 shadow-sm ${isMe ? 'right-0' : 'left-0'}`}>
                                 <ReactionBadge 
                                   reactions={msg.reactions} 
-                                  onReact={(emoji) => onReact(msg.id, emoji)}
-                                  currentUserId={currentUser.id}
+                                  users={users}
                                 />
                               </div>
                             )}
                           </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
+                      </motion.div>
+                    );
+                  })}
+                <div ref={messagesEndRef} />
               </div>
 
-              {/* Input Area */}
-              <div className="p-3 bg-white border-t border-slate-100 relative">
+              {/* 3. Input Area (Fixed at bottom) */}
+              <div className="p-4 bg-white border-t border-slate-100 relative">
+                {/* Formatting Toolbar */}
+                <div className="flex items-center gap-1.5 mb-3 px-1 overflow-x-auto no-scrollbar">
+                  <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200/50">
+                    <button onClick={() => execCommand('bold')} className="w-8 h-8 flex items-center justify-center hover:bg-white hover:shadow-sm rounded-md text-[13px] font-black transition-all" title="In đậm">B</button>
+                    <button onClick={() => execCommand('italic')} className="w-8 h-8 flex items-center justify-center hover:bg-white hover:shadow-sm rounded-md text-[13px] italic font-serif transition-all" title="Nghiêng">I</button>
+                    <button onClick={() => execCommand('underline')} className="w-8 h-8 flex items-center justify-center hover:bg-white hover:shadow-sm rounded-md text-[13px] underline transition-all" title="Gạch chân">U</button>
+                  </div>
+                  
+                  <div className="w-[1px] h-4 bg-slate-200 mx-1" />
+                  
+                  <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200/50">
+                    <select 
+                      defaultValue="4"
+                      onChange={(e) => execCommand('fontSize', e.target.value)}
+                      className="text-[10px] bg-transparent border-0 px-2 py-1 font-black focus:ring-0 cursor-pointer"
+                    >
+                      <option value="2">XS</option>
+                      <option value="3">S</option>
+                      <option value="4">M</option>
+                      <option value="5">L</option>
+                      <option value="6">XL</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200/50">
+                    <input 
+                      type="color" 
+                      onChange={(e) => execCommand('foreColor', e.target.value)}
+                      className="w-4 h-4 p-0 border-0 bg-transparent cursor-pointer rounded-full overflow-hidden"
+                      title="Màu chữ"
+                    />
+                  </div>
+                </div>
+
                 {activeTopic.status === 'CLOSED' ? (
-                  <div className="flex items-center justify-center gap-2 py-3 bg-slate-50 text-slate-400 rounded-lg border border-slate-100 border-dashed">
-                     <Lock size={14} />
-                     <p className="text-[11px] font-black uppercase tracking-widest italic">CHỦ ĐỀ ĐÃ ĐÓNG • CHỈ XEM</p>
+                  <div className="flex items-center justify-center gap-3 py-4 bg-slate-50 text-slate-400 rounded-2xl border border-slate-200 border-dashed">
+                     <Lock size={16} />
+                     <p className="text-[12px] font-black uppercase tracking-[0.2em] italic">CHỦ ĐỀ ĐÃ ĐÓNG • CHẾ ĐỘ CHỈ XEM</p>
                   </div>
                 ) : (
                   <>
                     {pendingAttachments.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mb-2 p-1.5 bg-slate-50 rounded-lg">
+                      <div className="flex flex-wrap gap-2 mb-3 p-2 bg-slate-50 rounded-xl border border-slate-100 shadow-inner">
                          {pendingAttachments.map((f, i) => (
-                           <div key={i} className="relative group w-14 h-14 bg-white rounded-lg border border-slate-200 overflow-hidden">
+                           <div key={i} className="relative group w-16 h-16 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm transition-transform hover:scale-105">
                              {f.type === 'image' ? (
                                <img src={f.url} className="w-full h-full object-cover" />
                              ) : (
-                               <div className="w-full h-full flex flex-col items-center justify-center p-1">
-                                  <FileText size={14} className="text-blue-500" />
-                                  <p className="text-[7px] font-black truncate w-full text-center mt-1 uppercase">{f.name}</p>
+                               <div className="w-full h-full flex flex-col items-center justify-center p-1.5">
+                                  <FileText size={16} className="text-blue-500 mb-1" />
+                                  <p className="text-[8px] font-black truncate w-full text-center uppercase leading-none">{f.name}</p>
                                </div>
                              )}
                              <button 
                               onClick={() => setPendingAttachments(prev => prev.filter((_, idx) => idx !== i))}
-                              className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center"
+                              className="absolute top-1 right-1 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-md active:scale-90"
                              >
-                               <X size={10} />
+                               <X size={12} strokeWidth={3} />
                              </button>
                            </div>
                          ))}
                       </div>
                     )}
 
-                    <div className="relative flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 shadow-inner">
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button 
-                          onClick={() => imageInputRef.current?.click()}
-                          className="w-11 h-11 text-slate-400 rounded-lg flex items-center justify-center hover:bg-white hover:text-blue-600 hover:shadow-sm transition-all"
-                        >
-                          <ImageIcon size={22} />
-                        </button>
-                        <button 
-                          onClick={() => fileInputRef.current?.click()}
-                          className="w-11 h-11 text-slate-400 rounded-lg flex items-center justify-center hover:bg-white hover:text-blue-600 hover:shadow-sm transition-all"
-                        >
-                          <Paperclip size={22} />
-                        </button>
-                      </div>
-
-                      <textarea 
-                        ref={inputRef}
-                        className="flex-1 bg-transparent border-0 py-3 px-2 text-[14px] outline-none focus:ring-0 transition-all resize-none h-11 max-h-32 font-bold text-slate-800 custom-scrollbar placeholder:text-slate-400"
-                        placeholder={`Nhập nội dung thảo luận...`}
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        onPaste={handlePaste}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSend();
-                          }
-                        }}
-                      />
-
-                      <button 
-                        onClick={handleSend}
-                        disabled={isUploading || (!newMessage.trim() && pendingAttachments.length === 0)}
-                        className="w-11 h-11 bg-[#132d6b] hover:bg-blue-700 text-white rounded-lg flex items-center justify-center transition-all disabled:opacity-20 hover:scale-105 active:scale-95 shadow-md shadow-blue-900/10"
-                      >
-                        <div translate="no" className="notranslate flex items-center justify-center">
-                          <Send size={20} className="ml-0.5" strokeWidth={2.5} />
+                      <div className="relative flex items-end gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-inner group focus-within:border-blue-300 focus-within:ring-4 ring-blue-50 transition-all duration-300">
+                        <div className="flex items-center gap-1 shrink-0 mb-0.5">
+                          <button 
+                            onClick={() => imageInputRef.current?.click()}
+                            className="w-12 h-12 text-slate-400 rounded-xl flex items-center justify-center hover:bg-white hover:text-blue-600 hover:shadow-md transition-all active:scale-95"
+                            title="Đính kèm ảnh"
+                          >
+                            <ImageIcon size={24} />
+                          </button>
+                          <button 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-12 h-12 text-slate-400 rounded-xl flex items-center justify-center hover:bg-white hover:text-blue-600 hover:shadow-md transition-all active:scale-95"
+                            title="Đính kèm tệp"
+                          >
+                            <Paperclip size={24} />
+                          </button>
                         </div>
-                      </button>
+
+                        <div 
+                          contentEditable
+                          ref={inputRef}
+                          className="flex-1 bg-transparent border-0 py-3.5 px-3 text-[16px] outline-none focus:ring-0 transition-all min-h-[48px] max-h-60 overflow-y-auto font-medium text-slate-800 custom-scrollbar empty:before:content-[attr(placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none"
+                          placeholder="Nhập nội dung thảo luận mới..."
+                          onInput={() => setHasContent(!!inputRef.current?.innerText.trim())}
+                          onPaste={handlePaste}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSend();
+                            }
+                          }}
+                        />
+
+                        <button 
+                         onClick={handleSend}
+                         disabled={isUploading || (!hasContent && pendingAttachments.length === 0)}
+                         className="w-12 h-12 bg-[#132d6b] hover:bg-blue-800 text-white rounded-xl flex items-center justify-center transition-all disabled:opacity-20 hover:scale-105 hover:rotate-3 active:scale-90 shadow-xl shadow-blue-900/20 mb-0.5"
+                       >
+                         <Send size={22} className="ml-0.5" strokeWidth={2.5} />
+                       </button>
                     </div>
                   </>
                 )}

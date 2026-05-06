@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { User, Task, PrivateMessage, DiscussionMessage, TaskComment } from '../types';
 
 interface Notification {
@@ -57,58 +57,123 @@ export const useAppNotifications = (
       return;
     }
 
-    // Task requests logic
-    if (effectiveUser && (effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canApproveTask)) {
-      setUnreadNotifications((prev) =>
-        prev.filter((n) => {
-          if (n.type === "approve_ht" || n.type === "approve_delete") {
-            const t = tasks.find((task) => task.id === n.taskId);
-            if (!t || t.deletedAt) return false;
-            if (n.type === "approve_ht" && t.status !== "PENDING_APPROVAL") return false;
-            if (n.type === "approve_delete" && !t.requestDelete) return false;
-          }
-          return true;
-        })
-      );
+    // Logic thông báo
+    setUnreadNotifications((prev) => {
+      let changed = false;
+      const next = prev.filter((n) => {
+        if (n.type === "approve_ht" || n.type === "approve_delete") {
+          const t = tasks.find((task) => task.id === n.taskId);
+          if (!t || t.deletedAt) return false;
+          if (n.type === "approve_ht" && t.status !== "PENDING_APPROVAL") return false;
+          if (n.type === "approve_delete" && !t.requestDelete) return false;
+        }
+        return true;
+      });
 
-      tasks.forEach((t) => {
-        const reqKey = `${t.id}-${t.status === "PENDING_APPROVAL" ? "HT" : ""}-${t.requestDelete ? "XOA" : ""}`;
-        if ((t.status === "PENDING_APPROVAL" || t.requestDelete) && !t.deletedAt && !knownRequests.current.has(reqKey)) {
-          setUnreadNotifications((prev) => {
+      if (next.length !== prev.length) changed = true;
+
+      // 2. Thông báo yêu cầu duyệt (Admin/Người có quyền)
+      if (effectiveUser && (effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canApproveTask)) {
+        tasks.forEach((t) => {
+          const reqKey = `${t.id}-${t.status === "PENDING_APPROVAL" ? "HT" : ""}-${t.requestDelete ? "XOA" : ""}`;
+          if ((t.status === "PENDING_APPROVAL" || t.requestDelete) && !t.deletedAt && !knownRequests.current.has(reqKey)) {
             const type = t.status === "PENDING_APPROVAL" ? "approve_ht" : "approve_delete";
-            const exists = prev.find((n) => n.taskId === t.id && n.type === type);
-            if (exists) return prev;
-            return [
-              ...prev,
-              {
+            const exists = next.find((n) => n.taskId === t.id && n.type === type);
+            if (!exists) {
+              next.push({
                 type,
                 taskId: t.id,
                 taskTitle: `[${t.code}] ${t.title}`,
                 msg: t.status === "PENDING_APPROVAL" ? "Yêu cầu chốt hoàn thành" : "Yêu cầu xóa công việc",
-              },
-            ];
-          });
-          knownRequests.current.add(reqKey);
+              });
+              changed = true;
+              // We'll mark it as known outside the state updater to be safe
+            }
+          }
+        });
+      }
+
+      // 3. Tin nhắn trực tiếp mới
+      if (privateMessages.length > 0) {
+        const lastMsg = privateMessages[privateMessages.length - 1];
+        if (lastMsg.id !== lastPrivateMsgId.current) {
+          if (lastMsg.senderId !== effectiveUser.id && showDirectChatId !== lastMsg.senderId) {
+            const exists = next.find(n => n.type === 'direct' && n.senderId === lastMsg.senderId);
+            if (!exists) {
+              next.push({
+                type: 'direct',
+                senderId: lastMsg.senderId,
+                senderName: 'Bạn có tin nhắn mới',
+                msg: lastMsg.content.substring(0, 50) + (lastMsg.content.length > 50 ? '...' : '')
+              });
+              changed = true;
+            }
+          }
+        }
+      }
+
+      // 4. Bình luận công việc mới
+      tasks.forEach(t => {
+        if (t.comments && t.comments.length > 0) {
+          const lastComment = t.comments[t.comments.length - 1];
+          if (lastComment.id !== lastTaskCommentId.current[t.id]) {
+            if (lastComment.authorId !== effectiveUser.id && showChatModalId !== t.id) {
+              const exists = next.find(n => n.type === 'task' && n.taskId === t.id);
+              if (!exists) {
+                next.push({
+                  type: 'task',
+                  taskId: t.id,
+                  taskTitle: `[${t.code}] ${t.title}`,
+                  msg: 'Có bình luận mới'
+                });
+                changed = true;
+              }
+            }
+          }
         }
       });
+
+      return changed ? next : prev;
+    });
+
+    // Update refs outside the state updater
+    if (privateMessages.length > 0) {
+      lastPrivateMsgId.current = privateMessages[privateMessages.length - 1].id;
     }
-  }, [privateMessages, tasks, effectiveUser, authReady, firebaseLoading]);
+    tasks.forEach(t => {
+      const reqKey = `${t.id}-${t.status === "PENDING_APPROVAL" ? "HT" : ""}-${t.requestDelete ? "XOA" : ""}`;
+      if (t.status === "PENDING_APPROVAL" || t.requestDelete) {
+        knownRequests.current.add(reqKey);
+      }
+      if (t.comments && t.comments.length > 0) {
+        lastTaskCommentId.current[t.id] = t.comments[t.comments.length - 1].id;
+      }
+    });
+
+  }, [tasks, privateMessages, effectiveUser?.id, effectiveUser?.role, authReady, firebaseLoading]);
 
   // Clean up notifications when viewed
   useEffect(() => {
     if (unreadNotifications.length === 0) return;
-    setUnreadNotifications((prev) =>
-      prev.filter((notif) => {
+    setUnreadNotifications((prev) => {
+      const filtered = prev.filter((notif) => {
         if (notif.type === "direct" && showDirectChatId && notif.senderId === showDirectChatId) return false;
         if (notif.type === "task" && showChatModalId === notif.taskId) return false;
         return true;
-      })
-    );
-  }, [showDirectChatId, activeTab, showChatModalId, unreadNotifications.length]);
+      });
+      if (filtered.length === prev.length) return prev;
+      return filtered;
+    });
+  }, [showDirectChatId, activeTab, showChatModalId]);
 
-  const markAsRead = (chatId: string) => {
-    setLastReadChatTimestamps(prev => ({ ...prev, [chatId]: Date.now() }));
-  };
+  const markAsRead = useCallback((chatId: string) => {
+    setLastReadChatTimestamps(prev => {
+      const now = Date.now();
+      // Only update if the timestamp is actually newer to prevent idle updates
+      if (prev[chatId] && now - prev[chatId] < 1000) return prev; 
+      return { ...prev, [chatId]: now };
+    });
+  }, []);
 
   return {
     unreadNotifications,

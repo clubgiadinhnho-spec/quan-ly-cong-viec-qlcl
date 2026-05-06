@@ -70,24 +70,11 @@ export default function App() {
   const { allStaff, loading: staffLoading, updateProfile, deleteProfile } = useStaff();
   const allUsers = allStaff;
 
-  // 2. Notifications & Unread Counts Hook
-  const { unreadNotifications, setUnreadNotifications, lastReadChatTimestamps, markAsRead } = useAppNotifications(
-    simulatedUser || currentUser, authReady, firebaseLoading, tasks, privateMessages, generalMessages, discussionMessages,
-    showDirectChat?.id || null, activeTab, showChatModal
-  );
-
-  // 3. Excel Handlers Hook
-  const { handleExportExcel, handleImportExcel } = useExcelHandlers({
-    currentUser: simulatedUser || currentUser, tasks, allUsers, firebaseAddTask, setConfirmModal
-  });
-
-  // 4. Effective User Memo
+  // 2. Effective User Memo
   const effectiveUser = useMemo(() => {
     const rawUser = simulatedUser || currentUser;
     if (!rawUser) return null;
     
-    // Always find the freshest version of the user from allUsers (which includes Firestore overrides)
-    // We match by uniqueKey first, then emails, then ID
     const latestUser = allUsers.find(u => 
       (u.uniqueKey && u.uniqueKey === rawUser.uniqueKey) || 
       (u.personalEmail && u.personalEmail === rawUser.personalEmail) ||
@@ -108,16 +95,15 @@ export default function App() {
     const isSystemAdmin = systemAdmins.includes(userEmail);
     const finalUser = isSystemAdmin ? { ...latestUser, role: "Admin" as any } : latestUser;
     
-    if (finalUser.password) {
-      console.log(`👤 [App] Effective User: ${finalUser.name} (${finalUser.uniqueKey}), Role: ${finalUser.role}, HasPassword: YES (${finalUser.password})`);
-    } else {
-      console.log(`👤 [App] Effective User: ${finalUser.name} (${finalUser.uniqueKey}), Role: ${finalUser.role}, HasPassword: NO (Fallback)`);
-    }
-    
     return finalUser;
   }, [simulatedUser, currentUser, allUsers]);
 
-  // 5. Task Actions Hook
+  // 3. Excel Handlers Hook
+  const { handleExportExcel, handleImportExcel } = useExcelHandlers({
+    currentUser: effectiveUser, tasks, allUsers, firebaseAddTask, setConfirmModal
+  });
+
+  // 4. Task Actions Hook
   const { addTask: baseAddTask, updateTask, addTaskComment, updateTaskCommentReactions } = useTaskActions({
     tasks, 
     currentUser: effectiveUser, 
@@ -127,6 +113,12 @@ export default function App() {
     firebaseDeleteTask, 
     firebaseSendPrivateMsg
   });
+
+  // 6. Notifications & Unread Counts Hook
+  const { unreadNotifications, setUnreadNotifications, lastReadChatTimestamps, markAsRead } = useAppNotifications(
+    effectiveUser, authReady, firebaseLoading, tasks, privateMessages, generalMessages, discussionMessages,
+    showDirectChat?.id || null, activeTab, showChatModal
+  );
 
   const handleJumpToTask = useCallback((taskId: string) => {
     setHighlightedTaskId(taskId);
@@ -369,15 +361,16 @@ export default function App() {
   if (!currentUser) return <Login users={allUsers} onLogin={setCurrentUser} onAddStaff={(u) => updateProfile(u.uniqueKey, u)} />;
 
   return (
-    <div className="flex min-h-screen bg-[#F9FAFB]">
+    <div className="flex h-screen bg-[#F9FAFB] overflow-hidden">
       <Sidebar
         user={effectiveUser} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout}
         pendingTasksCount={counts.pending} activeTasksCount={counts.active} completedTasksCount={counts.completed}
         totalStaffCount={allUsers.length} groupUnreadCount={groupUnreadCount} trashTasksCount={counts.trash}
         isCollapsed={isMainSidebarCollapsed} onToggleCollapse={() => setIsMainSidebarCollapsed(!isMainSidebarCollapsed)}
       />
-      <main className="flex-1 overflow-y-auto relative py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <main className={`flex-1 relative flex flex-col ${activeTab === 'group_chat' ? 'p-0' : 'py-6 overflow-y-auto'}`}>
+        <div className={`flex-1 ${activeTab === 'group_chat' ? 'h-full w-full' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'}`}>
+
           {simulatedUser && <div className="sticky top-0 z-[60] bg-amber-500 text-white px-6 py-2 flex justify-between shadow-lg"><span>GIẢ LẬP: {simulatedUser.name}</span><button onClick={() => setSimulatedUser(null)}>Thoát</button></div>}
           <MainContent
             activeTab={activeTab} effectiveUser={effectiveUser!} currentUser={currentUser} presence={presence} allUsers={allUsers}

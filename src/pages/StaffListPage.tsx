@@ -207,6 +207,13 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
           
           // Convert to JPEG with quality 0.8 to keep size small (~20-50KB)
           const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          
+          // GIỚI HẠN CỨNG: Đảm bảo không làm treo Firestore
+          if (dataUrl.length > 800 * 1024) {
+            alert("Ảnh đại diện quá lớn ngay cả khi nén. Vui lòng chọn ảnh khác.");
+            return;
+          }
+          
           setFormData(prev => ({ ...prev, avatar: dataUrl }));
         };
         img.src = event.target?.result as string;

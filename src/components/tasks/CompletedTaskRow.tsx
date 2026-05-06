@@ -32,7 +32,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
   const assigneeName = getTaskAssigneeName(task, users);
   const assignee = getUserById(assigneeName, users) || getUserById(task.assigneeId, users);
   const isOwner = isUserTask(task, user);
-  const isManager = user.role === 'Admin' || user.role === 'Leader';
+  const isManager = user.role === 'Admin';
 
   const [lastReadCount, setLastReadCount] = React.useState(task.comments?.length || 0);
 

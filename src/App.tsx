@@ -267,7 +267,7 @@ export default function App() {
   // Derived counts for sidebar
   const counts = useMemo(() => {
     const nonDeleted = tasks.filter(t => !t.deletedAt);
-    const isManager = effectiveUser?.role === "Admin" || effectiveUser?.role === "Leader" || !!effectiveUser?.delegatedPermissions?.canApproveTask;
+    const isManager = effectiveUser?.role === "Admin" || !!effectiveUser?.delegatedPermissions?.canApproveTask;
     
     // Tasks awaiting confirmation (for managers or author)
     const pending = nonDeleted.filter(t => t.status === "AWAITING_CONFIRMATION" && (isManager || t.authorId === effectiveUser?.id));
@@ -353,6 +353,13 @@ export default function App() {
       }
     });
   }, [deleteTasksBulk]);
+
+  // 7. Mark as read when entering tabs or new messages arrive while in tab
+  useEffect(() => {
+    if (activeTab === "group_chat") {
+      markAsRead("group_chat");
+    }
+  }, [activeTab, markAsRead, discussionMessages.length]);
 
   if (!authReady || staffLoading) return (
     <div className="min-h-screen flex items-center justify-center font-black text-blue-600 uppercase bg-white animate-pulse">

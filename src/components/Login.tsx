@@ -366,20 +366,32 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                    <span translate="no" className="notranslate">Chức danh</span>
+                    <span translate="no" className="notranslate">Vai trò hệ thống</span>
                   </label>
                   <select
                     value={newRole}
                     onChange={(e) => {
                       const val = e.target.value as any;
                       setNewRole(val);
-                      setNewTitle(val === 'Leader' ? 'Trưởng nhóm' : (val === 'Admin' ? 'Quản trị viên' : 'Nhân viên'));
+                      if (!newTitle || newTitle === 'Nhân viên' || newTitle === 'Trưởng nhóm' || newTitle === 'Quản trị viên') {
+                        setNewTitle(val === 'Leader' ? 'Trưởng nhóm' : (val === 'Admin' ? 'Quản trị viên' : 'Nhân viên'));
+                      }
                     }}
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-bold"
                   >
-                    <option value="Staff">Nhân viên</option>
-                    <option value="Leader">Trưởng nhóm</option>
+                    <option value="Staff">Nhân viên (Staff)</option>
+                    <option value="Leader">Trưởng nhóm/Phòng (Leader)</option>
                   </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <span translate="no" className="notranslate">Chức danh cụ thể</span>
+                  </label>
+                  <input
+                    type="text" required value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-medium"
+                    placeholder="VD: Trưởng phòng QC, Chuyên viên..."
+                  />
                 </div>
               </>
             )}

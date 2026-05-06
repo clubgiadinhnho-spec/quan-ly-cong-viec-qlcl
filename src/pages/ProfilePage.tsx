@@ -148,7 +148,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
     const normName = user.name.trim();
     const title = getDisplayNameTitle(user);
     if (normName === 'Lê Nhật Trường' || normName === 'Quản Trị Viên' || title === 'ADMIN') return 'bg-[#eff6ff]';
-    if (title.includes('TRƯỞNG NHÓM') || user.role === 'Leader') return 'bg-[#fff7ed]';
+    if (title.includes('TRƯỞNG') || user.role === 'Leader') return 'bg-[#fff7ed]';
     return 'bg-[#f0fdf4]';
   };
 
@@ -295,6 +295,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                       >
                         <option value="Nhân viên">Nhân viên</option>
                         <option value="Trưởng nhóm">Trưởng nhóm</option>
+                        <option value="Trưởng phòng">Trưởng phòng</option>
                         <option value="Quản trị viên">Quản trị viên</option>
                         <option value="Chuyên viên QC">Chuyên viên QC</option>
                       </select>

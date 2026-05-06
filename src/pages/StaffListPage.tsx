@@ -41,7 +41,7 @@ const getRoleBgColor = (user: User) => {
   // Admin & Lê Nhật Trường -> Đỏ
   if (normName === 'Lê Nhật Trường' || normName === 'Quản Trị Viên' || title === 'ADMIN') return 'bg-[#FF3B30]'; 
   // Leader -> Cam
-  if (title.includes('TRƯỞNG NHÓM') || user.role === 'Leader') return 'bg-[#FF9500]'; 
+  if (title.includes('TRƯỞNG') || user.role === 'Leader') return 'bg-[#FF9500]'; 
   // Staff -> Xanh lá
   return 'bg-[#00C16E]'; 
 };

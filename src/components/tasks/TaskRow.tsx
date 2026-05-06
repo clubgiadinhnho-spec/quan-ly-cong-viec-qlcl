@@ -51,13 +51,12 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   const isOwner = isUserTask(task, user);
   const isAdmin = user.role === 'Admin';
-  const isTeamLeader = user.role === 'Leader';
   const canApprove = isAdmin || !!user.delegatedPermissions?.canApproveTask;
   const canDelete = isAdmin || !!user.delegatedPermissions?.canDeleteTask;
-  const isManager = isAdmin || isTeamLeader || !!user.delegatedPermissions?.canCreateTask;
+  const isManager = isAdmin || !!user.delegatedPermissions?.canCreateTask;
   const isEmployee = user.role === 'Staff';
   
-  const canEditPriority = isAdmin || isTeamLeader;
+  const canEditPriority = isAdmin;
   const [lastReadCount, setLastReadCount] = React.useState(task.comments?.length || 0);
 
   // When chat opens, update last read count to current number of comments
@@ -259,7 +258,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 <div className="relative mt-1" onClick={(e) => e.stopPropagation()}>
                   <button 
                     onClick={() => onOpenChat(isChatOpen ? '' : task.id)}
-                    className={`p-1 px-2 rounded-md transition-all w-fit flex items-center gap-1.5 border ${
+                    className={`relative p-1 px-2 rounded-md transition-all w-fit flex items-center gap-1.5 border ${
                       isChatOpen 
                         ? 'text-blue-700 bg-blue-100 shadow-inner border-blue-200' 
                         : showBadge
@@ -272,7 +271,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                     <MessageSquare size={14} fill={showBadge ? "white" : (task.comments?.length || 0) > 0 ? "rgba(220, 38, 38, 0.1)" : "none"} />
                     <span translate="no" className="notranslate text-[10px] font-black tracking-tight uppercase">CHAT</span>
                     {showBadge && (
-                      <span className="flex items-center justify-center min-w-[16px] h-[16px] px-1 bg-white text-red-600 text-[9px] font-black rounded-full shadow-sm animate-bounce border border-red-100">
+                      <span className="absolute -top-2 -right-2 flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-white text-red-600 text-[10px] font-black rounded-full shadow-lg animate-bounce border-2 border-red-600 z-20">
                         {unreadCount}
                       </span>
                     )}

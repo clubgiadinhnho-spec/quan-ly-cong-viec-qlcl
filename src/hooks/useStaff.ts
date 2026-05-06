@@ -78,36 +78,18 @@ export const useStaff = () => {
 
       let unsubSnapshot: () => void;
 
-      if (isAdmin) {
-        console.log("👑 [useStaff] Admin detected. Syncing ALL profiles real-time.");
-        unsubSnapshot = onSnapshot(collection(db, 'user_profiles'), (snapshot) => {
-          const p: Record<string, User> = {};
-          snapshot.docs.forEach(doc => {
-            p[doc.id] = { ...doc.data(), id: doc.id } as User;
-          });
-          setFirestoreProfiles(p);
-          setLoading(false);
-        }, (err) => {
-          console.error("❌ [useStaff] Admin snapshot error:", err);
-          setLoading(false);
+      // ALL users can see all profiles to allow assigning tasks and seeing staff names
+      unsubSnapshot = onSnapshot(collection(db, 'user_profiles'), (snapshot) => {
+        const p: Record<string, User> = {};
+        snapshot.docs.forEach(doc => {
+          p[doc.id] = { ...doc.data(), id: doc.id } as User;
         });
-      } else if (staffMember) {
-        const myKey = staffMember.uniqueKey;
-        console.log(`👤 [useStaff] User detected: ${staffMember.name}. Syncing profile: ${myKey}`);
-        unsubSnapshot = onSnapshot(doc(db, 'user_profiles', myKey), (docSnap) => {
-          if (docSnap.exists()) {
-            setFirestoreProfiles({ [myKey]: { ...docSnap.data(), id: docSnap.id } as User });
-          } else {
-            console.warn(`⚠️ [useStaff] No Firestore document found for key: ${myKey}`);
-          }
-          setLoading(false);
-        }, (err) => {
-          console.error("❌ [useStaff] User snapshot error:", err);
-          setLoading(false);
-        });
-      } else {
+        setFirestoreProfiles(p);
         setLoading(false);
-      }
+      }, (err) => {
+        console.error("❌ [useStaff] Snapshot error:", err);
+        setLoading(false);
+      });
 
       return () => {
         if (unsubSnapshot) unsubSnapshot();

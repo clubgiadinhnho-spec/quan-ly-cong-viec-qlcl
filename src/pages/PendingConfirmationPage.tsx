@@ -33,7 +33,7 @@ export const PendingConfirmationPage = ({
   setConfirmModal
 }: PendingConfirmationPageProps) => {
   const pendingTasks = tasks.filter(t => t.status === 'AWAITING_CONFIRMATION');
-  const isManager = currentUser.role === 'Admin' || currentUser.role === 'Leader' || !!currentUser.delegatedPermissions?.canApproveTask;
+  const isManager = currentUser.role === 'Admin' || !!currentUser.delegatedPermissions?.canApproveTask;
 
   // For non-managers, only show their own pending tasks
   const visibleTasks = isManager 

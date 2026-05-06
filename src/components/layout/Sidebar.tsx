@@ -39,7 +39,7 @@ export const Sidebar = ({
     return localStorage.getItem('qlcl_sidebar_color') || 'white';
   });
 
-  const isManager = user.role === 'Admin' || user.role === 'Leader' || !!user.delegatedPermissions?.canApproveTask;
+  const isManager = user.role === 'Admin' || !!user.delegatedPermissions?.canApproveTask;
 
   useEffect(() => {
     localStorage.setItem('qlcl_sidebar_color', sidebarColor);
@@ -66,7 +66,7 @@ export const Sidebar = ({
       initial={false}
       animate={{ width: isCollapsed ? 84 : 288 }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      className={`${currentColor.bg} border-r border-gray-200 flex flex-col h-screen sticky top-0 z-[100] transition-colors duration-500 shadow-xl overflow-hidden`}
+      className={`${currentColor.bg} border-r border-gray-200 flex flex-col h-screen sticky top-0 z-[100] transition-colors duration-500 shadow-xl`}
     >
       {/* Toggle Button Inside Sidebar Top */}
       <button 
@@ -104,7 +104,7 @@ export const Sidebar = ({
             { id: 'tasks', label: <span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>, icon: ClipboardList, count: activeTasksCount, color: 'bg-blue-500 text-white shadow-blue-100' },
             { id: 'pending_confirmation', label: <span translate="no" className="notranslate"> ĐỀ XUẤT MỚI</span>, icon: Sparkles, count: pendingTasksCount, color: 'bg-emerald-500 text-white shadow-emerald-200', isAlert: true, isSubItem: true },
             { id: 'completed_tasks', label: <span translate="no" className="notranslate">CÔNG VIỆC HOÀN THÀNH</span>, icon: CheckCircle2, count: completedTasksCount, color: 'bg-indigo-500 text-white shadow-indigo-100', isSubItem: true },
-            ...((user.role === 'Admin' || user.role === 'Leader' || user.delegatedPermissions?.canManageStaff)
+            ...((user.role === 'Admin')
               ? [{ id: 'staff_list', label: <span translate="no" className="notranslate">QUẢN LÝ NHÂN SỰ</span>, icon: Users, count: totalStaffCount, color: 'bg-amber-500 text-white shadow-amber-100' }] 
               : []),
             { id: 'profile', label: <span translate="no" className="notranslate">TRANG CÁ NHÂN</span>, icon: UserIcon },
@@ -155,13 +155,17 @@ export const Sidebar = ({
                  <GroupChatIcon className="w-5 h-5 text-white" />
               </div>
               {isCollapsed && groupUnreadCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-rose-500 text-white text-[10px] font-black min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center border-2 border-white shadow-md animate-bounce z-10">
-                  {groupUnreadCount}
-                </span>
+                <motion.span 
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  className="absolute -top-2 -right-2 bg-rose-600 text-white text-[10px] font-black min-w-[22px] h-[22px] px-1 rounded-full flex items-center justify-center border-2 border-white shadow-lg shadow-rose-200 animate-bounce z-[150]"
+                >
+                  {groupUnreadCount > 99 ? '99+' : groupUnreadCount}
+                </motion.span>
               )}
             </div>
             {!isCollapsed && (
-              <div className="flex-1 min-w-0 text-left flex items-center justify-between gap-1 overflow-hidden">
+              <div className="flex-1 min-w-0 text-left flex items-center justify-between gap-1">
                 <div className="min-w-0">
                   <p className={`text-[12px] font-black uppercase truncate transition-colors ${activeTab === 'group_chat' ? (isDark ? 'text-white' : 'text-rose-600') : (isDark ? 'text-white/80 group-hover:text-white' : 'text-gray-700 group-hover:text-rose-600')}`}>
                     <span translate="no" className="notranslate">Room Thảo Luận</span>
@@ -171,12 +175,16 @@ export const Sidebar = ({
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-none">
-                  <div className="relative group-hover:scale-110 transition-transform">
-                    <GroupDiscussionIcon className={`w-8 h-8 ${activeTab === 'group_chat' ? (isDark ? 'text-white' : 'text-rose-600') : (isDark ? 'text-white/40 group-hover:text-white/60' : 'text-gray-400 opacity-60 group-hover:opacity-100')} transition-all`} />
+                  <div className="relative group-hover:scale-105 transition-transform">
+                    <GroupDiscussionIcon className={`w-10 h-10 ${activeTab === 'group_chat' ? (isDark ? 'text-white' : 'text-rose-600') : (isDark ? 'text-white/40 group-hover:text-white/60' : 'text-gray-400 opacity-60 group-hover:opacity-100')} transition-all`} />
                     {groupUnreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-black min-w-[20px] h-[20px] px-1 rounded-full flex items-center justify-center border-2 border-white shadow-md animate-bounce z-10">
-                        {groupUnreadCount}
-                      </span>
+                      <motion.span 
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="absolute -top-2 -right-2 bg-rose-600 text-white text-[10px] font-black min-w-[22px] h-[22px] px-1.5 rounded-full flex items-center justify-center border-2 border-white shadow-lg shadow-rose-200 animate-bounce z-[150]"
+                      >
+                        {groupUnreadCount > 99 ? '99+' : groupUnreadCount}
+                      </motion.span>
                     )}
                   </div>
                 </div>

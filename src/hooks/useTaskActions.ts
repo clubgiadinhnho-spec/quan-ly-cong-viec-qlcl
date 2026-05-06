@@ -40,7 +40,7 @@ export const useTaskActions = ({
       });
     }
 
-    const isManagement = currentUser?.role === 'Admin' || currentUser?.role === 'Leader' || !!currentUser?.delegatedPermissions?.canCreateTask;
+    const isManagement = currentUser?.role === 'Admin' || !!currentUser?.delegatedPermissions?.canCreateTask;
 
     const newTask: Omit<Task, 'id'> = {
       code: `C${String(lastNum + 1).padStart(4, '0')}`,

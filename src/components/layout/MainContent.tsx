@@ -408,7 +408,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
         </motion.div>
       )}
 
-      {activeTab === "staff_list" && (currentUser?.role === "Admin" || effectiveUser?.role === "Admin" || currentUser?.delegatedPermissions?.canManageStaff) && (
+      {activeTab === "staff_list" && (effectiveUser?.role === "Admin") && (
         <motion.div key="staff_list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
           <HolidayBanner />
           <Header title={<span translate="no" className="notranslate">QUẢN LÝ NHÂN SỰ</span>} onlineUsers={presence} currentUserId={effectiveUser.id} />

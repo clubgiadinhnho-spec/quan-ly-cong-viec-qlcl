@@ -15,7 +15,27 @@ interface TaskModalProps {
 export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser }: TaskModalProps) => {
   const [title, setTitle] = useState(task?.title || '');
   const [objective, setObjective] = useState(task?.objective || '');
-  const [assigneeId, setAssigneeId] = useState(task?.assigneeId || currentUser.id);
+  const sortedUsers = React.useMemo(() => {
+    return [...users].sort((a, b) => {
+      // Prioritize current user
+      if (a.id === currentUser.id || a.uniqueKey === currentUser.uniqueKey) return -1;
+      if (b.id === currentUser.id || b.uniqueKey === currentUser.uniqueKey) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [users, currentUser.id, currentUser.uniqueKey]);
+
+  // Handle default assignee ID correctly
+  const [assigneeId, setAssigneeId] = useState(() => {
+    if (task?.assigneeId) return task.assigneeId;
+    
+    // Find matching user in the current users list for the logged-in user
+    const self = users.find(u => 
+      u.id === currentUser.id || 
+      u.uniqueKey === currentUser.uniqueKey
+    );
+    return self?.id || currentUser.id;
+  });
+
   const [startDate, setStartDate] = useState(task?.startDate || new Date().toISOString().split('T')[0]);
   const [expectedDate, setExpectedDate] = useState(task?.expectedEndDate || '');
   const [extensionDate, setExtensionDate] = useState(task?.extensionDate || '');
@@ -138,7 +158,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser }: 
                 onChange={(e) => setAssigneeId(e.target.value)}
               >
                 <option value="" translate="no" className="notranslate">CHỌN NHÂN SỰ</option>
-                {users.map((u) => <option key={u.id} value={u.id} className="notranslate">{u.name}</option>)}
+                {sortedUsers.map((u) => <option key={u.id} value={u.id} className="notranslate">{u.name}</option>)}
               </select>
             </div>
             <div>

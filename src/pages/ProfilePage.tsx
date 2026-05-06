@@ -200,7 +200,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                   className="h-10 px-6 rounded-xl bg-white text-slate-800 text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-50 transition-all active:scale-95 flex items-center gap-2 border border-slate-200"
                 >
                   <Edit3 size={16} strokeWidth={2.5} />
-                  <span translate="no" className="notranslate">CHỈNH SỬA / EDIT</span>
+                  <span translate="no" className="notranslate">CHỈNH SỬA</span>
                 </button>
               )}
               {isEditing && (
@@ -215,7 +215,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     ) : (
                       <Save size={16} strokeWidth={2.5} />
                     )}
-                    <span translate="no" className="notranslate">{saving ? 'ĐANG LƯU / SAVING' : 'LƯU / SAVE'}</span>
+                    <span translate="no" className="notranslate">{saving ? 'ĐANG LƯU' : 'LƯU'}</span>
                   </button>
                   <button onClick={() => setIsEditing(false)} className="h-10 px-6 bg-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-300 transition-colors">
                     HỦY
@@ -238,7 +238,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     <Camera size={28} className="text-white mb-1 drop-shadow-md" strokeWidth={2.5} />
                     {isEditing && (
                       <span translate="no" className="notranslate text-[7px] font-black text-white uppercase tracking-widest text-center px-2 leading-tight">
-                        CLICK / KÉO THẢ<br/>ẢNH VÀO ĐÂY
+                        KÉO THẢ<br/>ẢNH VÀO ĐÂY
                       </span>
                     )}
                     <input 
@@ -276,14 +276,14 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
 
               <div className="flex-1 flex flex-col justify-center">
                 <div className="grid grid-cols-12 gap-4">
-                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-3">
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-2">
                     <div className="flex items-center gap-2 mb-2 opacity-50">
                       <Shield size={12} className="text-slate-400" />
-                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">CHỨC DANH / TITLE</span>
+                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">CHỨC DANH</span>
                     </div>
                     {!isEditing ? (
                       <div className="h-5 flex items-center">
-                        <p translate="no" className={`notranslate font-black tracking-tight leading-none text-slate-900 text-sm uppercase`}>
+                        <p translate="no" className={`notranslate font-black tracking-tight leading-none text-slate-900 text-[13px] uppercase`}>
                           {user.title || 'CHƯA XÁC ĐỊNH'}
                         </p>
                       </div>
@@ -301,14 +301,14 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     )}
                   </div>
 
-                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-3">
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-2">
                     <div className="flex items-center gap-2 mb-2 opacity-50">
                       <Phone size={12} className="text-slate-400" />
-                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">ĐIỆN THOẠI / PHONE</span>
+                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">ĐIỆN THOẠI</span>
                     </div>
                     {!isEditing ? (
                       <div className="h-5 flex items-center">
-                        <p translate="no" className={`notranslate font-sans font-bold tracking-tight leading-none ${user.phone === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-900 text-[18px]'}`}>
+                        <p translate="no" className={`notranslate font-sans font-bold tracking-tight leading-none ${user.phone === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-900 text-[13px]'}`}>
                           {user.phone}
                         </p>
                       </div>
@@ -321,7 +321,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     )}
                   </div>
 
-                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-6">
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-5">
                     <div className="flex items-center gap-2 mb-2 opacity-50">
                       <Mail size={12} className="text-slate-400" />
                       <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">HỆ THỐNG EMAIL</span>
@@ -362,12 +362,12 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                   <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-3">
                     <div className="flex items-center gap-2 mb-2 opacity-50">
                       <Lock size={12} className="text-blue-500" />
-                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">{!isEditing ? 'MẬT KHẨU / PASSWORD' : 'CẬP NHẬT MẬT KHẨU'}</span>
+                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">{!isEditing ? 'MẬT KHẨU' : 'CẬP NHẬT MẬT KHẨU'}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       {!isEditing ? (
                         <div className="flex items-center justify-between w-full h-8">
-                          <p translate="no" className={`notranslate font-mono font-black leading-none ${user.password === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-900 text-[18px] tracking-[0.1em]'}`}>
+                          <p translate="no" className={`notranslate font-mono font-black leading-none ${user.password === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-900 text-[13px] tracking-[0.1em]'}`}>
                             {showPassword ? (user.password || 'CHỜ CẬP NHẬT') : '••••••••••••'}
                           </p>
                           <button onClick={() => setShowPassword(!showPassword)} className="text-slate-300 hover:text-slate-600 transition-colors">
@@ -442,7 +442,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 h-fit flex flex-col gap-6">
             <h3 translate="no" className="notranslate text-[12px] font-black text-gray-800 flex items-center gap-2 uppercase tracking-tighter">
               <MessageSquare className="text-blue-600" />
-              AI PERFORMANCE ADVISOR
+              TƯ VẤN HIỆU SUẤT AI
             </h3>
             {advice ? (
               <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 animate-in zoom-in-95 duration-300 shadow-inner">

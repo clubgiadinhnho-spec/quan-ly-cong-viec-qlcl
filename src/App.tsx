@@ -390,7 +390,16 @@ export default function App() {
           />
         </div>
       </main>
-      {(showTaskModal || editingTask) && <TaskModal onClose={() => { setShowTaskModal(false); setEditingTask(null); }} onSave={addTask} users={allUsers} task={editingTask || undefined} currentUser={effectiveUser!} />}
+      {(showTaskModal || editingTask) && (
+        <TaskModal 
+          onClose={() => { setShowTaskModal(false); setEditingTask(null); }} 
+          onSave={addTask} 
+          users={allUsers} 
+          tasks={tasks}
+          task={editingTask || undefined} 
+          currentUser={effectiveUser!} 
+        />
+      )}
       {showHistoryModal && <HistoryModal taskId={showHistoryModal} tasks={tasks} users={allUsers} onClose={() => setShowHistoryModal(null)} />}
       {showDirectChat && (
         <DirectChat 

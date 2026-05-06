@@ -71,16 +71,43 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState<User | null>(null);
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
-  const [seenUpdates, setSeenUpdates] = useState<Record<string, boolean>>({});
-  const [seenPasswordUpdates, setSeenPasswordUpdates] = useState<Record<string, boolean>>({});
+  const [seenUpdates, setSeenUpdates] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('seen_staff_updates');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+  const [seenPasswordUpdates, setSeenPasswordUpdates] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('seen_staff_pass_updates');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
 
-  const togglePassword = (id: string) => {
+  // Sync to localStorage
+  React.useEffect(() => {
+    localStorage.setItem('seen_staff_updates', JSON.stringify(seenUpdates));
+  }, [seenUpdates]);
+
+  React.useEffect(() => {
+    localStorage.setItem('seen_staff_pass_updates', JSON.stringify(seenPasswordUpdates));
+  }, [seenPasswordUpdates]);
+
+  const togglePassword = (id: string, staff?: User) => {
     setVisiblePasswords(prev => ({ ...prev, [id]: !prev[id] }));
-    setSeenPasswordUpdates(prev => ({ ...prev, [id]: true }));
+    if (staff?.updatedFieldsAt) {
+      setSeenPasswordUpdates(prev => ({ ...prev, [id]: staff.updatedFieldsAt! }));
+    }
   };
 
-  const markUpdateAsSeen = (id: string) => {
-    setSeenUpdates(prev => ({ ...prev, [id]: true }));
+  const markUpdateAsSeen = (staff: User) => {
+    if (staff.updatedFieldsAt) {
+      setSeenUpdates(prev => ({ ...prev, [staff.id]: staff.updatedFieldsAt! }));
+    }
   };
 
   const [formData, setFormData] = useState<Partial<User>>({
@@ -554,11 +581,11 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
               layout
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              onClick={() => markUpdateAsSeen(staff.id)}
+              onClick={() => markUpdateAsSeen(staff)}
               className="group relative bg-[#132d6b] rounded-[48px] shadow-[0_40px_100px_rgba(19,45,107,0.4)] transition-all duration-500 pl-4 pr-10 py-6 flex flex-row flex-nowrap gap-8 overflow-hidden border border-white/10 w-[670px] h-[340px] shrink-0 mx-auto hover:shadow-[0_50px_120px_rgba(19,45,107,0.5)] hover:-translate-y-2"
             >
               {/* Updated Badge - Top Left */}
-              {staff.updatedFieldsAt && (Date.now() - new Date(staff.updatedFieldsAt).getTime() < 86400000) && !seenUpdates[staff.id] && (
+              {staff.updatedFieldsAt && (Date.now() - new Date(staff.updatedFieldsAt).getTime() < 86400000) && seenUpdates[staff.id] !== staff.updatedFieldsAt && (
                 <div className="absolute top-8 left-8 z-50 flex items-center gap-1.5 bg-rose-600 text-white text-[8px] font-black px-3 py-1 rounded-full shadow-lg animate-bounce border border-rose-400">
                   <span className="w-1 h-1 bg-white rounded-full animate-ping" />
                   MỚI CẬP NHẬT
@@ -683,7 +710,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
 
                 {/* Security Box */}
                 <div className="bg-white rounded-full h-14 w-full max-w-[340px] px-5 flex items-center shadow-2xl relative">
-                  {staff.updatedFields?.includes('password') && staff.updatedFieldsAt && (Date.now() - new Date(staff.updatedFieldsAt).getTime() < 86400000) && !seenPasswordUpdates[staff.id] && (
+                  {staff.updatedFieldsAt && (Date.now() - new Date(staff.updatedFieldsAt).getTime() < 86400000) && seenPasswordUpdates[staff.id] !== staff.updatedFieldsAt && (
                     <div className="absolute -top-1 -right-1 bg-rose-600 text-[6px] font-black text-white px-2 py-0.5 rounded-full border border-white animate-bounce shadow-lg z-20">
                       <span translate="no" className="notranslate">MẬT KHẨU MỚI</span>
                     </div>
@@ -691,7 +718,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                   <div className="flex items-center gap-4 w-full">
                     <Lock size={18} className="text-slate-200 shrink-0" strokeWidth={2.5} />
                     <div className="flex-1 flex flex-col items-center justify-center min-w-0 px-2">
-                      <span translate="no" className="notranslate text-[7px] font-black text-slate-300 uppercase tracking-[0.3em] mb-0.5 whitespace-nowrap">BẢO MẬT HỆ THỐNG / MẬT KHẨU / PASSWORD</span>
+                      <span translate="no" className="notranslate text-[7px] font-black text-slate-300 uppercase tracking-[0.3em] mb-0.5 whitespace-nowrap">MẬT KHẨU</span>
                       <div className="flex items-center justify-center h-5">
                         <span translate="no" className={`notranslate font-mono font-black leading-none ${isVisible ? (staff.password === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-800 text-lg tracking-[0.4em]') : 'text-slate-800 text-lg tracking-[0.4em]'}`}>
                           {isVisible ? (staff.password || 'CHỜ CẬP NHẬT') : '•••••'}
@@ -699,7 +726,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                       </div>
                     </div>
                     <button 
-                      onClick={() => togglePassword(staff.id)}
+                      onClick={() => togglePassword(staff.id, staff)}
                       className="text-slate-200 hover:text-blue-600 transition-colors p-1.5 shrink-0"
                     >
                       {isVisible ? <EyeOff size={20} /> : <Eye size={20} />}

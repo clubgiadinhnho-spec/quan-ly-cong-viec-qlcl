@@ -22,17 +22,17 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
         <div className="absolute right-[-10px] top-[-10px] opacity-10 transition-transform group-hover:scale-110 text-white">
           <Activity size={70} />
         </div>
-        <div className="flex items-center justify-between relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/20 rounded-lg text-white group-hover:scale-110 transition-transform">
+        <div className="flex items-center justify-between relative z-10 gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 bg-white/20 rounded-lg text-white group-hover:scale-110 transition-transform shrink-0">
               <Activity size={18} strokeWidth={2.5} />
             </div>
-            <div>
-              <p className="text-[10px] text-white font-black uppercase tracking-widest">TỔNG DỰ ÁN</p>
-              <p className="text-[9px] text-amber-100 font-bold uppercase opacity-80 leading-none mt-0.5">Đang quản lý</p>
+            <div className="min-w-0">
+              <p className="text-[10px] text-white font-black uppercase tracking-widest whitespace-nowrap">TỔNG DỰ ÁN</p>
+              <p className="text-[9px] text-amber-100 font-bold uppercase opacity-80 leading-none mt-0.5 whitespace-nowrap">Đang quản lý</p>
             </div>
           </div>
-          <p className="text-3xl font-black text-white leading-none">{totalCount}</p>
+          <p className="text-3xl font-black text-white leading-none shrink-0">{totalCount}</p>
         </div>
       </div>
 
@@ -40,17 +40,17 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
         <div className="absolute right-[-10px] top-[-10px] opacity-10 transition-transform group-hover:scale-110 text-white">
           <Shield size={70} />
         </div>
-        <div className="flex items-center justify-between relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/20 rounded-lg text-white group-hover:scale-110 transition-transform">
+        <div className="flex items-center justify-between relative z-10 gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 bg-white/20 rounded-lg text-white group-hover:scale-110 transition-transform shrink-0">
               <Shield size={18} strokeWidth={2.5} />
             </div>
-            <div>
-              <p className="text-[10px] text-white font-black uppercase tracking-widest">BÌNH THƯỜNG</p>
-              <p className="text-[9px] text-emerald-100 font-bold uppercase opacity-80 leading-none mt-0.5 whitespace-nowrap">HỆ THỐNG KIỂM SOÁT</p>
+            <div className="min-w-0">
+              <p className="text-[10px] text-white font-black uppercase tracking-widest whitespace-nowrap">BÌNH THƯỜNG</p>
+              <p className="text-[9px] text-emerald-100 font-bold uppercase opacity-80 leading-none mt-0.5 whitespace-nowrap text-ellipsis overflow-hidden">HỆ THỐNG KIỂM SOÁT</p>
             </div>
           </div>
-          <p className="text-3xl font-black text-white leading-none">{normalTasks.length}</p>
+          <p className="text-3xl font-black text-white leading-none shrink-0">{normalTasks.length}</p>
         </div>
       </div>
 
@@ -58,17 +58,17 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
         <div className="absolute right-[-10px] top-[-10px] opacity-10 transition-transform group-hover:scale-110 text-white">
           <Zap size={70} />
         </div>
-        <div className="flex items-center justify-between relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/20 rounded-lg text-white group-hover:scale-110 transition-transform">
+        <div className="flex items-center justify-between relative z-10 gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 bg-white/20 rounded-lg text-white group-hover:scale-110 transition-transform shrink-0">
               <Zap size={18} strokeWidth={2.5} />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] text-white font-black uppercase tracking-widest whitespace-nowrap">ƯU TIÊN / GẤP</p>
-              <p className="text-[9px] text-red-100 font-bold uppercase opacity-80 leading-none mt-0.5">BẤT QUY TẮC</p>
+              <p className="text-[9px] text-red-100 font-bold uppercase opacity-80 leading-none mt-0.5 whitespace-nowrap">BẤT QUY TẮC</p>
             </div>
           </div>
-          <p className="text-3xl font-black text-white leading-none">{priorityTasks.length}</p>
+          <p className="text-3xl font-black text-white leading-none shrink-0">{priorityTasks.length}</p>
         </div>
       </div>
 
@@ -76,17 +76,17 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
         <div className="absolute right-[-10px] top-[-10px] opacity-10 transition-transform group-hover:scale-110 text-white">
           <CheckCircle size={70} />
         </div>
-        <div className="flex items-center justify-between relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/20 rounded-lg text-white group-hover:scale-110 transition-transform">
+        <div className="flex items-center justify-between relative z-10 gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 bg-white/20 rounded-lg text-white group-hover:scale-110 transition-transform shrink-0">
               <CheckCircle size={18} strokeWidth={2.5} />
             </div>
-            <div>
-              <p className="text-[10px] text-white font-black uppercase tracking-widest">HOÀN THÀNH</p>
-              <p className="text-[9px] text-blue-100 font-bold uppercase opacity-80 leading-none mt-0.5">Kết quả</p>
+            <div className="min-w-0">
+              <p className="text-[10px] text-white font-black uppercase tracking-widest whitespace-nowrap">HOÀN THÀNH</p>
+              <p className="text-[9px] text-blue-100 font-bold uppercase opacity-80 leading-none mt-0.5 whitespace-nowrap">Kết quả</p>
             </div>
           </div>
-          <p className="text-3xl font-black text-white leading-none">{completedCount}</p>
+          <p className="text-3xl font-black text-white leading-none shrink-0">{completedCount}</p>
         </div>
       </div>
     </div>

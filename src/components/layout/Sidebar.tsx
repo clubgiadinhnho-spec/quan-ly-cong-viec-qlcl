@@ -213,7 +213,7 @@ export const Sidebar = ({
           <Avatar src={user.avatar} name={user.name} size={isCollapsed ? "md" : "lg"} />
           {!isCollapsed ? (
             <div className="flex-1 min-w-0">
-              <div className={`text-sm font-bold truncate notranslate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              <div className={`text-sm font-bold whitespace-nowrap notranslate ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 <span translate="no" className="notranslate">{user.name}</span>
               </div>
               <p className={`text-[10px] font-semibold uppercase ${isDark ? 'text-white/60' : (hasDelegatedPermissions(user) ? 'text-amber-600' : 'text-gray-500')}`}>
@@ -228,15 +228,18 @@ export const Sidebar = ({
           ) : null}
           <button 
             onClick={onLogout}
-            className={`flex items-center gap-2 p-2 px-3 rounded-xl transition-all ${
+            className={`relative group/logout flex items-center justify-center p-2 rounded-xl transition-all ${
               isDark 
                 ? 'text-white/60 hover:bg-red-500/20 hover:text-red-400' 
                 : 'text-gray-500 hover:bg-red-50 hover:text-red-600'
-            } ${isCollapsed ? 'justify-center w-10 h-10' : 'flex-1'}`}
-            title="Đăng xuất"
+            } w-10 h-10 flex-none`}
           >
             <LogOut size={isCollapsed ? 20 : 18} />
-            {!isCollapsed && <span className="text-[11px] font-black uppercase tracking-widest">Đăng xuất</span>}
+            {/* Nút Đăng xuất Tooltip */}
+            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest rounded-md opacity-0 group-hover/logout:opacity-100 pointer-events-none transition-all duration-200 whitespace-nowrap z-[110] shadow-xl translate-y-1 group-hover/logout:translate-y-0">
+              Đăng xuất
+              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+            </div>
           </button>
         </div>
       </div>

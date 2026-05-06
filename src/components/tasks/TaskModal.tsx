@@ -1,26 +1,59 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import { Edit2, Plus } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Edit2, Plus, Info } from 'lucide-react';
 import { Task, User, RecurrenceType } from '../../types';
 
 interface TaskModalProps {
   onClose: () => void;
   onSave: (task: any) => void;
   users: User[];
+  tasks: Task[];
   task?: Task;
   currentUser: User;
 }
 
-export const TaskModal = ({ onClose, onSave, users, task, currentUser }: TaskModalProps) => {
+export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser }: TaskModalProps) => {
   const [title, setTitle] = useState(task?.title || '');
   const [objective, setObjective] = useState(task?.objective || '');
-  const [assigneeId, setAssigneeId] = useState(task?.assigneeId || (currentUser.role === 'Staff' ? currentUser.id : ''));
+  const [assigneeId, setAssigneeId] = useState(task?.assigneeId || currentUser.id);
+  const [startDate, setStartDate] = useState(task?.startDate || new Date().toISOString().split('T')[0]);
   const [expectedDate, setExpectedDate] = useState(task?.expectedEndDate || '');
   const [extensionDate, setExtensionDate] = useState(task?.extensionDate || '');
   const [recurrence, setRecurrence] = useState<RecurrenceType>(task?.recurrence || 'NONE');
   const [attachment, setAttachment] = useState<File | null>(null);
+  const [isManualEdit, setIsManualEdit] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   const isEdit = !!task;
+
+  // Generate Preview Code for New Tasks
+  const nextCode = React.useMemo(() => {
+    if (isEdit) return task.code;
+    const count = tasks.length;
+    return `C${String(count + 1).padStart(4, '0')}`;
+  }, [tasks.length, isEdit, task?.code]);
+
+  const calculateDeadline = (start: string, type: RecurrenceType): string => {
+    if (type === 'NONE') return '';
+    const date = new Date(start);
+    switch (type) {
+      case 'DAILY': date.setDate(date.getDate() + 1); break;
+      case 'TRI_DAILY': date.setDate(date.getDate() + 3); break;
+      case 'WEEKLY': date.setDate(date.getDate() + 7); break;
+      case 'BI_WEEKLY': date.setDate(date.getDate() + 14); break;
+      case 'TRI_WEEKLY': date.setDate(date.getDate() + 21); break;
+      case 'MONTHLY': date.setMonth(date.getMonth() + 1); break;
+    }
+    return date.toISOString().split('T')[0];
+  };
+
+  // Sync deadline if cycle or start date changes, unless manually edited
+  React.useEffect(() => {
+    if (!isEdit && !isManualEdit && recurrence !== 'NONE') {
+      const calculated = calculateDeadline(startDate || new Date().toISOString().split('T')[0], recurrence);
+      setExpectedDate(calculated);
+    }
+  }, [recurrence, startDate, isEdit, isManualEdit]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -30,26 +63,88 @@ export const TaskModal = ({ onClose, onSave, users, task, currentUser }: TaskMod
         animate={{ scale: 1, opacity: 1 }}
         className="relative bg-white w-full max-w-lg rounded-2xl p-8 shadow-2xl"
       >
-        <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-          {isEdit ? <Edit2 className="text-blue-600" /> : <Plus className="text-blue-600" />}
-          {isEdit ? 'CẬP NHẬT CÔNG VIỆC' : 'NHẬP CÔNG VIỆC MỚI'}
-        </h2>
+        <div className="flex justify-between items-start mb-4">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            {isEdit ? <Edit2 className="text-blue-600" /> : <Plus className="text-blue-600" />}
+            <span translate="no" className="notranslate">{isEdit ? 'CẬP NHẬT CÔNG VIỆC' : 'NHẬP CÔNG VIỆC MỚI'}</span>
+          </h2>
+          {!isEdit && (
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter mb-0.5">Mã dự kiến:</span>
+              <span translate="no" className="notranslate text-blue-600 font-black font-mono text-lg leading-none bg-blue-50 px-2 py-1 rounded border border-blue-100">{nextCode}</span>
+            </div>
+          )}
+        </div>
+
+        {!isEdit && (
+          <div className="mb-6">
+            <button 
+              onClick={() => setShowGuide(!showGuide)}
+              className="flex items-center gap-2 text-[10px] font-black text-blue-600 uppercase tracking-widest hover:text-blue-700 transition-colors bg-blue-50/50 px-3 py-1.5 rounded-lg border border-blue-100"
+            >
+              <Info size={14} />
+              <span translate="no" className="notranslate">{showGuide ? 'Đóng hướng dẫn' : 'Xem hướng dẫn nhập liệu'}</span>
+            </button>
+            
+            <AnimatePresence>
+              {showGuide && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-2 p-4 bg-slate-50 rounded-xl border border-slate-200 text-[11px] leading-relaxed text-slate-600 space-y-2">
+                    <div className="flex gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1 shrink-0" />
+                      <span translate="no" className="notranslate">
+                        <strong>NGÀY BẮT ĐẦU:</strong> Nếu để trống, hệ thống tự lấy ngày hôm nay.
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1 shrink-0" />
+                      <span translate="no" className="notranslate">
+                        <strong>CHU KỲ:</strong> Chọn tần suất lặp lại. Hệ thống sẽ tự tính toán <strong>HẠN HOÀN THÀNH</strong>.
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1 shrink-0" />
+                      <span translate="no" className="notranslate">
+                        <strong>HẠN HOÀN THÀNH:</strong> Đây là hạn chót của chu kỳ hiện tại. Bạn có thể sửa tay nếu cần xê dịch.
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1 shrink-0" />
+                      <span translate="no" className="notranslate">
+                        <strong>NỘI DUNG & MỤC TIÊU:</strong> Phải ghi rõ kết quả cần đạt được (Ví dụ: Hoàn thành 100% hồ sơ).
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
         
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Người thực hiện</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
+                <span translate="no" className="notranslate">Người thực hiện</span>
+              </label>
               <select 
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 value={assigneeId}
                 onChange={(e) => setAssigneeId(e.target.value)}
               >
-                <option value="">Chọn nhân sự</option>
+                <option value="" translate="no" className="notranslate">CHỌN NHÂN SỰ</option>
                 {users.map((u) => <option key={u.id} value={u.id} className="notranslate">{u.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-blue-600 mb-1 uppercase">Chu kỳ (Lặp lại)</label>
+              <label className="block text-xs font-bold text-blue-600 mb-1 uppercase">
+                <span translate="no" className="notranslate">Chu kỳ (Lặp lại)</span>
+              </label>
               <select 
                 className="w-full px-4 py-3 bg-blue-50 border border-blue-100 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
                 value={recurrence}
@@ -66,18 +161,22 @@ export const TaskModal = ({ onClose, onSave, users, task, currentUser }: TaskMod
             </div>
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Hạng mục công việc *</label>
+            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
+              <span translate="no" className="notranslate">Hạng mục công việc *</span>
+            </label>
             <textarea 
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-20 resize-none"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-20 resize-none font-bold"
               placeholder="Nhập tên công việc..."
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Mục tiêu đạt được *</label>
+            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
+              <span translate="no" className="notranslate">Mục tiêu đạt được *</span>
+            </label>
             <input 
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
               placeholder="Mục tiêu cụ thể cho công việc này..."
               value={objective}
               onChange={(e) => setObjective(e.target.value)}
@@ -85,31 +184,52 @@ export const TaskModal = ({ onClose, onSave, users, task, currentUser }: TaskMod
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Hạn hoàn thành</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
+                <span translate="no" className="notranslate">NGÀY BẮT ĐẦU</span>
+              </label>
               <input 
                 type="date"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
-                value={expectedDate}
-                onChange={(e) => setExpectedDate(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
               />
             </div>
-            {isEdit && (
-              <div>
-                <label className="block text-xs font-bold text-emerald-600 mb-1 uppercase">Gia hạn (nếu có)</label>
-                <input 
-                  type="date"
-                  className="w-full px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-emerald-700 font-bold"
-                  value={extensionDate}
-                  onChange={(e) => setExtensionDate(e.target.value)}
-                  min={expectedDate}
-                />
-              </div>
-            )}
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
+                <span translate="no" className="notranslate">Hạn hoàn thành</span>
+              </label>
+              <input 
+                type="date"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold text-blue-600"
+                value={expectedDate}
+                onChange={(e) => {
+                  setExpectedDate(e.target.value);
+                  setIsManualEdit(true);
+                }}
+                min={startDate}
+              />
+            </div>
           </div>
+          {isEdit && (
+            <div>
+              <label className="block text-xs font-bold text-emerald-600 mb-1 uppercase">
+                <span translate="no" className="notranslate">Gia hạn (nếu có)</span>
+              </label>
+              <input 
+                type="date"
+                className="w-full px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-emerald-700 font-bold"
+                value={extensionDate}
+                onChange={(e) => setExtensionDate(e.target.value)}
+                min={expectedDate}
+              />
+            </div>
+          )}
           
           {!isEdit && (
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Đính kèm tài liệu mô tả (PDF/Ảnh)</label>
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
+                <span translate="no" className="notranslate">Đính kèm tài liệu mô tả (PDF/Ảnh)</span>
+              </label>
               <div className="relative group">
                 <input 
                   type="file"
@@ -135,25 +255,36 @@ export const TaskModal = ({ onClose, onSave, users, task, currentUser }: TaskMod
         </div>
 
         <div className="mt-8 flex gap-3">
-          <button onClick={onClose} className="flex-1 px-4 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-all">HỦY</button>
+          <button onClick={onClose} className="flex-1 px-4 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-all uppercase">
+            <span translate="no" className="notranslate">HỦY</span>
+          </button>
           <button 
             disabled={!title || !assigneeId}
             onClick={() => {
               const assignee = users.find(u => u.id === assigneeId);
+              // Final validation/defaults
+              const finalStartDate = startDate || new Date().toISOString().split('T')[0];
+              let finalExpectedDate = expectedDate;
+              if (!finalExpectedDate && recurrence !== 'NONE') {
+                finalExpectedDate = calculateDeadline(finalStartDate, recurrence);
+              }
+
               onSave({ 
                 title, 
                 objective, 
                 assigneeId, 
                 assignedTo: assignee?.name || '',
-                expectedEndDate: expectedDate,
+                startDate: finalStartDate,
+                expectedEndDate: finalExpectedDate,
                 extensionDate: extensionDate || null,
                 recurrence,
-                attachment 
+                attachment,
+                code: nextCode // Include the pre-generated code
               });
             }}
-            className="flex-1 px-4 py-3 bg-[#1A56DB] text-white font-bold rounded-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none"
+            className="flex-1 px-4 py-3 bg-[#1A56DB] text-white font-bold rounded-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none uppercase"
           >
-            {isEdit ? 'CẬP NHẬT' : 'KHỞI TẠO'}
+            <span translate="no" className="notranslate">{isEdit ? 'CẬP NHẬT' : 'KHỞI TẠO'}</span>
           </button>
         </div>
       </motion.div>

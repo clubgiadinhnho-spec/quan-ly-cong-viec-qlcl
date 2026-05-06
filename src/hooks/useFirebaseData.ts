@@ -409,6 +409,9 @@ export const useFirebaseData = (currentUserId?: string) => {
   const updateTask = useCallback(async (id: string, updates: Partial<Task>, modifierName?: string) => {
     try {
       const taskRef = doc(db, 'tasks', id);
+      const existingTask = tasks.find(t => t.id === id);
+      const taskCode = existingTask?.code || 'N/A';
+
       await updateDoc(taskRef, {
         ...updates,
         updatedAt: serverTimestamp()
@@ -416,23 +419,23 @@ export const useFirebaseData = (currentUserId?: string) => {
 
       // Log specific actions
       let logType: LogEntry['type'] = 'TASK_UPDATE';
-      let logDetails = `Cập nhật công việc (ID: ${id.slice(-6)})`;
+      let logDetails = `Cập nhật công việc ${taskCode}`;
 
       if (updates.isLocked === true) {
         logType = 'TASK_LOCK';
-        logDetails = `Chốt dữ liệu công việc (ID: ${id.slice(-6)})`;
+        logDetails = `Chốt dữ liệu công việc ${taskCode}`;
       } else if (updates.isLocked === false) {
-        logDetails = `Mở khóa dữ liệu công việc (ID: ${id.slice(-6)})`;
+        logDetails = `Mở khóa dữ liệu công việc ${taskCode}`;
       } else if (updates.requestDelete === true) {
-        logDetails = `Yêu cầu xóa công việc (ID: ${id.slice(-6)})`;
+        logDetails = `Yêu cầu xóa công việc ${taskCode}`;
       } else if (updates.deletedAt === null) {
         logType = 'TASK_RESTORE';
-        logDetails = `Khôi phục công việc từ thùng rác (ID: ${id.slice(-6)})`;
+        logDetails = `Khôi phục công việc ${taskCode} từ thùng rác`;
       } else if (updates.deletedAt) {
         logType = 'TASK_DELETE';
-        logDetails = `Di chuyển công việc vào thùng rác (ID: ${id.slice(-6)})`;
+        logDetails = `Di chuyển công việc ${taskCode} vào thùng rác`;
       } else if (updates.status) {
-        logDetails = `Thay đổi trạng thái công việc thành ${updates.status} (ID: ${id.slice(-6)})`;
+        logDetails = `Thay đổi trạng thái công việc ${taskCode} thành ${updates.status}`;
       }
 
       await addLog({
@@ -440,12 +443,12 @@ export const useFirebaseData = (currentUserId?: string) => {
         userId: auth.currentUser?.uid || currentUserId || 'SYSTEM',
         userName: modifierName,
         details: logDetails,
-        metadata: { taskId: id, updates }
+        metadata: { taskId: id, taskCode, updates }
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `tasks/${id}`);
     }
-  }, [currentUserId, addLog]);
+  }, [currentUserId, addLog, tasks]);
 
   const saveReportDraft = useCallback(async (draft: Omit<ReportDraft, 'id'>) => {
     try {

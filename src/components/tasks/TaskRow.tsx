@@ -161,20 +161,20 @@ export const TaskRow: React.FC<TaskRowProps> = ({
            className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer shadow-sm transition-all"
          />
       </td>
-      <td className={`p-2 text-center text-[10px] border-b border-r border-gray-300 align-top relative h-px ${task.isHighlighted || task.priorityOrder ? 'text-gray-600' : 'text-gray-300'}`}>
+      <td className={`p-2 text-center text-[10px] border-b border-r border-gray-300 align-top relative h-px ${task.isHighlighted || task.priorityOrder ? 'text-gray-600' : 'text-gray-400'}`}>
         <div className="flex flex-col items-center pt-1 h-full justify-between">
           <div className="flex flex-col items-center gap-1 mb-3">
-            <div translate="no" className="notranslate leading-none text-[10px]">{task.code}</div>
+            <div translate="no" className="notranslate leading-none text-[10px] font-mono font-black text-blue-600 bg-blue-50/50 px-1 py-0.5 rounded border border-blue-100/50">{task.code}</div>
             {task.recurrence && task.recurrence !== 'NONE' && (
               <div className="flex flex-col items-center gap-1">
                 <RefreshCw size={11} className="text-emerald-500 animate-[spin_4s_linear_infinite]" strokeWidth={3} />
                 <span translate="no" className="notranslate text-[7px] font-black text-emerald-600 leading-none uppercase bg-emerald-50 px-1 py-0.5 rounded border border-emerald-100 shadow-sm">
-                  {task.recurrence === 'DAILY' && 'HÀNG NGÀY'}
-                  {task.recurrence === 'TRI_DAILY' && '2-3 NGÀY/LẦN'}
-                  {task.recurrence === 'WEEKLY' && 'HÀNG TUẦN'}
-                  {task.recurrence === 'BI_WEEKLY' && 'HÀNG 2 TUẦN'}
-                  {task.recurrence === 'TRI_WEEKLY' && 'HÀNG 3 TUẦN'}
-                  {task.recurrence === 'MONTHLY' && 'HÀNG THÁNG'}
+                  {task.recurrence === 'DAILY' && <span translate="no" className="notranslate">HÀNG NGÀY</span>}
+                  {task.recurrence === 'TRI_DAILY' && <span translate="no" className="notranslate">2-3 NGÀY/LẦN</span>}
+                  {task.recurrence === 'WEEKLY' && <span translate="no" className="notranslate">HÀNG TUẦN</span>}
+                  {task.recurrence === 'BI_WEEKLY' && <span translate="no" className="notranslate">HÀNG 2 TUẦN</span>}
+                  {task.recurrence === 'TRI_WEEKLY' && <span translate="no" className="notranslate">HÀNG 3 TUẦN</span>}
+                  {task.recurrence === 'MONTHLY' && <span translate="no" className="notranslate">HÀNG THÁNG</span>}
                 </span>
               </div>
             )}
@@ -191,7 +191,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               >
                 <Bell size={16} fill="currentColor" className={deadlineStatus === 'overdue' ? 'drop-shadow-[0_0_8px_rgba(220,38,38,0.8)]' : 'drop-shadow-[0_0_5px_rgba(16,185,129,0.5)]'} />
               </div>
-              <span className={`text-[7px] font-black uppercase leading-none tracking-tight ${
+              <span translate="no" className={`notranslate text-[7px] font-black uppercase leading-none tracking-tight ${
                 deadlineStatus === 'overdue' ? 'text-red-700' : 'text-emerald-700'
               }`}>
                 {deadlineStatus === 'overdue' ? 'QUÁ HẠN' : 'SẮP HẾT HẠN'}
@@ -239,7 +239,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   <span translate="no" className="notranslate">HẠN:</span> {formatDate(task.expectedEndDate)}
                 </p>
                 {(() => {
-                  const extensions = task.history.filter(h => h.content.includes('Gia hạn công việc đến'));
+                  const extensions = (task.history || []).filter(h => h.content?.includes('Gia hạn công việc đến'));
                   const extensionCount = extensions.length;
                   if (task.extensionDate) {
                     return (
@@ -270,7 +270,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                     }`}
                   >
                     <MessageSquare size={14} fill={showBadge ? "white" : (task.comments?.length || 0) > 0 ? "rgba(220, 38, 38, 0.1)" : "none"} />
-                    <span className="text-[10px] font-black tracking-tight uppercase">CHAT</span>
+                    <span translate="no" className="notranslate text-[10px] font-black tracking-tight uppercase">CHAT</span>
                     {showBadge && (
                       <span className="flex items-center justify-center min-w-[16px] h-[16px] px-1 bg-white text-red-600 text-[9px] font-black rounded-full shadow-sm animate-bounce border border-red-100">
                         {unreadCount}
@@ -295,20 +295,20 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             </div>
           </div>
 
-          {task.history.filter(h => h.content.includes('Gia hạn công việc đến')).length > 0 && (
+          {(task.history || []).filter(h => h.content?.includes('Gia hạn công việc đến')).length > 0 && (
             <div className="mt-auto px-1 py-0.5 bg-red-50/30 rounded border border-red-100/30">
               <div className="flex justify-between items-center mb-0.5">
-                <p className="text-[7px] font-black text-red-600 uppercase tracking-tighter font-sans">Lịch sử gia hạn:</p>
-                <p className="text-[7px] font-black text-red-500 bg-red-50/50 px-0.5 rounded leading-none uppercase tracking-tighter font-sans">GH V{task.history.filter(h => h.content.includes('Gia hạn công việc đến')).length}</p>
+                <p translate="no" className="notranslate text-[7px] font-black text-red-600 uppercase tracking-tighter font-sans">Lịch sử gia hạn:</p>
+                <p translate="no" className="notranslate text-[7px] font-black text-red-500 bg-red-50/50 px-0.5 rounded leading-none uppercase tracking-tighter font-sans">GH V{(task.history || []).filter(h => h.content?.includes('Gia hạn công việc đến')).length}</p>
               </div>
               <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-                {task.history
-                  .filter(h => h.content.includes('Gia hạn công việc đến'))
+                {(task.history || [])
+                  .filter(h => h.content?.includes('Gia hạn công việc đến'))
                   .slice(-3)
                   .reverse()
                   .map((h, i, arr) => (
                     <p key={i} className="text-[7px] text-red-500 font-bold italic leading-none truncate whitespace-nowrap font-sans">
-                      V{arr.length - i}: {h.content.split(': ')[1]}
+                      V{arr.length - i}: {h.content?.split(': ')[1]}
                     </p>
                   ))}
               </div>
@@ -364,15 +364,15 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           )}
           <p className="text-[10px] font-black text-gray-900 leading-tight mt-1 break-words whitespace-normal flex-1 font-sans">{task.objective}</p>
           
-          {task.history.length > 1 && (
-            <div className="mt-auto px-1 py-0.5 bg-blue-50/30 rounded border border-blue-100/30 flex justify-between items-center group/history cursor-help" title={task.history[task.history.length - 2]?.content}>
+          {(task.history || []).length > 1 && (
+            <div className="mt-auto px-1 py-0.5 bg-blue-50/30 rounded border border-blue-100/30 flex justify-between items-center group/history cursor-help" title={(task.history || [])[(task.history || []).length - 2]?.content}>
               <div className="flex flex-col min-w-0">
-                <p className="text-[7px] font-black text-blue-600 uppercase tracking-tighter leading-none mb-0.5 font-sans">Lần cập trước:</p>
+                <p translate="no" className="notranslate text-[7px] font-black text-blue-600 uppercase tracking-tighter leading-none mb-0.5 font-sans">Lần cập trước:</p>
                 <p className="text-[8px] text-gray-500 line-clamp-1 italic leading-none truncate font-sans">
-                  {(task.history[task.history.length - 2]?.content || '').replace('Cập nhật tiến độ: ', '') || 'Khởi tạo'}
+                  {((task.history || [])[(task.history || []).length - 2]?.content || '').replace('Cập nhật tiến độ: ', '') || 'Khởi tạo'}
                 </p>
               </div>
-              <p className="text-[7px] font-black text-blue-400 bg-blue-50/50 px-0.5 rounded leading-none uppercase tracking-tighter shrink-0 ml-1 font-sans">V{task.history.length - 1}</p>
+              <p className="text-[7px] font-black text-blue-400 bg-blue-50/50 px-0.5 rounded leading-none uppercase tracking-tighter shrink-0 ml-1 font-sans">V{(task.history || []).length - 1}</p>
             </div>
           )}
           
@@ -402,8 +402,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             disabled={task.isLocked || (!isOwner && !isManager)}
           />
           <div className="flex items-center justify-between px-1 mt-auto pt-1 border-t border-gray-50 border-dotted">
-            <span className="text-[7px] px-0.5 py-0.5 bg-gray-100 text-gray-500 rounded font-bold uppercase tracking-tighter">v{task.history.length || 1}</span>
-            <button onClick={() => onViewHistory(task.id)} className="text-[8px] text-blue-500 hover:underline font-extrabold uppercase tracking-tighter">XEM LỊCH SỬ</button>
+            <span translate="no" className="notranslate text-[7px] px-0.5 py-0.5 bg-gray-100 text-gray-500 rounded font-bold uppercase tracking-tighter">v{(task.history || []).length || 1}</span>
+            <button onClick={() => onViewHistory(task.id)} className="text-[8px] text-blue-500 hover:underline font-extrabold uppercase tracking-tighter">
+              <span translate="no" className="notranslate">XEM LỊCH SỬ</span>
+            </button>
           </div>
         </div>
       </td>

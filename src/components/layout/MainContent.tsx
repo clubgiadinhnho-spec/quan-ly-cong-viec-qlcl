@@ -126,10 +126,10 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
-          className="flex flex-col h-full"
+          className="flex flex-col"
         >
           <HolidayBanner />
-          <div className="sticky top-0 z-50">
+          <div className="z-40">
             <Header
               title={<span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>}
               badge={<span translate="no" className="notranslate">{effectiveUser.role}</span>}
@@ -141,7 +141,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
             />
           </div>
 
-          <div className="p-6 space-y-6 overflow-y-auto min-h-0 flex-1">
+          <div className="p-6 space-y-6">
             <StatsSummary tasks={filteredTasks} />
 
             <div className="flex items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm transition-all duration-300">
@@ -276,12 +276,12 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
       )}
 
       {activeTab === "pending_confirmation" && (
-        <motion.div key="pending_confirmation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col h-full">
+        <motion.div key="pending_confirmation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col">
           <HolidayBanner />
-          <div className="sticky top-0 z-50">
+          <div className="z-40">
             <Header title={<span translate="no" className="notranslate">ĐỀ XUẤT MỚI</span>} onlineUsers={presence} currentUserId={effectiveUser.id} />
           </div>
-          <div className="p-6 overflow-y-auto min-h-0 flex-1">
+          <div className="p-6">
             <PendingConfirmationPage
               tasks={tasks} currentUser={effectiveUser} allUsers={allUsers} updateTask={updateTask} deleteTask={deleteTask}
               setShowHistoryModal={setShowHistoryModal} setShowChatModal={setShowChatModal} showChatModal={showChatModal}
@@ -293,12 +293,12 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
       )}
 
       {activeTab === "completed_tasks" && (
-        <motion.div key="completed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col h-full">
+        <motion.div key="completed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col">
           <HolidayBanner />
-          <div className="sticky top-0 z-50">
+          <div className="z-40">
             <Header title={<span translate="no" className="notranslate">CÔNG VIỆC HOÀN THÀNH</span>} onlineUsers={presence} currentUserId={effectiveUser.id} />
           </div>
-          <div className="p-6 space-y-6 overflow-y-auto min-h-0 flex-1">
+          <div className="p-6 space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
               <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
                 <button

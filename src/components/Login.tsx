@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { User } from '../types';
-import { LogIn, UserPlus, Mail, Lock, ShieldCheck, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { LogIn, UserPlus, Mail, Lock, ShieldCheck, Eye, EyeOff, Loader2, KeyRound } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { loginWithEmail, registerWithEmail, loginWithGoogle, logout, db, findProfileByEmail, syncProfileUid } from '../lib/firebase';
+import { loginWithEmail, registerWithEmail, loginWithGoogle, logout, db, findProfileByEmail, syncProfileUid, auth } from '../lib/firebase';
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { FcGoogle } from 'react-icons/fc';
 import { generateUniqueKey } from '../utils/stringUtils';
 import { doc, getDoc, enableNetwork } from 'firebase/firestore';
@@ -14,7 +15,7 @@ interface LoginProps {
 }
 
 export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
-  const [mode, setMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
+  const [mode, setMode] = useState<'LOGIN' | 'REGISTER' | 'FORGOT'>('LOGIN');
   const [email, setEmail] = useState(() => localStorage.getItem('qc_remember_email') || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -29,7 +30,7 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const isPasswordMatch = mode === 'REGISTER' ? (password === confirmPassword && password.length >= 6) : true;
+  const isPasswordMatch = (mode === 'REGISTER') ? (password === confirmPassword && password.length >= 6) : true;
 
   const validateEmail = (emailStr: string) => {
     const user = users.find(u => 
@@ -48,6 +49,26 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
     "truongln.tanhongngoc@gmail.com"
   ].includes(emailStr.toLowerCase());
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      setError(<span translate="no" className="notranslate">VUI LÒNG NHẬP EMAIL ĐỂ KHÔI PHỤC MẬT KHẨU.</span> as any);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setError(<span translate="no" className="notranslate" style={{ color: '#10b981' }}>LIÊN KẾT ĐẶT LẠI MẬT KHẨU ĐÃ ĐƯỢC GỬI VÀO EMAIL CỦA BẠN.</span> as any);
+      setTimeout(() => setMode('LOGIN'), 3000);
+    } catch (err: any) {
+      console.error("Forgot password error:", err);
+      setError(<span translate="no" className="notranslate">LỖI: {err.message}</span> as any);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -61,7 +82,6 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
       if (fbUser) {
         // THIẾT QUÂN LUẬT: TÌM HỒ SƠ THEO MỌI CÁCH (UID HOẶC EMAIL)
         let staffMember = users.find(u => u.id === fbUser.uid);
-        let foundViaEmail = false;
         let profileDocId = '';
 
         if (!staffMember) {
@@ -70,7 +90,6 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
           if (emailMatch) {
             staffMember = emailMatch.data as User;
             profileDocId = emailMatch.docId;
-            foundViaEmail = true;
             // TỰ ĐỘNG ĐỒNG BỘ UID MỚI VÀO HỒ SƠ FIRESTORE
             await syncProfileUid(profileDocId, fbUser.uid);
             // Cập nhật lại model cục bộ
@@ -118,10 +137,22 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
       }
     } catch (err: any) {
       console.error("Login error:", err);
-      let msg = "Lỗi đăng nhập: " + err.message;
-      if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+      let msg = err.message || String(err);
+      
+      const isInvalidAuth = 
+        err.code === 'auth/wrong-password' || 
+        err.code === 'auth/user-not-found' || 
+        err.code === 'auth/invalid-credential' || 
+        err.code === 'auth/invalid-login-credentials' ||
+        msg.includes('auth/invalid-credential') ||
+        msg.includes('auth/invalid-login-credentials');
+
+      if (isInvalidAuth) {
         msg = "Email hoặc mật khẩu không chính xác.";
+      } else {
+        msg = "Lỗi đăng nhập: " + msg;
       }
+
       setError(
         <span translate="no" className="notranslate">{msg}</span> as any
       );
@@ -331,7 +362,7 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
             </button>
           </div>
 
-          <form onSubmit={mode === 'LOGIN' ? handleLogin : handleRegister} className="space-y-4">
+          <form onSubmit={mode === 'LOGIN' ? handleLogin : (mode === 'FORGOT' ? handleForgotPassword : handleRegister)} className="space-y-4">
             {mode === 'REGISTER' && (
               <>
                 <div className="space-y-1">
@@ -398,7 +429,7 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
 
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <Mail size={12} /> <span translate="no" className="notranslate">Email đăng nhập (Cá nhân)</span>
+                <Mail size={12} /> <span translate="no" className="notranslate">{mode === 'FORGOT' ? 'NHẬP EMAIL ĐÃ ĐĂNG KÝ' : 'Email đăng nhập (Cá nhân)'}</span>
               </label>
               <input
                 type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
@@ -407,28 +438,41 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <Lock size={12} /> <span translate="no" className="notranslate">MẬT KHẨU</span> {mode === 'REGISTER' && '(Ít nhất 6 ký tự)'}
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"} 
-                  required 
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-medium pr-10"
-                  placeholder="Nhập mật khẩu"
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+            {mode !== 'FORGOT' && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <Lock size={12} /> <span translate="no" className="notranslate">MẬT KHẨU</span> {mode === 'REGISTER' && '(Ít nhất 6 ký tự)'}
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"} 
+                    required 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-1 focus:ring-blue-500 focus:bg-white outline-none transition-all text-sm font-medium pr-10"
+                    placeholder="Nhập mật khẩu"
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {mode === 'LOGIN' && (
+                  <div className="flex justify-end">
+                    <button 
+                      type="button" 
+                      onClick={() => { setMode('FORGOT'); setError(''); }}
+                      className="text-[10px] font-black text-blue-600 uppercase tracking-tighter hover:underline mt-1"
+                    >
+                      <span translate="no" className="notranslate">Quên mật khẩu?</span>
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
             {mode === 'REGISTER' && (
               <div className="space-y-1">
@@ -451,13 +495,26 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
               </div>
             )}
 
+            {mode === 'FORGOT' && (
+              <div className="flex justify-start">
+                <button 
+                  type="button" 
+                  onClick={() => { setMode('LOGIN'); setError(''); }}
+                  className="text-[10px] font-black text-gray-500 uppercase tracking-tighter hover:text-blue-600"
+                >
+                  <span translate="no" className="notranslate">← Quay lại đăng nhập</span>
+                </button>
+              </div>
+            )}
+
             {error && (
               <motion.div 
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
                 className={`p-3 border text-[10px] font-black rounded-lg text-center uppercase tracking-tight ${
                   (error.toString().includes('THÀNH CÔNG')) || 
-                  (React.isValidElement(error) && JSON.stringify(error).includes('THÀNH CÔNG'))
+                  (error.toString().includes('ĐÃ ĐƯỢC GỬI')) ||
+                  (React.isValidElement(error) && (JSON.stringify(error).includes('THÀNH CÔNG') || JSON.stringify(error).includes('ĐÃ ĐƯỢC GỬI')))
                     ? 'bg-emerald-50 border-emerald-100 text-emerald-600'
                     : 'bg-red-50 border-red-100 text-red-600'
                 }`}
@@ -468,13 +525,15 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
 
             <button
               type="submit"
-              disabled={loading || !isPasswordMatch}
+              disabled={loading || (mode === 'REGISTER' && !isPasswordMatch)}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-100 uppercase tracking-widest text-xs"
             >
               {loading ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : mode === 'LOGIN' ? (
                 <><span translate="no" className="notranslate">ĐĂNG NHẬP</span> <LogIn size={16} /></>
+              ) : mode === 'FORGOT' ? (
+                <><span translate="no" className="notranslate">GỬI YÊU CẦU</span> <KeyRound size={16} /></>
               ) : (
                 <><span translate="no" className="notranslate">XÁC NHẬN ĐĂNG KÝ</span> <UserPlus size={16} /></>
               )}

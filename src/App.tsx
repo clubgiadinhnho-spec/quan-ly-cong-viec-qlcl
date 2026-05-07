@@ -295,6 +295,8 @@ export default function App() {
     return discussionMessages.filter(m => m.authorId !== effectiveUser.id && new Date(m.timestamp).getTime() > lastRead).length;
   }, [discussionMessages, effectiveUser, lastReadChatTimestamps]);
 
+  const groupTotalCount = useMemo(() => discussionMessages.length, [discussionMessages]);
+
   const sortedTasks = useMemo(() => {
     const priorityWeight = { HIGH: 3, MEDIUM: 2, LOW: 1 };
     return tasks.filter(t => {
@@ -361,15 +363,15 @@ export default function App() {
   if (!currentUser) return <Login users={allUsers} onLogin={setCurrentUser} onAddStaff={(u) => updateProfile(u.uniqueKey, u)} />;
 
   return (
-    <div className="flex h-screen bg-[#F9FAFB] overflow-hidden">
+    <div className="flex min-h-screen bg-[#F9FAFB]">
       <Sidebar
         user={effectiveUser} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout}
         pendingTasksCount={counts.pending} activeTasksCount={counts.active} completedTasksCount={counts.completed}
-        totalStaffCount={allUsers.length} groupUnreadCount={groupUnreadCount} trashTasksCount={counts.trash}
+        totalStaffCount={allUsers.length} groupUnreadCount={groupUnreadCount} groupTotalCount={groupTotalCount} trashTasksCount={counts.trash}
         isCollapsed={isMainSidebarCollapsed} onToggleCollapse={() => setIsMainSidebarCollapsed(!isMainSidebarCollapsed)}
       />
-      <main className={`flex-1 relative flex flex-col ${activeTab === 'group_chat' ? 'p-0' : 'py-6 overflow-y-auto'}`}>
-        <div className={`flex-1 ${activeTab === 'group_chat' ? 'h-full w-full' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'}`}>
+      <main className={`flex-1 relative flex flex-col ${activeTab === 'group_chat' ? 'h-screen overflow-hidden' : 'py-6'}`}>
+        <div className={`flex-1 ${activeTab === 'group_chat' ? 'h-full w-full' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full'}`}>
 
           {simulatedUser && <div className="sticky top-0 z-[60] bg-amber-500 text-white px-6 py-2 flex justify-between shadow-lg"><span>GIẢ LẬP: {simulatedUser.name}</span><button onClick={() => setSimulatedUser(null)}>Thoát</button></div>}
           <MainContent

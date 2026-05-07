@@ -95,6 +95,37 @@ export const GroupChatPage = ({
   const [activeColor, setActiveColor] = useState('#1e293b');
   const [searchQuery, setSearchQuery] = useState('');
   const [hasContent, setHasContent] = useState(false);
+  const [showMentionList, setShowMentionList] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [filteredMentionUsers, setFilteredMentionUsers] = useState<User[]>([]);
+  const [lastReadMap, setLastReadMap] = useState<Record<string, string>>({});
+
+  // Load last read state from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(`lastRead_${currentUser.id}`);
+    if (saved) {
+      try {
+        setLastReadMap(JSON.parse(saved));
+      } catch (e) {
+        console.error("Error parsing lastReadMap", e);
+      }
+    }
+  }, [currentUser.id]);
+
+  // Save last read state when it changes
+  useEffect(() => {
+    localStorage.setItem(`lastRead_${currentUser.id}`, JSON.stringify(lastReadMap));
+  }, [lastReadMap, currentUser.id]);
+
+  // Update lastReadAt when topic is selected
+  useEffect(() => {
+    if (selectedTopicId) {
+      setLastReadMap(prev => ({
+        ...prev,
+        [selectedTopicId]: new Date().toISOString()
+      }));
+    }
+  }, [selectedTopicId]);
 
   const inputRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -263,6 +294,66 @@ const handleCreateTopic = () => {
   const activeTopic = topics.find(t => t.id === selectedTopicId);
   const filteredMessages = messages.filter(m => m.topicId === selectedTopicId);
 
+  // Handle Mention Logic
+  useEffect(() => {
+    if (showMentionList) {
+      const filtered = users
+        .filter(u => u.name.toLowerCase().includes(mentionQuery.toLowerCase()))
+        .slice(0, 5);
+      setFilteredMentionUsers(filtered);
+    }
+  }, [mentionQuery, showMentionList, users]);
+
+  const handleInput = () => {
+    if (!inputRef.current) return;
+    const text = inputRef.current.innerText;
+    setHasContent(!!text.trim());
+
+    // Simple detection: find the last '@' and text after it
+    const lastAtIdx = text.lastIndexOf('@');
+    if (lastAtIdx !== -1) {
+      const textAfterAt = text.slice(lastAtIdx + 1);
+      // Only trigger if @ is at start or follows a space, and no space in between
+      const isTagging = lastAtIdx === 0 || text[lastAtIdx - 1] === ' ' || text[lastAtIdx - 1] === '\n';
+      
+      if (isTagging && !textAfterAt.includes(' ')) {
+        setShowMentionList(true);
+        setMentionQuery(textAfterAt);
+        return;
+      }
+    }
+    setShowMentionList(false);
+  };
+
+  const insertMention = (user: User) => {
+    if (!inputRef.current) return;
+    
+    const text = inputRef.current.innerText;
+    const lastAtIdx = text.lastIndexOf('@');
+    
+    if (lastAtIdx !== -1) {
+      const beforeAt = text.slice(0, lastAtIdx);
+      const mentionHtml = `<span contenteditable="false" class="text-blue-700 font-bold notranslate" translate="no">@${user.name}</span>&nbsp;`;
+      
+      // We use innerHTML to insert the styled span
+      // A more robust way would be using Selection API, but for this requirement:
+      inputRef.current.innerHTML = beforeAt + mentionHtml;
+      
+      // Move cursor to end
+      const range = document.createRange();
+      const sel = window.getSelection();
+      range.selectNodeContents(inputRef.current);
+      range.collapse(false);
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+      
+      inputRef.current.focus();
+    }
+    
+    setShowMentionList(false);
+    setHasContent(true);
+  };
+
   const handleSend = () => {
     const htmlContent = inputRef.current?.innerHTML || '';
     if (!htmlContent.trim() && pendingAttachments.length === 0) return;
@@ -363,19 +454,29 @@ const handleCreateTopic = () => {
     onUpdateTopic(topic.id, { status: newStatus });
   };
 
+  const getTopicUnreadCount = (topicId: string) => {
+    const lastRead = lastReadMap[topicId] || '1970-01-01T00:00:00Z';
+    return messages.filter(m => m.topicId === topicId && m.timestamp > lastRead).length;
+  };
+
+  const totalUnreadCount = topics
+    .filter(t => t.status === 'OPEN')
+    .reduce((acc, t) => acc + getTopicUnreadCount(t.id), 0);
+
+  const togglePin = (e: React.MouseEvent, topicId: string, currentStatus: boolean) => {
+    e.stopPropagation();
+    onUpdateTopic(topicId, { isPinned: !currentStatus });
+  };
+
   const getAuthor = (id: string) => users.find(u => u.id === id || u.uniqueKey === id);
 
   return (
-    <div className="max-w-full h-full flex flex-col animate-in fade-in duration-500 relative bg-[#f0f2f5] p-2 sm:pt-4 sm:px-4 sm:pb-3 font-sans">
+    <div className="h-screen overflow-hidden flex bg-[#f0f2f5] font-sans">
       {/* Unified App Window Style Container */}
-      <div className="flex-1 flex overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50">
+      <div className="flex-1 flex overflow-hidden bg-white shadow-xl">
         
         {/* Sidebar: Topics List */}
-        <motion.div 
-          animate={{ width: isSidebarCollapsed ? 80 : 340 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="flex flex-col bg-slate-50 border-r border-slate-200 overflow-hidden shrink-0 relative"
-        >
+        <div className={`flex flex-col bg-slate-50 border-r border-slate-200 overflow-hidden shrink-0 relative transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-80'}`}>
           {/* Sidebar Header */}
           <div className="p-4 bg-white border-b border-slate-100">
             <div className={`flex items-center justify-between mb-4 ${isSidebarCollapsed ? 'flex-col gap-3' : 'flex-row'}`}>
@@ -387,6 +488,11 @@ const handleCreateTopic = () => {
                   <div className="flex flex-col">
                     <h2 className="text-[16px] font-black text-[#132d6b] uppercase tracking-tight leading-none mb-1">
                       <span translate="no" className="notranslate">ROOM THẢO LUẬN</span>
+                      {totalUnreadCount > 0 && (
+                        <span translate="no" className="notranslate ml-2 bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">
+                          {totalUnreadCount}
+                        </span>
+                      )}
                     </h2>
                     <div className="flex items-center gap-1.5 px-0.5">
                       <div className="flex h-2 w-2 relative">
@@ -503,44 +609,86 @@ const handleCreateTopic = () => {
           )}
 
           <div className="flex-1 flex flex-col overflow-hidden px-2 pt-3">
-            <div className={`flex gap-1 p-1 bg-slate-200/50 rounded-2xl mb-4 ${isSidebarCollapsed ? 'flex-col items-center' : 'flex-row'}`}>
+            <div className={`flex gap-1 p-1.5 bg-white border border-slate-100 rounded-2xl mb-4 ${isSidebarCollapsed ? 'flex-col items-center' : 'flex-row items-center'}`}>
               <button 
                 onClick={() => setActiveTab('OPEN')}
-                className={`py-2 px-3 text-[10px] font-black rounded-xl transition-all uppercase tracking-widest flex items-center justify-center gap-2 focus:outline-none ${
-                    isSidebarCollapsed ? 'w-12 h-12' : 'flex-1'
-                } ${activeTab === 'OPEN' ? 'bg-white shadow-md text-blue-600 border border-white' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`flex flex-col items-center justify-center gap-1 transition-all rounded-xl cursor-pointer group flex-1 min-w-0 ${
+                  activeTab === 'OPEN' ? 'bg-blue-50 py-2' : 'hover:bg-slate-50 py-2'
+                }`}
                 title="Đang mở"
               >
-                {isSidebarCollapsed ? <Hash size={20} strokeWidth={2.5} /> : <><MessageSquare size={13} /> <span translate="no" className="notranslate">DANH SÁCH</span></>}
+                <MessageSquare 
+                  size={isSidebarCollapsed ? 22 : 18} 
+                  strokeWidth={2.5}
+                  className={`transition-colors ${activeTab === 'OPEN' ? 'text-blue-600' : 'text-slate-400 group-hover:text-blue-500'}`} 
+                />
+                {!isSidebarCollapsed && (
+                  <span translate="no" className={`notranslate text-[9px] font-black uppercase tracking-tight whitespace-nowrap ${
+                    activeTab === 'OPEN' ? 'text-blue-700' : 'text-slate-500'
+                  }`}>DANH SÁCH</span>
+                )}
               </button>
+
               <button 
                 onClick={() => setActiveTab('CLOSED')}
-                className={`py-2 px-3 text-[10px] font-black rounded-xl transition-all uppercase tracking-widest flex items-center justify-center gap-2 focus:outline-none ${
-                    isSidebarCollapsed ? 'w-12 h-12' : 'flex-1'
-                } ${activeTab === 'CLOSED' ? 'bg-slate-800 text-white shadow-lg shadow-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`flex flex-col items-center justify-center gap-1 transition-all rounded-xl cursor-pointer group flex-1 min-w-0 ${
+                  activeTab === 'CLOSED' ? 'bg-slate-100 py-2' : 'hover:bg-slate-50 py-2'
+                }`}
                 title="Đã đóng"
               >
-                {isSidebarCollapsed ? <Archive size={20} strokeWidth={2.5} /> : <><Archive size={13} /> <span translate="no" className="notranslate">LƯU TRỮ</span></>}
+                <Archive 
+                  size={isSidebarCollapsed ? 22 : 18} 
+                  strokeWidth={2.5}
+                  className={`transition-colors ${activeTab === 'CLOSED' ? 'text-slate-700' : 'text-slate-400 group-hover:text-slate-600'}`} 
+                />
+                {!isSidebarCollapsed && (
+                  <span translate="no" className={`notranslate text-[9px] font-black uppercase tracking-tight whitespace-nowrap ${
+                    activeTab === 'CLOSED' ? 'text-slate-800' : 'text-slate-500'
+                  }`}>LƯU TRỮ</span>
+                )}
               </button>
+
               <button 
                 onClick={() => setActiveTab('DELETED')}
-                className={`py-2 px-3 text-[10px] font-black rounded-xl transition-all uppercase tracking-widest flex items-center justify-center gap-2 focus:outline-none ${
-                    isSidebarCollapsed ? 'w-12 h-12' : 'flex-1'
-                } ${activeTab === 'DELETED' ? 'bg-rose-600 text-white shadow-lg shadow-rose-200' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`flex flex-col items-center justify-center gap-1 transition-all rounded-xl cursor-pointer group flex-1 min-w-0 ${
+                  activeTab === 'DELETED' ? 'bg-rose-50 py-2' : 'hover:bg-slate-50 py-2'
+                }`}
                 title="Đã xóa"
               >
-                {isSidebarCollapsed ? <Trash2 size={20} strokeWidth={2.5} /> : <><Trash2 size={13} /> <span translate="no" className="notranslate">THÙNG RÁC</span></>}
+                <Trash2 
+                  size={isSidebarCollapsed ? 22 : 18} 
+                  strokeWidth={2.5}
+                  className={`transition-colors ${activeTab === 'DELETED' ? 'text-rose-600' : 'text-slate-400 group-hover:text-rose-500'}`} 
+                />
+                {!isSidebarCollapsed && (
+                  <span translate="no" className={`notranslate text-[9px] font-black uppercase tracking-tight whitespace-nowrap ${
+                    activeTab === 'DELETED' ? 'text-rose-700' : 'text-slate-500'
+                  }`}>THÙNG RÁC</span>
+                )}
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-1 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto px-3 pb-8 space-y-3 custom-scrollbar">
             {(() => {
-              const isFreeExchange = (title: string) => title.toUpperCase().includes('TRAO ĐỔI TỰ DO');
-              
-              const getTopicLastActivity = (topicId: string, createdAt: any) => {
-                const topicMessages = messages.filter(m => m.topicId === topicId);
-                if (topicMessages.length === 0) return new Date(createdAt).getTime();
-                return Math.max(...topicMessages.map(m => new Date(m.timestamp).getTime()));
+              const sortTopics = (a: DiscussionTopic, b: DiscussionTopic) => {
+                // Priority 1: Pinned topics
+                if (a.isPinned && !b.isPinned) return -1;
+                if (!a.isPinned && b.isPinned) return 1;
+
+                // Priority 2: Topics with unread messages
+                const aUnread = getTopicUnreadCount(a.id);
+                const bUnread = getTopicUnreadCount(b.id);
+                if (aUnread > 0 && bUnread === 0) return -1;
+                if (aUnread === 0 && bUnread > 0) return 1;
+
+                // Priority 3: Latest message time (or creation time)
+                const aLastMsg = messages.filter(m => m.topicId === a.id).sort((x, y) => y.timestamp.localeCompare(x.timestamp))[0];
+                const bLastMsg = messages.filter(m => m.topicId === b.id).sort((x, y) => y.timestamp.localeCompare(x.timestamp))[0];
+                
+                const aTime = aLastMsg ? aLastMsg.timestamp : a.createdAt;
+                const bTime = bLastMsg ? bLastMsg.timestamp : b.createdAt;
+                
+                return bTime.localeCompare(aTime);
               };
 
               return [...topics]
@@ -552,28 +700,19 @@ const handleCreateTopic = () => {
                     (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()));
                   return matchTab && matchSearch;
                 })
-                .sort((a, b) => {
-                  // 1. Priority for "Trao đổi tự do"
-                  const aFree = isFreeExchange(a.title);
-                  const bFree = isFreeExchange(b.title);
-                  if (aFree && !bFree) return -1;
-                  if (!aFree && bFree) return 1;
-                  
-                  // 2. Sort the rest by last activity (last message time)
-                  const aActivity = getTopicLastActivity(a.id, a.createdAt);
-                  const bActivity = getTopicLastActivity(b.id, b.createdAt);
-                  return bActivity - aActivity;
-                })
+                .sort(sortTopics)
                 .map((topic) => {
                   const isActive = selectedTopicId === topic.id;
-                  const isFree = isFreeExchange(topic.title);
+                  const unreadCount = getTopicUnreadCount(topic.id);
                   
-                  // Formatting logic: Only keep the main ID (PSTT)
-                  const rawCode = topic.topicCode || `P${topic.orderCode || '???'}`;
-                  const pPart = rawCode.length > 6 ? rawCode.slice(0, rawCode.length - 6) : rawCode;
+                  // Formatting logic: Luôn lấy P + 3 số (Ví dụ: P007)
+                  let psttCode = 'P000';
+                  const raw = (topic.topicCode || topic.orderCode || '').toString();
+                  const digits = raw.replace(/\D/g, ''); // Chỉ lấy số
+                  psttCode = 'P' + (digits.length >= 3 ? digits.slice(0, 3) : digits.padStart(3, '0'));
                   
                   return (
-                    <div key={topic.id} className="relative group flex items-center gap-2 px-1">
+                    <div key={topic.id} className="relative group flex items-center gap-2 px-1 py-1">
                       {isBulkMode && (
                         <div 
                           onClick={(e) => {
@@ -594,58 +733,78 @@ const handleCreateTopic = () => {
                         role="button"
                         tabIndex={0}
                         onKeyDown={(e) => e.key === 'Enter' && setSelectedTopicId(topic.id)}
-                        className={`w-full flex items-center gap-3 rounded-xl transition-all relative border cursor-pointer overflow-hidden ${
-                          isSidebarCollapsed ? 'justify-center p-1 font-sans' : 'items-start p-2'
+                        className={`w-full flex items-center gap-3 rounded-xl transition-all relative border cursor-pointer ${
+                          isSidebarCollapsed ? 'justify-center p-1 font-sans' : 'items-center p-3 pr-10'
                         } ${
                           isActive 
-                            ? isFree 
+                            ? topic.isPinned 
                               ? 'bg-rose-50/80 border-rose-200 shadow-lg shadow-rose-100 ring-1 ring-rose-200' 
                               : 'bg-blue-50/80 border-blue-200 shadow-lg shadow-blue-100 ring-1 ring-blue-200'
                             : 'bg-white border-slate-100 hover:bg-white hover:border-slate-300 hover:shadow-md shadow-sm'
                         }`}
                       >
                         <div className={`shrink-0 rounded-xl flex items-center justify-center font-sans border transition-all ${
-                          isSidebarCollapsed ? 'w-12 h-12 text-[12px]' : 'w-11 h-11 text-[11px]'
+                          isSidebarCollapsed ? 'w-10 h-10 text-[10px]' : 'w-9 h-9 text-[9px]'
                         } ${
                           isActive 
-                            ? isFree ? 'bg-rose-600 text-white border-rose-700 shadow-inner' : 'bg-blue-600 text-white border-blue-700 shadow-inner'
-                            : isFree 
-                              ? 'bg-rose-50 text-rose-600 group-hover:bg-rose-100 border-rose-100'
+                            ? topic.isPinned ? 'bg-rose-600 text-white border-rose-700 shadow-inner' : 'bg-blue-600 text-white border-blue-700 shadow-inner'
+                            : topic.isPinned 
+                              ? 'bg-rose-600 text-white border-rose-700 shadow-lg'
                               : 'bg-blue-50 text-blue-600 group-hover:bg-blue-100 border-blue-100'
                         }`}>
-                          <span translate="no" className="notranslate font-black uppercase tracking-tighter leading-none">{pPart}</span>
+                          <span translate="no" className="notranslate font-black uppercase tracking-normal leading-none">{psttCode}</span>
                         </div>
                         
                         {!isSidebarCollapsed && (
-                          <div className="text-left flex-1 min-w-0 flex flex-col justify-center py-0.5">
-                            <div className="flex items-center justify-between gap-1 mb-0.5">
-                              <p className={`whitespace-nowrap uppercase text-[12px] leading-none truncate font-black tracking-tight ${
-                                isActive 
-                                  ? isFree ? 'text-rose-700' : 'text-blue-700'
-                                  : isFree ? 'text-rose-600' : 'text-blue-600'
-                              }`}>
-                                {topic.title.toUpperCase()}
-                              </p>
-                              <div className="flex flex-col items-end shrink-0 min-w-[70px] opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                <p translate="no" className={`notranslate text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md mb-0.5 ${isActive ? 'bg-white/50 text-blue-800' : 'bg-slate-100 text-slate-500'}`}>
-                                  {getAuthor(topic.createdBy)?.name.split(' ').pop() || 'ADMIN'}
-                                </p>
-                                <p className="text-[7px] font-sans font-black opacity-40 shrink-0 uppercase tracking-tight">
-                                  {formatDateTime(topic.createdAt).split(' ')[0]}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between gap-2">
-                               <p className="text-[10px] font-medium text-slate-400 truncate uppercase tracking-tighter max-w-[120px]">
+                          <div className="text-left flex-1 min-w-0 flex flex-col justify-center relative">
+                            <p className={`uppercase text-[12px] leading-tight truncate font-black tracking-tight mb-1 pr-4 ${
+                              isActive 
+                                ? topic.isPinned ? 'text-rose-700' : 'text-blue-700'
+                                : topic.isPinned ? 'text-rose-600' : 'text-blue-600'
+                            }`}>
+                              {topic.title.toUpperCase()}
+                            </p>
+                            
+                            <div className="flex items-center justify-between gap-2 pointer-events-none">
+                               <p className="text-[10px] font-medium text-slate-400 truncate uppercase tracking-tighter max-w-[120px] leading-none">
                                  {topic.description || 'HỆ THỐNG THẢO LUẬN'}
                                </p>
+                            </div>
+
+                            {/* Creator & Date - Pushed to far top right corner */}
+                            <div className="absolute -top-1 -right-7 flex flex-col items-end shrink-0 opacity-40 group-hover:opacity-100 transition-opacity">
+                              <span translate="no" className={`notranslate text-[6.5px] font-black uppercase px-1 rounded-sm mb-0 ${isActive ? 'bg-white/50 text-blue-800' : 'bg-slate-100 text-slate-500'}`}>
+                                {getAuthor(topic.createdBy)?.name.split(' ').pop() || 'ADMIN'}
+                              </span>
+                              <span translate="no" className="notranslate text-[6px] font-black font-sans uppercase tracking-tight leading-none">
+                                {formatDateTime(topic.createdAt).split(' ')[0]}
+                              </span>
                             </div>
                           </div>
                         )}
                       </div>
 
-                      {/* Actions for closed/deleted topics */}
-                      <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
+                      {/* Bottom Action Icons (Pin, Unread Badge & Status) */}
+                      <div className="absolute bottom-2 right-2 flex items-center gap-1.5 z-20">
+                        {unreadCount > 0 && (
+                          <div className="bg-emerald-600 text-white text-[11px] font-black w-7 h-7 flex items-center justify-center rounded-lg shadow-[0_2px_10px_rgba(16,185,129,0.4)] border-2 border-white">
+                            <span translate="no" className="notranslate leading-none">{unreadCount}</span>
+                          </div>
+                        )}
+                        <button 
+                          onClick={(e) => togglePin(e, topic.id, !!topic.isPinned)}
+                          className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all shadow-sm border ${
+                            topic.isPinned 
+                              ? 'bg-rose-100 text-rose-600 border-rose-200 opacity-100' 
+                              : 'bg-white text-slate-300 border-slate-100 opacity-0 group-hover:opacity-100 hover:text-rose-500 hover:border-rose-200'
+                          }`}
+                          title={topic.isPinned ? "Bỏ ghim" : "Ghim chủ đề"}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill={topic.isPinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 2v8"/><path d="m16.4 13.5-3.8-3.8c-.4-.4-1-.4-1.4 0l-3.8 3.8c-.7.7-.2 1.9.8 1.9h2.3V21c0 .6.4 1 1 1s1-.4 1-1v-5.6h2.1c1 0 1.5-1.2.8-1.9Z"/>
+                          </svg>
+                        </button>
+
                         {activeTab === 'CLOSED' && (
                           <button 
                             onClick={(e) => {
@@ -681,39 +840,38 @@ const handleCreateTopic = () => {
             })()}
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Main Chat Area - Zalo Style Layout */}
-        <div className="flex-1 bg-white flex flex-col h-full overflow-hidden relative font-sans">
+        <div className="flex-1 bg-white flex flex-col min-w-0 h-full overflow-hidden relative font-sans">
           {activeTopic ? (
             <>
               {/* 1. Header (Fixed at top) */}
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white/80 backdrop-blur-md z-20 sticky top-0 shadow-sm">
                 <div className="flex items-center gap-4">
-                  {(() => {
-                    const isFree = activeTopic.title.toUpperCase().includes('TRAO ĐỔI TỰ DO');
-                    return (
-                      <div className={`shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center font-sans leading-none border-2 transition-all ${
-                        isFree 
-                          ? 'bg-rose-50 text-rose-600 border-rose-100 shadow-inner ring-4 ring-rose-50/50' 
-                          : 'bg-blue-50 text-blue-600 border-blue-100 shadow-inner ring-4 ring-blue-50/50'
-                      }`}>
-                        {(() => {
-                          const raw = activeTopic.topicCode || `P${activeTopic.orderCode || '???'}`;
-                          const pPart = raw.length > 6 ? raw.slice(0, raw.length - 6) : raw;
-                          
-                          return (
-                            <span translate="no" className="notranslate text-[14px] font-black uppercase tracking-tighter leading-none">{pPart}</span>
-                          );
-                        })()}
-                      </div>
-                    );
-                  })()}
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <h1 className={`text-[19px] font-black leading-tight uppercase pt-0.5 truncate ${
-                        activeTopic.title.toUpperCase().includes('TRAO ĐỔI TỰ DO') ? 'text-rose-700' : 'text-slate-900'
-                      }`}>{activeTopic.title}</h1>
+                    {(() => {
+                      const isPinned = activeTopic.isPinned;
+                      
+                      // Formatting logic: Luôn lấy P + 3 số
+                      const raw = (activeTopic.topicCode || activeTopic.orderCode || '').toString();
+                      const digits = raw.replace(/\D/g, ''); 
+                      const psttCode = 'P' + (digits.length >= 3 ? digits.slice(0, 3) : digits.padStart(3, '0'));
+                      
+                      return (
+                        <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center font-sans leading-none border-2 transition-all ${
+                          isPinned 
+                            ? 'bg-rose-50 text-rose-600 border-rose-100 shadow-inner ring-4 ring-rose-50/50' 
+                            : 'bg-blue-50 text-blue-600 border-blue-100 shadow-inner ring-4 ring-blue-50/50'
+                        }`}>
+                          <span translate="no" className="notranslate text-[12px] font-black uppercase tracking-normal leading-none">{psttCode}</span>
+                        </div>
+                      );
+                    })()}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <h1 className={`text-[19px] font-black leading-tight uppercase pt-0.5 truncate ${
+                          activeTopic.isPinned ? 'text-rose-700' : 'text-slate-900'
+                        }`}>{activeTopic.title}</h1>
                       <div className="hidden sm:flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{presence.length} ACTIVE</span>
@@ -788,12 +946,14 @@ const handleCreateTopic = () => {
                       <div className={`flex ${isMe ? 'flex-row-reverse' : 'flex-row'} items-start gap-3 max-w-[80%]`}>
                         {/* Avatar */}
                         <div className="flex-shrink-0 relative">
-                          <img 
-                            src={(isMe ? currentUser.avatar : author?.avatar) || '/default-avatar.png'} 
-                            className={`w-10 h-10 rounded-full border-2 ${isMe ? 'border-blue-500' : 'border-slate-200'}`}
+                          <Avatar 
+                            src={isMe ? currentUser.avatar : author?.avatar} 
+                            name={isMe ? currentUser.name : (author?.name || 'User')}
+                            size="lg"
+                            className={`border-2 ${isMe ? 'border-blue-500' : 'border-slate-200'}`}
                           />
                           {presence.includes(msg.authorId) && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full shadow-sm" />
+                            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full shadow-sm z-10" />
                           )}
                         </div>
 
@@ -802,7 +962,7 @@ const handleCreateTopic = () => {
                           {/* Tên và Thời gian */}
                           <div className={`flex items-center gap-2 mb-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                             <span translate="no" className="notranslate text-[12px] font-bold text-gray-600">
-                              {isMe ? "TÔI (ADMIN)" : (author?.name || 'Thành viên')}
+                              {isMe ? `TÔI (${(currentUser?.role || 'User').toUpperCase()})` : (author?.name || 'Thành viên')}
                             </span>
                             <span translate="no" className="notranslate text-[10px] text-gray-400">
                               {formatFullDateTime(msg.timestamp).split(' ')[1]}
@@ -971,6 +1131,46 @@ const handleCreateTopic = () => {
                     )}
 
                       <div className="relative flex items-end gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200 shadow-inner group focus-within:border-blue-300 focus-within:ring-4 ring-blue-50 transition-all duration-300">
+                        {/* Mention List Popup */}
+                        <AnimatePresence>
+                          {showMentionList && filteredMentionUsers.length > 0 && (
+                            <motion.div 
+                              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                              className="absolute bottom-full left-0 mb-2 w-72 bg-white rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-slate-100 overflow-hidden z-[999] p-2"
+                            >
+                              <div className="px-3 py-2 border-b border-slate-50 mb-1">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Gợi ý nhắc tên</p>
+                              </div>
+                              <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                                {filteredMentionUsers.map((user) => (
+                                  <button
+                                    key={user.id}
+                                    onClick={() => insertMention(user)}
+                                    className="w-full flex items-center gap-3 p-2 hover:bg-blue-50 rounded-xl transition-all group text-left"
+                                  >
+                                    <Avatar 
+                                      src={user.avatar} 
+                                      name={user.name} 
+                                      size="sm" 
+                                      className="border border-slate-200"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-[14px] font-bold text-slate-700 truncate mb-0.5">
+                                        <span translate="no" className="notranslate uppercase">{user.name}</span>
+                                      </p>
+                                      <p className="text-[10px] font-black text-slate-400 group-hover:text-blue-500 uppercase tracking-tighter">
+                                        <span translate="no" className="notranslate">{(user.role || 'Staff').toUpperCase()}</span>
+                                      </p>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
                         <div className="flex items-center gap-1 shrink-0 mb-0.5">
                           <button 
                             onClick={() => imageInputRef.current?.click()}
@@ -993,7 +1193,7 @@ const handleCreateTopic = () => {
                           ref={inputRef}
                           className="flex-1 bg-transparent border-0 py-3.5 px-3 text-[16px] outline-none focus:ring-0 transition-all min-h-[48px] max-h-60 overflow-y-auto font-medium text-slate-800 custom-scrollbar empty:before:content-[attr(placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none"
                           placeholder="Nhập nội dung thảo luận mới..."
-                          onInput={() => setHasContent(!!inputRef.current?.innerText.trim())}
+                          onInput={handleInput}
                           onPaste={handlePaste}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {

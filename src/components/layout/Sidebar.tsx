@@ -16,6 +16,7 @@ interface SidebarProps {
   completedTasksCount?: number;
   totalStaffCount?: number;
   groupUnreadCount?: number;
+  groupTotalCount?: number;
   trashTasksCount?: number;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
@@ -31,6 +32,7 @@ export const Sidebar = ({
   completedTasksCount = 0,
   totalStaffCount = 0,
   groupUnreadCount = 0,
+  groupTotalCount = 0,
   trashTasksCount = 0,
   isCollapsed,
   onToggleCollapse,
@@ -158,7 +160,7 @@ export const Sidebar = ({
                 <motion.span 
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
-                  className="absolute -top-2 -right-2 bg-rose-600 text-white text-[10px] font-black min-w-[22px] h-[22px] px-1 rounded-full flex items-center justify-center border-2 border-white shadow-lg shadow-rose-200 animate-bounce z-[150]"
+                  className="absolute -top-2 -right-2 bg-emerald-600 text-white text-[10px] font-black min-w-[22px] h-[22px] px-1 rounded-full flex items-center justify-center border-2 border-white shadow-lg shadow-emerald-200 animate-bounce z-[150]"
                 >
                   {groupUnreadCount > 99 ? '99+' : groupUnreadCount}
                 </motion.span>
@@ -167,26 +169,30 @@ export const Sidebar = ({
             {!isCollapsed && (
               <div className="flex-1 min-w-0 text-left flex items-center justify-between gap-1">
                 <div className="min-w-0">
-                  <p className={`text-[12px] font-black uppercase truncate transition-colors ${activeTab === 'group_chat' ? (isDark ? 'text-white' : 'text-rose-600') : (isDark ? 'text-white/80 group-hover:text-white' : 'text-gray-700 group-hover:text-rose-600')}`}>
-                    <span translate="no" className="notranslate">Room Thảo Luận</span>
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className={`text-[12px] font-black uppercase truncate transition-colors ${activeTab === 'group_chat' ? (isDark ? 'text-white' : 'text-rose-600') : (isDark ? 'text-white/80 group-hover:text-white' : 'text-gray-700 group-hover:text-rose-600')}`}>
+                      <span translate="no" className="notranslate">Room Thảo Luận</span>
+                    </p>
+                  </div>
                   <p className={`text-[8px] font-bold uppercase tracking-widest truncate ${isDark ? 'text-white/40' : 'text-gray-400'}`}>
                     <span translate="no" className="notranslate">Cộng đồng QLCL</span>
                   </p>
                 </div>
-                <div className="flex items-center gap-2 flex-none">
-                  <div className="relative group-hover:scale-105 transition-transform">
-                    <GroupDiscussionIcon className={`w-10 h-10 ${activeTab === 'group_chat' ? (isDark ? 'text-white' : 'text-rose-600') : (isDark ? 'text-white/40 group-hover:text-white/60' : 'text-gray-400 opacity-60 group-hover:opacity-100')} transition-all`} />
-                    {groupUnreadCount > 0 && (
-                      <motion.span 
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="absolute -top-2 -right-2 bg-rose-600 text-white text-[10px] font-black min-w-[22px] h-[22px] px-1.5 rounded-full flex items-center justify-center border-2 border-white shadow-lg shadow-rose-200 animate-bounce z-[150]"
-                      >
-                        {groupUnreadCount > 99 ? '99+' : groupUnreadCount}
-                      </motion.span>
-                    )}
-                  </div>
+                <div className="flex items-center gap-1 flex-none relative">
+                  {groupTotalCount > 0 && (
+                    <span className={`text-[10px] font-black min-w-[22px] h-[22px] px-1 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-md bg-blue-500 text-white shadow-blue-100 transition-all`}>
+                      {groupTotalCount}
+                    </span>
+                  )}
+                  {groupUnreadCount > 0 && (
+                    <motion.span 
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="absolute -top-3 -right-2 bg-emerald-600 text-white text-[9px] font-black min-w-[20px] h-[20px] px-1 rounded-full flex items-center justify-center border-2 border-white shadow-lg shadow-emerald-200 animate-bounce z-[150]"
+                    >
+                      {groupUnreadCount > 99 ? '99+' : groupUnreadCount}
+                    </motion.span>
+                  )}
                 </div>
               </div>
             )}

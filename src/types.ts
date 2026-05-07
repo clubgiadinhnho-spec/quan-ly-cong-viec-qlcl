@@ -208,6 +208,7 @@ export interface DiscussionTopic {
   closedAt?: string;
   status: 'OPEN' | 'CLOSED' | 'DELETED';
   isDefault?: boolean;
+  isPinned?: boolean;
 }
 
 export interface UserPresence {

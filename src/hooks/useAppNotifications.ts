@@ -175,10 +175,26 @@ export const useAppNotifications = (
     });
   }, []);
 
+  // Timestamps for when user last viewed main sections
+  const [lastViewedSections, setLastViewedSections] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem("qc_last_viewed_sections");
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  useEffect(() => {
+    localStorage.setItem("qc_last_viewed_sections", JSON.stringify(lastViewedSections));
+  }, [lastViewedSections]);
+
+  const markSectionAsViewed = useCallback((sectionId: string) => {
+    setLastViewedSections(prev => ({ ...prev, [sectionId]: Date.now() }));
+  }, []);
+
   return {
     unreadNotifications,
     setUnreadNotifications,
     lastReadChatTimestamps,
-    markAsRead
+    lastViewedSections,
+    markAsRead,
+    markSectionAsViewed
   };
 };

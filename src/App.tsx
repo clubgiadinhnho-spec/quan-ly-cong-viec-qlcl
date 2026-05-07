@@ -115,10 +115,17 @@ export default function App() {
   });
 
   // 6. Notifications & Unread Counts Hook
-  const { unreadNotifications, setUnreadNotifications, lastReadChatTimestamps, markAsRead } = useAppNotifications(
+  const { unreadNotifications, setUnreadNotifications, lastReadChatTimestamps, lastViewedSections, markAsRead, markSectionAsViewed } = useAppNotifications(
     effectiveUser, authReady, firebaseLoading, tasks, privateMessages, generalMessages, discussionMessages,
     showDirectChat?.id || null, activeTab, showChatModal
   );
+
+  // Clear unread count for current section
+  useEffect(() => {
+    if (activeTab) {
+      markSectionAsViewed(activeTab);
+    }
+  }, [activeTab, markSectionAsViewed]);
 
   const handleJumpToTask = useCallback((taskId: string) => {
     setHighlightedTaskId(taskId);
@@ -261,27 +268,46 @@ export default function App() {
     const nonDeleted = tasks.filter(t => !t.deletedAt);
     const isManager = effectiveUser?.role === "Admin" || !!effectiveUser?.delegatedPermissions?.canApproveTask;
     
+    // View thresholds
+    const lastViewedTasks = lastViewedSections["tasks"] || 0;
+    const lastViewedPending = lastViewedSections["pending_confirmation"] || 0;
+    const lastViewedCompleted = lastViewedSections["completed_tasks"] || 0;
+    const lastViewedStaff = lastViewedSections["staff_list"] || 0;
+
     // Tasks awaiting confirmation (for managers or author)
-    const pending = nonDeleted.filter(t => t.status === "AWAITING_CONFIRMATION" && (isManager || t.authorId === effectiveUser?.id));
+    const pending = nonDeleted.filter(t => 
+      t.status === "AWAITING_CONFIRMATION" && 
+      (isManager || t.authorId === effectiveUser?.id) &&
+      new Date(t.updatedAt).getTime() > lastViewedPending
+    );
     
     // All active tasks in the department (non-completed, non-pending-confirmation)
     const departmentActive = nonDeleted.filter(t => 
       t.status !== "COMPLETED" && 
       t.status !== "AWAITING_CONFIRMATION" && 
-      t.status !== "Hoàn thành"
+      t.status !== "Hoàn thành" &&
+      new Date(t.updatedAt).getTime() > lastViewedTasks
     );
 
-    // Tasks that the current user is assigned to or following
-    const myActive = departmentActive.filter(t => isUserTask(t, effectiveUser));
+    // Completed tasks (unread)
+    const completedUnread = nonDeleted.filter(t => 
+      (t.status === "COMPLETED" || t.status === "Hoàn thành") &&
+      new Date(t.updatedAt).getTime() > lastViewedCompleted
+    );
+
+    // Staff unread (new or updated profiles)
+    const staffUnread = allUsers.filter(u => 
+      new Date(u.updatedAt || 0).getTime() > lastViewedStaff
+    );
 
     return {
       pending: pending.length,
-      active: departmentActive.length, // This is for "Phòng QLCL"
-      mine: myActive.length,           // This is for "Cá nhân"
-      completed: nonDeleted.filter(t => t.status === "COMPLETED" || t.status === "Hoàn thành").length,
+      active: departmentActive.length, 
+      completed: completedUnread.length,
+      staff: staffUnread.length,
       trash: tasks.filter(t => !!t.deletedAt).length
     };
-  }, [tasks, effectiveUser]);
+  }, [tasks, effectiveUser, lastViewedSections, allUsers]);
 
   const unreadCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -371,7 +397,7 @@ export default function App() {
       <Sidebar
         user={effectiveUser} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout}
         pendingTasksCount={counts.pending} activeTasksCount={counts.active} completedTasksCount={counts.completed}
-        totalStaffCount={allUsers.length} groupUnreadCount={groupUnreadCount} trashTasksCount={counts.trash}
+        totalStaffCount={counts.staff} groupUnreadCount={groupUnreadCount} trashTasksCount={counts.trash}
         isCollapsed={isMainSidebarCollapsed} onToggleCollapse={() => setIsMainSidebarCollapsed(!isMainSidebarCollapsed)}
       />
       <main className={`flex-1 relative flex flex-col ${activeTab === 'group_chat' ? 'h-screen overflow-hidden' : 'py-6'}`}>

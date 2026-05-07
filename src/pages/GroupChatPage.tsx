@@ -46,6 +46,8 @@ interface GroupChatPageProps {
   onDeleteTopicsBulk?: (topicIds: string[]) => Promise<any>;
   onDeleteMessage?: (messageId: string) => void;
   presence?: string[];
+  markAsRead?: (id: string) => void;
+  lastReadChatTimestamps?: Record<string, number>;
 }
 
 export const GroupChatPage = ({ 
@@ -60,7 +62,9 @@ export const GroupChatPage = ({
   onDeleteTopic,
   onDeleteTopicsBulk,
   onDeleteMessage,
-  presence = []
+  presence = [],
+  markAsRead,
+  lastReadChatTimestamps = {}
 }: GroupChatPageProps) => {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
 
@@ -98,34 +102,13 @@ export const GroupChatPage = ({
   const [showMentionList, setShowMentionList] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [filteredMentionUsers, setFilteredMentionUsers] = useState<User[]>([]);
-  const [lastReadMap, setLastReadMap] = useState<Record<string, string>>({});
-
-  // Load last read state from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem(`lastRead_${currentUser.id}`);
-    if (saved) {
-      try {
-        setLastReadMap(JSON.parse(saved));
-      } catch (e) {
-        console.error("Error parsing lastReadMap", e);
-      }
-    }
-  }, [currentUser.id]);
-
-  // Save last read state when it changes
-  useEffect(() => {
-    localStorage.setItem(`lastRead_${currentUser.id}`, JSON.stringify(lastReadMap));
-  }, [lastReadMap, currentUser.id]);
 
   // Update lastReadAt when topic is selected
   useEffect(() => {
-    if (selectedTopicId) {
-      setLastReadMap(prev => ({
-        ...prev,
-        [selectedTopicId]: new Date().toISOString()
-      }));
+    if (selectedTopicId && markAsRead) {
+      markAsRead(`topic_${selectedTopicId}`);
     }
-  }, [selectedTopicId]);
+  }, [selectedTopicId, markAsRead]);
 
   const inputRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -455,8 +438,9 @@ const handleCreateTopic = () => {
   };
 
   const getTopicUnreadCount = (topicId: string) => {
-    const lastRead = lastReadMap[topicId] || '1970-01-01T00:00:00Z';
-    return messages.filter(m => m.topicId === topicId && m.timestamp > lastRead).length;
+    if (!lastReadChatTimestamps) return 0;
+    const lastRead = lastReadChatTimestamps[`topic_${topicId}`] || 0;
+    return messages.filter(m => m.topicId === topicId && m.authorId !== currentUser.id && new Date(m.timestamp).getTime() > lastRead).length;
   };
 
   const totalUnreadCount = topics

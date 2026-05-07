@@ -16,7 +16,6 @@ interface SidebarProps {
   completedTasksCount?: number;
   totalStaffCount?: number;
   groupUnreadCount?: number;
-  groupTotalCount?: number;
   trashTasksCount?: number;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
@@ -32,7 +31,6 @@ export const Sidebar = ({
   completedTasksCount = 0,
   totalStaffCount = 0,
   groupUnreadCount = 0,
-  groupTotalCount = 0,
   trashTasksCount = 0,
   isCollapsed,
   onToggleCollapse,
@@ -156,15 +154,7 @@ export const Sidebar = ({
               <div className={`p-2 bg-gradient-to-br from-rose-500 to-rose-600 rounded-xl shadow-sm border border-rose-400/20`}>
                  <GroupChatIcon className="w-5 h-5 text-white" />
               </div>
-              {isCollapsed && groupUnreadCount > 0 && (
-                <motion.span 
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-2 -right-2 bg-emerald-600 text-white text-[10px] font-black min-w-[22px] h-[22px] px-1 rounded-full flex items-center justify-center border-2 border-white shadow-lg shadow-emerald-200 animate-bounce z-[150]"
-                >
-                  {groupUnreadCount > 99 ? '99+' : groupUnreadCount}
-                </motion.span>
-              )}
+              {/* Removed unread count badge */}
             </div>
             {!isCollapsed && (
               <div className="flex-1 min-w-0 text-left flex items-center justify-between gap-1">
@@ -179,20 +169,6 @@ export const Sidebar = ({
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-none relative">
-                  {groupTotalCount > 0 && (
-                    <span className={`text-[10px] font-black min-w-[22px] h-[22px] px-1 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-md bg-blue-500 text-white shadow-blue-100 transition-all`}>
-                      {groupTotalCount}
-                    </span>
-                  )}
-                  {groupUnreadCount > 0 && (
-                    <motion.span 
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      className="absolute -top-3 -right-2 bg-emerald-600 text-white text-[9px] font-black min-w-[20px] h-[20px] px-1 rounded-full flex items-center justify-center border-2 border-white shadow-lg shadow-emerald-200 animate-bounce z-[150]"
-                    >
-                      {groupUnreadCount > 99 ? '99+' : groupUnreadCount}
-                    </motion.span>
-                  )}
                 </div>
               </div>
             )}

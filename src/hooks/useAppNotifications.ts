@@ -169,8 +169,8 @@ export const useAppNotifications = (
   const markAsRead = useCallback((chatId: string) => {
     setLastReadChatTimestamps(prev => {
       const now = Date.now();
-      // Only update if the timestamp is actually newer to prevent idle updates
-      if (prev[chatId] && now - prev[chatId] < 1000) return prev; 
+      // Only update if the timestamp is actually newer
+      if (prev[chatId] && now <= prev[chatId]) return prev; 
       return { ...prev, [chatId]: now };
     });
   }, []);

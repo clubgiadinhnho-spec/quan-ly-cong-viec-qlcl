@@ -291,8 +291,12 @@ export default function App() {
 
   const groupUnreadCount = useMemo(() => {
     if (!effectiveUser) return 0;
-    const lastRead = lastReadChatTimestamps["group_chat"] || 0;
-    return discussionMessages.filter(m => m.authorId !== effectiveUser.id && new Date(m.timestamp).getTime() > lastRead).length;
+    // Agreggate unread messages across all topics using per-topic lastRead timestamps
+    return discussionMessages.filter(m => {
+      if (m.authorId === effectiveUser.id) return false;
+      const lastRead = lastReadChatTimestamps[`topic_${m.topicId}`] || 0;
+      return new Date(m.timestamp).getTime() > lastRead;
+    }).length;
   }, [discussionMessages, effectiveUser, lastReadChatTimestamps]);
 
   const groupTotalCount = useMemo(() => discussionMessages.length, [discussionMessages]);
@@ -367,7 +371,7 @@ export default function App() {
       <Sidebar
         user={effectiveUser} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout}
         pendingTasksCount={counts.pending} activeTasksCount={counts.active} completedTasksCount={counts.completed}
-        totalStaffCount={allUsers.length} groupUnreadCount={groupUnreadCount} groupTotalCount={groupTotalCount} trashTasksCount={counts.trash}
+        totalStaffCount={allUsers.length} groupUnreadCount={groupUnreadCount} trashTasksCount={counts.trash}
         isCollapsed={isMainSidebarCollapsed} onToggleCollapse={() => setIsMainSidebarCollapsed(!isMainSidebarCollapsed)}
       />
       <main className={`flex-1 relative flex flex-col ${activeTab === 'group_chat' ? 'h-screen overflow-hidden' : 'py-6'}`}>
@@ -389,6 +393,7 @@ export default function App() {
             logs={logs} setActiveTab={setActiveTab} setShowDirectChat={setShowDirectChat} unreadCounts={unreadCounts} groupUnreadCount={groupUnreadCount}
             setSimulatedUser={setSimulatedUser} firebaseSendPrivateMsg={firebaseSendPrivateMsg} deleteProfile={deleteProfile}
             resetSystem={resetSystem} deleteLogsBulk={deleteLogsBulk}
+            markAsRead={markAsRead} lastReadChatTimestamps={lastReadChatTimestamps}
           />
         </div>
       </main>

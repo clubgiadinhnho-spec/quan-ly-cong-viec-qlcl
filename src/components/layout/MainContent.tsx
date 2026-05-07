@@ -71,6 +71,8 @@ interface MainContentProps {
   logs: LogEntry[];
   resetSystem: () => Promise<void>;
   deleteLogsBulk: (logIds: string[]) => Promise<boolean>;
+  markAsRead: (id: string) => void;
+  lastReadChatTimestamps: Record<string, number>;
 }
 
 export const MainContent: React.FC<MainContentProps> = (props) => {
@@ -84,7 +86,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
     updateProfile, officialReports, firebaseSaveReportDraft, firebaseSaveOfficialReport,
     permanentDeleteTask, restoreTask, setActiveTab, setShowDirectChat, unreadCounts, groupUnreadCount,
     setSimulatedUser, firebaseSendPrivateMsg, deleteProfile, deleteTasksBulk, trashTasksBulk, logs, resetSystem,
-    deleteLogsBulk
+    deleteLogsBulk, markAsRead, lastReadChatTimestamps
   } = props;
 
   const [selectedTaskIds, setSelectedTaskIds] = React.useState<string[]>([]);
@@ -365,6 +367,8 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
             })}
             onUpdateTopic={updateTopic} onDeleteTopic={deleteTopic} onDeleteTopicsBulk={deleteTopicsBulk} onDeleteMessage={deleteDiscussionMessage}
             presence={presence.map(p => p.id)}
+            markAsRead={markAsRead}
+            lastReadChatTimestamps={lastReadChatTimestamps}
           />
         </motion.div>
       )}

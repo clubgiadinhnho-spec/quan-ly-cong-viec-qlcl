@@ -1,10 +1,11 @@
 import React from 'react';
 import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw, Trash2, Bell, RefreshCw, Highlighter, Check, ThumbsUp, CheckCircle2, Tag, Pencil, Eye } from 'lucide-react';
 import { Task, User } from '../../types';
-import { formatDate } from '../../lib/dateUtils';
+import { formatDate, calculateNextDeadline } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
 import { AnimatePresence, motion } from 'motion/react';
 import { Avatar } from '../common/Avatar';
+import { CycleHistoryEntry } from '../../types';
 
 import { getUserById, getSafeNameProps, getTaskAssigneeName, isUserTask } from '../../utils/userUtils';
 
@@ -114,12 +115,15 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   const deadlineStatus = getDeadlineStatus();
 
-  const isFreshUpdate = task.isNewUpdate && task.lastUpdateAt && (Date.now() - new Date(task.lastUpdateAt).getTime() < 24 * 60 * 60 * 1000);
+  const isFreshUpdate = task.isNewUpdate && (
+    (isAdmin && task.lastUpdatedByRole !== 'Admin') ||
+    (!isAdmin && task.lastUpdatedByRole === 'Admin')
+  );
 
   const handleConfirmTask = (approve: boolean) => {
     if (approve) {
       onUpdate(task.id, { 
-        status: 'IN_PROGRESS', 
+        status: 'APPROVED', 
         isNewSoldier: true,
         updatedAt: new Date().toISOString()
       });
@@ -129,19 +133,57 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   };
 
   const handleStatusAction = () => {
-    // Managers/Owners can mark as pending approval
-    if (!canApprove) {
-      onUpdate(task.id, { status: 'PENDING_APPROVAL' });
+    // Staff sends completion request
+    if (!isAdmin) {
+      if (!isOwner) return; // Chỉ người được giao việc mới được gửi hoàn thành
+      if (task.waitingApproval) return; // Already sent
+      onUpdate(task.id, { 
+        waitingApproval: true,
+        isNewUpdate: true,
+        updatedAt: new Date().toISOString()
+      });
       if (createNotification) {
         createNotification(user.name, task.code, task.id, 'COMPLETED_REQUEST');
       }
-    } else if (canApprove) {
+    } else {
+      // Admin approves completion
       setConfirmModal({
         show: true,
         title: 'XÁC NHẬN HOÀN THÀNH',
         message: 'Bạn muốn chốt công việc này đã hoàn thành?',
         onConfirm: () => {
-          onUpdate(task.id, { status: 'COMPLETED', actualEndDate: new Date().toISOString().split('T')[0], isLocked: true });
+          if (task.recurrence && task.recurrence !== 'NONE') {
+            // Recurring task logic
+            const currentDeadline = task.extensionDate || task.expectedEndDate;
+            const nextDeadline = calculateNextDeadline(currentDeadline || new Date().toISOString().split('T')[0], task.recurrence);
+            
+            const newHistory: CycleHistoryEntry = {
+              version: (task.cycleHistory?.length || 0) + 1,
+              reportContent: task.currentUpdate,
+              completedAt: new Date().toISOString(),
+              nextDeadline: nextDeadline
+            };
+
+            onUpdate(task.id, {
+              cycleHistory: [...(task.cycleHistory || []), newHistory],
+              expectedEndDate: nextDeadline,
+              extensionDate: null,
+              prevProgress: task.currentUpdate,
+              currentUpdate: '',
+              isNewUpdate: false,
+              waitingApproval: false,
+              updatedAt: new Date().toISOString()
+            });
+          } else {
+            // One-time task logic
+            onUpdate(task.id, { 
+              status: 'COMPLETED', 
+              actualEndDate: new Date().toISOString().split('T')[0], 
+              isLocked: true,
+              waitingApproval: false,
+              updatedAt: new Date().toISOString()
+            });
+          }
           setConfirmModal((p: any) => ({ ...p, show: false }));
         }
       });
@@ -149,7 +191,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   };
 
   const handleApprove = () => {
-    onUpdate(task.id, { status: 'COMPLETED', actualEndDate: new Date().toISOString().split('T')[0], isLocked: true });
+    onUpdate(task.id, { 
+      status: 'APPROVED', 
+      updatedAt: new Date().toISOString() 
+    });
   };
 
   return (
@@ -163,7 +208,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       transition={{ duration: 0.4 }}
       className={`group transition-all ${finalRowClass} relative ${highlightedTaskId === task.id ? 'z-10' : ''} ${isSelected ? 'bg-blue-50/50' : ''}`}
     >
-      <td className="p-2 text-center border border-gray-300 align-middle">
+      <td className="p-2 text-center border border-gray-300 align-middle w-[40px]">
          <input 
            type="checkbox" 
            checked={isSelected}
@@ -385,6 +430,15 @@ export const TaskRow: React.FC<TaskRowProps> = ({
              </div>
           ) : (
             <p className="text-[11px] font-black text-gray-900 leading-tight pr-4 uppercase break-words whitespace-normal font-sans">
+              {task.isNewSoldier && (
+                <span 
+                  translate="no" 
+                  className="notranslate inline-block bg-red-600 text-white text-[9px] font-black px-1 py-0.5 rounded-sm mr-1 animate-pulse uppercase cursor-pointer"
+                  onClick={() => onUpdate(task.id, { isNewSoldier: false })}
+                >
+                  NEW
+                </span>
+              )}
               <span translate="no" className="notranslate">{task.title}</span>
             </p>
           )}
@@ -439,17 +493,17 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               <div className="flex items-center gap-2">
                 <span 
                   translate="no" 
-                  className={`notranslate px-1 py-0.5 rounded-sm cursor-pointer transition-all flex items-center ${
+                  className={`notranslate px-2 py-1 rounded-sm cursor-pointer transition-all flex items-center justify-center ${
                     isFreshUpdate 
-                      ? 'text-[13px] font-bold text-red-600 animate-bounce bg-red-50' 
+                      ? 'text-[24px] font-black text-red-600 animate-bounce bg-white border-4 border-red-600 shadow-xl z-20 scale-125' 
                       : 'bg-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-tighter'
                   }`}
-                  onClick={() => task.isNewUpdate && onUpdate(task.id, { isNewUpdate: false })}
+                  onClick={() => isFreshUpdate && onUpdate(task.id, { isNewUpdate: false })}
                 >
                   V{(task.history || []).length || 1}
                 </span>
                 
-                {task.isNewUpdate && (
+                {isFreshUpdate && (
                   <button
                     onClick={() => onUpdate(task.id, { isNewUpdate: false })}
                     className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white text-[10px] font-black rounded-md shadow-md hover:bg-blue-700 transition-all border border-blue-400 animate-pulse active:scale-95"
@@ -507,7 +561,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           )}
         </div>
       </td>
-      {!isReadOnly && (
+      {!isReadOnly && (isAdmin || isOwner || isManager) && (
         <td className="py-2 px-1 text-center border border-gray-300 align-middle">
           <div className="flex flex-col items-center justify-center gap-1.5 w-full max-w-[44px] mx-auto min-h-full py-1">
             {/* THÙNG RÁC: Trạng thái DELETED hoặc có deletedAt */}
@@ -539,13 +593,13 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 {task.status === 'PENDING' && (
                   <div className="flex flex-col gap-1.5 w-full items-center">
                     {/* DUYỆT: Admin/Leader */}
-                    {canApprove && onApprove && (
+                    {canApprove && (
                       <button 
-                        onClick={() => onApprove(task.id)}
+                        onClick={handleApprove}
                         className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-all shadow-lg group/btn border-2 border-blue-400"
                         title="DUYỆT"
                       >
-                        <CheckCircle2 size={24} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+                        <CheckCircle2 size={24} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
                         <span className="sr-only notranslate" translate="no">DUYỆT</span>
                       </button>
                     )}
@@ -562,8 +616,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                       </button>
                     )}
 
-                    {/* XÓA: ADMIN HOẶC CHỦ SỞ HỮU HOẶC TÁC GIẢ */}
-                    {(isAdmin || ((isOwner || isAuthor) && !isReadOnly)) && (
+                    {/* XÓA: ADMIN HOẶC TÁC GIẢ HOẶC CHỦ NHÂN (Nếu là đề xuất) */}
+                    {(isAdmin || isAuthor || (isOwner && task.status === 'PENDING')) && (
                       <button 
                         onClick={() => onDelete(task.id)}
                         className="w-10 h-10 flex items-center justify-center bg-red-600 text-white rounded-md hover:bg-red-700 transition-all shadow-md border-2 border-red-400 group/btn"
@@ -583,12 +637,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                     {!task.isLocked && (
                       <button 
                         onClick={handleStatusAction}
-                        title={canApprove ? 'XÁC NHẬN HOÀN THÀNH' : 'GỬI HOÀN THÀNH'}
+                        title={isAdmin ? 'XÁC NHẬN HOÀN THÀNH' : 'GỬI HOÀN THÀNH'}
                         className={`w-10 h-10 flex items-center justify-center rounded-md transition-all shadow-lg group/btn border-2 ${
-                          canApprove ? 'bg-amber-500 text-white hover:bg-amber-600 border-amber-200' : 'bg-blue-600 text-white hover:bg-blue-700 border-blue-400'
-                        }`}
+                          isAdmin 
+                            ? (task.waitingApproval ? 'bg-blue-600 animate-bounce border-blue-400 shadow-blue-200' : 'bg-amber-500 hover:bg-amber-600 border-amber-200') 
+                            : (task.waitingApproval ? 'bg-amber-400 cursor-default opacity-50' : 'bg-amber-500 hover:bg-amber-600 border-amber-200')
+                        } text-white`}
                       >
-                        <CheckCircle2 size={24} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+                        <CheckCircle2 size={24} strokeWidth={3} className={`${task.waitingApproval ? 'scale-110' : 'group-hover:scale-110'} transition-transform`} />
                         <span className="sr-only notranslate" translate="no">XONG</span>
                       </button>
                     )}
@@ -640,12 +696,12 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                       </AnimatePresence>
                     </div>
 
-                    {/* XÓA: ADMIN HOẶC CHỦ SỞ HỮU */}
-                    {(isAdmin || (isOwner && !isReadOnly)) && (
+                    {/* XÓA: CHỈ ADMIN Ở BẢNG CHÍNH */}
+                    {isAdmin && (
                       <button 
                         onClick={() => onDelete(task.id)}
+                        className="w-10 h-10 flex items-center justify-center bg-red-600 text-white rounded-md hover:bg-red-700 transition-all shadow-md border-2 border-red-400 group/btn"
                         title="XÓA"
-                        className="w-10 h-10 flex items-center justify-center rounded-md transition-all shadow-lg border-2 group/btn bg-red-600 text-white border-red-400 hover:bg-red-700"
                       >
                         <Trash2 size={22} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
                         <span className="sr-only notranslate" translate="no">XÓA</span>
@@ -672,32 +728,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   </div>
                 )}
 
-                {task.status === 'PENDING_APPROVAL' && (
-                  <div className="flex flex-col gap-1.5 items-center">
-                    {canApprove ? (
-                      <button 
-                        onClick={handleApprove}
-                        title="XÁC NHẬN HOÀN THÀNH"
-                        className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-all shadow-lg border-2 border-blue-400 group/btn"
-                      >
-                        <CheckCircle2 size={24} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
-                        <span className="sr-only notranslate" translate="no">XÁC NHẬN HOÀN THÀNH</span>
-                      </button>
-                    ) : (
-                      <div className="flex flex-col gap-1">
-                        <span translate="no" className="notranslate text-[7px] font-black text-amber-600 bg-amber-50 px-1 py-1 rounded-sm border border-amber-200 uppercase tracking-tighter leading-none text-center animate-pulse">Đang chờ duyệt...</span>
-                        <button 
-                          onClick={() => onUpdate(task.id, { status: 'APPROVED' })}
-                          className="w-full py-1 text-[7px] font-bold text-gray-400 hover:text-red-500 uppercase tracking-tighter"
-                        >
-                          <span translate="no" className="notranslate">Hủy gửi</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {task.status === 'COMPLETED' && canApprove && (
+                {task.status === 'COMPLETED' && isAdmin && (
                   <button 
                     onClick={() => {
                       setConfirmModal({
@@ -706,7 +737,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                         message: 'Bạn muốn chuyển công việc này quay lại bảng đang thực hiện?',
                         onConfirm: () => {
                           onUpdate(task.id, { 
-                            status: 'APPROVED' as any, 
+                            status: 'APPROVED', 
                             actualEndDate: null, 
                             isLocked: false,
                             currentUpdate: '[HOÀN TÁC] Chuyển về bảng đang thực hiện'
@@ -727,6 +758,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           </div>
         </td>
       )}
+
     </motion.tr>
   );
 };

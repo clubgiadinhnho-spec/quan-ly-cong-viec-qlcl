@@ -130,10 +130,10 @@ export const TaskList: React.FC<TaskListProps> = ({
       <table className="w-full text-left border-collapse table-fixed min-w-full">
         <thead>
           <tr className="bg-blue-600">
-            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[3%] text-center border border-blue-700 bg-blue-600 sticky top-0 z-10">
+            <th className="p-2 text-[10px] font-black text-white uppercase tracking-wider w-[40px] text-center border border-blue-700 bg-blue-600 sticky top-0 z-10">
                <input 
                  type="checkbox"
-                 className="w-3 h-3 rounded-sm border-blue-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                 className="w-3.5 h-3.5 rounded-sm border-blue-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
                  checked={tasks.length > 0 && selectedIds.length === tasks.length}
                  onChange={(e) => {
                    if (e.target.checked) {

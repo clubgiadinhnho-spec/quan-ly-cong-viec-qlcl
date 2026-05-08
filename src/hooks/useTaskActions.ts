@@ -67,7 +67,7 @@ export const useTaskActions = ({
       attachmentUrl,
       attachmentName,
       updatedAt: new Date().toISOString(),
-      isNewSoldier: false,
+      isNewSoldier: isManagement && taskData.status === 'APPROVED',
       authorId: currentUser?.id || '',
       systemCreatedAt: taskData.systemCreatedAt || new Date().toISOString()
     };

@@ -71,3 +71,17 @@ export function formatFullDateTime(dateString: string | null | undefined): strin
     return dateString;
   }
 }
+
+export function calculateNextDeadline(start: string, type: string): string {
+  if (type === 'NONE') return '';
+  const date = new Date(start);
+  switch (type) {
+    case 'DAILY': date.setDate(date.getDate() + 1); break;
+    case 'TRI_DAILY': date.setDate(date.getDate() + 3); break;
+    case 'WEEKLY': date.setDate(date.getDate() + 7); break;
+    case 'BI_WEEKLY': date.setDate(date.getDate() + 14); break;
+    case 'TRI_WEEKLY': date.setDate(date.getDate() + 21); break;
+    case 'MONTHLY': date.setMonth(date.getMonth() + 1); break;
+  }
+  return date.toISOString().split('T')[0];
+}

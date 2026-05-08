@@ -54,6 +54,11 @@ export const prepareTaskUpdates = (
   const newUpdates: any = { ...updates };
   const changes: string[] = [];
 
+  if (currentUser) {
+    newUpdates.lastUpdatedBy = currentUser.uniqueKey || currentUser.id;
+    newUpdates.lastUpdatedByRole = currentUser.role;
+  }
+
   // Handle Recurring Task "Done" Magic
   if (updates.status === 'COMPLETED' && task.recurrence && task.recurrence !== 'NONE') {
     const nextDueDate = calculateNextDueDate(task.expectedEndDate || new Date().toISOString(), task.recurrence);

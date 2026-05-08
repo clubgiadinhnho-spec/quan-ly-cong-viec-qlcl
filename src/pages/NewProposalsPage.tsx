@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Task, User } from '../types';
 import { TaskList } from '../components/tasks/TaskList';
 import { Search, Sparkles, CheckCircle2 } from 'lucide-react';
+import { isUserTask } from '../utils/userUtils';
 
 interface NewProposalsPageProps {
   tasks: Task[];
@@ -32,12 +33,17 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
     return tasks
       .filter(t => !t.deletedAt && t.status === 'PENDING')
       .filter(t => {
-        const matchesSearch = t.title.toLowerCase().includes(search.toLowerCase()) || 
-                            t.code.toLowerCase().includes(search.toLowerCase());
+        // Staff only see their own pending proposals or tasks assigned to them
+        if (!isManager && t.authorId !== currentUser.id && t.authorId !== currentUser.uniqueKey && !isUserTask(t, currentUser)) {
+          return false;
+        }
+        
+        const matchesSearch = (t.title || '').toLowerCase().includes(search.toLowerCase()) || 
+                            (t.code || '').toLowerCase().includes(search.toLowerCase());
         return matchesSearch;
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [tasks, search]);
+  }, [tasks, search, isManager, currentUser]);
 
   const handleApprove = (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
@@ -50,6 +56,7 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
       onConfirm: async () => {
         await updateTask(taskId, { 
           status: 'APPROVED' as any,
+          isNewSoldier: true,
           history: [
             ...(task.history || []),
             {

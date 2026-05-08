@@ -730,12 +730,10 @@ const handleCreateTopic = () => {
                         <div className={`shrink-0 rounded-xl flex items-center justify-center font-sans border transition-all ${
                           isSidebarCollapsed ? 'w-10 h-10 text-[10px]' : 'w-9 h-9 text-[9px]'
                         } ${
-                          isActive 
-                            ? topic.isPinned ? 'bg-rose-600 text-white border-rose-700 shadow-inner' : 'bg-blue-600 text-white border-blue-700 shadow-inner'
-                            : topic.isPinned 
-                              ? 'bg-rose-600 text-white border-rose-700 shadow-lg'
-                              : 'bg-blue-50 text-blue-600 group-hover:bg-blue-100 border-blue-100'
-                        }`}>
+                          topic.isPinned 
+                            ? 'bg-red-600 text-white border-red-700 shadow-lg' 
+                            : 'bg-blue-600 text-white border-blue-700 shadow-lg'
+                        } ${isActive ? 'ring-2 ring-offset-1 ' + (topic.isPinned ? 'ring-red-400' : 'ring-blue-400') : ''}`}>
                           <span translate="no" className="notranslate font-black uppercase tracking-normal leading-none">{psttCode}</span>
                         </div>
                         
@@ -844,8 +842,8 @@ const handleCreateTopic = () => {
                       return (
                         <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center font-sans leading-none border-2 transition-all ${
                           isPinned 
-                            ? 'bg-rose-50 text-rose-600 border-rose-100 shadow-inner ring-4 ring-rose-50/50' 
-                            : 'bg-blue-50 text-blue-600 border-blue-100 shadow-inner ring-4 ring-blue-50/50'
+                            ? 'bg-red-600 text-white border-red-700 shadow-lg ring-4 ring-red-50/50' 
+                            : 'bg-blue-600 text-white border-blue-700 shadow-lg ring-4 ring-blue-50/50'
                         }`}>
                           <span translate="no" className="notranslate text-[12px] font-black uppercase tracking-normal leading-none">{psttCode}</span>
                         </div>

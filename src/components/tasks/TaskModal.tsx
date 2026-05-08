@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Edit2, Plus, Info, Paperclip, X } from 'lucide-react';
 import { Task, User, RecurrenceType, TaskCategory } from '../../types';
+import { calculateNextDeadline } from '../../lib/dateUtils';
 import imageCompression from 'browser-image-compression';
 
 interface TaskModalProps {
@@ -83,24 +84,10 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
     return `C${String(count + 1).padStart(4, '0')}`;
   }, [tasks.length, isEdit, task?.code]);
 
-  const calculateDeadline = (start: string, type: RecurrenceType): string => {
-    if (type === 'NONE') return '';
-    const date = new Date(start);
-    switch (type) {
-      case 'DAILY': date.setDate(date.getDate() + 1); break;
-      case 'TRI_DAILY': date.setDate(date.getDate() + 3); break;
-      case 'WEEKLY': date.setDate(date.getDate() + 7); break;
-      case 'BI_WEEKLY': date.setDate(date.getDate() + 14); break;
-      case 'TRI_WEEKLY': date.setDate(date.getDate() + 21); break;
-      case 'MONTHLY': date.setMonth(date.getMonth() + 1); break;
-    }
-    return date.toISOString().split('T')[0];
-  };
-
   // Sync deadline if cycle or start date changes, unless manually edited
   React.useEffect(() => {
     if (!isEdit && !isManualEdit && recurrence !== 'NONE') {
-      const calculated = calculateDeadline(startDate || new Date().toISOString().split('T')[0], recurrence);
+      const calculated = calculateNextDeadline(startDate || new Date().toISOString().split('T')[0], recurrence);
       setExpectedDate(calculated);
     }
   }, [recurrence, startDate, isEdit, isManualEdit]);
@@ -435,7 +422,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
               const finalIssueDate = issueDate || new Date().toISOString().split('T')[0];
               let finalExpectedDate = expectedDate;
               if (!finalExpectedDate && recurrence !== 'NONE') {
-                finalExpectedDate = calculateDeadline(finalStartDate, recurrence);
+                finalExpectedDate = calculateNextDeadline(finalStartDate, recurrence);
               }
 
               await onSave({ 
@@ -453,7 +440,10 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                 attachmentUrl: attachmentData?.url || "",
                 attachmentName: attachmentData?.name || "",
                 code: nextCode, // Include the pre-generated code
-                status: isEdit ? task.status : 'PENDING',
+                status: isEdit ? task.status : (isAdmin ? 'APPROVED' : 'PENDING'),
+                isNewUpdate: isEdit ? true : undefined,
+                authorId: currentUser.uniqueKey || currentUser.id,
+                authorName: currentUser.name,
                 systemCreatedAt: new Date().toISOString()
               });
 

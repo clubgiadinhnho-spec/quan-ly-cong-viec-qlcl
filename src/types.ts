@@ -179,6 +179,7 @@ export interface Task {
   systemCreatedAt?: string;
   isNewUpdate?: boolean;
   lastUpdateAt?: string;
+  waitingApproval?: boolean;
 }
 
 export interface ReportDraft {

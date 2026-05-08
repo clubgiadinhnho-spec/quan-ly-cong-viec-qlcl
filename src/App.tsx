@@ -301,13 +301,28 @@ export default function App() {
     // Tasks awaiting confirmation or pending approval
     const pending = nonDeleted.filter(t => 
       t.status === "PENDING" && 
-      (isManager || t.authorId === effectiveUser?.id)
+      (isManager || t.authorId === effectiveUser?.id || t.authorId === effectiveUser?.uniqueKey || isUserTask(t, effectiveUser))
     );
     
     // All active tasks in the department (APPROVED)
     const departmentActive = nonDeleted.filter(t => 
       t.status === "APPROVED"
     );
+
+    // Active tasks for current user
+    const myActive = departmentActive.filter(t => isUserTask(t, effectiveUser));
+
+    // Tasks needing attention (isNewUpdate or isNewSoldier)
+    // If Admin: counts tasks with isNewUpdate (updates from staff)
+    // If Staff: counts tasks assigned to them with isNewUpdate (from admin) OR isNewSoldier (newly approved)
+    const attentionTasks = departmentActive.filter(t => {
+      if (isAdmin) {
+        return t.isNewUpdate && t.lastUpdatedByRole !== 'Admin';
+      } else {
+        const isMyTask = isUserTask(t, effectiveUser);
+        return isMyTask && (t.isNewSoldier || (t.isNewUpdate && t.lastUpdatedByRole === 'Admin'));
+      }
+    });
 
     // Completed tasks (unread)
     const completedUnread = nonDeleted.filter(t => 
@@ -322,7 +337,10 @@ export default function App() {
 
     return {
       pending: pending.length,
-      active: departmentActive.length, 
+      active: departmentActive.length,
+      attention: attentionTasks.length,
+      allActive: departmentActive.length,
+      mine: myActive.length,
       completed: completedUnread.length,
       staff: staffUnread.length,
       trash: tasks.filter(t => !!t.deletedAt).length
@@ -427,8 +445,10 @@ export default function App() {
     <div className="flex min-h-screen bg-[#F9FAFB]">
       <Sidebar
         user={effectiveUser} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout}
-        pendingTasksCount={counts.pending} activeTasksCount={counts.active} completedTasksCount={counts.completed}
+        pendingTasksCount={counts.pending} activeTasksCount={counts.attention} completedTasksCount={counts.completed}
         totalStaffCount={counts.staff} groupUnreadCount={groupUnreadCount} trashTasksCount={counts.trash}
+        activeTasksAlert={counts.attention > 0} 
+        pendingTasksAlert={counts.pending > 0}
         isCollapsed={isMainSidebarCollapsed} onToggleCollapse={() => setIsMainSidebarCollapsed(!isMainSidebarCollapsed)}
       />
       <main className={`flex-1 relative flex flex-col ${activeTab === 'group_chat' ? 'h-screen overflow-hidden' : 'py-6'}`}>
@@ -438,7 +458,7 @@ export default function App() {
           <MainContent
             activeTab={activeTab} effectiveUser={effectiveUser!} currentUser={currentUser} presence={presence} allUsers={allUsers}
             tasks={tasks} filteredTasks={sortedTasks} sortedTasks={sortedTasks} viewScope={viewScope} setViewScope={setViewScope}
-            search={search} setSearch={setSearch} myActiveCount={counts.mine} allActiveCount={counts.active} setShowTaskModal={setShowTaskModal}
+            search={search} setSearch={setSearch} myActiveCount={counts.mine} allActiveCount={counts.allActive} setShowTaskModal={setShowTaskModal}
             handleExportExcel={handleExportExcel} handleImportExcel={handleImportExcel} updateTask={updateTask} deleteTask={deleteTaskLocal}
             setShowHistoryModal={setShowHistoryModal} setShowChatModal={setShowChatModal} showChatModal={showChatModal}
             addTaskComment={addTaskComment} updateTaskCommentReactions={updateTaskCommentReactions} setEditingTask={setEditingTask}

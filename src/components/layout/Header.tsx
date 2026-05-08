@@ -64,8 +64,8 @@ export const Header = ({
         
         {/* Online Users Display */}
         {sortedDisplay.length > 0 && (
-          <div className="flex items-center gap-2 border-l border-gray-100 pl-6 ml-2">
-            <div className="flex -space-x-2">
+          <div className="flex items-center gap-3 border-l border-gray-100 pl-6 ml-2">
+            <div className="flex gap-1.5">
               {sortedDisplay.slice(0, 5).map((u) => {
                 const isMe = u.id === currentUserId;
                 return (

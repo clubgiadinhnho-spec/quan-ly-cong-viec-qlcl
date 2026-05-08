@@ -17,6 +17,8 @@ interface SidebarProps {
   totalStaffCount?: number;
   groupUnreadCount?: number;
   trashTasksCount?: number;
+  activeTasksAlert?: boolean;
+  pendingTasksAlert?: boolean;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
 }
@@ -32,6 +34,8 @@ export const Sidebar = ({
   totalStaffCount = 0,
   groupUnreadCount = 0,
   trashTasksCount = 0,
+  activeTasksAlert = false,
+  pendingTasksAlert = false,
   isCollapsed,
   onToggleCollapse,
 }: SidebarProps) => {
@@ -101,8 +105,8 @@ export const Sidebar = ({
         
         <nav className="space-y-1 flex-none mb-4">
           {[
-            { id: 'tasks', label: <span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>, icon: ClipboardList, count: activeTasksCount, color: 'bg-blue-500 text-white shadow-blue-100' },
-            { id: 'pending_confirmation', label: <span translate="no" className="notranslate"> ĐỀ XUẤT MỚI</span>, icon: Sparkles, count: pendingTasksCount, color: 'bg-emerald-500 text-white shadow-emerald-200', isAlert: true, isSubItem: true },
+            { id: 'tasks', label: <span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>, icon: ClipboardList, count: activeTasksCount, color: 'bg-blue-500 text-white shadow-blue-100', isAlert: activeTasksAlert },
+            { id: 'pending_confirmation', label: <span translate="no" className="notranslate"> ĐỀ XUẤT MỚI</span>, icon: Sparkles, count: pendingTasksCount, color: 'bg-emerald-500 text-white shadow-emerald-200', isAlert: pendingTasksAlert, isSubItem: true },
             { id: 'completed_tasks', label: <span translate="no" className="notranslate">CÔNG VIỆC HOÀN THÀNH</span>, icon: CheckCircle2, count: completedTasksCount, color: 'bg-indigo-500 text-white shadow-indigo-100', isSubItem: true },
             ...((user.role === 'Admin')
               ? [{ id: 'staff_list', label: <span translate="no" className="notranslate">QUẢN LÝ NHÂN SỰ</span>, icon: Users, count: totalStaffCount, color: 'bg-amber-500 text-white shadow-amber-100' }] 
@@ -136,7 +140,7 @@ export const Sidebar = ({
               {item.count !== undefined && item.count > 0 && (
                 <span className={`${isCollapsed ? 'absolute -top-1 -right-1' : ''} text-[10px] font-black min-w-[20px] h-5 px-1 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-md shrink-0 ${
                   item.color || 'bg-gray-500 text-white'
-                } ${(item.isAlert && isManager) ? 'animate-bounce' : ''}`}>
+                } ${item.isAlert ? 'animate-bounce' : ''}`}>
                   <span translate="no" className="notranslate">{item.count}</span>
                 </span>
               )}

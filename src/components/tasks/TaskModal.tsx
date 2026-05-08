@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Edit2, Plus, Info, Paperclip, X } from 'lucide-react';
-import { Task, User, RecurrenceType } from '../../types';
+import { Task, User, RecurrenceType, TaskCategory } from '../../types';
 import imageCompression from 'browser-image-compression';
 
 interface TaskModalProps {
@@ -11,11 +11,13 @@ interface TaskModalProps {
   tasks: Task[];
   task?: Task;
   currentUser: User;
+  categories: TaskCategory[];
 }
 
-export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser }: TaskModalProps) => {
+export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, categories }: TaskModalProps) => {
   const [title, setTitle] = useState(task?.title || '');
   const [objective, setObjective] = useState(task?.objective || '');
+  const [category, setCategory] = useState(task?.category || '');
   const sortedUsers = React.useMemo(() => {
     return [...users].sort((a, b) => {
       // Prioritize current user
@@ -38,6 +40,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser }: 
   });
 
   const [startDate, setStartDate] = useState(task?.startDate || new Date().toISOString().split('T')[0]);
+  const [issueDate, setIssueDate] = useState(task?.issueDate || new Date().toISOString().split('T')[0]);
   const [expectedDate, setExpectedDate] = useState(task?.expectedEndDate || '');
   const [extensionDate, setExtensionDate] = useState(task?.extensionDate || '');
   const [recurrence, setRecurrence] = useState<RecurrenceType>(task?.recurrence || 'NONE');
@@ -45,9 +48,33 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser }: 
   const [attachmentData, setAttachmentData] = useState<{ url: string, name: string } | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [isManualEdit, setIsManualEdit] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const titleInputRef = React.useRef<HTMLTextAreaElement>(null);
 
   const isEdit = !!task;
+  const isLNT = currentUser.name === 'Lê Nhật Trường';
+  const isAdmin = currentUser.role === 'Admin' || isLNT;
+  const canAssignOthers = isAdmin || currentUser.role === 'Leader';
+
+  // Function to reset form for next entry
+  const resetFormForNext = () => {
+    const today = new Date().toISOString().split('T')[0];
+    setTitle('');
+    setObjective('');
+    setCategory('');
+    setIssueDate(today);
+    setStartDate(today);
+    setRecurrence('NONE');
+    setExpectedDate('');
+    setAttachment(null);
+    setAttachmentData(null);
+    setIsManualEdit(false);
+    setShowSuccessToast(true);
+    setTimeout(() => setShowSuccessToast(false), 2000);
+    // Focus back to title input after a short delay to ensure DOM is ready
+    setTimeout(() => titleInputRef.current?.focus(), 100);
+  };
 
   // Generate Preview Code for New Tasks
   const nextCode = React.useMemo(() => {
@@ -150,20 +177,56 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser }: 
         )}
         
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
-                <span translate="no" className="notranslate">Người thực hiện</span>
-              </label>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
+              <span translate="no" className="notranslate">Người thực hiện</span>
+            </label>
+            {canAssignOthers ? (
               <select 
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 value={assigneeId}
                 onChange={(e) => setAssigneeId(e.target.value)}
               >
                 <option value="" translate="no" className="notranslate">CHỌN NHÂN SỰ</option>
-                {sortedUsers.map((u) => <option key={u.id} value={u.id} className="notranslate">{u.name}</option>)}
+                {sortedUsers.map((u) => (
+                  <option key={u.id} value={u.id} className="notranslate">
+                    {u.name}
+                  </option>
+                ))}
               </select>
+            ) : (
+              <div className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-lg text-slate-600 font-bold flex items-center cursor-not-allowed opacity-80 shadow-inner">
+                <span translate="no" className="notranslate">{currentUser.name}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
+                <span translate="no" className="notranslate">NGÀY KHỞI TẠO</span>
+              </label>
+              <input 
+                type="date"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
+                value={issueDate}
+                onChange={(e) => setIssueDate(e.target.value)}
+              />
             </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
+                <span translate="no" className="notranslate">NGÀY BẮT ĐẦU</span>
+              </label>
+              <input 
+                type="date"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-blue-600 mb-1 uppercase">
                 <span translate="no" className="notranslate">Chu kỳ (Lặp lại)</span>
@@ -182,41 +245,6 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser }: 
                 <option value="MONTHLY" translate="no" className="notranslate">HÀNG THÁNG (+1 THÁNG)</option>
               </select>
             </div>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
-              <span translate="no" className="notranslate">Hạng mục công việc *</span>
-            </label>
-            <textarea 
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-20 resize-none font-bold"
-              placeholder="Nhập tên công việc..."
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
-              <span translate="no" className="notranslate">Mục tiêu đạt được *</span>
-            </label>
-            <input 
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
-              placeholder="Mục tiêu cụ thể cho công việc này..."
-              value={objective}
-              onChange={(e) => setObjective(e.target.value)}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
-                <span translate="no" className="notranslate">NGÀY BẮT ĐẦU</span>
-              </label>
-              <input 
-                type="date"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
                 <span translate="no" className="notranslate">Hạn hoàn thành</span>
@@ -233,6 +261,48 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser }: 
               />
             </div>
           </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
+              <span translate="no" className="notranslate">Hạng mục công việc *</span>
+            </label>
+            <textarea 
+              ref={titleInputRef}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-20 resize-none font-bold"
+              placeholder="Nhập tên công việc..."
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
+              <span translate="no" className="notranslate">PHÂN LOẠI</span>
+            </label>
+            <select 
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              <option value="" translate="no" className="notranslate">CHỌN PHÂN LOẠI</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.code} className="notranslate">
+                  [{c.code}] {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
+              <span translate="no" className="notranslate">Mục tiêu đạt được *</span>
+            </label>
+            <input 
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
+              placeholder="Mục tiêu cụ thể cho công việc này..."
+              value={objective}
+              onChange={(e) => setObjective(e.target.value)}
+            />
+          </div>
+          
           {isEdit && (
             <div>
               <label className="block text-xs font-bold text-emerald-600 mb-1 uppercase">
@@ -337,26 +407,44 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser }: 
           )}
         </div>
 
-        <div className="mt-8 flex gap-3">
+        <div className="mt-8 flex items-center gap-3 relative">
+          <AnimatePresence>
+            {showSuccessToast && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="absolute -top-12 left-0 right-0 flex justify-center pointer-events-none"
+              >
+                <div className="bg-emerald-500 text-white px-4 py-2 rounded-full text-[10px] font-black shadow-lg flex items-center gap-2">
+                  <span translate="no" className="notranslate whitespace-nowrap">ĐÃ LƯU CÔNG VIỆC! MỜI NHẬP TIẾP.</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <button onClick={onClose} className="flex-1 px-4 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-all uppercase">
             <span translate="no" className="notranslate">HỦY</span>
           </button>
           <button 
             disabled={!title || !assigneeId || isProcessingFile}
-            onClick={() => {
+            onClick={async () => {
               const assignee = users.find(u => u.id === assigneeId);
               // Final validation/defaults
               const finalStartDate = startDate || new Date().toISOString().split('T')[0];
+              const finalIssueDate = issueDate || new Date().toISOString().split('T')[0];
               let finalExpectedDate = expectedDate;
               if (!finalExpectedDate && recurrence !== 'NONE') {
                 finalExpectedDate = calculateDeadline(finalStartDate, recurrence);
               }
 
-              onSave({ 
+              await onSave({ 
                 title, 
                 objective, 
+                category,
                 assigneeId, 
                 assignedTo: assignee?.name || '',
+                issueDate: finalIssueDate,
                 startDate: finalStartDate,
                 expectedEndDate: finalExpectedDate,
                 extensionDate: extensionDate || null,
@@ -364,8 +452,16 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser }: 
                 attachment,
                 attachmentUrl: attachmentData?.url || "",
                 attachmentName: attachmentData?.name || "",
-                code: nextCode // Include the pre-generated code
+                code: nextCode, // Include the pre-generated code
+                status: isEdit ? task.status : 'PENDING',
+                systemCreatedAt: new Date().toISOString()
               });
+
+              if (!isEdit) {
+                resetFormForNext();
+              } else {
+                onClose();
+              }
             }}
             className="flex-1 px-4 py-3 bg-[#1A56DB] text-white font-bold rounded-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none uppercase"
           >

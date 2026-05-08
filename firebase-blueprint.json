@@ -77,7 +77,10 @@
         "isHighlighted": { "type": "boolean" },
         "isLocked": { "type": "boolean" },
         "attachmentUrl": { "type": "string" },
-        "attachmentName": { "type": "string" }
+        "attachmentName": { "type": "string" },
+        "category": { "type": "string" },
+        "isNewUpdate": { "type": "boolean" },
+        "lastUpdateAt": { "type": "string", "format": "date-time" }
       },
       "required": ["code", "title", "assigneeId", "status", "priority"]
     },
@@ -155,6 +158,31 @@
         "attachments": { "type": "array" }
       },
       "required": ["topicId", "authorId", "content", "timestamp"]
+    },
+    "AppNotification": {
+      "title": "System Notification",
+      "description": "Administrative notifications for task requests",
+      "type": "object",
+      "properties": {
+        "senderName": { "type": "string" },
+        "taskCode": { "type": "string" },
+        "taskId": { "type": "string" },
+        "type": { "type": "string", "enum": ["COMPLETED_REQUEST", "DELETE_REQUEST"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "isRead": { "type": "boolean" }
+      },
+      "required": ["senderName", "taskCode", "taskId", "type", "createdAt", "expiresAt"]
+    },
+    "TaskCategory": {
+      "title": "Task Category",
+      "description": "Categories for sorting tasks",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["code", "name"]
     }
   },
   "firestore": {
@@ -197,6 +225,14 @@
     "presence": {
       "schema": "Presence",
       "description": "Real-time user presence tracking"
+    },
+    "notifications": {
+      "schema": "AppNotification",
+      "description": "Admin notifications for task lifecycle requests"
+    },
+    "task_categories": {
+      "schema": "TaskCategory",
+      "description": "Administrative categories for tasks"
     },
     "system_logs": {
       "schema": "object",

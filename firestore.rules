@@ -126,5 +126,18 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // 10. Notifications
+    match /notifications/{notifId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // 11. Task Categories
+    match /task_categories/{catId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
   }
 }

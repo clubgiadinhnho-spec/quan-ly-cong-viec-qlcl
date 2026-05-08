@@ -1,4 +1,5 @@
 import React from 'react';
+import { Bell } from 'lucide-react';
 import { User, UserPresence } from '../../types';
 
 interface HeaderProps {
@@ -11,6 +12,8 @@ interface HeaderProps {
   onlineUsers?: UserPresence[];
   onUserClick?: (user: User) => void;
   currentUserId?: string;
+  adminUnreadCount?: number;
+  onOpenNotifications?: () => void;
 }
 
 export const Header = ({ 
@@ -22,7 +25,9 @@ export const Header = ({
   users = [],
   onlineUsers = [],
   onUserClick,
-  currentUserId
+  currentUserId,
+  adminUnreadCount = 0,
+  onOpenNotifications
 }: HeaderProps) => {
   // Combine users from props (legacy logic) and new onlineUsers
   const legacyActiveUsers = users.filter(u => u.id !== currentUserId && u.lastActive && (Date.now() - u.lastActive < 120000));
@@ -99,6 +104,20 @@ export const Header = ({
         )}
       </div>
       <div className="flex gap-3">
+        {onOpenNotifications && (
+          <button 
+            onClick={onOpenNotifications}
+            className="relative p-2.5 bg-gray-50 text-gray-500 rounded-xl hover:bg-gray-100 transition-all border border-gray-100 group shadow-sm active:scale-95"
+          >
+            <Bell size={20} className="group-hover:text-blue-600 transition-colors" />
+            {adminUnreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white animate-pulse shadow-md">
+                {adminUnreadCount}
+              </span>
+            )}
+          </button>
+        )}
+        
         {onAction && actionLabel && (
           <button 
             onClick={onAction}

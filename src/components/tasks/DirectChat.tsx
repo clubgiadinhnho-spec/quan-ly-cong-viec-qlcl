@@ -298,7 +298,7 @@ export const DirectChat = ({
                         <div className={`p-3 rounded-2xl text-[11px] leading-relaxed shadow-sm w-full relative group/msg ${
                           isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-none'
                         }`}>
-                          {content}
+                          <span translate="no" className="notranslate">{content}</span>
                           {taskId && (
                             <button 
                               onClick={() => {

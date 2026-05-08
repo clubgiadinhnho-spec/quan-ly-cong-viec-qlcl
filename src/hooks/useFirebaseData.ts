@@ -19,7 +19,7 @@ import {
   runTransaction
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { User, UserPresence, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport, LogEntry, DiscussionTopic, DiscussionMessage } from '../types';
+import { User, UserPresence, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport, LogEntry, DiscussionTopic, DiscussionMessage, TaskCategory } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
 export const useFirebaseData = (currentUserId?: string) => {
@@ -33,6 +33,7 @@ export const useFirebaseData = (currentUserId?: string) => {
   const [extraUsers, setExtraUsers] = useState<User[]>([]);
   const [userProfiles, setUserProfiles] = useState<User[]>([]);
   const [presence, setPresence] = useState<UserPresence[]>([]);
+  const [categories, setCategories] = useState<TaskCategory[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -91,6 +92,23 @@ export const useFirebaseData = (currentUserId?: string) => {
       }
     );
 
+    // Listen to Task Categories
+    const categoriesUnsubscribe = onSnapshot(
+      collection(db, 'task_categories'),
+      (snapshot) => {
+        const data = snapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id
+        })) as TaskCategory[];
+        setCategories(data);
+      },
+      (error) => {
+        if (error.code !== 'permission-denied') {
+          console.warn("Categories listener error:", error.message);
+        }
+      }
+    );
+
     // Listen to Tasks
     const tasksUnsubscribe = onSnapshot(
       collection(db, 'tasks'),
@@ -102,7 +120,9 @@ export const useFirebaseData = (currentUserId?: string) => {
               ...data,
               id: doc.id,
               updatedAt: (data.updatedAt as any)?.toDate ? (data.updatedAt as any).toDate().toISOString() : (data.updatedAt || now),
+              systemCreatedAt: (data.systemCreatedAt as any)?.toDate ? (data.systemCreatedAt as any).toDate().toISOString() : data.systemCreatedAt,
               issueDate: data.issueDate || now.split('T')[0],
+              startDate: data.startDate || data.issueDate || now.split('T')[0],
               code: data.code || 'N/A'
             } as Task;
           });
@@ -334,6 +354,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     return () => {
       tasksUnsubscribe();
       messagesUnsubscribe();
+      categoriesUnsubscribe();
       topicsUnsubscribe();
       discMessagesUnsubscribe();
       reportsUnsubscribe();
@@ -397,7 +418,8 @@ export const useFirebaseData = (currentUserId?: string) => {
     try {
       const docRef = await addDoc(collection(db, 'tasks'), {
         ...task,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        systemCreatedAt: serverTimestamp()
       });
       
       await addLog({
@@ -441,7 +463,11 @@ export const useFirebaseData = (currentUserId?: string) => {
         logType = 'TASK_DELETE';
         logDetails = `Di chuyển công việc ${taskCode} vào thùng rác`;
       } else if (updates.status) {
-        logDetails = `Thay đổi trạng thái công việc ${taskCode} thành "${updates.status.toUpperCase()}"`;
+        if (updates.status === 'APPROVED') {
+          logDetails = `Admin đã duyệt công việc ${taskCode}`;
+        } else {
+          logDetails = `Thay đổi trạng thái công việc ${taskCode} thành "${updates.status.toUpperCase()}"`;
+        }
       } else {
         // Detailed log based on what fields were touched
         const changedFields = Object.keys(updates).filter(k => k !== 'updatedAt');
@@ -948,6 +974,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     deleteExtraUser,
     deleteDiscussionMessage,
     presence,
+    categories,
     updatePresence,
     resetSystem,
     deleteLogsBulk

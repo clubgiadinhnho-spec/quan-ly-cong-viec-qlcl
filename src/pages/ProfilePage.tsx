@@ -317,7 +317,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     {!isEditing ? (
                       <div className="h-5 flex items-center">
                         <p translate="no" className={`notranslate font-sans font-bold tracking-tight leading-none ${user.phone === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-900 text-[13px]'}`}>
-                          {user.phone}
+                          <span translate="no" className="notranslate">{user.phone}</span>
                         </p>
                       </div>
                     ) : (
@@ -454,7 +454,9 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
             </h3>
             {advice ? (
               <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 animate-in zoom-in-95 duration-300 shadow-inner">
-                 <div className="prose prose-sm prose-blue text-xs leading-relaxed text-gray-700 whitespace-pre-wrap font-medium">{advice}</div>
+                 <div className="prose prose-sm prose-blue text-xs leading-relaxed text-gray-700 whitespace-pre-wrap font-medium notranslate" translate="no">
+                   {advice}
+                 </div>
                  <button onClick={getAdvice} className="mt-6 text-[10px] font-black text-blue-600 hover:underline">LÀM MỚI PHÂN TÍCH</button>
               </div>
             ) : (

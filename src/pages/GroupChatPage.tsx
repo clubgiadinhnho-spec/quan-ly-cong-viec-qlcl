@@ -316,7 +316,7 @@ const handleCreateTopic = () => {
     
     if (lastAtIdx !== -1) {
       const beforeAt = text.slice(0, lastAtIdx);
-      const mentionHtml = `<span contenteditable="false" class="text-blue-700 font-bold notranslate" translate="no">@${user.name}</span>&nbsp;`;
+      const mentionHtml = `<span contenteditable="false" class="mention-tag font-bold notranslate" translate="no">@${user.name}</span>&nbsp;`;
       
       // We use innerHTML to insert the styled span
       // A more robust way would be using Selection API, but for this requirement:
@@ -592,7 +592,7 @@ const handleCreateTopic = () => {
             </div>
           )}
 
-          <div className="flex-1 flex flex-col overflow-hidden px-2 pt-3">
+          <div className="flex-1 flex flex-col overflow-hidden px-1 pt-3">
             <div className={`flex gap-1 p-1.5 bg-white border border-slate-100 rounded-2xl mb-4 ${isSidebarCollapsed ? 'flex-col items-center' : 'flex-row items-center'}`}>
               <button 
                 onClick={() => setActiveTab('OPEN')}
@@ -652,7 +652,7 @@ const handleCreateTopic = () => {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-3 pb-8 space-y-3 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto pl-1 pr-2 pb-8 space-y-1 custom-scrollbar">
             {(() => {
               const sortTopics = (a: DiscussionTopic, b: DiscussionTopic) => {
                 // Priority 1: Pinned topics
@@ -696,7 +696,7 @@ const handleCreateTopic = () => {
                   psttCode = 'P' + (digits.length >= 3 ? digits.slice(0, 3) : digits.padStart(3, '0'));
                   
                   return (
-                    <div key={topic.id} className="relative group flex items-center gap-2 px-1 py-1">
+                    <div key={topic.id} className="relative group flex items-center gap-2 px-0 py-0.5">
                       {isBulkMode && (
                         <div 
                           onClick={(e) => {
@@ -718,7 +718,7 @@ const handleCreateTopic = () => {
                         tabIndex={0}
                         onKeyDown={(e) => e.key === 'Enter' && setSelectedTopicId(topic.id)}
                         className={`w-full flex items-center gap-3 rounded-xl transition-all relative border cursor-pointer ${
-                          isSidebarCollapsed ? 'justify-center p-1 font-sans' : 'items-center p-3 pr-10'
+                          isSidebarCollapsed ? 'justify-center p-1 font-sans' : 'items-center p-2 pr-10'
                         } ${
                           isActive 
                             ? topic.isPinned 
@@ -963,7 +963,14 @@ const handleCreateTopic = () => {
                               translate="no" 
                               className="notranslate" 
                               style={{ fontSize: '17px', lineHeight: '1.5' }}
-                              dangerouslySetInnerHTML={{ __html: msg.content }}
+                              dangerouslySetInnerHTML={{ __html: isMe 
+                                ? msg.content
+                                    .replaceAll('mention-tag', 'text-yellow-200 shadow-sm')
+                                    .replaceAll('text-sky-300', 'text-yellow-200 shadow-sm') 
+                                : msg.content
+                                    .replaceAll('mention-tag', 'text-blue-700 decoration-blue-200 underline-offset-2 font-black')
+                                    .replaceAll('text-sky-300', 'text-blue-700 decoration-blue-200 underline-offset-2 font-black') 
+                              }}
                             />
                               
                               {/* Attachments List */}

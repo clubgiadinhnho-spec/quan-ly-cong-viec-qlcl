@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { User as UserType, Task } from "./types";
+import { User as UserType, Task, TaskCategory } from "./types";
 import Login from "./components/Login";
 import { auth, logout } from "./lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -8,6 +8,7 @@ import { useFirebaseData } from "./hooks/useFirebaseData";
 import { useTaskActions } from "./hooks/useTaskActions";
 import { useStaff } from "./hooks/useStaff";
 import { useAppNotifications } from "./hooks/useAppNotifications";
+import { useNotifications } from "./hooks/useNotifications";
 import { useExcelHandlers } from "./hooks/useExcelHandlers";
 
 // Import Components
@@ -16,6 +17,7 @@ import { MainContent } from "./components/layout/MainContent";
 import { TaskModal } from "./components/tasks/TaskModal";
 import { HistoryModal } from "./components/tasks/HistoryModal";
 import { DirectChat } from "./components/tasks/DirectChat";
+import { NotificationCenter } from "./components/layout/NotificationCenter";
 import { ConfirmModal } from "./components/common/ConfirmModal";
 import { HealthReminder } from "./components/common/HealthReminder";
 import { isUserTask } from "./utils/userUtils";
@@ -39,6 +41,7 @@ export default function App() {
 
   const [showDirectChat, setShowDirectChat] = useState<UserType | null>(null);
   const [isChatMinimized, setIsChatMinimized] = useState(false);
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const [confirmModal, setConfirmModal] = useState({ show: false, title: "", message: "", onConfirm: () => {} });
 
   // Test Connection
@@ -57,7 +60,7 @@ export default function App() {
 
   // 1. Firebase Data Retrieval
   const {
-    tasks, messages: generalMessages, privateMessages, officialReports, logs, presence,
+    tasks, messages: generalMessages, privateMessages, officialReports, logs, presence, categories,
     loading: firebaseLoading, addTask: firebaseAddTask, updateTask: firebaseUpdateTask,
     deleteTask: firebaseDeleteTask, trashTasksBulk, sendMessage: firebaseSendMessage, sendDiscussionMessage,
     createTopic, updateTopic, deleteTopic, deleteTopicsBulk, deleteTasksBulk, sendPrivateMessage: firebaseSendPrivateMsg,
@@ -98,6 +101,15 @@ export default function App() {
     return finalUser;
   }, [simulatedUser, currentUser, allUsers]);
 
+  const isAdmin = effectiveUser?.role === 'Admin';
+  const { 
+    notifications, 
+    unreadCount: adminUnreadCount, 
+    createNotification, 
+    markAsRead: markNotifRead, 
+    deleteNotification: deleteNotif 
+  } = useNotifications(isAdmin);
+
   // 3. Excel Handlers Hook
   const { handleExportExcel, handleImportExcel } = useExcelHandlers({
     currentUser: effectiveUser, tasks, allUsers, firebaseAddTask, setConfirmModal
@@ -128,8 +140,20 @@ export default function App() {
   }, [activeTab, markSectionAsViewed]);
 
   const handleJumpToTask = useCallback((taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
     setHighlightedTaskId(taskId);
-    setActiveTab("completed");
+    
+    if (task.deletedAt || task.status === 'DELETED') {
+      setActiveTab("trash");
+    } else if (task.status === 'PENDING_APPROVAL' || task.status === 'PENDING') {
+      setActiveTab("pending_confirmation");
+    } else if (task.status === 'COMPLETED' || task.status === 'Hoàn thành') {
+      setActiveTab("completed_tasks");
+    } else {
+      setActiveTab("tasks");
+    }
     
     // Auto-clear highlight after 10 seconds
     setTimeout(() => {
@@ -142,7 +166,7 @@ export default function App() {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }, 500);
-  }, []);
+  }, [tasks]);
 
   // 6. Auth Listener & Logout
   const allUsersRef = useRef(allUsers);
@@ -243,25 +267,25 @@ export default function App() {
 
   const addTask = useCallback(async (taskData: any) => {
     if (editingTask) { await firebaseUpdateTask(editingTask.id, taskData, effectiveUser?.name); setEditingTask(null); }
-    else { await firebaseAddTask(taskData, effectiveUser?.name); setShowTaskModal(false); }
+    else { await firebaseAddTask(taskData, effectiveUser?.name); }
   }, [firebaseAddTask, firebaseUpdateTask, editingTask, effectiveUser]);
 
   const deleteTaskLocal = useCallback((id: string) => {
+    const task = tasks.find(t => t.id === id);
     setConfirmModal({ show: true, title: "XÁC NHẬN XÓA", message: "Công việc này sẽ được chuyển vào THÙNG RÁC.", onConfirm: async () => {
-      await firebaseUpdateTask(id, { deletedAt: new Date().toISOString() }, effectiveUser?.name);
-      setConfirmModal(p => ({ ...p, show: false }));
-    }});
-  }, [firebaseUpdateTask, effectiveUser]);
-
-  const lockTasks = useCallback(() => {
-    setConfirmModal({ show: true, title: "CHỐT DANH SÁCH", message: "Hành động này sẽ CHỐT dữ liệu công việc trong 2 tuần qua.", onConfirm: async () => {
-      const tasksToLock = tasks.filter(t => !t.isLocked);
-      for (const t of tasksToLock) {
-        await firebaseUpdateTask(t.id, { isLocked: true, prevProgress: t.currentUpdate || t.prevProgress, currentUpdate: "" }, effectiveUser?.name);
+      await firebaseUpdateTask(id, { 
+        deletedAt: new Date().toISOString(),
+        status: 'DELETED' as any 
+      }, effectiveUser?.name);
+      
+      // Notify Admin
+      if (task && effectiveUser?.role !== 'Admin') {
+        await createNotification(effectiveUser?.name || 'Nhân viên', task.code, task.id, 'DELETE_REQUEST');
       }
+
       setConfirmModal(p => ({ ...p, show: false }));
     }});
-  }, [tasks, firebaseUpdateTask, effectiveUser]);
+  }, [firebaseUpdateTask, effectiveUser, tasks, createNotification]);
 
   // Derived counts for sidebar
   const counts = useMemo(() => {
@@ -274,19 +298,15 @@ export default function App() {
     const lastViewedCompleted = lastViewedSections["completed_tasks"] || 0;
     const lastViewedStaff = lastViewedSections["staff_list"] || 0;
 
-    // Tasks awaiting confirmation (for managers or author)
+    // Tasks awaiting confirmation or pending approval
     const pending = nonDeleted.filter(t => 
-      t.status === "AWAITING_CONFIRMATION" && 
-      (isManager || t.authorId === effectiveUser?.id) &&
-      new Date(t.updatedAt).getTime() > lastViewedPending
+      t.status === "PENDING" && 
+      (isManager || t.authorId === effectiveUser?.id)
     );
     
-    // All active tasks in the department (non-completed, non-pending-confirmation)
+    // All active tasks in the department (APPROVED)
     const departmentActive = nonDeleted.filter(t => 
-      t.status !== "COMPLETED" && 
-      t.status !== "AWAITING_CONFIRMATION" && 
-      t.status !== "Hoàn thành" &&
-      new Date(t.updatedAt).getTime() > lastViewedTasks
+      t.status === "APPROVED"
     );
 
     // Completed tasks (unread)
@@ -332,6 +352,10 @@ export default function App() {
     return tasks.filter(t => {
       if (activeTab === "trash") return !!t.deletedAt;
       if (t.deletedAt) return false;
+      
+      // Exclude PENDING tasks from all tabs except pending_confirmation
+      if (t.status === "PENDING" && activeTab !== "pending_confirmation") return false;
+      
       const matchesSearch = (t.title || "").toLowerCase().includes(search.toLowerCase()) || (t.code || "").toLowerCase().includes(search.toLowerCase());
       if (!matchesSearch) return false;
       return viewScope === "mine" ? isUserTask(t, effectiveUser) : true;
@@ -345,7 +369,10 @@ export default function App() {
   }, [tasks, activeTab, search, viewScope, effectiveUser]);
 
   const restoreTaskLocal = useCallback(async (id: string) => {
-    await firebaseUpdateTask(id, { deletedAt: null as any });
+    await firebaseUpdateTask(id, { 
+      deletedAt: null as any,
+      status: 'APPROVED' as any 
+    });
   }, [firebaseUpdateTask]);
 
   const permanentDeleteTaskLocal = useCallback((id: string) => {
@@ -362,9 +389,13 @@ export default function App() {
 
   const trashTasksBulkLocal = useCallback(async (ids: string[]) => {
     for (const id of ids) {
+      const task = tasks.find(t => t.id === id);
       await firebaseUpdateTask(id, { deletedAt: new Date().toISOString() });
+      if (task && effectiveUser?.role !== 'Admin') {
+        createNotification(effectiveUser?.name || 'Nhân viên', task.code, task.id, 'DELETE_REQUEST');
+      }
     }
-  }, [firebaseUpdateTask]);
+  }, [firebaseUpdateTask, tasks, effectiveUser, createNotification]);
 
   const deleteTasksBulkLocal = useCallback((ids: string[]) => {
     setConfirmModal({
@@ -411,7 +442,7 @@ export default function App() {
             handleExportExcel={handleExportExcel} handleImportExcel={handleImportExcel} updateTask={updateTask} deleteTask={deleteTaskLocal}
             setShowHistoryModal={setShowHistoryModal} setShowChatModal={setShowChatModal} showChatModal={showChatModal}
             addTaskComment={addTaskComment} updateTaskCommentReactions={updateTaskCommentReactions} setEditingTask={setEditingTask}
-            setConfirmModal={setConfirmModal} highlightedTaskId={highlightedTaskId} lockTasks={lockTasks} discussionTopics={discussionTopics}
+            setConfirmModal={setConfirmModal} highlightedTaskId={highlightedTaskId} discussionTopics={discussionTopics}
             discussionMessages={discussionMessages} sendDiscussionMessage={sendDiscussionMessage} updateDiscussionMessageReactions={updateDiscussionMessageReactions}
             createTopic={createTopic} updateTopic={updateTopic} deleteTopic={deleteTopic} deleteTopicsBulk={deleteTopicsBulk} deleteTasksBulk={deleteTasksBulkLocal} trashTasksBulk={trashTasksBulkLocal} deleteDiscussionMessage={deleteDiscussionMessage}
             updateProfile={updateProfile} officialReports={officialReports} firebaseSaveReportDraft={firebaseSaveReportDraft}
@@ -420,9 +451,19 @@ export default function App() {
             setSimulatedUser={setSimulatedUser} firebaseSendPrivateMsg={firebaseSendPrivateMsg} deleteProfile={deleteProfile}
             resetSystem={resetSystem} deleteLogsBulk={deleteLogsBulk}
             markAsRead={markAsRead} lastReadChatTimestamps={lastReadChatTimestamps}
+            adminUnreadCount={adminUnreadCount} onOpenNotifications={() => setIsNotificationCenterOpen(true)}
+            createNotification={createNotification}
           />
         </div>
       </main>
+      <NotificationCenter 
+        isOpen={isNotificationCenterOpen}
+        onClose={() => setIsNotificationCenterOpen(false)}
+        notifications={notifications}
+        onMarkAsRead={markNotifRead}
+        onDelete={deleteNotif}
+        onGoToTask={handleJumpToTask}
+      />
       {(showTaskModal || editingTask) && (
         <TaskModal 
           onClose={() => { setShowTaskModal(false); setEditingTask(null); }} 
@@ -431,6 +472,7 @@ export default function App() {
           tasks={tasks}
           task={editingTask || undefined} 
           currentUser={effectiveUser!} 
+          categories={categories}
         />
       )}
       {showHistoryModal && <HistoryModal taskId={showHistoryModal} tasks={tasks} users={allUsers} onClose={() => setShowHistoryModal(null)} />}

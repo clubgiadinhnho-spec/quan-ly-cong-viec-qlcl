@@ -43,8 +43,8 @@ export const useTaskActions = ({
     const isManagement = currentUser?.role === 'Admin' || !!currentUser?.delegatedPermissions?.canCreateTask;
 
     const newTask: Omit<Task, 'id'> = {
-      code: `C${String(lastNum + 1).padStart(4, '0')}`,
-      issueDate: new Date().toISOString().split('T')[0],
+      code: taskData.code || `C${String(lastNum + 1).padStart(4, '0')}`,
+      issueDate: taskData.issueDate || new Date().toISOString().split('T')[0],
       title: taskData.title || '',
       objective: taskData.objective || '',
       assigneeId: taskData.assigneeId || currentUser?.id || '',
@@ -55,11 +55,11 @@ export const useTaskActions = ({
       currentUpdate: '',
       history: [{ 
         version: 1, 
-        content: isManagement ? 'Khởi tạo công việc.' : 'Khởi tạo công việc (Chờ xác nhận).', 
+        content: 'Khởi tạo công việc (Chờ duyệt).', 
         timestamp: new Date().toISOString(), 
         authorId: currentUser?.id || '' 
       }],
-      status: isManagement ? 'IN_PROGRESS' : 'AWAITING_CONFIRMATION',
+      status: 'PENDING' as any,
       priority: taskData.priority || 'MEDIUM',
       isHighlighted: false,
       isLocked: false,
@@ -69,6 +69,7 @@ export const useTaskActions = ({
       updatedAt: new Date().toISOString(),
       isNewSoldier: false,
       authorId: currentUser?.id || '',
+      systemCreatedAt: taskData.systemCreatedAt || new Date().toISOString()
     };
     await firebaseAddTask(newTask);
   }, [tasks, currentUser, firebaseAddTask]);

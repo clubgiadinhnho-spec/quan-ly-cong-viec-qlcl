@@ -162,7 +162,7 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
                   <div className={`p-2.5 rounded-2xl text-[11px] leading-relaxed shadow-sm relative group/msg ${
                     isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-none'
                   }`}>
-                    {comment.content}
+                    <span translate="no" className="notranslate">{comment.content}</span>
 
                     {/* Reaction trigger */}
                     <div className={`absolute top-0 opacity-0 group-hover/msg:opacity-100 transition-opacity flex gap-1 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full p-0.5 shadow-sm ${
@@ -194,7 +194,7 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
 
                 <div className="mt-0.5 flex items-center gap-1.5 px-0.5">
                    <span className="text-[8px] text-gray-300 font-bold">{formatDateTime(comment.timestamp)}</span>
-                   {!isMe && <span {...getSafeNameProps()} className="text-[8px] text-blue-400 font-black uppercase tracking-tighter notranslate">{authorName}</span>}
+                   {!isMe && <span {...getSafeNameProps()} className="text-[8px] text-blue-700 font-black uppercase tracking-tighter notranslate">{authorName}</span>}
                 </div>
               </div>
             );

@@ -75,7 +75,20 @@ export interface ProgressUpdate {
   authorId: string;
 }
 
-export type TaskStatus = 'Chưa bắt đầu' | 'Đang thực hiện' | 'Hoàn thành' | 'Tạm dừng' | 'IN_PROGRESS' | 'PENDING_APPROVAL' | 'COMPLETED' | 'CANCELLED' | 'ON_HOLD' | 'AWAITING_CONFIRMATION';
+export type TaskStatus = 'Chưa bắt đầu' | 'Đang thực hiện' | 'Hoàn thành' | 'Tạm dừng' | 'IN_PROGRESS' | 'PENDING' | 'APPROVED' | 'PENDING_APPROVAL' | 'COMPLETED' | 'CANCELLED' | 'ON_HOLD' | 'AWAITING_CONFIRMATION' | 'DELETED';
+
+export type NotificationType = 'COMPLETED_REQUEST' | 'DELETE_REQUEST';
+
+export interface AppNotification {
+  id: string;
+  senderName: string;
+  taskCode: string;
+  taskId: string;
+  type: NotificationType;
+  createdAt: string;
+  expiresAt: string;
+  isRead: boolean;
+}
 
 export type TaskPriority = 'Thấp' | 'Trung bình' | 'Cao' | 'Khẩn cấp' | 'LOW' | 'MEDIUM' | 'HIGH';
 
@@ -117,6 +130,12 @@ export interface CycleHistoryEntry {
   nextDeadline: string;
 }
 
+export interface TaskCategory {
+  id: string;
+  code: string;
+  name: string;
+}
+
 export interface Task {
   id: string;
   code: string;
@@ -132,19 +151,20 @@ export interface Task {
   extensionDate?: string;
   dueDate?: string; // Alias cho expectedEndDate
   actualEndDate?: string;
-  prevProgress: string; // Diễn tiến tuần trước
-  currentUpdate: string; // Cập nhật nội dung trong 2 tuần tiếp theo
+  prevProgress: string; // Diễn tiến trước đó
+  currentUpdate: string; // Cập nhật nội dung thực hiện
   history: ProgressUpdate[];
   status: TaskStatus;
   priority: TaskPriority;
   priorityOrder?: number;
   highlightColor?: string | null; // e.g. 'amber', 'emerald', 'blue', 'red', 'purple'
   isHighlighted: boolean;
-  isLocked: boolean; // Chốt 2 tuần/lần
+  isLocked: boolean; // Trạng thái khóa (khi hoàn thành)
   recurrence?: RecurrenceType;
   cycleHistory?: CycleHistoryEntry[];
   attachmentUrl?: string;
   attachmentName?: string;
+  category?: string; // Mã phân loại từ task_categories
   updatedAt: string;
   comments?: TaskComment[];
   requestDelete?: boolean;
@@ -156,6 +176,9 @@ export interface Task {
   isNewSoldier?: boolean;
   authorId?: string;
   deletedAt?: string;
+  systemCreatedAt?: string;
+  isNewUpdate?: boolean;
+  lastUpdateAt?: string;
 }
 
 export interface ReportDraft {

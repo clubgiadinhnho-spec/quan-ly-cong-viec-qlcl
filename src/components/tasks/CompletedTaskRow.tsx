@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Paperclip, Highlighter, Check, X, RotateCcw, ThumbsUp, Info } from 'lucide-react';
+import { MessageSquare, Paperclip, Highlighter, Check, X, RotateCcw, ThumbsUp, Info, Tag, Trash2, CheckCircle2 } from 'lucide-react';
 import { Task, User } from '../../types';
 import { formatDate } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
@@ -40,7 +40,9 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
   const assigneeName = getTaskAssigneeName(task, users);
   const assignee = getUserById(assigneeName, users) || getUserById(task.assigneeId, users);
   const isOwner = isUserTask(task, user);
-  const isManager = user.role === 'Admin';
+  const isLNT = user.name === 'Lê Nhật Trường';
+  const isAdmin = user.role === 'Admin' || isLNT;
+  const isManager = isAdmin;
 
   const [lastReadCount, setLastReadCount] = React.useState(task.comments?.length || 0);
   const [showColorPicker, setShowColorPicker] = React.useState(false);
@@ -67,7 +69,16 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
            className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer shadow-sm transition-all"
          />
       </td>
-      <td className="p-2 text-center text-[10px] font-bold text-gray-300 border-b border-r border-gray-300 align-top">{task.code}</td>
+      <td className="p-2 text-center text-[10px] font-bold text-gray-300 border-b border-r border-gray-300 align-top">
+        <div className="flex flex-col items-center gap-1 pt-1 opacity-60">
+          <span translate="no" className="notranslate leading-none">{task.code}</span>
+          {task.category && (
+            <span translate="no" className="notranslate text-[7px] font-black text-white bg-indigo-400 px-1 py-0.5 rounded shadow-sm leading-none" title="PHÂN LOẠI">
+              <span translate="no" className="notranslate">{task.category}</span>
+            </span>
+          )}
+        </div>
+      </td>
       <td 
         className={`p-2 border-b border-r border-gray-300 align-top h-px ${task.highlightColor || task.isHighlighted ? 'border-l-4 border-amber-500' : ''}`}
       >
@@ -76,11 +87,13 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
             <Avatar src={assignee?.avatar} name={assigneeName} size="sm" />
             <div className="min-w-0 flex-1">
               <p {...getSafeNameProps()} className="text-[11px] font-bold text-gray-900 leading-none truncate notranslate" title={assigneeName}>{assigneeName}</p>
-              <p className="text-[6px] font-black text-black uppercase tracking-widest leading-none mt-1 whitespace-nowrap">
+              <p className="text-[5px] font-black text-black uppercase tracking-widest leading-none mt-1 whitespace-nowrap">
                 <span translate="no" className="notranslate">{assignee ? (assignee.title || assignee.role) : 'NHÂN SỰ'}</span>
               </p>
               <div className="flex flex-col gap-0.5 mt-0.5">
-                <p className="text-[8px] text-gray-500 font-medium italic opacity-70 leading-none">G: {formatDate(task.issueDate)}</p>
+                <p className="text-[8px] text-gray-500 font-medium italic opacity-70 leading-none">
+                  <span translate="no" className="notranslate">KHỞI TẠO:</span> {formatDate(task.issueDate)}
+                </p>
                 <p className="text-[8px] text-blue-600 font-black italic leading-none">Hạn: {formatDate(task.expectedEndDate)}</p>
                 {(() => {
                   const extensions = task.history.filter(h => h.content.includes('Gia hạn công việc đến'));
@@ -132,8 +145,12 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           </a>
         )}
         <div className="flex flex-col h-full font-sans">
-          <p className="text-[11px] font-black text-gray-900 pr-4 uppercase break-words whitespace-normal leading-tight font-sans">{task.title}</p>
-          <p className="text-[10px] font-black text-gray-900 leading-tight mt-1 break-words whitespace-normal flex-1 font-sans">{task.objective}</p>
+          <p className="text-[11px] font-black text-gray-900 pr-4 uppercase break-words whitespace-normal leading-tight font-sans">
+            <span translate="no" className="notranslate">{task.title}</span>
+          </p>
+          <p className="text-[10px] font-black text-gray-900 leading-tight mt-1 break-words whitespace-normal flex-1 font-sans">
+            <span translate="no" className="notranslate">{task.objective}</span>
+          </p>
           
           {task.history.length > 1 && (
             <div className="mt-auto px-1 py-0.5 bg-blue-50/30 rounded border border-blue-100/30 flex justify-between items-center group/history" title={task.history[task.history.length - 2]?.content}>
@@ -158,7 +175,9 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
       <td className="p-1 border-b border-r border-gray-300 align-top h-px">
         <div className="flex flex-col gap-1 h-full min-h-[60px] justify-between">
           <div className="p-1.5 rounded border border-gray-100 flex-1">
-            <p className="text-[10px] text-gray-700 leading-tight break-words whitespace-normal font-medium">{task.currentUpdate}</p>
+            <p className="text-[10px] text-gray-700 leading-tight break-words whitespace-normal font-medium">
+              <span translate="no" className="notranslate">{task.currentUpdate}</span>
+            </p>
           </div>
           <div className="flex items-center justify-between px-1 mt-auto pt-1 border-t border-gray-50 border-dotted">
             <span className="text-[7px] px-0.5 py-0.5 bg-gray-100 text-gray-500 rounded font-bold uppercase tracking-tighter">v{task.history.length || 0}</span>
@@ -255,7 +274,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
               }} 
               title="YÊU CẦU HOÀN TÁC"
               disabled={task.requestUndo === 'REJECTED'}
-              className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-lg group/btn ${
+              className={`w-10 h-10 flex items-center justify-center rounded-[14px] transition-all shadow-lg group/btn ${
                 task.requestUndo === 'REJECTED' 
                   ? 'bg-gray-200 text-white cursor-not-allowed opacity-50' 
                   : 'bg-amber-500 text-white hover:bg-amber-600 ring-2 ring-amber-100'
@@ -268,14 +287,15 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           <div className="relative">
             <button 
                onClick={() => setShowColorPicker(!showColorPicker)}
-               title="LƯU Ý / HIGHLIGHT"
-               className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-lg border-2 group/btn ${
+               title="LƯU Ý"
+               className={`w-10 h-10 flex items-center justify-center rounded-[14px] transition-all shadow-lg border-2 group/btn ${
                  task.highlightColor || task.isHighlighted
                    ? 'bg-emerald-500 text-white border-emerald-600 ring-2 ring-emerald-100' 
                    : 'bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50'
                }`}
              >
-               <Highlighter size={20} strokeWidth={3} className="group-hover/btn:rotate-12 transition-transform" />
+               <Tag size={20} strokeWidth={2.5} className="group-hover:rotate-12 transition-transform" />
+               <span className="sr-only notranslate" translate="no">LƯU Ý</span>
              </button>
              
              <AnimatePresence>
@@ -287,15 +307,15 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                     className="absolute right-full mr-2 top-0 bg-white border border-gray-200 rounded-lg shadow-xl p-1.5 flex flex-col gap-1.5 z-[100]"
                   >
                     {Object.keys(HIGHLIGHT_COLORS).map(color => (
-                      <button
-                        key={color}
-                        onClick={() => {
-                          onUpdate(task.id, { highlightColor: color, isHighlighted: true });
-                          setShowColorPicker(false);
-                        }}
-                        className={`w-6 h-6 rounded-full border border-gray-200 transition-transform hover:scale-125 ${HIGHLIGHT_COLORS[color].split(' ')[0]}`}
-                      />
-                    ))}
+                        <button
+                          key={color}
+                          onClick={() => {
+                            onUpdate(task.id, { highlightColor: color, isHighlighted: true });
+                            setShowColorPicker(false);
+                          }}
+                          className={`w-6 h-6 rounded-full border border-gray-200 transition-transform hover:scale-125 ${HIGHLIGHT_COLORS[color].split(' ')[0]}`}
+                        />
+                      ))}
                     <button
                       onClick={() => {
                         onUpdate(task.id, { highlightColor: null, isHighlighted: false });
@@ -314,9 +334,10 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           <button 
             onClick={() => onViewHistory(task.id)} 
             title="XEM CHI TIẾT"
-            className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg border-2 border-blue-400 group/btn"
+            className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-[14px] hover:bg-blue-700 transition-all shadow-lg border-2 border-blue-400 group/btn"
           >
-            <Info size={20} strokeWidth={3} className="group-hover/btn:scale-110 transition-transform" />
+            <Info size={20} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
+            <span className="sr-only notranslate" translate="no">XEM CHI TIẾT</span>
           </button>
         </div>
       </td>

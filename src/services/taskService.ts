@@ -122,6 +122,8 @@ export const prepareTaskUpdates = (
     if (updates.status === 'IN_PROGRESS') statusLabel = 'ĐANG THỰC HIỆN';
     if (updates.status === 'COMPLETED') statusLabel = 'HOÀN THÀNH';
     if (updates.status === 'PENDING_APPROVAL') statusLabel = 'CHỜ DUYỆT';
+    if (updates.status === 'PENDING') statusLabel = 'CHỜ DUYỆT KHỞI TẠO';
+    if (updates.status === 'APPROVED') statusLabel = 'ĐÃ DUYỆT KHỞI TẠO';
     
     const prefix = isReverting ? '[HOÀN TÁC] ' : '';
     changes.push(`${prefix}Thay đổi trạng thái sang: ${statusLabel}`);

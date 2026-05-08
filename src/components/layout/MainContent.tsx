@@ -6,12 +6,13 @@ import { Header } from './Header';
 import { HolidayBanner } from './HolidayBanner';
 import { StatsSummary } from '../dashboard/StatsSummary';
 import { TaskList } from '../tasks/TaskList';
-import { PendingConfirmationPage } from '../../pages/PendingConfirmationPage';
+import { NewProposalsPage } from '../../pages/NewProposalsPage';
 import { GroupChatPage } from '../../pages/GroupChatPage';
 import { ProfilePage } from '../../pages/ProfilePage';
 import { ReportPage } from '../../pages/ReportPage';
 import { StaffListPage } from '../../pages/StaffListPage';
 import { SystemHistoryPage } from '../../pages/SystemHistoryPage';
+import { CategoryManagement } from '../tasks/CategoryManagement';
 import { downloadSampleExcel } from '../../utils/excelUtils';
 import { isUserTask } from '../../utils/userUtils';
 
@@ -43,7 +44,6 @@ interface MainContentProps {
   setEditingTask: (t: Task | null) => void;
   setConfirmModal: (m: any) => void;
   highlightedTaskId: string | null;
-  lockTasks: () => void;
   discussionTopics: DiscussionTopic[];
   discussionMessages: DiscussionMessage[];
   sendDiscussionMessage: any;
@@ -73,6 +73,9 @@ interface MainContentProps {
   deleteLogsBulk: (logIds: string[]) => Promise<boolean>;
   markAsRead: (id: string) => void;
   lastReadChatTimestamps: Record<string, number>;
+  adminUnreadCount: number;
+  onOpenNotifications: () => void;
+  createNotification: any;
 }
 
 export const MainContent: React.FC<MainContentProps> = (props) => {
@@ -81,12 +84,13 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
     viewScope, setViewScope, search, setSearch, myActiveCount, allActiveCount, setShowTaskModal,
     handleExportExcel, handleImportExcel, updateTask, deleteTask, setShowHistoryModal, setShowChatModal,
     showChatModal, addTaskComment, updateTaskCommentReactions, setEditingTask, setConfirmModal,
-    highlightedTaskId, lockTasks, discussionTopics, discussionMessages, sendDiscussionMessage,
+    highlightedTaskId, discussionTopics, discussionMessages, sendDiscussionMessage,
     updateDiscussionMessageReactions, createTopic, updateTopic, deleteTopic, deleteTopicsBulk, deleteDiscussionMessage,
     updateProfile, officialReports, firebaseSaveReportDraft, firebaseSaveOfficialReport,
     permanentDeleteTask, restoreTask, setActiveTab, setShowDirectChat, unreadCounts, groupUnreadCount,
     setSimulatedUser, firebaseSendPrivateMsg, deleteProfile, deleteTasksBulk, trashTasksBulk, logs, resetSystem,
-    deleteLogsBulk, markAsRead, lastReadChatTimestamps
+    deleteLogsBulk, markAsRead, lastReadChatTimestamps,
+    adminUnreadCount, onOpenNotifications, createNotification
   } = props;
 
   const [selectedTaskIds, setSelectedTaskIds] = React.useState<string[]>([]);
@@ -140,6 +144,8 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
               actionIcon={Plus}
               onlineUsers={presence}
               currentUserId={effectiveUser.id}
+              adminUnreadCount={adminUnreadCount}
+              onOpenNotifications={effectiveUser.role === 'Admin' ? onOpenNotifications : undefined}
             />
           </div>
 
@@ -224,9 +230,8 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
 
             <TaskList
               tasks={sortedTasks.filter((t) => {
-                if (t.status === "COMPLETED" || t.status === "Hoàn thành" || t.status === "AWAITING_CONFIRMATION") return false;
-                if (effectiveUser.role === "Staff" && t.status === "PENDING_APPROVAL") return false;
-                return true;
+                // YÊU CẦU BẮT BUỘC: Bảng chính chỉ hiển thị trạng thái APPROVED
+                return t.status === "APPROVED";
               })}
               user={effectiveUser}
               users={allUsers}
@@ -244,6 +249,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
               highlightedTaskId={highlightedTaskId}
               selectedIds={selectedTaskIds}
               onToggleSelect={toggleTaskSelection}
+              createNotification={createNotification}
             />
 
             {effectiveUser.role === "Admin" && (
@@ -264,13 +270,6 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                     )}
                   </AnimatePresence>
                 </div>
-                <button
-                  onClick={lockTasks}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-xs font-bold hover:bg-amber-100 transition-all font-mono"
-                >
-                  <Lock size={14} />
-                  CHỐT DANH SÁCH 2 TUẦN
-                </button>
               </div>
             )}
           </div>
@@ -281,14 +280,21 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
         <motion.div key="pending_confirmation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col">
           <HolidayBanner />
           <div className="z-40">
-            <Header title={<span translate="no" className="notranslate">ĐỀ XUẤT MỚI</span>} onlineUsers={presence} currentUserId={effectiveUser.id} />
+            <Header 
+              title={<span translate="no" className="notranslate">ĐỀ XUẤT MỚI</span>} 
+              onlineUsers={presence} 
+              currentUserId={effectiveUser.id}
+              adminUnreadCount={adminUnreadCount}
+              onOpenNotifications={effectiveUser.role === 'Admin' ? onOpenNotifications : undefined}
+            />
           </div>
           <div className="p-6">
-            <PendingConfirmationPage
+            <NewProposalsPage
               tasks={tasks} currentUser={effectiveUser} allUsers={allUsers} updateTask={updateTask} deleteTask={deleteTask}
               setShowHistoryModal={setShowHistoryModal} setShowChatModal={setShowChatModal} showChatModal={showChatModal}
               addTaskComment={addTaskComment} updateTaskCommentReactions={updateTaskCommentReactions}
               setEditingTask={setEditingTask} setConfirmModal={setConfirmModal}
+              createNotification={createNotification}
             />
           </div>
         </motion.div>
@@ -298,7 +304,13 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
         <motion.div key="completed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col">
           <HolidayBanner />
           <div className="z-40">
-            <Header title={<span translate="no" className="notranslate">CÔNG VIỆC HOÀN THÀNH</span>} onlineUsers={presence} currentUserId={effectiveUser.id} />
+            <Header 
+              title={<span translate="no" className="notranslate">CÔNG VIỆC HOÀN THÀNH</span>} 
+              onlineUsers={presence} 
+              currentUserId={effectiveUser.id}
+              adminUnreadCount={adminUnreadCount}
+              onOpenNotifications={effectiveUser.role === 'Admin' ? onOpenNotifications : undefined}
+            />
           </div>
           <div className="p-6 space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
@@ -393,6 +405,12 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
               officialReports={officialReports} onSaveDraft={firebaseSaveReportDraft} onSaveOfficialReport={firebaseSaveOfficialReport}
             />
           </div>
+        </motion.div>
+      )}
+
+      {activeTab === "category_management" && effectiveUser?.role === "Admin" && (
+        <motion.div key="category_management" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
+          <CategoryManagement tasks={tasks} />
         </motion.div>
       )}
 

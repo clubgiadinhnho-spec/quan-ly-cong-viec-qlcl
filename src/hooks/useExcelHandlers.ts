@@ -87,7 +87,7 @@ export const useExcelHandlers = ({
                   timestamp: new Date().toISOString(),
                   authorId: currentUser?.id || "system",
                 }],
-                status: "IN_PROGRESS",
+                status: "PENDING",
                 priority: tData.priority || "MEDIUM",
                 isHighlighted: false,
                 isLocked: false,

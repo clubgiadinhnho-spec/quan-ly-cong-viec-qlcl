@@ -8,13 +8,15 @@ interface StatsSummaryProps {
 
 export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
   const nonDeleted = tasks.filter(t => !t.deletedAt);
-  const totalCount = nonDeleted.length;
-  const activeTasks = nonDeleted.filter(t => t.status !== 'COMPLETED' && t.status !== 'AWAITING_CONFIRMATION');
+  // YÊU CẦU BẮT BUỘC: Dashboard chỉ tính các việc APPROVED
+  const approvedTasks = nonDeleted.filter(t => t.status === 'APPROVED');
   
-  const totalProcessing = activeTasks.length;
-  const priorityTasks = activeTasks.filter(t => t.priorityOrder || t.isHighlighted);
-  const normalTasks = activeTasks.filter(t => !t.priorityOrder && !t.isHighlighted);
-  const completedCount = nonDeleted.filter(t => t.status === 'COMPLETED').length;
+  const totalCount = approvedTasks.length;
+  const activeTasks = approvedTasks; // Tất cả APPROVED được coi là đang xử lý cho Dashboard này
+  
+  const priorityTasks = activeTasks.filter(t => t.priority === 'HIGH' || t.priority === 'URGENT' || t.isHighlighted);
+  const normalTasks = activeTasks.filter(t => !priorityTasks.includes(t));
+  const completedCount = nonDeleted.filter(t => t.status === 'COMPLETED' || t.status === 'Hoàn thành').length;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -32,7 +34,7 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
               <p className="text-[9px] text-amber-100 font-bold uppercase opacity-80 leading-none mt-0.5 whitespace-nowrap">Đang quản lý</p>
             </div>
           </div>
-          <p className="text-3xl font-black text-white leading-none shrink-0">{totalCount}</p>
+          <p className="text-3xl font-black text-white leading-none shrink-0"><span translate="no" className="notranslate">{totalCount}</span></p>
         </div>
       </div>
 
@@ -50,7 +52,7 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
               <p className="text-[9px] text-emerald-100 font-bold uppercase opacity-80 leading-none mt-0.5 whitespace-nowrap text-ellipsis overflow-hidden">HỆ THỐNG KIỂM SOÁT</p>
             </div>
           </div>
-          <p className="text-3xl font-black text-white leading-none shrink-0">{normalTasks.length}</p>
+          <p className="text-3xl font-black text-white leading-none shrink-0"><span translate="no" className="notranslate">{normalTasks.length}</span></p>
         </div>
       </div>
 
@@ -68,7 +70,7 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
               <p className="text-[9px] text-red-100 font-bold uppercase opacity-80 leading-none mt-0.5 whitespace-nowrap">BẤT QUY TẮC</p>
             </div>
           </div>
-          <p className="text-3xl font-black text-white leading-none shrink-0">{priorityTasks.length}</p>
+          <p className="text-3xl font-black text-white leading-none shrink-0"><span translate="no" className="notranslate">{priorityTasks.length}</span></p>
         </div>
       </div>
 
@@ -86,7 +88,7 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
               <p className="text-[9px] text-blue-100 font-bold uppercase opacity-80 leading-none mt-0.5 whitespace-nowrap">Kết quả</p>
             </div>
           </div>
-          <p className="text-3xl font-black text-white leading-none shrink-0">{completedCount}</p>
+          <p className="text-3xl font-black text-white leading-none shrink-0"><span translate="no" className="notranslate">{completedCount}</span></p>
         </div>
       </div>
     </div>

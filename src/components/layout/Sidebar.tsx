@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User } from '../../types';
-import { ClipboardList, User as UserIcon, CheckCircle2, BarChart3, LogOut, MessageSquare, Users, Database, Sparkles, Trash2, ChevronRight } from 'lucide-react';
+import { ClipboardList, User as UserIcon, CheckCircle2, BarChart3, LogOut, MessageSquare, Users, Database, Sparkles, Trash2, ChevronRight, Tag } from 'lucide-react';
 
 import { Avatar } from '../common/Avatar';
 import { GroupChatIcon, GroupDiscussionIcon } from '../common/Icons';
@@ -111,6 +111,7 @@ export const Sidebar = ({
             { id: 'reports', label: <span translate="no" className="notranslate">BẢNG CÁO THÁNG</span>, icon: BarChart3 },
             ...(user.role === 'Admin'
               ? [
+                  { id: 'category_management', label: <span translate="no" className="notranslate">QUẢN LÝ DANH MỤC</span>, icon: Tag, color: 'bg-blue-600 text-white shadow-blue-100' },
                   { id: 'trash', label: <span translate="no" className="notranslate">TRUNG TÂM XÓA</span>, icon: Trash2, count: trashTasksCount, color: 'bg-red-500 text-white shadow-red-200' },
                   { id: 'system_history', label: <span translate="no" className="notranslate">NHẬT KÝ HỆ THỐNG</span>, icon: Database, color: 'bg-indigo-600 text-white shadow-indigo-100' }
                 ]
@@ -136,7 +137,7 @@ export const Sidebar = ({
                 <span className={`${isCollapsed ? 'absolute -top-1 -right-1' : ''} text-[10px] font-black min-w-[20px] h-5 px-1 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-md shrink-0 ${
                   item.color || 'bg-gray-500 text-white'
                 } ${(item.isAlert && isManager) ? 'animate-bounce' : ''}`}>
-                  {item.count}
+                  <span translate="no" className="notranslate">{item.count}</span>
                 </span>
               )}
             </button>
@@ -154,7 +155,11 @@ export const Sidebar = ({
               <div className={`p-2 bg-gradient-to-br from-rose-500 to-rose-600 rounded-xl shadow-sm border border-rose-400/20`}>
                  <GroupChatIcon className="w-5 h-5 text-white" />
               </div>
-              {/* Removed unread count badge */}
+              {groupUnreadCount > 0 && isCollapsed && (
+                <div className="absolute -top-1 -right-1 bg-blue-600 text-white min-w-[22px] h-5.5 px-1 rounded-full flex items-center justify-center border-2 border-white shadow-lg animate-bounce z-10">
+                  <span translate="no" className="notranslate text-white text-[9px] font-black">{groupUnreadCount}</span>
+                </div>
+              )}
             </div>
             {!isCollapsed && (
               <div className="flex-1 min-w-0 text-left flex items-center justify-between gap-1">
@@ -169,6 +174,13 @@ export const Sidebar = ({
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-none relative">
+                  {groupUnreadCount > 0 && !isCollapsed && (
+                    <div className="bg-blue-600 text-white min-w-[24px] h-6 px-2 rounded-full flex items-center justify-center shadow-lg shadow-blue-200 animate-bounce border border-white">
+                      <span translate="no" className="notranslate text-white text-[10px] font-bold">
+                        {groupUnreadCount}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

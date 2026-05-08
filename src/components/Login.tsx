@@ -464,7 +464,10 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
                   <div className="flex justify-end">
                     <button 
                       type="button" 
-                      onClick={() => { setMode('FORGOT'); setError(''); }}
+                      onClick={() => { 
+                        setMode('FORGOT'); 
+                        setError(<span translate="no" className="notranslate" style={{ color: '#2563eb' }}>Lê Nhật Trường, Điện thoại/ Zalo: 0907767304</span> as any); 
+                      }}
                       className="text-[10px] font-black text-blue-600 uppercase tracking-tighter hover:underline mt-1"
                     >
                       <span translate="no" className="notranslate">Quên mật khẩu?</span>
@@ -516,7 +519,9 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
                   (error.toString().includes('ĐÃ ĐƯỢC GỬI')) ||
                   (React.isValidElement(error) && (JSON.stringify(error).includes('THÀNH CÔNG') || JSON.stringify(error).includes('ĐÃ ĐƯỢC GỬI')))
                     ? 'bg-emerald-50 border-emerald-100 text-emerald-600'
-                    : 'bg-red-50 border-red-100 text-red-600'
+                    : (error.toString().includes('0907767304') || (React.isValidElement(error) && JSON.stringify(error).includes('0907767304')))
+                      ? 'bg-blue-50 border-blue-100 text-blue-600'
+                      : 'bg-red-50 border-red-100 text-red-600'
                 }`}
               >
                 {error}

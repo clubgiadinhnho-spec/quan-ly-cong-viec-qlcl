@@ -285,10 +285,12 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
 
               {/* Info Blocks mimicking the provided screenshot */}
               <div className="w-full space-y-5 mb-10">
-                <div className="space-y-1.5 text-center">
-                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">HỌ VÀ TÊN NHÂN VIÊN</p>
-                  <p className="text-2xl font-black text-slate-900 uppercase tracking-tight">{selectedQRUser.name}</p>
-                </div>
+                  <div className="space-y-1.5 text-center">
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">HỌ VÀ TÊN NHÂN VIÊN</p>
+                    <p className="text-2xl font-black text-slate-900 uppercase tracking-tight">
+                      <span translate="no" className="notranslate">{selectedQRUser.name}</span>
+                    </p>
+                  </div>
 
                 <div className="grid grid-cols-2 gap-6 pt-2">
                   <div className="space-y-1.5 text-center">
@@ -650,7 +652,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                 <div className="pt-2">
                   <div className="mb-6 text-left relative">
                     <h3 translate="no" className="text-2xl font-black text-white tracking-tight uppercase leading-relaxed mb-0 flex items-center gap-2">
-                      {staff.name}
+                      <span translate="no" className="notranslate">{staff.name}</span>
                       {staff.updatedFields?.includes('name') && staff.updatedFieldsAt && (Date.now() - new Date(staff.updatedFieldsAt).getTime() < 86400000) && !seenUpdates[staff.id] && (
                         <span className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" title="Tên vừa được đổi" />
                       )}
@@ -724,14 +726,14 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                   )}
                   <div className="flex items-center gap-4 w-full">
                     <Lock size={18} className="text-slate-200 shrink-0" strokeWidth={2.5} />
-                    <div className="flex-1 flex flex-col items-center justify-center min-w-0 px-2">
-                      <span translate="no" className="notranslate text-[7px] font-black text-slate-300 uppercase tracking-[0.3em] mb-0.5 whitespace-nowrap">MẬT KHẨU</span>
-                      <div className="flex items-center justify-center h-5">
-                        <span translate="no" className={`notranslate font-mono font-black leading-none ${isVisible ? (staff.password === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-800 text-lg tracking-[0.4em]') : 'text-slate-800 text-lg tracking-[0.4em]'}`}>
-                          {isVisible ? (staff.password || 'CHỜ CẬP NHẬT') : '•••••'}
-                        </span>
-                      </div>
-                    </div>
+                        <div className="flex flex-col text-left">
+                          <span className="text-[9px] font-black text-blue-300/40 uppercase tracking-widest leading-none mb-1">MẬT KHẨU</span>
+                          <div className="flex items-center justify-start h-5">
+                            <span translate="no" className={`notranslate font-mono font-black border-none bg-transparent leading-none ${isVisible ? (staff.password === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-800 text-lg tracking-[0.4em]') : 'text-slate-800 text-lg tracking-[0.4em]'}`}>
+                              {isVisible ? (staff.password || 'CHỜ CẬP NHẬT') : '•••••'}
+                            </span>
+                          </div>
+                        </div>
                     <button 
                       onClick={() => togglePassword(staff.id, staff)}
                       className="text-slate-200 hover:text-blue-600 transition-colors p-1.5 shrink-0"

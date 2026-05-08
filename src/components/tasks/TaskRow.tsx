@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw, Trash2, Bell, RefreshCw, Highlighter, Check, ThumbsUp } from 'lucide-react';
+import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw, Trash2, Bell, RefreshCw, Highlighter, Check, ThumbsUp, CheckCircle2, Tag, Pencil, Eye } from 'lucide-react';
 import { Task, User } from '../../types';
 import { formatDate } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
@@ -34,15 +34,18 @@ interface TaskRowProps {
   setConfirmModal: (modal: any) => void;
   isReadOnly?: boolean;
   onRestore?: (id: string) => void;
+  onApprove?: (id: string) => void;
   highlightedTaskId?: string | null;
   isSelected?: boolean;
   onToggleSelect?: (id: string) => void;
+  createNotification?: (senderName: string, taskCode: string, taskId: string, type: any) => Promise<void>;
 }
 
 export const TaskRow: React.FC<TaskRowProps> = ({ 
   task, user, users, onUpdate, onDelete, onViewHistory, onOpenChat, 
   isChatOpen, onSendMessage, onReact, onTogglePriority, onSetPriority, onEdit, idx, setConfirmModal,
-  isReadOnly = false, onRestore, highlightedTaskId, isSelected, onToggleSelect
+  isReadOnly = false, onRestore, onApprove, highlightedTaskId, isSelected, onToggleSelect,
+  createNotification
 }) => {
   const assigneeName = getTaskAssigneeName(task, users);
   const assignee = getUserById(assigneeName, users) || getUserById(task.assigneeId, users);
@@ -58,7 +61,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   }, [highlightedTaskId, task.id]);
 
   const isOwner = isUserTask(task, user);
-  const isAdmin = user.role === 'Admin';
+  const isAuthor = task.authorId === user.id || task.authorId === user.uniqueKey;
+  const isLNT = user.name === 'Lê Nhật Trường';
+  const isAdmin = user.role === 'Admin' || isLNT;
   const canApprove = isAdmin || !!user.delegatedPermissions?.canApproveTask;
   const canDelete = isAdmin || !!user.delegatedPermissions?.canDeleteTask;
   const isManager = isAdmin || !!user.delegatedPermissions?.canCreateTask;
@@ -109,6 +114,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   const deadlineStatus = getDeadlineStatus();
 
+  const isFreshUpdate = task.isNewUpdate && task.lastUpdateAt && (Date.now() - new Date(task.lastUpdateAt).getTime() < 24 * 60 * 60 * 1000);
+
   const handleConfirmTask = (approve: boolean) => {
     if (approve) {
       onUpdate(task.id, { 
@@ -125,6 +132,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     // Managers/Owners can mark as pending approval
     if (!canApprove) {
       onUpdate(task.id, { status: 'PENDING_APPROVAL' });
+      if (createNotification) {
+        createNotification(user.name, task.code, task.id, 'COMPLETED_REQUEST');
+      }
     } else if (canApprove) {
       setConfirmModal({
         show: true,
@@ -153,22 +163,29 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       transition={{ duration: 0.4 }}
       className={`group transition-all ${finalRowClass} relative ${highlightedTaskId === task.id ? 'z-10' : ''} ${isSelected ? 'bg-blue-50/50' : ''}`}
     >
-      <td className="p-2 text-center border-b border-l border-r border-gray-300 align-middle">
+      <td className="p-2 text-center border border-gray-300 align-middle">
          <input 
            type="checkbox" 
            checked={isSelected}
            onChange={() => onToggleSelect?.(task.id)}
-           className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer shadow-sm transition-all"
+           className="w-3.5 h-3.5 rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer shadow-sm transition-all"
          />
       </td>
-      <td className={`p-2 text-center text-[10px] border-b border-r border-gray-300 align-top relative h-px ${task.isHighlighted || task.priorityOrder ? 'text-gray-600' : 'text-gray-400'}`}>
+      <td className={`p-2 text-center text-[10px] border border-gray-300 align-top relative h-px ${task.isHighlighted || task.priorityOrder ? 'text-gray-600' : 'text-gray-400'}`}>
         <div className="flex flex-col items-center pt-1 h-full justify-between">
           <div className="flex flex-col items-center gap-1 mb-3">
-            <div translate="no" className="notranslate leading-none text-[10px] font-mono font-black text-blue-600 bg-blue-50/50 px-1 py-0.5 rounded border border-blue-100/50">{task.code}</div>
+            <div translate="no" className="notranslate leading-none text-[10px] font-mono font-black text-blue-600 bg-blue-50/50 px-1 py-0.5 rounded-sm border border-blue-100/50">
+              <span translate="no" className="notranslate">{task.code}</span>
+            </div>
+            {task.category && (
+              <div translate="no" className="notranslate leading-none text-[9px] font-mono font-black text-white bg-indigo-500 px-1 py-0.5 rounded-sm border border-indigo-400 shadow-sm" title="PHÂN LOẠI">
+                <span translate="no" className="notranslate font-bold text-[10px]">{task.category}</span>
+              </div>
+            )}
             {task.recurrence && task.recurrence !== 'NONE' && (
               <div className="flex flex-col items-center gap-1">
                 <RefreshCw size={11} className="text-emerald-500 animate-[spin_4s_linear_infinite]" strokeWidth={3} />
-                <span translate="no" className="notranslate text-[7px] font-black text-emerald-600 leading-none uppercase bg-emerald-50 px-1 py-0.5 rounded border border-emerald-100 shadow-sm">
+                <span translate="no" className="notranslate text-[7px] font-black text-emerald-600 leading-none uppercase bg-emerald-50 px-1 py-0.5 rounded-sm border border-emerald-100 shadow-sm">
                   {task.recurrence === 'DAILY' && <span translate="no" className="notranslate">HÀNG NGÀY</span>}
                   {task.recurrence === 'TRI_DAILY' && <span translate="no" className="notranslate">2-3 NGÀY/LẦN</span>}
                   {task.recurrence === 'WEEKLY' && <span translate="no" className="notranslate">HÀNG TUẦN</span>}
@@ -182,7 +199,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           {deadlineStatus && (
             <div className="flex flex-col items-center gap-1.5 transition-all mt-auto mb-1">
               <div 
-                className={`animate-[pulse_0.6s_infinite] p-1.5 rounded-full shadow-md border-2 ${
+                className={`animate-[pulse_0.6s_infinite] p-1.5 rounded-sm shadow-md border-2 ${
                   deadlineStatus === 'overdue' 
                     ? 'text-red-700 bg-red-100 border-red-300 shadow-red-100' 
                     : 'text-emerald-700 bg-emerald-50 border-emerald-200 shadow-emerald-100'
@@ -199,14 +216,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             </div>
           )}
           {task.isNewSoldier && (
-            <div className="bg-amber-100 text-amber-600 p-0.5 rounded-full animate-bounce" title="Lính mới / Việc mới xác nhận">
+            <div className="bg-amber-100 text-amber-600 p-0.5 rounded-sm animate-bounce" title="Lính mới / Việc mới xác nhận">
               <Sparkles size={8} strokeWidth={3} />
             </div>
           )}
         </div>
       </td>
       <td 
-        className={`p-2 border-b border-r border-gray-300 align-top h-px ${task.highlightColor || task.isHighlighted ? 'border-l-4 border-amber-500' : ''} ${isManager ? 'cursor-pointer hover:bg-blue-50/50' : ''}`}
+        className={`p-2 border border-gray-300 align-top h-px ${task.highlightColor || task.isHighlighted ? 'border-l-4 border-amber-500' : ''} ${isManager ? 'cursor-pointer hover:bg-blue-50/50' : ''}`}
         onClick={() => isManager && onEdit(task)}
       >
         <div className="flex flex-col h-full gap-1">
@@ -225,12 +242,15 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   <span translate="no" className="notranslate">{assigneeName}</span>
                 </p>
               </div>
-              <p className="text-[6px] font-black text-black uppercase tracking-widest leading-none mt-1 whitespace-nowrap">
+              <p className="text-[5px] font-black text-black uppercase tracking-widest leading-none mt-1 whitespace-nowrap">
                 <span translate="no" className="notranslate">{assignee ? (assignee.title || assignee.role) : 'NHÂN SỰ'}</span>
               </p>
               <div className="flex flex-col gap-1.5 mt-2">
                 <p className="text-[9px] text-gray-500 font-bold opacity-80 leading-tight">
-                  <span translate="no" className="notranslate">GIAO:</span> {formatDate(task.issueDate)}
+                  <span translate="no" className="notranslate">KHỞI TẠO:</span> {formatDate(task.issueDate)}
+                </p>
+                <p className="text-[9px] text-blue-500 font-medium opacity-90 leading-tight">
+                  <span translate="no" className="notranslate">BẮT ĐẦU:</span> {formatDate(task.startDate || task.issueDate)}
                 </p>
                 <p className={`text-[10px] font-black leading-tight ${
                   deadlineStatus === 'overdue' && !task.extensionDate 
@@ -239,7 +259,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                       ? 'text-emerald-700'
                       : 'text-blue-700'
                 }`}>
-                  <span translate="no" className="notranslate">HẠN:</span> {formatDate(task.expectedEndDate)}
+                  <span translate="no" className="notranslate font-bold text-blue-700">HẠN:</span> {formatDate(task.expectedEndDate)}
                 </p>
                 {(() => {
                   const extensions = (task.history || []).filter(h => h.content?.includes('Gia hạn công việc đến'));
@@ -335,7 +355,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           {isManager ? (
              <div className="relative">
               <textarea 
-                className="text-[11px] font-black text-gray-900 bg-transparent border-b border-transparent focus:border-blue-400 outline-none w-full py-0 pr-4 uppercase break-words resize-none overflow-hidden leading-tight min-h-[1rem] font-sans"
+                className="text-[11px] font-black text-gray-900 bg-transparent border-b border-transparent focus:border-blue-400 outline-none w-full py-0 pr-4 uppercase break-words resize-none overflow-hidden leading-tight min-h-[1rem] font-sans notranslate"
+                translate="no"
                 defaultValue={task.title}
                 rows={1}
                 ref={(el) => {
@@ -359,65 +380,99 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 onClick={() => onEdit(task)}
                 className="absolute top-0 right-0 text-blue-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
               >
-                <span className="text-[8px]">✎</span>
+                <span className="text-[8px] font-black">✎</span>
               </button>
              </div>
           ) : (
-            <p className="text-[11px] font-black text-gray-900 leading-tight pr-4 uppercase break-words whitespace-normal font-sans">{task.title}</p>
+            <p className="text-[11px] font-black text-gray-900 leading-tight pr-4 uppercase break-words whitespace-normal font-sans">
+              <span translate="no" className="notranslate">{task.title}</span>
+            </p>
           )}
-          <p className="text-[10px] font-black text-gray-900 leading-tight mt-1 break-words whitespace-normal flex-1 font-sans">{task.objective}</p>
+          <p className="text-[10px] font-black text-gray-900 leading-tight mt-1 break-words whitespace-normal flex-1 font-sans">
+            <span translate="no" className="notranslate">{task.objective}</span>
+          </p>
           
           {(task.history || []).length > 1 && (
-            <div className="mt-auto px-1 py-0.5 bg-blue-50/30 rounded border border-blue-100/30 flex justify-between items-center group/history cursor-help" title={(task.history || [])[(task.history || []).length - 2]?.content}>
+            <div className="mt-auto px-1 py-0.5 bg-blue-50/30 rounded-sm border border-blue-100/30 flex justify-between items-center group/history cursor-help" title={(task.history || [])[(task.history || []).length - 2]?.content}>
               <div className="flex flex-col min-w-0">
                 <p translate="no" className="notranslate text-[7px] font-black text-blue-600 uppercase tracking-tighter leading-none mb-0.5 font-sans">Lần cập trước:</p>
                 <p className="text-[8px] text-gray-500 line-clamp-1 italic leading-none truncate font-sans">
-                  {((task.history || [])[(task.history || []).length - 2]?.content || '').replace('Cập nhật tiến độ: ', '') || 'Khởi tạo'}
+                  <span translate="no" className="notranslate">
+                    {((task.history || [])[(task.history || []).length - 2]?.content || '').replace('Cập nhật tiến độ: ', '') || 'Khởi tạo'}
+                  </span>
                 </p>
               </div>
-              <p className="text-[7px] font-black text-blue-400 bg-blue-50/50 px-0.5 rounded leading-none uppercase tracking-tighter shrink-0 ml-1 font-sans">V{(task.history || []).length - 1}</p>
+              <p className="text-[7px] font-black text-blue-400 bg-blue-50/50 px-0.5 rounded-sm leading-none uppercase tracking-tighter shrink-0 ml-1 font-sans">V{(task.history || []).length - 1}</p>
             </div>
           )}
           
           <div className="mt-1 flex items-center gap-1">
               {task.status === 'PENDING_APPROVAL' && (
-                <span className="text-[8px] font-black text-amber-500 bg-amber-50 px-1 py-0.2 rounded animate-pulse border border-amber-100 uppercase tracking-tighter">DUYỆT</span>
+                <span className="text-[8px] font-black text-amber-500 bg-amber-50 px-1 py-0.2 rounded-sm animate-pulse border border-amber-100 uppercase tracking-tighter">DUYỆT</span>
               )}
           </div>
         </div>
       </td>
-      <td className="p-1 border-b border-r border-gray-300 align-top h-px">
-        <div className="h-full min-h-[60px] text-[10px] text-gray-700 leading-tight px-1 py-1 rounded border border-gray-100/50 break-words whitespace-normal font-medium">
-          {task.prevProgress || ''}
+      <td className="p-1 border border-gray-300 align-top h-px">
+        <div className="h-full min-h-[60px] text-[10px] text-gray-700 leading-tight px-1 py-1 rounded-sm border border-gray-100/50 break-words whitespace-normal font-medium">
+          <span translate="no" className="notranslate">{task.prevProgress || ''}</span>
         </div>
       </td>
-      <td className="p-1 border-b border-r border-gray-300 align-top h-px">
+      <td className="p-1 border border-gray-300 align-top h-px">
         <div className="flex flex-col gap-1 h-full min-h-[60px]">
-          <textarea 
-            className="flex-1 w-full text-[10px] font-medium p-1.5 bg-white/40 border border-gray-200 rounded shadow-sm outline-none focus:border-blue-500 transition-all resize-none leading-tight min-h-[60px] disabled:bg-transparent disabled:border-transparent disabled:p-0 disabled:shadow-none placeholder:font-normal text-gray-800"
-            placeholder="..."
-            defaultValue={task.currentUpdate}
-            onBlur={(e) => {
-              if (e.target.value !== (task.currentUpdate || '')) {
-                onUpdate(task.id, { currentUpdate: e.target.value });
-              }
-            }}
-            disabled={task.isLocked || (!isOwner && !isManager)}
-          />
-          <div className="flex items-center justify-between px-1 mt-auto pt-1 border-t border-gray-50 border-dotted">
-            <span translate="no" className="notranslate text-[7px] px-0.5 py-0.5 bg-gray-100 text-gray-500 rounded font-bold uppercase tracking-tighter">v{(task.history || []).length || 1}</span>
-            <button onClick={() => onViewHistory(task.id)} className="text-[8px] text-blue-500 hover:underline font-extrabold uppercase tracking-tighter">
-              <span translate="no" className="notranslate">XEM LỊCH SỬ</span>
-            </button>
-          </div>
+            <textarea 
+              className="flex-1 w-full text-[10px] font-medium p-1.5 bg-white/40 border border-gray-200 rounded-sm shadow-sm outline-none focus:border-blue-500 transition-all resize-none leading-tight min-h-[60px] disabled:bg-transparent disabled:border-transparent disabled:p-0 disabled:shadow-none placeholder:font-normal text-gray-800"
+              placeholder="..."
+              defaultValue={task.currentUpdate}
+              onBlur={(e) => {
+                if (e.target.value !== (task.currentUpdate || '')) {
+                  onUpdate(task.id, { 
+                    currentUpdate: e.target.value,
+                    isNewUpdate: true,
+                    lastUpdateAt: new Date().toISOString()
+                  });
+                }
+              }}
+              disabled={task.isLocked || (!isOwner && !isManager)}
+            />
+            <div className="flex items-center justify-between px-1 mt-auto pt-1 border-t border-gray-50 border-dotted">
+              <div className="flex items-center gap-2">
+                <span 
+                  translate="no" 
+                  className={`notranslate px-1 py-0.5 rounded-sm cursor-pointer transition-all flex items-center ${
+                    isFreshUpdate 
+                      ? 'text-[13px] font-bold text-red-600 animate-bounce bg-red-50' 
+                      : 'bg-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-tighter'
+                  }`}
+                  onClick={() => task.isNewUpdate && onUpdate(task.id, { isNewUpdate: false })}
+                >
+                  V{(task.history || []).length || 1}
+                </span>
+                
+                {task.isNewUpdate && (
+                  <button
+                    onClick={() => onUpdate(task.id, { isNewUpdate: false })}
+                    className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white text-[10px] font-black rounded-md shadow-md hover:bg-blue-700 transition-all border border-blue-400 animate-pulse active:scale-95"
+                    title="ĐÃ XEM"
+                  >
+                    <Eye size={12} strokeWidth={3} />
+                    <span translate="no" className="notranslate">ĐÃ XEM</span>
+                  </button>
+                )}
+              </div>
+
+              <button onClick={() => onViewHistory(task.id)} className="text-[8px] text-blue-500 hover:underline font-extrabold uppercase tracking-tighter font-black">
+                <span translate="no" className="notranslate">XEM LỊCH SỬ</span>
+              </button>
+            </div>
         </div>
       </td>
-      <td className="p-0 text-center border-b border-r border-gray-300 align-middle">
+      <td className="p-0 text-center border border-gray-300 align-middle">
         <div className="relative group/priority w-full h-full min-h-[32px] flex items-center justify-center p-1">
           <button 
             onClick={canEditPriority && !task.priorityOrder ? () => onTogglePriority(task.id) : undefined}
             disabled={!canEditPriority && !task.priorityOrder}
-            className={`w-[32px] h-[32px] flex flex-col items-center justify-center transition-all rounded-lg shadow-lg border-2 ${
+            className={`w-[32px] h-[32px] flex flex-col items-center justify-center transition-all rounded-md shadow-lg border-2 ${
               task.priorityOrder 
                 ? `${
                     task.priorityOrder === 1 ? 'bg-red-600 text-white border-red-400' :
@@ -453,94 +508,113 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         </div>
       </td>
       {!isReadOnly && (
-        <td className="py-2 px-1 text-center border-b border-r border-gray-300 align-middle">
+        <td className="py-2 px-1 text-center border border-gray-300 align-middle">
           <div className="flex flex-col items-center justify-center gap-1.5 w-full max-w-[44px] mx-auto min-h-full py-1">
-            {task.deletedAt ? (
-              <div className="flex flex-col gap-2 w-full">
+            {/* THÙNG RÁC: Trạng thái DELETED hoặc có deletedAt */}
+            {(task.status === 'DELETED' || !!task.deletedAt) ? (
+              <div className="flex flex-col gap-2 w-full items-center">
                 <button 
                   onClick={() => onRestore && onRestore(task.id)}
-                  title="HỒI PHỤC"
-                  className="w-8 h-8 flex items-center justify-center bg-emerald-500 text-white rounded-full hover:bg-emerald-600 transition-all shadow-md mx-auto"
+                  title="PHỤC HỒI"
+                  className="w-10 h-10 flex items-center justify-center bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-all shadow-lg group/btn border-2 border-emerald-400"
                 >
-                  <RotateCcw size={16} strokeWidth={3} />
+                  <RotateCcw size={20} strokeWidth={3} className="group-hover:rotate-45 transition-transform" />
+                  <span className="sr-only notranslate" translate="no">PHỤC HỒI</span>
                 </button>
-                {canDelete && (
+                
+                {isAdmin && (
                   <button 
                     onClick={() => onDelete && onDelete(task.id)}
                     title="XÓA VĨNH VIỄN"
-                    className="w-8 h-8 flex items-center justify-center bg-red-600 text-white rounded-full hover:bg-red-700 transition-all shadow-md border border-red-400 mx-auto"
+                    className="w-10 h-10 flex items-center justify-center bg-red-600 text-white rounded-md hover:bg-red-700 transition-all shadow-lg border-2 border-red-400 group/btn"
                   >
-                    <Trash2 size={16} strokeWidth={3} />
+                    <Trash2 size={22} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+                    <span className="sr-only notranslate" translate="no">XÓA VĨNH VIỄN</span>
                   </button>
                 )}
               </div>
             ) : (
               <>
-                {task.status === 'AWAITING_CONFIRMATION' && isManager && (
-                  <button 
-                      onClick={() => handleConfirmTask(true)}
-                      title="XÁC NHẬN"
-                      className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg group/btn"
-                    >
-                      <ThumbsUp size={20} strokeWidth={3} className="group-hover/btn:scale-110 transition-transform" />
-                    </button>
-                )}
-                {task.status === 'AWAITING_CONFIRMATION' && !isManager && (
-                  <span className="text-[8px] font-black text-blue-500 bg-blue-50 px-1 py-1 rounded border border-blue-200 uppercase tracking-tight leading-tight text-center">Chờ duyệt...</span>
-                )}
-                {task.status === 'PENDING_APPROVAL' && canApprove && (
-                  <button 
-                      onClick={handleApprove}
-                      title="XÁC NHẬN HOÀN THÀNH"
-                      className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg border-2 border-blue-400 group/btn"
-                    >
-                      <CheckCircle size={20} strokeWidth={3} className="group-hover/btn:scale-110 transition-transform" />
-                    </button>
-                )}
-                {task.status === 'PENDING_APPROVAL' && !canApprove && (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[7px] font-black text-amber-600 bg-amber-50 px-1 py-1 rounded border border-amber-200 uppercase tracking-tighter leading-none text-center animate-pulse">Đang chờ duyệt...</span>
-                    <button 
-                      onClick={() => onUpdate(task.id, { status: 'IN_PROGRESS' })}
-                      className="w-full py-1 text-[7px] font-bold text-gray-400 hover:text-red-500 uppercase tracking-tighter"
-                    >
-                      Hủy gửi
-                    </button>
+                {/* 1. ĐỀ XUẤT MỚI: PENDING */}
+                {task.status === 'PENDING' && (
+                  <div className="flex flex-col gap-1.5 w-full items-center">
+                    {/* DUYỆT: Admin/Leader */}
+                    {canApprove && onApprove && (
+                      <button 
+                        onClick={() => onApprove(task.id)}
+                        className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-all shadow-lg group/btn border-2 border-blue-400"
+                        title="DUYỆT"
+                      >
+                        <CheckCircle2 size={24} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+                        <span className="sr-only notranslate" translate="no">DUYỆT</span>
+                      </button>
+                    )}
+                    
+                    {/* SỬA */}
+                    {(isOwner || isManager) && (
+                      <button 
+                        onClick={() => onEdit(task)}
+                        className="w-10 h-10 flex items-center justify-center bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-all shadow-md group/btn border-2 border-emerald-400"
+                        title="SỬA"
+                      >
+                        <Pencil size={20} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+                        <span className="sr-only notranslate" translate="no">SỬA</span>
+                      </button>
+                    )}
+
+                    {/* XÓA: ADMIN HOẶC CHỦ SỞ HỮU HOẶC TÁC GIẢ */}
+                    {(isAdmin || ((isOwner || isAuthor) && !isReadOnly)) && (
+                      <button 
+                        onClick={() => onDelete(task.id)}
+                        className="w-10 h-10 flex items-center justify-center bg-red-600 text-white rounded-md hover:bg-red-700 transition-all shadow-md border-2 border-red-400 group/btn"
+                        title="XÓA"
+                      >
+                        <Trash2 size={22} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+                        <span className="sr-only notranslate" translate="no">XÓA</span>
+                      </button>
+                    )}
                   </div>
                 )}
-                {task.status !== 'PENDING_APPROVAL' && (isOwner || isManager || canApprove) && !task.isLocked && !task.requestDelete && task.status !== 'COMPLETED' && task.status !== 'AWAITING_CONFIRMATION' && (
-                  <button 
-                     onClick={handleStatusAction}
-                     title={canApprove ? 'XÁC NHẬN HOÀN THÀNH (XONG)' : 'GỬI HOÀN THÀNH'}
-                     className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-lg group/btn ${
-                       canApprove ? 'bg-amber-500 text-white hover:bg-amber-600 ring-2 ring-amber-100' : 'bg-blue-600 text-white hover:bg-blue-700 ring-2 ring-blue-100'
-                     }`}
-                   >
-                     <CheckCircle size={20} strokeWidth={3} className="group-hover/btn:scale-110 transition-transform" />
-                   </button>
-                )}
-                
-                {(isManager || isOwner || canApprove) && (
-                  <div className="relative">
-                    <button 
-                       onClick={() => setShowColorPicker(!showColorPicker)}
-                       title="LƯU Ý / HIGHLIGHT"
-                       className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-lg border-2 group/btn ${
-                         task.highlightColor || task.isHighlighted
-                           ? 'bg-emerald-500 text-white border-emerald-600 ring-2 ring-emerald-100' 
-                           : 'bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50'
-                       }`}
-                     >
-                       <Highlighter size={20} strokeWidth={3} className="group-hover/btn:rotate-12 transition-transform" />
-                     </button>
-                     
-                     <AnimatePresence>
+
+                {/* 2. BẢNG CÔNG VIỆC CHÍNH: APPROVED */}
+                {task.status === 'APPROVED' && (
+                  <div className="flex flex-col gap-1.5 w-full items-center">
+                    {/* XONG: Nạp trạng thái hoàn thành */}
+                    {!task.isLocked && (
+                      <button 
+                        onClick={handleStatusAction}
+                        title={canApprove ? 'XÁC NHẬN HOÀN THÀNH' : 'GỬI HOÀN THÀNH'}
+                        className={`w-10 h-10 flex items-center justify-center rounded-md transition-all shadow-lg group/btn border-2 ${
+                          canApprove ? 'bg-amber-500 text-white hover:bg-amber-600 border-amber-200' : 'bg-blue-600 text-white hover:bg-blue-700 border-blue-400'
+                        }`}
+                      >
+                        <CheckCircle2 size={24} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+                        <span className="sr-only notranslate" translate="no">XONG</span>
+                      </button>
+                    )}
+
+                    {/* LƯU Ý / HIGHLIGHT */}
+                    <div className="relative">
+                      <button 
+                        onClick={() => setShowColorPicker(!showColorPicker)}
+                        title="LƯU Ý"
+                        className={`w-10 h-10 flex items-center justify-center rounded-md transition-all shadow-lg border-2 group/btn ${
+                          task.highlightColor || task.isHighlighted
+                            ? 'bg-emerald-500 text-white border-emerald-600 ring-2 ring-emerald-100' 
+                            : 'bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50'
+                        }`}
+                      >
+                        <Tag size={20} strokeWidth={2.5} className="group-hover:rotate-12 transition-transform" />
+                        <span className="sr-only notranslate" translate="no">LƯU Ý</span>
+                      </button>
+                      
+                      <AnimatePresence>
                         {showColorPicker && (
                           <motion.div 
                             initial={{ opacity: 0, x: 10, scale: 0.9 }}
                             animate={{ opacity: 1, x: 0, scale: 1 }}
                             exit={{ opacity: 0, x: 10, scale: 0.9 }}
-                            className="absolute right-full mr-2 top-0 bg-white border border-gray-200 rounded-lg shadow-xl p-1.5 flex flex-col gap-1.5 z-[100]"
+                            className="absolute right-full mr-2 top-0 bg-white border border-gray-200 rounded-md shadow-xl p-1.5 flex flex-col gap-1.5 z-[100]"
                           >
                             {Object.keys(HIGHLIGHT_COLORS).map(color => (
                               <button
@@ -549,7 +623,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                                   onUpdate(task.id, { highlightColor: color, isHighlighted: true });
                                   setShowColorPicker(false);
                                 }}
-                                className={`w-6 h-6 rounded-full border border-gray-200 transition-transform hover:scale-125 ${HIGHLIGHT_COLORS[color].split(' ')[0]}`}
+                                className={`w-6 h-6 rounded-md border border-gray-200 transition-transform hover:scale-125 ${HIGHLIGHT_COLORS[color].split(' ')[0]}`}
                               />
                             ))}
                             <button
@@ -557,89 +631,96 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                                 onUpdate(task.id, { highlightColor: null, isHighlighted: false });
                                 setShowColorPicker(false);
                               }}
-                              title="Bỏ highlight"
-                              className="w-6 h-6 rounded-full border border-gray-300 flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-500 transition-colors"
+                              className="w-6 h-6 rounded-md border border-gray-300 flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-500 transition-colors"
                             >
                               <X size={12} strokeWidth={3} />
                             </button>
                           </motion.div>
                         )}
-                     </AnimatePresence>
+                      </AnimatePresence>
+                    </div>
+
+                    {/* XÓA: ADMIN HOẶC CHỦ SỞ HỮU */}
+                    {(isAdmin || (isOwner && !isReadOnly)) && (
+                      <button 
+                        onClick={() => onDelete(task.id)}
+                        title="XÓA"
+                        className="w-10 h-10 flex items-center justify-center rounded-md transition-all shadow-lg border-2 group/btn bg-red-600 text-white border-red-400 hover:bg-red-700"
+                      >
+                        <Trash2 size={22} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+                        <span className="sr-only notranslate" translate="no">XÓA</span>
+                      </button>
+                    )}
                   </div>
                 )}
 
-                {canDelete && (
-                   <button 
-                     onClick={() => onDelete(task.id)}
-                     title={task.requestDelete ? 'XÁC NHẬN XÓA (DUYỆT XÓA)' : 'XÓA'}
-                     className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-lg border-2 group/btn ${
-                       task.requestDelete 
-                         ? 'bg-red-600 text-white border-red-400 ring-2 ring-red-100 animate-pulse' 
-                         : 'bg-red-500 text-white border-red-600 hover:bg-red-600'
-                     }`}
-                   >
-                     {task.requestDelete ? (
-                        <Check size={20} strokeWidth={4} className="group-hover/btn:scale-125 transition-transform" />
-                     ) : (
-                        <Trash2 size={20} strokeWidth={3} className="group-hover/btn:animate-shake transition-transform" />
-                     )}
-                   </button>
-                )}
-
-                {!canDelete && isOwner && !task.requestDelete && !task.isLocked && (
-                   <button 
-                     onClick={() => {
-                       setConfirmModal({
-                         show: true,
-                         title: 'YÊU CẦU XÓA',
-                         message: 'Bạn muốn gửi yêu cầu xóa công việc này lên cấp trên?',
-                         onConfirm: () => {
-                           onUpdate(task.id, { requestDelete: true });
-                           setConfirmModal((p: any) => ({ ...p, show: false }));
-                         }
-                       });
-                     }}
-                     title="YÊU CẦU XÓA"
-                     className="w-10 h-10 flex items-center justify-center bg-white text-red-500 border-2 border-red-200 rounded-xl hover:bg-red-50 hover:text-red-600 transition-all shadow-sm group/btn"
-                   >
-                     <Trash2 size={18} strokeWidth={3} className="group-hover/btn:opacity-100 opacity-70 transition-opacity" />
-                   </button>
-                )}
-
-                {task.requestDelete && !canDelete && (
-                  <div className="flex flex-col gap-1 w-full">
-                    <span className="text-[8px] font-black text-red-500 bg-red-50 px-1 py-1 rounded border border-red-200 uppercase tracking-tighter text-center leading-none">Chờ duyệt xóa</span>
-                    <button 
-                      onClick={() => onUpdate(task.id, { requestDelete: false })}
-                      className="w-full py-1 text-[7px] font-bold text-gray-400 hover:text-blue-500 uppercase tracking-tighter"
-                    >
-                      Hủy yêu cầu
-                    </button>
+                {/* 3. CÁC TRẠNG THÁI KHÁC (DUYỆT CHI TIẾT, XÁC NHẬN...) */}
+                {task.status === 'AWAITING_CONFIRMATION' && (
+                  <div className="flex flex-col gap-2 items-center">
+                    {isManager ? (
+                      <button 
+                        onClick={() => handleConfirmTask(true)}
+                        title="XÁC NHẬN"
+                        className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-all shadow-lg group/btn border-2 border-blue-400"
+                      >
+                        <ThumbsUp size={20} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
+                        <span className="sr-only notranslate" translate="no">XÁC NHẬN</span>
+                      </button>
+                    ) : (
+                      <span translate="no" className="notranslate text-[8px] font-black text-blue-500 bg-blue-50 px-1 py-1 rounded-sm border border-blue-200 uppercase tracking-tight leading-tight text-center">Chờ duyệt...</span>
+                    )}
                   </div>
                 )}
+
+                {task.status === 'PENDING_APPROVAL' && (
+                  <div className="flex flex-col gap-1.5 items-center">
+                    {canApprove ? (
+                      <button 
+                        onClick={handleApprove}
+                        title="XÁC NHẬN HOÀN THÀNH"
+                        className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-all shadow-lg border-2 border-blue-400 group/btn"
+                      >
+                        <CheckCircle2 size={24} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+                        <span className="sr-only notranslate" translate="no">XÁC NHẬN HOÀN THÀNH</span>
+                      </button>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        <span translate="no" className="notranslate text-[7px] font-black text-amber-600 bg-amber-50 px-1 py-1 rounded-sm border border-amber-200 uppercase tracking-tighter leading-none text-center animate-pulse">Đang chờ duyệt...</span>
+                        <button 
+                          onClick={() => onUpdate(task.id, { status: 'APPROVED' })}
+                          className="w-full py-1 text-[7px] font-bold text-gray-400 hover:text-red-500 uppercase tracking-tighter"
+                        >
+                          <span translate="no" className="notranslate">Hủy gửi</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {task.status === 'COMPLETED' && canApprove && (
                   <button 
-                     onClick={() => {
-                       setConfirmModal({
-                         show: true,
-                         title: 'HOÀN TÁC CÔNG VIỆC',
-                         message: 'Bạn muốn chuyển công việc này quay lại bảng đang thực hiện?',
-                         onConfirm: () => {
-                           onUpdate(task.id, { 
-                             status: 'IN_PROGRESS', 
-                             actualEndDate: null, 
-                             isLocked: false,
-                             currentUpdate: '[HOÀN TÁC] Chuyển về bảng đang thực hiện'
-                           });
-                           setConfirmModal((p: any) => ({ ...p, show: false }));
-                         }
-                       });
-                     }}
-                     title="HOÀN TÁC"
-                     className="w-10 h-10 flex items-center justify-center bg-gray-100 text-gray-600 border-2 border-gray-200 rounded-xl hover:bg-gray-200 transition-all shadow-sm group/btn"
-                   >
-                     <RotateCcw size={20} strokeWidth={3} className="group-hover/btn:-rotate-45 transition-transform" />
-                   </button>
+                    onClick={() => {
+                      setConfirmModal({
+                        show: true,
+                        title: 'HOÀN TÁC CÔNG VIỆC',
+                        message: 'Bạn muốn chuyển công việc này quay lại bảng đang thực hiện?',
+                        onConfirm: () => {
+                          onUpdate(task.id, { 
+                            status: 'APPROVED' as any, 
+                            actualEndDate: null, 
+                            isLocked: false,
+                            currentUpdate: '[HOÀN TÁC] Chuyển về bảng đang thực hiện'
+                          });
+                          setConfirmModal((p: any) => ({ ...p, show: false }));
+                        }
+                      });
+                    }}
+                    title="HOÀN TÁC"
+                    className="w-10 h-10 flex items-center justify-center bg-gray-100 text-gray-600 border-2 border-gray-200 rounded-md hover:bg-gray-200 transition-all shadow-sm group/btn"
+                  >
+                    <RotateCcw size={20} strokeWidth={3} className="group-hover:rotate-45 transition-transform" />
+                    <span className="sr-only notranslate" translate="no">HOÀN TÁC</span>
+                  </button>
                 )}
               </>
             )}

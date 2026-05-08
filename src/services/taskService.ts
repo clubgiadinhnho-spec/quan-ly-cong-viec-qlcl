@@ -93,12 +93,12 @@ export const prepareTaskUpdates = (
   
   // Track title changes
   if (updates.title !== undefined && updates.title !== task.title) {
-    changes.push(`Đổi tên công việc: ${updates.title}`);
+    changes.push(`Đã chỉnh sửa nội dung: ${updates.title}`);
   }
 
   // Track objective changes
   if (updates.objective !== undefined && updates.objective !== task.objective) {
-    changes.push(`Cập nhật nội dung/mục tiêu công việc`);
+    changes.push(`Cập nhật mục tiêu công việc`);
   }
 
   // Track assignee changes
@@ -110,28 +110,34 @@ export const prepareTaskUpdates = (
 
   // Track date changes
   if (updates.startDate !== undefined && updates.startDate !== task.startDate) {
-    changes.push(`Thay đổi ngày bắt đầu: ${updates.startDate}`);
+    changes.push(`Thay đổi ngày bắt đầu từ [${task.startDate}] sang [${updates.startDate}]`);
   }
   if (updates.expectedEndDate !== undefined && updates.expectedEndDate !== task.expectedEndDate) {
-    changes.push(`Thay đổi hạn hoàn thành: ${updates.expectedEndDate}`);
+    changes.push(`Gia hạn từ [${task.expectedEndDate}] sang [${updates.expectedEndDate}]`);
   }
   if (updates.extensionDate !== undefined && updates.extensionDate !== task.extensionDate) {
-    changes.push(updates.extensionDate ? `Gia hạn công việc đến: ${updates.extensionDate}` : `Hủy bỏ gia hạn công việc`);
+    changes.push(updates.extensionDate 
+      ? `Gia hạn công việc từ [${task.extensionDate || 'Chưa có'}] sang [${updates.extensionDate}]` 
+      : `Hủy bỏ gia hạn công việc (Trước đó: ${task.extensionDate})`);
   }
 
   // Track status changes
   if (updates.status !== undefined && updates.status !== task.status) {
-    let statusLabel: string = updates.status;
+    const getStatusLabel = (s: string) => {
+      if (s === 'IN_PROGRESS') return 'ĐANG THỰC HIỆN';
+      if (s === 'COMPLETED') return 'HOÀN THÀNH';
+      if (s === 'PENDING_APPROVAL') return 'CHỜ DUYỆT';
+      if (s === 'PENDING') return 'CHỜ DUYỆT KHỞI TẠO';
+      if (s === 'APPROVED') return 'ĐÃ DUYỆT KHỞI TẠO';
+      return s;
+    };
+    
+    const oldStatusLabel = getStatusLabel(task.status);
+    const newStatusLabel = getStatusLabel(updates.status);
     const isReverting = task.status === 'COMPLETED' && updates.status === 'IN_PROGRESS';
-    
-    if (updates.status === 'IN_PROGRESS') statusLabel = 'ĐANG THỰC HIỆN';
-    if (updates.status === 'COMPLETED') statusLabel = 'HOÀN THÀNH';
-    if (updates.status === 'PENDING_APPROVAL') statusLabel = 'CHỜ DUYỆT';
-    if (updates.status === 'PENDING') statusLabel = 'CHỜ DUYỆT KHỞI TẠO';
-    if (updates.status === 'APPROVED') statusLabel = 'ĐÃ DUYỆT KHỞI TẠO';
-    
     const prefix = isReverting ? '[HOÀN TÁC] ' : '';
-    changes.push(`${prefix}Thay đổi trạng thái sang: ${statusLabel}`);
+    
+    changes.push(`${prefix}Thay đổi trạng thái từ [${oldStatusLabel}] sang [${newStatusLabel}]`);
   }
 
   // Track priorityOrder changes

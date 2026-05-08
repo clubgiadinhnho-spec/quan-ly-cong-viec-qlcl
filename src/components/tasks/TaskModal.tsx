@@ -416,41 +416,52 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
           <button 
             disabled={!title || !assigneeId || isProcessingFile}
             onClick={async () => {
-              const assignee = users.find(u => u.id === assigneeId);
-              // Final validation/defaults
-              const finalStartDate = startDate || new Date().toISOString().split('T')[0];
-              const finalIssueDate = issueDate || new Date().toISOString().split('T')[0];
-              let finalExpectedDate = expectedDate;
-              if (!finalExpectedDate && recurrence !== 'NONE') {
-                finalExpectedDate = calculateNextDeadline(finalStartDate, recurrence);
-              }
+              try {
+                const assignee = users.find(u => u.id === assigneeId);
+                // Final validation/defaults
+                const finalStartDate = startDate || new Date().toISOString().split('T')[0];
+                const finalIssueDate = issueDate || new Date().toISOString().split('T')[0];
+                let finalExpectedDate = expectedDate;
+                if (!finalExpectedDate && recurrence !== 'NONE') {
+                  finalExpectedDate = calculateNextDeadline(finalStartDate, recurrence);
+                }
 
-              await onSave({ 
-                title, 
-                objective, 
-                category,
-                assigneeId, 
-                assignedTo: assignee?.name || '',
-                issueDate: finalIssueDate,
-                startDate: finalStartDate,
-                expectedEndDate: finalExpectedDate,
-                extensionDate: extensionDate || null,
-                recurrence,
-                attachment,
-                attachmentUrl: attachmentData?.url || "",
-                attachmentName: attachmentData?.name || "",
-                code: nextCode, // Include the pre-generated code
-                status: isEdit ? task.status : (isAdmin ? 'APPROVED' : 'PENDING'),
-                isNewUpdate: isEdit ? true : undefined,
-                authorId: currentUser.uniqueKey || currentUser.id,
-                authorName: currentUser.name,
-                systemCreatedAt: new Date().toISOString()
-              });
+                if (!title.trim()) {
+                  alert("Vui lòng nhập hạng mục công việc");
+                  return;
+                }
 
-              if (!isEdit) {
-                resetFormForNext();
-              } else {
-                onClose();
+                await onSave({ 
+                  title, 
+                  objective: objective || '',
+                  category: category || '',
+                  assigneeId, 
+                  assignedTo: assignee?.name || '',
+                  issueDate: finalIssueDate,
+                  startDate: finalStartDate,
+                  expectedEndDate: finalExpectedDate || null,
+                  extensionDate: extensionDate || null,
+                  recurrence: recurrence || 'NONE',
+                  attachmentUrl: attachmentData?.url || "",
+                  attachmentName: attachmentData?.name || "",
+                  code: nextCode, 
+                  status: isEdit ? task.status : (isAdmin ? 'APPROVED' : 'PENDING'),
+                  isNewUpdate: true,
+                  authorId: currentUser.uniqueKey || currentUser.id,
+                  authorName: currentUser.name,
+                  lastUpdatedBy: currentUser.uniqueKey || currentUser.id,
+                  lastUpdatedByRole: currentUser.role,
+                  systemCreatedAt: new Date().toISOString()
+                });
+
+                if (!isEdit) {
+                  resetFormForNext();
+                } else {
+                  onClose();
+                }
+              } catch (error) {
+                console.error("Lỗi khi lưu công việc:", error);
+                alert("Có lỗi xảy ra khi lưu công việc. Vui lòng thử lại!");
               }
             }}
             className="flex-1 px-4 py-3 bg-[#1A56DB] text-white font-bold rounded-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none uppercase"

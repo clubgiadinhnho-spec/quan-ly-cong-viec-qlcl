@@ -416,8 +416,12 @@ export const useFirebaseData = (currentUserId?: string) => {
 
   const addTask = useCallback(async (task: Omit<Task, 'id'>, authorName?: string) => {
     try {
+      const cleanTask = Object.fromEntries(
+        Object.entries(task).filter(([_, v]) => v !== undefined)
+      );
+
       const docRef = await addDoc(collection(db, 'tasks'), {
-        ...task,
+        ...cleanTask,
         createdAt: serverTimestamp(),
         systemCreatedAt: serverTimestamp()
       });
@@ -440,8 +444,12 @@ export const useFirebaseData = (currentUserId?: string) => {
       const existingTask = tasks.find(t => t.id === id);
       const taskCode = existingTask?.code || 'N/A';
 
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, v]) => v !== undefined)
+      );
+
       await updateDoc(taskRef, {
-        ...updates,
+        ...cleanUpdates,
         updatedAt: serverTimestamp()
       });
 
@@ -871,6 +879,73 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, [currentUserId, addLog]);
 
+  const approveTasksBulk = useCallback(async (taskIds: string[], modifierName?: string) => {
+    try {
+      let batch = writeBatch(db);
+      let count = 0;
+
+      for (const taskId of taskIds) {
+        batch.update(doc(db, 'tasks', taskId), {
+          status: 'APPROVED',
+          isNewInBoard: true,
+          updatedAt: serverTimestamp(),
+          lastActionAt: serverTimestamp()
+        });
+        count++;
+
+        if (count >= 400) {
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+
+      if (count > 0) {
+        await batch.commit();
+      }
+      
+      await addLog({
+        type: 'TASK_UPDATE',
+        userId: auth.currentUser?.uid || currentUserId || 'SYSTEM',
+        userName: modifierName,
+        details: `Phê duyệt hàng loạt (${taskIds.length} công việc)`,
+        metadata: { taskIds }
+      });
+      
+      return true;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `bulk_approve_tasks`);
+      throw error;
+    }
+  }, [currentUserId, addLog]);
+
+  const clearNewInBoardTasks = useCallback(async (taskIds: string[]) => {
+    try {
+      if (taskIds.length === 0) return;
+      let batch = writeBatch(db);
+      let count = 0;
+
+      for (const taskId of taskIds) {
+        batch.update(doc(db, 'tasks', taskId), {
+          isNewInBoard: false
+        });
+        count++;
+
+        if (count >= 400) {
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+
+      if (count > 0) {
+        await batch.commit();
+      }
+    } catch (error) {
+      console.error("Failed to clear new in board status:", error);
+    }
+  }, []);
+
   const resetSystem = useCallback(async (modifierName?: string) => {
     try {
       // 1. Delete all tasks
@@ -956,6 +1031,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     deleteTask,
     deleteTasksBulk,
     trashTasksBulk,
+    approveTasksBulk,
     sendMessage,
     sendDiscussionMessage,
     createTopic,
@@ -976,6 +1052,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     presence,
     categories,
     updatePresence,
+    clearNewInBoardTasks,
     resetSystem,
     deleteLogsBulk
   };

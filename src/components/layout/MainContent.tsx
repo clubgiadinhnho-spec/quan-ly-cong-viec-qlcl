@@ -68,6 +68,7 @@ interface MainContentProps {
   deleteProfile: any;
   deleteTasksBulk: any;
   trashTasksBulk: any;
+  approveTasksBulk: any;
   logs: LogEntry[];
   resetSystem: () => Promise<void>;
   deleteLogsBulk: (logIds: string[]) => Promise<boolean>;
@@ -88,7 +89,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
     updateDiscussionMessageReactions, createTopic, updateTopic, deleteTopic, deleteTopicsBulk, deleteDiscussionMessage,
     updateProfile, officialReports, firebaseSaveReportDraft, firebaseSaveOfficialReport,
     permanentDeleteTask, restoreTask, setActiveTab, setShowDirectChat, unreadCounts, groupUnreadCount,
-    setSimulatedUser, firebaseSendPrivateMsg, deleteProfile, deleteTasksBulk, trashTasksBulk, logs, resetSystem,
+    setSimulatedUser, firebaseSendPrivateMsg, deleteProfile, deleteTasksBulk, trashTasksBulk, approveTasksBulk, logs, resetSystem,
     deleteLogsBulk, markAsRead, lastReadChatTimestamps,
     adminUnreadCount, onOpenNotifications, createNotification
   } = props;
@@ -99,6 +100,20 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
     setSelectedTaskIds(prev => 
       prev.includes(taskId) ? prev.filter(id => id !== taskId) : [...prev, taskId]
     );
+  };
+
+  const setBulkSelection = (ids: string[], select: boolean) => {
+    if (select) {
+      setSelectedTaskIds(prev => {
+        const newIds = [...prev];
+        ids.forEach(id => {
+          if (!newIds.includes(id)) newIds.push(id);
+        });
+        return newIds;
+      });
+    } else {
+      setSelectedTaskIds(prev => prev.filter(id => !ids.includes(id)));
+    }
   };
 
   const handleBulkDelete = () => {
@@ -113,7 +128,25 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
           await trashTasksBulk(selectedTaskIds, effectiveUser.name);
           
           setSelectedTaskIds([]);
-          alert(`Đã chuyển ${selectedTaskIds.length} công việc vào thùng rác.`);
+        } catch (error) {
+          alert("Có lỗi xảy ra khi xóa.");
+        } finally {
+          setConfirmModal((p: any) => ({ ...p, show: false }));
+        }
+      }
+    });
+  };
+
+  const handlePermanentBulkDelete = () => {
+    if (selectedTaskIds.length === 0) return;
+    setConfirmModal({
+      show: true,
+      title: "XÁC NHẬN XÓA VĨNH VIỄN NHIỀU",
+      message: `Bạn đang chọn XÓA VĨNH VIỄN ${selectedTaskIds.length} công việc. Hành động này KHÔNG THỂ HOÀN TÁC. Bạn có chắc chắn không?`,
+      onConfirm: async () => {
+        try {
+          await deleteTasksBulk(selectedTaskIds, effectiveUser.name);
+          setSelectedTaskIds([]);
         } catch (error) {
           alert("Có lỗi xảy ra khi xóa.");
         } finally {
@@ -249,6 +282,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
               highlightedTaskId={highlightedTaskId}
               selectedIds={selectedTaskIds}
               onToggleSelect={toggleTaskSelection}
+              onBulkSelect={setBulkSelection}
               createNotification={createNotification}
             />
 
@@ -295,6 +329,10 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
               addTaskComment={addTaskComment} updateTaskCommentReactions={updateTaskCommentReactions}
               setEditingTask={setEditingTask} setConfirmModal={setConfirmModal}
               createNotification={createNotification}
+              selectedIds={selectedTaskIds}
+              onToggleSelect={toggleTaskSelection}
+              onBulkSelect={setBulkSelection}
+              approveTasksBulk={approveTasksBulk}
             />
           </div>
         </motion.div>
@@ -348,7 +386,25 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
               onOpenChat={(id) => setShowChatModal(id)} showChatModal={showChatModal} onSendMessage={addTaskComment}
               onReact={updateTaskCommentReactions} onEdit={setEditingTask} setConfirmModal={setConfirmModal}
               type="completed" highlightedTaskId={highlightedTaskId}
+              selectedIds={selectedTaskIds}
+              onToggleSelect={toggleTaskSelection}
+              onBulkSelect={setBulkSelection}
             />
+
+            {effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
+              <div className="flex items-center gap-2 mt-4">
+                <motion.button
+                  initial={{ opacity: 0, x: -20, scale: 0.9 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: -20, scale: 0.9 }}
+                  onClick={handleBulkDelete}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-200 active:scale-95 border-b-4 border-red-800"
+                >
+                  <Trash2 size={16} strokeWidth={2.5} />
+                  Xóa {selectedTaskIds.length} mục đã chọn
+                </motion.button>
+              </div>
+            )}
           </div>
         </motion.div>
       )}
@@ -431,7 +487,25 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
               onViewHistory={(id) => setShowHistoryModal(id)} onOpenChat={(id) => setShowChatModal(id)}
               showChatModal={showChatModal} onSendMessage={addTaskComment} onReact={updateTaskCommentReactions}
               onEdit={setEditingTask} setConfirmModal={setConfirmModal} type="trash" onRestore={restoreTask} highlightedTaskId={highlightedTaskId}
+              selectedIds={selectedTaskIds}
+              onToggleSelect={toggleTaskSelection}
+              onBulkSelect={setBulkSelection}
             />
+
+            {effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
+              <div className="flex items-center gap-2 mt-4">
+                <motion.button
+                  initial={{ opacity: 0, x: -20, scale: 0.9 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: -20, scale: 0.9 }}
+                  onClick={handlePermanentBulkDelete}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-200 active:scale-95 border-b-4 border-red-800"
+                >
+                  <Trash2 size={16} strokeWidth={2.5} />
+                  Xóa vĩnh viễn {selectedTaskIds.length} mục đã chọn
+                </motion.button>
+              </div>
+            )}
           </div>
         </motion.div>
       )}

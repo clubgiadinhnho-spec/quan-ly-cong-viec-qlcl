@@ -62,11 +62,11 @@ export default function App() {
   const {
     tasks, messages: generalMessages, privateMessages, officialReports, logs, presence, categories,
     loading: firebaseLoading, addTask: firebaseAddTask, updateTask: firebaseUpdateTask,
-    deleteTask: firebaseDeleteTask, trashTasksBulk, sendMessage: firebaseSendMessage, sendDiscussionMessage,
+    deleteTask: firebaseDeleteTask, trashTasksBulk, approveTasksBulk, sendMessage: firebaseSendMessage, sendDiscussionMessage,
     createTopic, updateTopic, deleteTopic, deleteTopicsBulk, deleteTasksBulk, sendPrivateMessage: firebaseSendPrivateMsg,
     updateDiscussionMessageReactions, updatePrivateMessageReactions: firebaseUpdatePrivateMessageReactions,
     discussionTopics, discussionMessages, deleteDiscussionMessage,
-    saveReportDraft: firebaseSaveReportDraft, saveOfficialReport: firebaseSaveOfficialReport, updatePresence, resetSystem,
+    saveReportDraft: firebaseSaveReportDraft, saveOfficialReport: firebaseSaveOfficialReport, updatePresence, clearNewInBoardTasks, resetSystem,
     deleteLogsBulk
   } = useFirebaseData(simulatedUser?.id || currentUser?.id);
 
@@ -132,12 +132,23 @@ export default function App() {
     showDirectChat?.id || null, activeTab, showChatModal
   );
 
-  // Clear unread count for current section
+  // Clear unread count for current section and clearance for new board tasks
   useEffect(() => {
     if (activeTab) {
       markSectionAsViewed(activeTab);
+      
+      // Clearance: When clicking 'BẢNG CÔNG VIỆC', clear isNewInBoard flags
+      if (activeTab === 'tasks' && isAdmin) {
+        const newInBoardIds = tasks
+          .filter(t => t.status === 'APPROVED' && t.isNewInBoard === true)
+          .map(t => t.id);
+        
+        if (newInBoardIds.length > 0) {
+          clearNewInBoardTasks(newInBoardIds);
+        }
+      }
     }
-  }, [activeTab, markSectionAsViewed]);
+  }, [activeTab, markSectionAsViewed, isAdmin, tasks, clearNewInBoardTasks]);
 
   const handleJumpToTask = useCallback((taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
@@ -312,18 +323,12 @@ export default function App() {
     // Active tasks for current user
     const myActive = departmentActive.filter(t => isUserTask(t, effectiveUser));
 
-    // Tasks needing attention (isNewUpdate or isNewSoldier)
-    // If Admin: counts tasks with isNewUpdate (updates from staff)
-    // If Staff: counts tasks assigned to them with isNewUpdate (from admin) OR isNewSoldier (newly approved)
-    const attentionTasks = departmentActive.filter(t => {
-      if (isAdmin) {
-        return t.isNewUpdate && t.lastUpdatedByRole !== 'Admin';
-      } else {
-        const isMyTask = isUserTask(t, effectiveUser);
-        return isMyTask && (t.isNewSoldier || (t.isNewUpdate && t.lastUpdatedByRole === 'Admin'));
-      }
-    });
-
+    // The Counting Logic: tasks with status 'APPROVED' AND isNewInBoard true
+    const newInBoardCount = tasks.filter(t => t.status === 'APPROVED' && t.isNewInBoard === true).length;
+    
+    // Logic for other alerts (if needed)
+    const pendingTasksCount = tasks.filter(t => t.status === 'PENDING').length;
+    
     // Completed tasks (unread)
     const completedUnread = nonDeleted.filter(t => 
       (t.status === "COMPLETED" || t.status === "Hoàn thành") &&
@@ -338,7 +343,7 @@ export default function App() {
     return {
       pending: pending.length,
       active: departmentActive.length,
-      attention: attentionTasks.length,
+      attention: newInBoardCount,
       allActive: departmentActive.length,
       mine: myActive.length,
       completed: completedUnread.length,
@@ -389,7 +394,9 @@ export default function App() {
   const restoreTaskLocal = useCallback(async (id: string) => {
     await firebaseUpdateTask(id, { 
       deletedAt: null as any,
-      status: 'APPROVED' as any 
+      status: 'APPROVED' as any,
+      isNewInBoard: true,
+      lastActionAt: new Date().toISOString()
     });
   }, [firebaseUpdateTask]);
 
@@ -464,7 +471,7 @@ export default function App() {
             addTaskComment={addTaskComment} updateTaskCommentReactions={updateTaskCommentReactions} setEditingTask={setEditingTask}
             setConfirmModal={setConfirmModal} highlightedTaskId={highlightedTaskId} discussionTopics={discussionTopics}
             discussionMessages={discussionMessages} sendDiscussionMessage={sendDiscussionMessage} updateDiscussionMessageReactions={updateDiscussionMessageReactions}
-            createTopic={createTopic} updateTopic={updateTopic} deleteTopic={deleteTopic} deleteTopicsBulk={deleteTopicsBulk} deleteTasksBulk={deleteTasksBulkLocal} trashTasksBulk={trashTasksBulkLocal} deleteDiscussionMessage={deleteDiscussionMessage}
+            createTopic={createTopic} updateTopic={updateTopic} deleteTopic={deleteTopic} deleteTopicsBulk={deleteTopicsBulk} deleteTasksBulk={deleteTasksBulkLocal} trashTasksBulk={trashTasksBulkLocal} approveTasksBulk={approveTasksBulk} deleteDiscussionMessage={deleteDiscussionMessage}
             updateProfile={updateProfile} officialReports={officialReports} firebaseSaveReportDraft={firebaseSaveReportDraft}
             firebaseSaveOfficialReport={firebaseSaveOfficialReport} permanentDeleteTask={permanentDeleteTaskLocal} restoreTask={restoreTaskLocal}
             logs={logs} setActiveTab={setActiveTab} setShowDirectChat={setShowDirectChat} unreadCounts={unreadCounts} groupUnreadCount={groupUnreadCount}
@@ -487,7 +494,7 @@ export default function App() {
       {(showTaskModal || editingTask) && (
         <TaskModal 
           onClose={() => { setShowTaskModal(false); setEditingTask(null); }} 
-          onSave={addTask} 
+          onSave={editingTask ? (data: any) => updateTask(editingTask.id, data) : baseAddTask} 
           users={allUsers} 
           tasks={tasks}
           task={editingTask || undefined} 

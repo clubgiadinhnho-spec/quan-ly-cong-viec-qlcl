@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { motion, useMotionValue, useTransform } from 'motion/react';
 import { MessageSquare, Send, X, Smile } from 'lucide-react';
 import { Task, User } from '../../types';
 import { formatDateTime } from '../../lib/dateUtils';
 import { ReactionPicker, ReactionBadge } from '../common/ReactionPicker';
 import { Avatar } from '../common/Avatar';
+import { Portal } from '../common/Portal';
 
 import { getUserById, getSafeNameProps } from '../../utils/userUtils';
 
@@ -15,17 +16,45 @@ interface TaskChatProps {
   onSendMessage: (taskId: string, content: string) => void;
   onReact?: (taskId: string, commentId: string, emoji: string) => void;
   onClose: () => void;
+  anchorRef: React.RefObject<HTMLElement | null>;
 }
 
-export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onClose }: TaskChatProps) => {
+export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onClose, anchorRef }: TaskChatProps) => {
   const [newMessage, setNewMessage] = useState('');
   const [showEmojiFor, setShowEmojiFor] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const chatRef = useRef<HTMLDivElement>(null);
   
-  // Drag tracking values
+  // Position state for global anchoring
+  const [anchorPos, setAnchorPos] = useState({ top: 0, left: 0, width: 0, height: 0 });
+
+  // Track dragging position for the dynamic tether
   const dragX = useMotionValue(0);
   const dragY = useMotionValue(0);
+
+  // Update anchor position on mount and scroll
+  const updatePosition = () => {
+    if (anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
+      setAnchorPos({
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height
+      });
+    }
+  };
+
+  useLayoutEffect(() => {
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [task.id]);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -39,169 +68,182 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
     }
   }, [task.comments]);
 
+  // Click-away logic
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const isAnchorClick = anchorRef.current?.contains(event.target as Node);
+      if (chatRef.current && !chatRef.current.contains(event.target as Node) && !isAnchorClick) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
   const handleSend = () => {
     if (!newMessage.trim()) return;
     onSendMessage(task.id, newMessage);
     setNewMessage('');
   };
 
-  // Calculate the path for the comic tail
-  // It starts from a fixed point on the bubble (e.g., top-left area)
-  // and points back to the (0,0) coordinate relative to the initial placement.
-  const tailPath = useTransform([dragX, dragY], ([x, y]) => {
-    const lx = x as number;
-    const ly = y as number;
-    
-    // The "anchor" is the point where the chat icon is.
-    // Relative to the bubble's CURRENT position, the anchor is at (-lx, -ly - 48)
-    // because the bubble is initially at top: 48px, left: 0px relative to the task row area.
-    const targetX = -lx + 24; // Offset to match the icon center roughly
-    const targetY = -ly - 32; // Point slightly above the bubble toward the icon
-    
-    // Bubble attachment points
-    const startX = 30;
-    const startY = 0;
-    const width = 20;
+  // MINI Dimensions
+  const bubbleWidth = 250;
+  const bubbleHalf = bubbleWidth / 2;
 
-    return `M ${startX},${startY} L ${targetX},${targetY} L ${startX + width},${startY} Z`;
+  // Calculate the "Tail" triangle path - Smaller & Slimmer
+  const tetherPath = useTransform([dragX, dragY], ([x, y]) => {
+    const dx = x as number;
+    const dy = y as number;
+    
+    // Bubble center is at bubbleHalf relative to its left
+    // The button center relative to initial bubble top-left is at (bubbleHalf, -anchorHeight/2 - Offset)
+    const targetX = bubbleHalf - dx;
+    const targetY = (anchorPos.height / 2) - 45 - dy; // 45 is the initial top offset
+    
+    const baseWidth = 20;
+    const baseX = bubbleHalf;
+    const baseY = 0;
+    
+    return `M ${baseX - baseWidth/2} ${baseY} L ${targetX} ${targetY} L ${baseX + baseWidth/2} ${baseY} Z`;
   });
 
   return (
-    <motion.div
-      style={{ x: dragX, y: dragY }}
-      initial={{ opacity: 0, scale: 0.9, y: 10 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9, y: 10 }}
-      drag
-      dragMomentum={false}
-      dragElastic={0}
-      className="absolute top-12 left-0 w-[320px] bg-white rounded-3xl shadow-2xl z-[500] flex flex-col border-2 border-blue-100 overflow-visible cursor-default"
-    >
-      {/* Dynamic Comic Tail */}
-      <svg className="absolute inset-0 overflow-visible pointer-events-none z-[-1]">
-        <motion.path
-          d={tailPath}
-          fill="white"
-          stroke="#DBEAFE" 
-          strokeWidth="2"
-          strokeLinejoin="round"
-        />
-      </svg>
+    <Portal>
+      <motion.div
+        key={task.id}
+        ref={chatRef}
+        drag
+        dragMomentum={false}
+        style={{ 
+          x: dragX, 
+          y: dragY,
+          position: 'fixed',
+          top: anchorPos.top + 45, // Positioned closer to button
+          left: anchorPos.left + anchorPos.width / 2 - bubbleHalf,
+        }}
+        initial={{ opacity: 0, scale: 0.95, y: -10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+        className="w-[250px] bg-white rounded-lg shadow-[0_10px_30px_rgba(0,0,0,0.15)] z-[99999] flex flex-col border-[0.5px] border-gray-300 overflow-visible cursor-default"
+      >
+        {/* Minimalist Comic Tail SVG */}
+        <svg className="absolute inset-0 overflow-visible pointer-events-none z-[-1]">
+          <motion.path
+            d={tetherPath}
+            fill="white"
+            stroke="#d1d5db"
+            strokeWidth="0.5"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          />
+        </svg>
 
-      {/* Header */}
-      <div className="p-3 border-b border-gray-100 flex items-center justify-between cursor-move active:cursor-grabbing bg-gray-50/50 rounded-t-3xl">
-        <div className="flex items-center gap-2">
-          <div className="p-1 px-2 bg-blue-600 text-white rounded-full text-[8px] font-black uppercase italic tracking-tighter shadow-sm shadow-blue-100">
-            TRAO ĐỔI TỰ DO
-          </div>
-          <span className="text-[10px] font-black text-gray-400 uppercase">{task.code}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex gap-0.5 mr-2">
-            <div className="w-1 h-1 bg-gray-300 rounded-full" />
-            <div className="w-1 h-1 bg-gray-300 rounded-full" />
-            <div className="w-1 h-1 bg-gray-300 rounded-full" />
+        {/* Minimal Header */}
+        <div className="p-2 border-b border-gray-100 flex items-center justify-between bg-white rounded-t-lg cursor-grab active:cursor-grabbing">
+          <div className="flex items-center gap-2">
+             <span translate="no" className="notranslate text-[10px] font-black text-gray-400 uppercase tracking-tighter">{task.code}</span>
           </div>
           <button 
             onClick={onClose} 
-            className="p-1 hover:bg-white rounded-full transition-colors text-gray-400 hover:text-red-500 shadow-sm"
+            className="p-1 hover:bg-gray-50 rounded-full transition-colors text-gray-300 hover:text-red-400"
           >
             <X size={14} />
           </button>
         </div>
-      </div>
 
-      {/* Input area - MOVED TO TOP */}
-      <div className="p-3 border-b border-gray-100 bg-white">
-        <div className="relative flex gap-2 items-end">
-          <textarea
-            ref={inputRef}
-            className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl py-2 px-3 text-[11px] outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all resize-none h-12"
-            placeholder="Viết tin nhắn mới..."
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-          />
-          <button 
-            onClick={handleSend}
-            disabled={!newMessage.trim()}
-            className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 disabled:opacity-50 disabled:shadow-none mb-1"
-          >
-            <Send size={14} />
-          </button>
-        </div>
-      </div>
+        {/* Messages area - Compact */}
+        <div 
+          ref={scrollRef}
+          className="h-[220px] overflow-y-auto p-3 space-y-3 bg-[#fafafa] scroll-smooth"
+        >
+          {(!task.comments || task.comments.length === 0) ? (
+            <div className="h-full flex flex-col items-center justify-center opacity-10">
+              <MessageSquare size={24} />
+            </div>
+          ) : (
+            task.comments.map((comment) => {
+              const isMe = comment.authorId === currentUser.id || comment.authorId === currentUser.uniqueKey;
+              const author = getUserById(comment.authorId, users);
+              const authorName = author?.name || 'User';
+              
+              return (
+                <div key={comment.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                  <div className={`flex items-end gap-1.5 max-w-[90%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                    {!isMe && (
+                      <div className="flex-shrink-0">
+                        <Avatar src={author?.avatar} name={authorName} size="xs" />
+                      </div>
+                    )}
+                    <div className="group/msg relative">
+                      <div className={`px-2.5 py-1.5 rounded-lg text-[12px] font-medium leading-tight border ${
+                        isMe 
+                          ? 'bg-blue-500 text-white border-blue-400 rounded-br-none' 
+                          : 'bg-white text-gray-700 border-gray-200 rounded-bl-none shadow-sm'
+                      }`}>
+                        <span translate="no" className="notranslate">{comment.content}</span>
+                      </div>
 
-      {/* Messages area */}
-      <div 
-        ref={scrollRef}
-        className="h-[280px] overflow-y-auto p-4 space-y-3 bg-gray-50/30 scroll-smooth rounded-b-3xl"
-      >
-        {(!task.comments || task.comments.length === 0) ? (
-          <div className="h-full flex flex-col items-center justify-center text-center">
-            <MessageSquare className="text-gray-200 mb-2" size={24} />
-            <p className="text-[10px] text-gray-400 italic">TRAO ĐỔI TỰ DO...</p>
-          </div>
-        ) : (
-          task.comments.map((comment) => {
-            const isMe = comment.authorId === currentUser.id;
-            const author = getUserById(comment.authorId, users);
-            const authorName = author?.name || 'Thành viên';
-            
-            return (
-              <div key={comment.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                <div className={`flex items-end gap-1.5 max-w-[90%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                  {!isMe && (
-                    <Avatar src={author?.avatar} name={authorName} size="xs" />
-                  )}
-                  <div className={`p-2.5 rounded-2xl text-[11px] leading-relaxed shadow-sm relative group/msg ${
-                    isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-700 border border-gray-100 rounded-bl-none'
-                  }`}>
-                    <span translate="no" className="notranslate">{comment.content}</span>
+                      {/* Reaction trigger */}
+                      <div className={`absolute top-0 opacity-0 group-hover/msg:opacity-100 transition-opacity flex z-10 ${isMe ? '-left-6' : '-right-6'}`}>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setShowEmojiFor(comment.id); }}
+                          className="p-1 bg-white border border-gray-200 rounded-full text-gray-400 hover:bg-gray-50"
+                        >
+                          <Smile size={10} />
+                        </button>
+                      </div>
 
-                    {/* Reaction trigger */}
-                    <div className={`absolute top-0 opacity-0 group-hover/msg:opacity-100 transition-opacity flex gap-1 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full p-0.5 shadow-sm ${
-                      isMe ? '-left-8' : '-right-8'
-                    }`}>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowEmojiFor(comment.id);
-                        }}
-                        className="p-1 hover:bg-gray-100 rounded-full text-gray-500"
-                      >
-                        <Smile size={12} />
-                      </button>
+                      <ReactionPicker 
+                        isOpen={showEmojiFor === comment.id}
+                        onClose={() => setShowEmojiFor(null)}
+                        onSelect={(emoji) => onReact?.(task.id, comment.id, emoji)}
+                        position={isMe ? "left" : "right"}
+                      />
                     </div>
-
-                    <ReactionPicker 
-                      isOpen={showEmojiFor === comment.id}
-                      onClose={() => setShowEmojiFor(null)}
-                      onSelect={(emoji) => onReact?.(task.id, comment.id, emoji)}
-                      position="top"
-                    />
                   </div>
-                </div>
-                
-                <div className={`${isMe ? 'mr-0' : 'ml-6'}`}>
-                  <ReactionBadge reactions={comment.reactions} users={users} />
-                </div>
+                  
+                  <div className={`${isMe ? 'mr-0' : 'ml-6'} mt-0.5`}>
+                    <ReactionBadge reactions={comment.reactions} users={users} />
+                  </div>
 
-                <div className="mt-0.5 flex items-center gap-1.5 px-0.5">
-                   <span className="text-[8px] text-gray-300 font-bold">{formatDateTime(comment.timestamp)}</span>
-                   {!isMe && <span {...getSafeNameProps()} className="text-[8px] text-blue-700 font-black uppercase tracking-tighter notranslate">{authorName}</span>}
+                  {!isMe && (
+                    <div className="ml-6 mt-0.5">
+                      <span {...getSafeNameProps()} className="text-[8px] text-blue-500 font-bold uppercase notranslate italic">@{authorName}</span>
+                    </div>
+                  )}
                 </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+              );
+            })
+          )}
+        </div>
 
-    </motion.div>
+        {/* Input area - Ultra Slim */}
+        <div className="p-2 border-t border-gray-100 bg-white rounded-b-lg">
+          <div className="relative flex gap-1.5 items-center bg-gray-50 rounded p-1 border border-gray-100">
+            <textarea
+              ref={inputRef}
+              className="flex-1 bg-transparent py-1 px-1.5 text-[12px] outline-none transition-all resize-none h-[32px] leading-tight text-gray-700 font-medium placeholder:text-gray-300"
+              placeholder="Tin nhắn..."
+              value={newMessage}
+              translate="no"
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+            />
+            <button 
+              onClick={handleSend}
+              disabled={!newMessage.trim()}
+              className="p-1.5 text-blue-500 hover:text-blue-600 disabled:opacity-30 transition-all"
+            >
+              <Send size={14} />
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </Portal>
   );
 };

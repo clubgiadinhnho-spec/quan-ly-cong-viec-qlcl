@@ -23,6 +23,7 @@ interface TaskListProps {
   highlightedTaskId?: string | null;
   selectedIds?: string[];
   onToggleSelect?: (id: string) => void;
+  onBulkSelect?: (ids: string[], select: boolean) => void;
   createNotification?: any;
 }
 
@@ -46,6 +47,7 @@ export const TaskList: React.FC<TaskListProps> = ({
   highlightedTaskId,
   selectedIds = [],
   onToggleSelect,
+  onBulkSelect,
   createNotification
 }) => {
   const sortedTasks = [...tasks].sort((a, b) => {
@@ -129,44 +131,45 @@ export const TaskList: React.FC<TaskListProps> = ({
     <div className="border border-gray-300 rounded-md bg-white shadow-sm overflow-visible">
       <table className="w-full text-left border-collapse table-fixed min-w-full">
         <thead>
-          <tr className="bg-blue-600">
-            <th className="p-2 text-[10px] font-black text-white uppercase tracking-wider w-[40px] text-center border border-blue-700 bg-blue-600 sticky top-0 z-10">
+          <tr className="bg-blue-600 h-12">
+            <th className="p-3 text-[14px] font-black text-white uppercase tracking-wider w-[40px] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
                <input 
                  type="checkbox"
                  className="w-3.5 h-3.5 rounded-sm border-blue-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
                  checked={tasks.length > 0 && selectedIds.length === tasks.length}
                  onChange={(e) => {
-                   if (e.target.checked) {
-                     tasks.forEach(t => {
-                       if (!selectedIds.includes(t.id)) onToggleSelect?.(t.id);
-                     });
+                   if (onBulkSelect) {
+                     onBulkSelect(tasks.map(t => t.id), e.target.checked);
                    } else {
-                     tasks.forEach(t => {
-                       if (selectedIds.includes(t.id)) onToggleSelect?.(t.id);
-                     });
+                     if (e.target.checked) {
+                       tasks.forEach(t => {
+                         if (!selectedIds.includes(t.id)) onToggleSelect?.(t.id);
+                       });
+                     } else {
+                       tasks.forEach(t => {
+                         if (selectedIds.includes(t.id)) onToggleSelect?.(t.id);
+                       });
+                     }
                    }
                  }}
                />
             </th>
-            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[5%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-10">
+            <th className="p-3 text-[14px] font-black text-white uppercase tracking-wider w-[5%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
               <span translate="no" className="notranslate">Mã</span>
             </th>
-            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[20%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-10">
+            <th className="p-3 text-[14px] font-black text-white uppercase tracking-wider w-[20%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
               <span translate="no" className="notranslate">Nhân sự</span>
             </th>
-            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-10 w-[30%]">
+            <th className="p-3 text-[14px] font-black text-white uppercase tracking-wider text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] w-[33%] align-middle">
               <span translate="no" className="notranslate">Nội dung & Mục tiêu</span>
             </th>
-            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[18%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-10">
-              <span translate="no" className="notranslate">Diễn tiến trước đó</span>
-            </th>
-            <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[18%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-10">
+            <th className="p-3 text-[14px] font-black text-white uppercase tracking-wider w-[30%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
               <span translate="no" className="notranslate">Cập nhật</span>
             </th>
-            <th className="p-3 text-[11px] font-black text-white uppercase tracking-tighter w-[6%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-10">
+            <th className="p-3 text-[15px] font-black text-white uppercase tracking-tighter w-[6%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
               <span translate="no" className="notranslate">ƯU TIÊN</span>
             </th>
-            {!isReadOnly && <th className="p-3 text-[10px] font-black text-white uppercase tracking-wider w-[6%] text-center border-blue-700 bg-blue-600 sticky top-0 z-10">
+            {!isReadOnly && <th className="p-3 text-[14px] font-black text-white uppercase tracking-wider w-[6%] text-center border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
               <span translate="no" className="notranslate">Thao tác</span>
             </th>}
           </tr>

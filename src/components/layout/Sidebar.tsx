@@ -105,7 +105,7 @@ export const Sidebar = ({
         
         <nav className="space-y-1 flex-none mb-4">
           {[
-            { id: 'tasks', label: <span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>, icon: ClipboardList, count: activeTasksCount, color: 'bg-blue-500 text-white shadow-blue-100', isAlert: activeTasksAlert },
+            { id: 'tasks', label: <span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>, icon: ClipboardList, count: activeTasksAlert ? activeTasksCount : 0, color: 'bg-orange-600 text-white shadow-orange-100', isAlert: activeTasksAlert },
             { id: 'pending_confirmation', label: <span translate="no" className="notranslate"> ĐỀ XUẤT MỚI</span>, icon: Sparkles, count: pendingTasksCount, color: 'bg-emerald-500 text-white shadow-emerald-200', isAlert: pendingTasksAlert, isSubItem: true },
             { id: 'completed_tasks', label: <span translate="no" className="notranslate">CÔNG VIỆC HOÀN THÀNH</span>, icon: CheckCircle2, count: completedTasksCount, color: 'bg-indigo-500 text-white shadow-indigo-100', isSubItem: true },
             ...((user.role === 'Admin')
@@ -133,15 +133,24 @@ export const Sidebar = ({
             >
               <item.icon size={20} className="shrink-0" />
               {!isCollapsed && (
-                <div className="flex-1 text-left uppercase text-[11px] font-black whitespace-nowrap overflow-hidden truncate">
+                <div className="flex-1 text-left uppercase text-[11px] font-black whitespace-nowrap overflow-hidden truncate flex items-center">
                   {item.label}
+                  {item.id === 'tasks' && item.count > 0 && (
+                    <div className="ml-auto bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center animate-bounce shadow-md border border-white/20">
+                      <span translate="no" className="notranslate font-black">
+                        <span translate="no" className="notranslate">{item.count}</span>
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
-              {item.count !== undefined && item.count > 0 && (
-                <span className={`${isCollapsed ? 'absolute -top-1 -right-1' : ''} text-[10px] font-black min-w-[20px] h-5 px-1 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-md shrink-0 ${
-                  item.color || 'bg-gray-500 text-white'
-                } ${item.isAlert ? 'animate-bounce' : ''}`}>
-                  <span translate="no" className="notranslate">{item.count}</span>
+              {item.count !== undefined && item.count > 0 && item.id !== 'tasks' && (
+                <span className={`${isCollapsed ? 'absolute -top-[5px] -right-[5px]' : ''} min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-lg shrink-0 ${
+                  item.id === 'tasks' && item.isAlert ? 'bg-orange-500 animate-pulse' : (item.color || 'bg-gray-500 text-white')
+                } ${item.isAlert && item.id !== 'tasks' ? 'animate-bounce' : ''}`}>
+                  <span translate="no" className="notranslate font-bold text-[10px] text-white">
+                    {item.count}
+                  </span>
                 </span>
               )}
             </button>

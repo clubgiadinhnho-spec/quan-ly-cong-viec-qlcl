@@ -18,13 +18,21 @@ interface NewProposalsPageProps {
   setEditingTask: (t: Task | null) => void;
   setConfirmModal: (m: any) => void;
   createNotification: any;
+  selectedIds?: string[];
+  onToggleSelect?: (id: string) => void;
+  onBulkSelect?: (ids: string[], select: boolean) => void;
+  approveTasksBulk?: (ids: string[], modifierName: string) => Promise<boolean>;
 }
 
 export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
   tasks, currentUser, allUsers, updateTask, deleteTask,
   setShowHistoryModal, setShowChatModal, showChatModal,
   addTaskComment, updateTaskCommentReactions, setEditingTask, setConfirmModal,
-  createNotification
+  createNotification,
+  selectedIds = [],
+  onToggleSelect,
+  onBulkSelect,
+  approveTasksBulk
 }) => {
   const [search, setSearch] = useState('');
   const isManager = currentUser.role === 'Admin' || !!currentUser.delegatedPermissions?.canApproveTask;
@@ -45,14 +53,34 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [tasks, search, isManager, currentUser]);
 
+  const handleBulkApprove = () => {
+    if (selectedIds.length === 0 || !approveTasksBulk) return;
+    setConfirmModal({
+      show: true,
+      title: <span translate="no" className="notranslate font-black uppercase">XÁC NHẬN DUYỆT HÀNG LOẠT</span>,
+      message: <span translate="no" className="notranslate">{`Bạn đang chọn DUYỆT ${selectedIds.length} mục đề xuất. Bạn có chắc chắn không?`}</span>,
+      onConfirm: async () => {
+        try {
+          await approveTasksBulk(selectedIds, currentUser.name);
+          // Selection clearing should be handled by the parent if it owns the state
+          if (onBulkSelect) onBulkSelect(selectedIds, false);
+        } catch (error) {
+          alert("Có lỗi xảy ra khi phê duyệt.");
+        } finally {
+          setConfirmModal((p: any) => ({ ...p, show: false }));
+        }
+      }
+    });
+  };
+
   const handleApprove = (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
     setConfirmModal({
       show: true,
-      title: 'PHÊ DUYỆT CÔNG VIỆC',
-      message: `Bạn chắc chắn muốn DUYỆT công việc ${task.code}? Sau khi duyệt, công việc sẽ xuất hiện tại bảng chính.`,
+      title: <span translate="no" className="notranslate">PHÊ DUYỆT CÔNG VIỆC</span>,
+      message: <span translate="no" className="notranslate">{`Bạn chắc chắn muốn DUYỆT công việc ${task.code}? Sau khi duyệt, công việc sẽ xuất hiện tại bảng chính.`}</span>,
       onConfirm: async () => {
         await updateTask(taskId, { 
           status: 'APPROVED' as any,
@@ -108,8 +136,17 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
         <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
            <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
              <CheckCircle2 size={14} />
-             DANH SÁCH {pendingTasks.length} ĐỀ XUẤT
+             <span translate="no" className="notranslate">DANH SÁCH {pendingTasks.length} ĐỀ XUẤT</span>
            </h3>
+           {isManager && selectedIds.length > 0 && (
+             <button
+               onClick={handleBulkApprove}
+               className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95 border-b-4 border-blue-800"
+             >
+               <CheckCircle2 size={16} strokeWidth={2.5} />
+               <span translate="no" className="notranslate">DUYỆT CÁC MỤC ĐÃ CHỌN ({selectedIds.length})</span>
+             </button>
+           )}
         </div>
         
         <TaskList
@@ -129,6 +166,9 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
           isReadOnly={false}
           onApprove={isManager ? handleApprove : undefined}
           createNotification={createNotification}
+          selectedIds={selectedIds}
+          onToggleSelect={onToggleSelect}
+          onBulkSelect={onBulkSelect}
         />
       </div>
 
@@ -137,7 +177,9 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
             <Sparkles size={32} className="opacity-20" />
           </div>
-          <p className="text-xs font-black uppercase tracking-widest opacity-50">KHÔNG CÓ ĐỀ XUẤT NÀO ĐANG CHỜ</p>
+          <p className="text-xs font-black uppercase tracking-widest opacity-50">
+            <span translate="no" className="notranslate">KHÔNG CÓ ĐỀ XUẤT NÀO ĐANG CHỜ</span>
+          </p>
         </div>
       )}
     </div>

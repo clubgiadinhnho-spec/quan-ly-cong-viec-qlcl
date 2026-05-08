@@ -175,6 +175,9 @@ export interface Task {
   reportAttachments?: string[];
   isNewSoldier?: boolean;
   authorId?: string;
+  authorName?: string;
+  lastUpdatedBy?: string;
+  lastUpdatedByRole?: string;
   deletedAt?: string;
   systemCreatedAt?: string;
   isNewUpdate?: boolean;

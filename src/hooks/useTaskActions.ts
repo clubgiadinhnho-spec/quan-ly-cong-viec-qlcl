@@ -47,6 +47,7 @@ export const useTaskActions = ({
       issueDate: taskData.issueDate || new Date().toISOString().split('T')[0],
       title: taskData.title || '',
       objective: taskData.objective || '',
+      category: taskData.category || '',
       assigneeId: taskData.assigneeId || currentUser?.id || '',
       startDate: taskData.startDate || new Date().toISOString().split('T')[0],
       expectedEndDate: taskData.expectedEndDate || '',
@@ -55,11 +56,11 @@ export const useTaskActions = ({
       currentUpdate: '',
       history: [{ 
         version: 1, 
-        content: 'Khởi tạo công việc (Chờ duyệt).', 
+        content: taskData.status === 'APPROVED' ? 'Khởi tạo công việc (Đã duyệt).' : 'Khởi tạo công việc (Chờ duyệt).', 
         timestamp: new Date().toISOString(), 
-        authorId: currentUser?.id || '' 
+        authorId: taskData.authorId || currentUser?.uniqueKey || currentUser?.id || '' 
       }],
-      status: 'PENDING' as any,
+      status: taskData.status || 'PENDING',
       priority: taskData.priority || 'MEDIUM',
       isHighlighted: false,
       isLocked: false,
@@ -67,8 +68,12 @@ export const useTaskActions = ({
       attachmentUrl,
       attachmentName,
       updatedAt: new Date().toISOString(),
+      lastUpdatedBy: currentUser?.uniqueKey || currentUser?.id || '',
+      lastUpdatedByRole: currentUser?.role || '',
       isNewSoldier: isManagement && taskData.status === 'APPROVED',
-      authorId: currentUser?.id || '',
+      isNewUpdate: !!taskData.isNewUpdate,
+      authorId: taskData.authorId || currentUser?.uniqueKey || currentUser?.id || '',
+      authorName: taskData.authorName || currentUser?.name || '',
       systemCreatedAt: taskData.systemCreatedAt || new Date().toISOString()
     };
     await firebaseAddTask(newTask);
@@ -91,6 +96,12 @@ export const useTaskActions = ({
     }
 
     const preparedUpdates = prepareTaskUpdates(task, updates, currentUser, allUsers);
+    
+    // Safety: Ensure lastUpdatedByRole is set
+    if (currentUser && !preparedUpdates.lastUpdatedByRole) {
+      preparedUpdates.lastUpdatedByRole = currentUser.role;
+    }
+    
     await firebaseUpdateTask(id, preparedUpdates);
   }, [tasks, currentUser, allUsers, firebaseUpdateTask, firebaseSendPrivateMsg]);
 

@@ -18,6 +18,8 @@ interface TaskListProps {
   onEdit: (task: Task) => void;
   setConfirmModal: (modal: any) => void;
   onApprove?: (id: string) => void;
+  approveTaskCompletion?: (id: string, modifierName?: string) => Promise<void>;
+  onNavigate?: (tab: string) => void;
   type: 'active' | 'completed' | 'trash';
   isReadOnly?: boolean;
   highlightedTaskId?: string | null;
@@ -41,6 +43,8 @@ export const TaskList: React.FC<TaskListProps> = ({
   onEdit,
   setConfirmModal,
   onApprove,
+  approveTaskCompletion,
+  onNavigate,
   type,
   isReadOnly = false,
   onRestore,
@@ -55,7 +59,10 @@ export const TaskList: React.FC<TaskListProps> = ({
     if (a.status === 'AWAITING_CONFIRMATION' && b.status !== 'AWAITING_CONFIRMATION') return -1;
     if (b.status === 'AWAITING_CONFIRMATION' && a.status !== 'AWAITING_CONFIRMATION') return 1;
 
-    // 2. Lính mới xác nhận (Ưu tiên nhảy lên trên cùng của danh sách xử lý)
+    // 2. Lính mới xác nhận (hoặc Hoàn tác về) - Ưu tiên nhảy lên trên cùng
+    if (a.isNewInBoard && !b.isNewInBoard) return -1;
+    if (b.isNewInBoard && !a.isNewInBoard) return 1;
+
     if (type === 'active') {
       if (a.isNewSoldier && !b.isNewSoldier) return -1;
       if (b.isNewSoldier && !a.isNewSoldier) return 1;
@@ -66,7 +73,12 @@ export const TaskList: React.FC<TaskListProps> = ({
     if (b.priorityOrder && !a.priorityOrder) return 1;
     if (a.priorityOrder && b.priorityOrder) return a.priorityOrder - b.priorityOrder;
 
-    // 4. Mã công việc (Mới nhất lên trên)
+    // 4. Thời gian cập nhật mới nhất (Dành cho Hoàn tác)
+    const timeA = new Date(a.updatedAt || 0).getTime();
+    const timeB = new Date(b.updatedAt || 0).getTime();
+    if (timeB !== timeA) return timeB - timeA;
+
+    // 5. Mã công việc (Mới nhất lên trên)
     return b.code.localeCompare(a.code);
   }).slice(0, 100);
 
@@ -132,7 +144,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       <table className="w-full text-left border-collapse table-fixed min-w-full">
         <thead>
           <tr className="bg-blue-600 h-12">
-            <th className="p-3 text-[14px] font-black text-white uppercase tracking-wider w-[40px] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
+            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[40px] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
                <input 
                  type="checkbox"
                  className="w-3.5 h-3.5 rounded-sm border-blue-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
@@ -154,24 +166,24 @@ export const TaskList: React.FC<TaskListProps> = ({
                  }}
                />
             </th>
-            <th className="p-3 text-[14px] font-black text-white uppercase tracking-wider w-[5%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
+            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[5%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
               <span translate="no" className="notranslate">Mã</span>
             </th>
-            <th className="p-3 text-[14px] font-black text-white uppercase tracking-wider w-[20%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
+            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[20%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
               <span translate="no" className="notranslate">Nhân sự</span>
             </th>
-            <th className="p-3 text-[14px] font-black text-white uppercase tracking-wider text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] w-[33%] align-middle">
+            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] w-[33%] align-middle">
               <span translate="no" className="notranslate">Nội dung & Mục tiêu</span>
             </th>
-            <th className="p-3 text-[14px] font-black text-white uppercase tracking-wider w-[30%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
+            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[30%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
               <span translate="no" className="notranslate">Cập nhật</span>
             </th>
-            <th className="p-3 text-[15px] font-black text-white uppercase tracking-tighter w-[6%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
+            <th className="p-3 text-[14px] font-black text-white uppercase tracking-tighter w-[6%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
               <span translate="no" className="notranslate">ƯU TIÊN</span>
             </th>
-            {!isReadOnly && <th className="p-3 text-[14px] font-black text-white uppercase tracking-wider w-[6%] text-center border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
+            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[6%] text-center border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
               <span translate="no" className="notranslate">Thao tác</span>
-            </th>}
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-300">
@@ -197,6 +209,8 @@ export const TaskList: React.FC<TaskListProps> = ({
                 isReadOnly={isReadOnly}
                 onRestore={onRestore}
                 onApprove={onApprove}
+                approveTaskCompletion={approveTaskCompletion}
+                onNavigate={onNavigate}
                 highlightedTaskId={highlightedTaskId}
                 isSelected={selectedIds.includes(task.id)}
                 onToggleSelect={onToggleSelect}
@@ -221,6 +235,8 @@ export const TaskList: React.FC<TaskListProps> = ({
                 setConfirmModal={setConfirmModal}
                 onTogglePriority={handleTogglePriority}
                 onApprove={onApprove}
+                approveTaskCompletion={approveTaskCompletion}
+                onNavigate={onNavigate}
                 isReadOnly={isReadOnly}
                 highlightedTaskId={highlightedTaskId}
                 isSelected={selectedIds.includes(task.id)}
@@ -239,13 +255,22 @@ export const TaskList: React.FC<TaskListProps> = ({
                 isChatOpen={showChatModal === task.id}
                 onSendMessage={onSendMessage}
                 onReact={onReact}
-                onUndo={(id) => onUpdate(id, { 
-                  status: 'APPROVED', 
-                  actualEndDate: null, 
-                  isLocked: false, 
-                  requestUndo: null as any 
-                })}
-                onUpdate={onUpdate}
+                onUndo={(id) => {
+                  const realId = id.includes('_cycle_') ? id.split('_cycle_')[0] : id;
+                  onUpdate(realId, { 
+                    status: 'APPROVED', 
+                    waitingApproval: true,
+                    actualEndDate: null, 
+                    isLocked: false, 
+                    requestUndo: null as any,
+                    lastActionAt: new Date().toISOString()
+                  });
+                }}
+                onUpdate={(id, updates) => {
+                  const realId = id.includes('_cycle_') ? id.split('_cycle_')[0] : id;
+                  onUpdate(realId, updates);
+                }}
+                onDelete={onDelete}
                 isSelected={selectedIds.includes(task.id)}
                 onToggleSelect={onToggleSelect}
               />
@@ -255,7 +280,9 @@ export const TaskList: React.FC<TaskListProps> = ({
       </table>
       {sortedTasks.length === 0 && (
         <div className="py-20 text-center text-gray-400 text-sm font-medium">
-          {type === 'trash' ? 'Thùng rác trống.' : type === 'active' ? 'Không có công việc đang xử lý.' : 'Không có công việc đã hoàn thành.'}
+          <span translate="no" className="notranslate">
+            {type === 'trash' ? 'Thùng rác trống.' : type === 'active' ? 'Không có công việc đang xử lý.' : 'Không có công việc đã hoàn thành.'}
+          </span>
         </div>
       )}
     </div>

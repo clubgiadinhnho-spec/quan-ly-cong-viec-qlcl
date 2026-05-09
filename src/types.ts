@@ -126,6 +126,7 @@ export type RecurrenceType = 'NONE' | 'DAILY' | 'TRI_DAILY' | 'WEEKLY' | 'BI_WEE
 export interface CycleHistoryEntry {
   version: number;
   reportContent: string;
+  objective?: string;
   completedAt: string;
   nextDeadline: string;
 }
@@ -181,6 +182,7 @@ export interface Task {
   deletedAt?: string;
   systemCreatedAt?: string;
   isNewUpdate?: boolean;
+  isCycleRecord?: boolean;
   lastUpdateAt?: string;
   waitingApproval?: boolean;
 }

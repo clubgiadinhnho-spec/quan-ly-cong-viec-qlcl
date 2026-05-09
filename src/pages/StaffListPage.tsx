@@ -168,7 +168,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
     const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `Bao_cao_nhan_su_${(new Date().toLocaleDateString('vi-VN') || '').replace(/\//g, '-')}.csv`;
+    link.download = `Bao_cao_nhan_su_${(new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: '2-digit' }) || '').replace(/\//g, '-')}.csv`;
     link.click();
   };
 
@@ -286,7 +286,9 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
               {/* Info Blocks mimicking the provided screenshot */}
               <div className="w-full space-y-5 mb-10">
                   <div className="space-y-1.5 text-center">
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">HỌ VÀ TÊN NHÂN VIÊN</p>
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">
+                      <span translate="no" className="notranslate">HỌ VÀ TÊN NHÂN VIÊN</span>
+                    </p>
                     <p className="text-2xl font-black text-slate-900 uppercase tracking-tight">
                       <span translate="no" className="notranslate">{selectedQRUser.name}</span>
                     </p>
@@ -294,16 +296,22 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
 
                 <div className="grid grid-cols-2 gap-6 pt-2">
                   <div className="space-y-1.5 text-center">
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">MÃ CHUẨN</p>
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">
+                      <span translate="no" className="notranslate">MÃ CHUẨN</span>
+                    </p>
                     <div className="bg-slate-50 rounded-2xl py-3 border border-slate-100 flex items-center justify-center">
-                      <p className="text-lg font-sans font-bold text-blue-800 uppercase">#{selectedQRUser.code}</p>
+                      <p className="text-lg font-sans font-bold text-blue-800 uppercase">
+                        <span translate="no" className="notranslate">#{selectedQRUser.code}</span>
+                      </p>
                     </div>
                   </div>
                   <div className="space-y-1.5 text-center">
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">VAI TRÒ</p>
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">
+                      <span translate="no" className="notranslate">VAI TRÒ</span>
+                    </p>
                     <div className="bg-slate-50 rounded-2xl py-3 border border-slate-100 flex items-center justify-center px-2 overflow-hidden">
                       <p className="text-[13px] font-black text-slate-700 uppercase leading-none truncate">
-                        {selectedQRUser.role === 'Admin' ? <span translate="no" className="notranslate">ADMIN</span> : selectedQRUser.role}
+                        {selectedQRUser.role === 'Admin' ? <span translate="no" className="notranslate">ADMIN</span> : <span translate="no" className="notranslate">{selectedQRUser.role}</span>}
                       </p>
                     </div>
                   </div>
@@ -322,7 +330,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
               
               <div className="mt-8 flex flex-col items-center gap-2">
                 <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] animate-pulse">
-                  SCAN TO AUTHENTICATE
+                  <span translate="no" className="notranslate">SCAN TO AUTHENTICATE</span>
                 </p>
                 <div className="h-1 w-12 bg-blue-100 rounded-full" />
               </div>
@@ -371,9 +379,11 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
               <div className="p-8 border-b border-slate-50 flex items-center justify-between">
                 <div>
                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">
-                     {editingStaff ? 'CẬP NHẬT NHÂN SỰ' : 'THÊM NHÂN SỰ MỚI'}
+                     <span translate="no" className="notranslate">{editingStaff ? 'CẬP NHẬT NHÂN SỰ' : 'THÊM NHÂN SỰ MỚI'}</span>
                    </h2>
-                   <p className="text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-widest">Dữ liệu sẽ được đồng bộ trên hệ thống</p>
+                   <p className="text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-widest">
+                     <span translate="no" className="notranslate">Dữ liệu sẽ được đồng bộ trên hệ thống</span>
+                   </p>
                 </div>
                 <button onClick={() => { setShowAddModal(false); setEditingStaff(null); }} className="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 hover:text-slate-600 transition-all">
                   <X size={20} />
@@ -396,80 +406,98 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                       <Camera size={14} />
                     </label>
                   </div>
-                  <p className="text-[10px] font-black text-blue-600 uppercase mt-3 tracking-widest">Tải lên ảnh thẻ</p>
+                  <p className="text-[10px] font-black text-blue-600 uppercase mt-3 tracking-widest">
+                    <span translate="no" className="notranslate">Tải lên ảnh thẻ</span>
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2 space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Họ và tên</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
+                      <span translate="no" className="notranslate">Họ và tên</span>
+                    </label>
                     <input 
                       type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm placeholder:notranslate"
                       placeholder="Nhập tên đầy đủ"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1"><span translate="no" className="notranslate">SỐ ĐIỆN THOẠI / PHONE</span></label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
+                      <span translate="no" className="notranslate">SỐ ĐIỆN THOẠI <span className="text-red-500">*</span></span>
+                    </label>
                     <input 
                       type="text" required value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm placeholder:notranslate"
                       placeholder="09xxx..."
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Chức vụ</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
+                      <span translate="no" className="notranslate">CHỨC VỤ <span className="text-red-500">*</span></span>
+                    </label>
                     <select 
                       value={formData.role} 
                       onChange={e => {
                         const val = e.target.value as any;
                         setFormData({...formData, role: val, title: val === 'Leader' ? 'Trưởng nhóm' : (val === 'Admin' ? 'Quản trị viên' : 'Nhân viên')});
                       }}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm appearance-none"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm appearance-none notranslate"
                     >
-                      <option value="Staff">Nhân viên</option>
-                      <option value="Leader">Trưởng nhóm</option>
-                      <option value="Admin">Quản trị viên</option>
+                      <option value="Staff" translate="no" className="notranslate">Nhân viên</option>
+                      <option value="Leader" translate="no" className="notranslate">Trưởng nhóm</option>
+                      <option value="Admin" translate="no" className="notranslate">Quản trị viên</option>
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Chức danh</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
+                      <span translate="no" className="notranslate">CHỨC DANH <span className="text-red-500">*</span></span>
+                    </label>
                     <input 
                       type="text" required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm placeholder:notranslate"
                       placeholder="VD: Nhân viên QC"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Email Công ty</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
+                      <span translate="no" className="notranslate">EMAIL CÔNG TY <span className="text-red-500">*</span></span>
+                    </label>
                     <input 
                       type="email" value={formData.companyEmail} onChange={e => setFormData({...formData, companyEmail: e.target.value})}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm placeholder:notranslate"
                       placeholder="xyz@tanphu.vn"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Email Cá nhân</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
+                      <span translate="no" className="notranslate">EMAIL CÁ NHÂN <span className="text-red-500">*</span></span>
+                    </label>
                     <input 
                       type="email" required value={formData.personalEmail} onChange={e => setFormData({...formData, personalEmail: e.target.value})}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm placeholder:notranslate"
                       placeholder="abc@gmail.com"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Mã NV</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
+                      <span translate="no" className="notranslate">MÃ NV <span className="text-red-500">*</span></span>
+                    </label>
                     <input 
                       type="text" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm placeholder:notranslate"
                       placeholder="QC-xxx"
                     />
                   </div>
                   <div className="col-span-2 space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Mật khẩu (Ghi nhận / Đăng nhập)</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
+                      <span translate="no" className="notranslate">MẬT KHẨU (GHI NHẬN / ĐĂNG NHẬP) <span className="text-red-500">*</span></span>
+                    </label>
                     <div className="relative group/pass">
                       <input 
                         type={visiblePasswords['modal'] ? "text" : "password"}
                         value={formData.password || ''} onChange={e => setFormData({...formData, password: e.target.value})}
-                        className="w-full px-4 py-3 bg-blue-50/30 border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
+                        className="w-full px-4 py-3 bg-blue-50/30 border border-blue-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm placeholder:notranslate"
                         placeholder="Nhập mật khẩu mới"
                       />
                       <button 
@@ -482,8 +510,8 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                     </div>
                     <p className="text-[9px] text-slate-400 font-bold italic px-1 mt-1">
                       {editingStaff?.id === currentUser.id 
-                        ? "* Đổi mật khẩu tại đây sẽ cập nhật cả mật khẩu đăng nhập thực tế của bạn." 
-                        : "* Lưu ý: Đổi mật khẩu cho người khác chỉ ghi nhận vào hồ sơ, không thay đổi mật khẩu đăng nhập thực tế của họ."}
+                        ? <span translate="no" className="notranslate">* Đổi mật khẩu tại đây sẽ cập nhật cả mật khẩu đăng nhập thực tế của bạn.</span>
+                        : <span translate="no" className="notranslate">* Lưu ý: Đổi mật khẩu cho người khác chỉ ghi nhận vào hồ sơ, không thay đổi mật khẩu đăng nhập thực tế của họ.</span>}
                     </p>
                   </div>
                 </div>
@@ -493,13 +521,13 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                      type="button" onClick={() => { setShowAddModal(false); setEditingStaff(null); }}
                      className="flex-1 py-4 bg-gray-100 text-gray-600 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-gray-200 transition-all font-mono"
                    >
-                     Hủy bỏ
+                     <span translate="no" className="notranslate">Hủy bỏ</span>
                    </button>
                    <button 
                      type="submit"
                      className="flex-3 py-4 bg-blue-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-100"
                    >
-                     {editingStaff ? 'Lưu thay đổi' : 'Xác nhận tạo mới'}
+                     <span translate="no" className="notranslate">{editingStaff ? 'Lưu thay đổi' : 'Xác nhận tạo mới'}</span>
                    </button>
                 </div>
               </form>
@@ -515,8 +543,8 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
               <ClipboardList size={22} />
             </div>
             <div>
-              <span className="text-[10px] font-black text-blue-600 uppercase tracking-[0.3em] block leading-none mb-1">Cơ sở dữ liệu</span>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase leading-none">THÔNG TIN NHÂN VIÊN</h1>
+                <span translate="no" className="notranslate text-[10px] font-black text-blue-600 uppercase tracking-[0.3em] block leading-none mb-1">Cơ sở dữ liệu</span>
+                <h1 translate="no" className="notranslate text-2xl font-black text-slate-900 tracking-tight uppercase leading-none">THÔNG TIN NHÂN VIÊN</h1>
             </div>
           </div>
           <p className="text-sm text-slate-500 font-medium max-w-md">Hệ thống quản lý dữ liệu nhân lực Phòng QLCL Tân Phú Việt Nam. Dữ liệu được bảo mật và phân quyền nghiêm ngặt.</p>
@@ -528,7 +556,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
             className="group flex items-center gap-2 px-5 py-3.5 bg-white text-slate-600 border border-slate-200 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm active:scale-95"
           >
             <Download size={16} className="group-hover:translate-y-0.5 transition-transform" />
-            Tải CSV
+            <span translate="no" className="notranslate">Tải CSV</span>
           </button>
 
           {currentUser.role === 'Admin' && (
@@ -537,7 +565,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
               className="flex items-center gap-2 px-6 py-3.5 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 active:scale-95"
             >
               <Plus size={18} />
-              Thêm nhân sự
+              <span translate="no" className="notranslate">Thêm nhân sự</span>
             </button>
           )}
         </div>
@@ -551,9 +579,10 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
           <input 
             type="text" 
             placeholder="Tìm theo tên, SĐT, mã nhân sự..."
-            className="w-full pl-16 pr-4 py-4 bg-transparent outline-none text-sm font-bold text-slate-700 placeholder:text-slate-300 placeholder:font-medium"
+            className="w-full pl-16 pr-4 py-4 bg-transparent outline-none text-sm font-bold text-slate-700 placeholder:text-slate-300 placeholder:font-medium placeholder:notranslate"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            translate="no"
           />
         </div>
         <div className="flex items-center gap-1.5 bg-slate-50/80 rounded-[22px] px-2 py-1.5 border border-slate-50">

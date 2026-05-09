@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Task, User } from '../types';
 import { TaskList } from '../components/tasks/TaskList';
-import { Search, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Search, Sparkles, CheckCircle2, Trash2 } from 'lucide-react';
 import { isUserTask } from '../utils/userUtils';
 
 interface NewProposalsPageProps {
@@ -22,6 +22,7 @@ interface NewProposalsPageProps {
   onToggleSelect?: (id: string) => void;
   onBulkSelect?: (ids: string[], select: boolean) => void;
   approveTasksBulk?: (ids: string[], modifierName: string) => Promise<boolean>;
+  onBulkDelete?: () => void;
 }
 
 export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
@@ -32,7 +33,8 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
   selectedIds = [],
   onToggleSelect,
   onBulkSelect,
-  approveTasksBulk
+  approveTasksBulk,
+  onBulkDelete
 }) => {
   const [search, setSearch] = useState('');
   const isManager = currentUser.role === 'Admin' || !!currentUser.delegatedPermissions?.canApproveTask;
@@ -62,12 +64,20 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
       onConfirm: async () => {
         try {
           await approveTasksBulk(selectedIds, currentUser.name);
-          // Selection clearing should be handled by the parent if it owns the state
           if (onBulkSelect) onBulkSelect(selectedIds, false);
+          
+          setConfirmModal({
+            show: true,
+            title: <span translate="no" className="notranslate font-black uppercase">THÀNH CÔNG</span>,
+            message: <span translate="no" className="notranslate">Đã phê duyệt {selectedIds.length} đề xuất.</span>,
+            onConfirm: async () => {
+              setConfirmModal((p: any) => ({ ...p, show: false }));
+            }
+          });
         } catch (error) {
           alert("Có lỗi xảy ra khi phê duyệt.");
         } finally {
-          setConfirmModal((p: any) => ({ ...p, show: false }));
+          // Note: We don't close the modal immediately because we show a success modal inside try
         }
       }
     });
@@ -89,7 +99,7 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
             ...(task.history || []),
             {
               version: (task.history?.length || 0) + 1,
-              content: `${currentUser.name} đã duyệt công việc.`,
+              content: <span translate="no" className="notranslate">{`${currentUser.name} đã duyệt công việc.`}</span> as any,
               timestamp: new Date().toISOString(),
               authorId: currentUser.id
             }
@@ -139,13 +149,24 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
              <span translate="no" className="notranslate">DANH SÁCH {pendingTasks.length} ĐỀ XUẤT</span>
            </h3>
            {isManager && selectedIds.length > 0 && (
-             <button
-               onClick={handleBulkApprove}
-               className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95 border-b-4 border-blue-800"
-             >
-               <CheckCircle2 size={16} strokeWidth={2.5} />
-               <span translate="no" className="notranslate">DUYỆT CÁC MỤC ĐÃ CHỌN ({selectedIds.length})</span>
-             </button>
+             <div className="flex items-center gap-2">
+               <button
+                 onClick={handleBulkApprove}
+                 className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95 border-b-4 border-blue-800"
+               >
+                 <CheckCircle2 size={16} strokeWidth={2.5} />
+                 <span translate="no" className="notranslate">DUYỆT ĐÃ CHỌN ({selectedIds.length})</span>
+               </button>
+               {onBulkDelete && (
+                 <button
+                   onClick={onBulkDelete}
+                   className="flex items-center gap-2 px-6 py-2.5 bg-red-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-200 active:scale-95 border-b-4 border-red-800"
+                 >
+                   <Trash2 size={16} strokeWidth={2.5} />
+                   <span translate="no" className="notranslate">XÓA ĐÃ CHỌN</span>
+                 </button>
+               )}
+             </div>
            )}
         </div>
         

@@ -36,6 +36,7 @@ interface MainContentProps {
   handleImportExcel: (e: React.ChangeEvent<HTMLInputElement>) => void;
   updateTask: any;
   deleteTask: any;
+  approveTaskCompletion?: (id: string, modifierName?: string) => Promise<void>;
   setShowHistoryModal: (id: string | null) => void;
   setShowChatModal: (id: string | null) => void;
   showChatModal: string | null;
@@ -83,7 +84,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
   const {
     activeTab, effectiveUser, currentUser, presence, allUsers, tasks, filteredTasks, sortedTasks,
     viewScope, setViewScope, search, setSearch, myActiveCount, allActiveCount, setShowTaskModal,
-    handleExportExcel, handleImportExcel, updateTask, deleteTask, setShowHistoryModal, setShowChatModal,
+    handleExportExcel, handleImportExcel, updateTask, deleteTask, approveTaskCompletion, setShowHistoryModal, setShowChatModal,
     showChatModal, addTaskComment, updateTaskCommentReactions, setEditingTask, setConfirmModal,
     highlightedTaskId, discussionTopics, discussionMessages, sendDiscussionMessage,
     updateDiscussionMessageReactions, createTopic, updateTopic, deleteTopic, deleteTopicsBulk, deleteDiscussionMessage,
@@ -95,6 +96,11 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
   } = props;
 
   const [selectedTaskIds, setSelectedTaskIds] = React.useState<string[]>([]);
+
+  // Clear selection when changing tabs to prevent stale data
+  React.useEffect(() => {
+    setSelectedTaskIds([]);
+  }, [activeTab]);
 
   const toggleTaskSelection = (taskId: string) => {
     setSelectedTaskIds(prev => 
@@ -116,16 +122,34 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
     }
   };
 
+  // Helper to map UI IDs to real Firestore Document IDs
+  // This is crucial for virtual items in completed_tasks tab
+  const getRealDocIds = (ids: string[]) => {
+    const realIds = ids.map(id => {
+      if (id.includes('_cycle_')) {
+        return id.split('_cycle_')[0];
+      }
+      return id;
+    });
+    // Return unique IDs (Set) converted back to array
+    return Array.from(new Set(realIds));
+  };
+
   const handleBulkDelete = () => {
     if (selectedTaskIds.length === 0) return;
+    const realIds = getRealDocIds(selectedTaskIds);
     setConfirmModal({
       show: true,
-      title: "XÁC NHẬN XÓA NHIỀU",
-      message: `Bạn đang chọn XÓA ${selectedTaskIds.length} công việc. Hành động này sẽ chuyển các công việc vào THÙNG RÁC. Bạn có chắc chắn không?`,
+      title: <span translate="no" className="notranslate">XÁC NHẬN XÓA NHIỀU</span>,
+      message: (
+        <span translate="no" className="notranslate">
+          Bạn đang chọn XÓA {realIds.length} công việc. Hành động này sẽ chuyển các công việc vào THÙNG RÁC. Bạn có chắc chắn không?
+        </span>
+      ),
       onConfirm: async () => {
         try {
-          // Use the optimized batch function
-          await trashTasksBulk(selectedTaskIds, effectiveUser.name);
+          // Use the optimized batch function with real document IDs
+          await trashTasksBulk(realIds, effectiveUser.name);
           
           setSelectedTaskIds([]);
         } catch (error) {
@@ -139,13 +163,18 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
 
   const handlePermanentBulkDelete = () => {
     if (selectedTaskIds.length === 0) return;
+    const realIds = getRealDocIds(selectedTaskIds);
     setConfirmModal({
       show: true,
-      title: "XÁC NHẬN XÓA VĨNH VIỄN NHIỀU",
-      message: `Bạn đang chọn XÓA VĨNH VIỄN ${selectedTaskIds.length} công việc. Hành động này KHÔNG THỂ HOÀN TÁC. Bạn có chắc chắn không?`,
+      title: <span translate="no" className="notranslate">XÁC NHẬN XÓA VĨNH VIỄN NHIỀU</span>,
+      message: (
+        <span translate="no" className="notranslate">
+          Bạn đang chọn XÓA VĨNH VIỄN {realIds.length} công việc. Hành động này KHÔNG THỂ HOÀN TÁC. Bạn có chắc chắn không?
+        </span>
+      ),
       onConfirm: async () => {
         try {
-          await deleteTasksBulk(selectedTaskIds, effectiveUser.name);
+          await deleteTasksBulk(realIds, effectiveUser.name);
           setSelectedTaskIds([]);
         } catch (error) {
           alert("Có lỗi xảy ra khi xóa.");
@@ -158,6 +187,55 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
 
   return (
     <AnimatePresence mode="wait">
+      {activeTab === "pending_confirmation" && (
+        <motion.div key="pending_confirmation" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col">
+          <HolidayBanner />
+          <div className="z-40">
+            <Header 
+              title={<span translate="no" className="notranslate">ĐỀ XUẤT MỚI</span>} 
+              onAction={() => setShowTaskModal(true)}
+              actionLabel={<span translate="no" className="notranslate">NHẬP CÔNG VIỆC MỚI</span>}
+              actionIcon={Plus}
+              onlineUsers={presence} 
+              currentUserId={effectiveUser.id}
+              adminUnreadCount={adminUnreadCount}
+              onOpenNotifications={effectiveUser.role === 'Admin' ? onOpenNotifications : undefined}
+            />
+          </div>
+          <div className="p-6">
+            {/* Đề xuất mới: Xóa hàng loạt */}
+            {activeTab === "pending_confirmation" && effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-2 mb-4 px-1"
+              >
+                 <button
+                  onClick={handleBulkDelete}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg active:scale-95 border-b-4 border-red-800"
+                >
+                  <Trash2 size={16} strokeWidth={2.5} />
+                  <span translate="no" className="notranslate">XÓA {selectedTaskIds.length} ĐỀ XUẤT</span>
+                </button>
+              </motion.div>
+            )}
+
+            <NewProposalsPage
+              tasks={tasks} currentUser={effectiveUser} allUsers={allUsers} updateTask={updateTask} deleteTask={deleteTask}
+              setShowHistoryModal={setShowHistoryModal} setShowChatModal={setShowChatModal} showChatModal={showChatModal}
+              addTaskComment={addTaskComment} updateTaskCommentReactions={updateTaskCommentReactions}
+              setEditingTask={setEditingTask} setConfirmModal={setConfirmModal}
+              createNotification={createNotification}
+              selectedIds={selectedTaskIds}
+              onToggleSelect={toggleTaskSelection}
+              onBulkSelect={setBulkSelection}
+              approveTasksBulk={approveTasksBulk}
+              onBulkDelete={handleBulkDelete}
+            />
+          </div>
+        </motion.div>
+      )}
+
       {activeTab === "tasks" && (
         <motion.div
           key="tasks"
@@ -194,7 +272,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                   }`}
                 >
                   <UserIcon size={14} />
-                  <span translate="no" className="notranslate">Cá nhân</span> ({myActiveCount})
+                  <span translate="no" className="notranslate">Cá nhân ({myActiveCount})</span>
                 </button>
                 <button
                   onClick={() => setViewScope("all")}
@@ -203,9 +281,23 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                   }`}
                 >
                   <UsersIcon size={14} />
-                  <span translate="no" className="notranslate">Phòng QLCL</span> ({allActiveCount})
+                  <span translate="no" className="notranslate">Phòng QLCL ({allActiveCount})</span>
                 </button>
               </div>
+              
+              {/* Vị trí mới cho nút Bulk Delete - Ngang hàng với bộ lọc để tiết kiệm diện tích */}
+              {effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleBulkDelete}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg active:scale-95 border-b-4 border-red-800"
+                  >
+                    <Trash2 size={16} strokeWidth={2.5} />
+                    <span translate="no" className="notranslate">XÓA ({selectedTaskIds.length})</span>
+                  </button>
+                </div>
+              )}
+
               <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full border border-blue-100">
                 <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                 <span translate="no" className="notranslate text-[10px] text-blue-700 font-black uppercase tracking-widest">
@@ -228,7 +320,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                       title="Tải file Excel mẫu"
                     >
                       <FileDown size={12} />
-                      File Mẫu
+                      <span translate="no" className="notranslate">File Mẫu</span>
                     </button>
                     {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canExportExcel) && (
                       <button
@@ -236,30 +328,53 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-all uppercase"
                       >
                         <FileDown size={12} />
-                        Xuất Excel
+                        <span translate="no" className="notranslate">Xuất Excel</span>
                       </button>
                     )}
                     {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canImportExcel) && (
-                      <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-all uppercase cursor-pointer">
-                        <FileUp size={12} />
-                        Nhập từ Excel
-                        <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
-                      </label>
+                      <button
+                        onClick={() => {}} // Placeholder or real handler
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-all uppercase cursor-pointer"
+                      >
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <FileUp size={12} />
+                          <span translate="no" className="notranslate">Nhập từ Excel</span>
+                          <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
+                        </label>
+                      </button>
                     )}
                   </div>
                 )}
               </div>
-              <div className="relative group">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
-                <input
-                  type="text"
-                  placeholder="Tìm kiếm..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 text-xs w-64"
-                />
+              <div className="flex items-center gap-3">
+                <div className="relative group">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 text-xs w-64 placeholder:notranslate"
+                  />
+                </div>
               </div>
             </div>
+
+            {effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center px-1 mb-4"
+              >
+                <button
+                  onClick={handleBulkDelete}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg active:scale-95 border-b-4 border-red-800"
+                >
+                  <Trash2 size={16} strokeWidth={2.5} />
+                  <span translate="no" className="notranslate">XÓA {selectedTaskIds.length} MỤC ĐÃ CHỌN</span>
+                </button>
+              </motion.div>
+            )}
 
             <TaskList
               tasks={sortedTasks.filter((t) => {
@@ -277,6 +392,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
               onReact={updateTaskCommentReactions}
               onEdit={setEditingTask}
               setConfirmModal={setConfirmModal}
+              onNavigate={setActiveTab}
               type="active"
               isReadOnly={false}
               highlightedTaskId={highlightedTaskId}
@@ -286,64 +402,87 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
               createNotification={createNotification}
             />
 
-            {effectiveUser.role === "Admin" && (
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <AnimatePresence>
-                    {selectedTaskIds.length > 0 && (
-                      <motion.button
-                        initial={{ opacity: 0, x: -20, scale: 0.9 }}
-                        animate={{ opacity: 1, x: 0, scale: 1 }}
-                        exit={{ opacity: 0, x: -20, scale: 0.9 }}
-                        onClick={handleBulkDelete}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-200 active:scale-95 border-b-4 border-red-800"
-                      >
-                         <Trash2 size={16} strokeWidth={2.5} />
-                         Xóa {selectedTaskIds.length} mục đã chọn
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-            )}
           </div>
         </motion.div>
       )}
 
-      {activeTab === "pending_confirmation" && (
-        <motion.div key="pending_confirmation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col">
+      {activeTab === "pending_approval" && (
+        <motion.div key="pending_approval" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col">
           <HolidayBanner />
           <div className="z-40">
             <Header 
-              title={<span translate="no" className="notranslate">ĐỀ XUẤT MỚI</span>} 
+              title={<span translate="no" className="notranslate">TRÌNH DUYỆT HOÀN THÀNH</span>} 
+              onAction={() => setShowTaskModal(true)}
+              actionLabel={<span translate="no" className="notranslate">NHẬP CÔNG VIỆC MỚI</span>}
+              actionIcon={Plus}
               onlineUsers={presence} 
               currentUserId={effectiveUser.id}
               adminUnreadCount={adminUnreadCount}
               onOpenNotifications={effectiveUser.role === 'Admin' ? onOpenNotifications : undefined}
             />
           </div>
-          <div className="p-6">
-            <NewProposalsPage
-              tasks={tasks} currentUser={effectiveUser} allUsers={allUsers} updateTask={updateTask} deleteTask={deleteTask}
-              setShowHistoryModal={setShowHistoryModal} setShowChatModal={setShowChatModal} showChatModal={showChatModal}
-              addTaskComment={addTaskComment} updateTaskCommentReactions={updateTaskCommentReactions}
-              setEditingTask={setEditingTask} setConfirmModal={setConfirmModal}
-              createNotification={createNotification}
+          <div className="p-6 space-y-6">
+             <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center"><Lock size={20} /></div>
+              <div>
+                <h4 className="text-sm font-black text-amber-800 uppercase">
+                  <span translate="no" className="notranslate">Danh sách chờ duyệt</span>
+                </h4>
+                <p className="text-[10px] text-amber-600 font-bold uppercase">
+                  <span translate="no" className="notranslate">Sau khi được duyệt, công việc sẽ tự động chuyển sang mục HOÀN THÀNH.</span>
+                </p>
+              </div>
+            </div>
+            
+            {/* Trình duyệt: Xóa hàng loạt */}
+            {activeTab === "pending_approval" && effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
+              <div className="flex items-center gap-2 mb-4 px-1">
+                <button
+                  onClick={handleBulkDelete}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg active:scale-95 border-b-4 border-red-800"
+                >
+                  <Trash2 size={16} strokeWidth={2.5} />
+                  <span translate="no" className="notranslate">Xóa {selectedTaskIds.length} mục đã chọn</span>
+                </button>
+              </div>
+            )}
+
+            <TaskList
+              tasks={sortedTasks.filter(t => t.waitingApproval)}
+              user={effectiveUser}
+              users={allUsers}
+              onUpdate={updateTask}
+              onDelete={deleteTask}
+              onViewHistory={(id) => setShowHistoryModal(id)}
+              onOpenChat={(id) => setShowChatModal(id)}
+              showChatModal={showChatModal}
+              onSendMessage={addTaskComment}
+              onReact={updateTaskCommentReactions}
+              onEdit={setEditingTask}
+              setConfirmModal={setConfirmModal}
+              approveTaskCompletion={approveTaskCompletion}
+              onNavigate={setActiveTab}
+              type="active"
+              isReadOnly={false}
+              highlightedTaskId={highlightedTaskId}
               selectedIds={selectedTaskIds}
               onToggleSelect={toggleTaskSelection}
               onBulkSelect={setBulkSelection}
-              approveTasksBulk={approveTasksBulk}
+              createNotification={createNotification}
             />
           </div>
         </motion.div>
       )}
 
       {activeTab === "completed_tasks" && (
-        <motion.div key="completed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col">
+        <motion.div key="completed" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col">
           <HolidayBanner />
           <div className="z-40">
             <Header 
               title={<span translate="no" className="notranslate">CÔNG VIỆC HOÀN THÀNH</span>} 
+              onAction={() => setShowTaskModal(true)}
+              actionLabel={<span translate="no" className="notranslate">NHẬP CÔNG VIỆC MỚI</span>}
+              actionIcon={Plus}
               onlineUsers={presence} 
               currentUserId={effectiveUser.id}
               adminUnreadCount={adminUnreadCount}
@@ -360,7 +499,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                   }`}
                 >
                   <UserIcon size={14} />
-                  Cá nhân ({tasks.filter(t => (t.status === "COMPLETED" || t.status === "Hoàn thành") && isUserTask(t, effectiveUser)).length})
+                  <span translate="no" className="notranslate">Cá nhân ({tasks.filter(t => ((t.status === "COMPLETED" || t.status === "Hoàn thành") || (t.cycleHistory && t.cycleHistory.length > 0)) && isUserTask(t, effectiveUser)).length})</span>
                 </button>
                 <button
                   onClick={() => setViewScope("all")}
@@ -369,21 +508,99 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                   }`}
                 >
                   <UsersIcon size={14} />
-                  Phòng QLCL ({tasks.filter(t => t.status === "COMPLETED" || t.status === "Hoàn thành").length})
+                  <span translate="no" className="notranslate">Phòng QLCL ({tasks.filter(t => (t.status === "COMPLETED" || t.status === "Hoàn thành") || (t.cycleHistory && t.cycleHistory.length > 0)).length})</span>
                 </button>
               </div>
               <div className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full border border-green-100">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[10px] text-green-700 font-black uppercase tracking-widest">
+                <span translate="no" className="notranslate text-[10px] text-green-700 font-black uppercase tracking-widest">
                   Đang xem: {viewScope === "mine" ? "Lịch sử cá nhân" : "Lịch sử toàn phòng"}
                 </span>
               </div>
             </div>
             <StatsSummary tasks={filteredTasks} />
+            <div className="flex items-center justify-between">
+              <h3 className="text-[14px] font-black text-gray-800 uppercase tracking-widest flex items-center gap-2 px-1">
+                <div className="w-1.5 h-6 bg-green-600 rounded-full" />
+                <span translate="no" className="notranslate">KẾT QUẢ CÔNG VIỆC HOÀN THÀNH</span>
+              </h3>
+            </div>
+            {/* Hoàn thành: Xóa hàng loạt & Xóa vĩnh viễn */}
+            {activeTab === "completed_tasks" && effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-3 px-1 mb-4"
+              >
+                <button
+                  onClick={handleBulkDelete}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600/80 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-md active:scale-95 border-b-4 border-red-800"
+                >
+                  <Trash2 size={16} strokeWidth={2.5} />
+                  <span translate="no" className="notranslate">CHUYỂN VÀO THÙNG RÁC ({selectedTaskIds.length})</span>
+                </button>
+                <button
+                  onClick={handlePermanentBulkDelete}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-900 transition-all shadow-lg active:scale-95 border-b-4 border-black/30"
+                >
+                  <Trash2 size={16} strokeWidth={2.5} />
+                  <span translate="no" className="notranslate">XÓA CƯỠNG BỨC ({selectedTaskIds.length})</span>
+                </button>
+              </motion.div>
+            )}
+
             <TaskList
-              tasks={sortedTasks.filter((t) => t.status === "COMPLETED")} user={effectiveUser} users={allUsers}
-              onUpdate={updateTask} onDelete={deleteTask} onViewHistory={(id) => setShowHistoryModal(id)}
-              onOpenChat={(id) => setShowChatModal(id)} showChatModal={showChatModal} onSendMessage={addTaskComment}
+              tasks={(() => {
+                const directCompleted = tasks.filter(t => (t.status === "COMPLETED" || t.status === "Hoàn thành") && !t.deletedAt);
+                const cycleItems: any[] = [];
+                tasks.forEach(t => {
+                  if (t.cycleHistory && t.cycleHistory.length > 0) {
+                    t.cycleHistory.forEach(entry => {
+                      cycleItems.push({
+                        ...t,
+                        id: `${t.id}_cycle_${entry.version}`,
+                        originalTaskId: t.id,
+                        actualEndDate: entry.completedAt,
+                        currentUpdate: entry.reportContent,
+                        objective: entry.objective || t.objective,
+                        version: entry.version,
+                        isCycleRecord: true
+                      });
+                    });
+                  }
+                });
+                
+                let combined = [...directCompleted, ...cycleItems];
+                
+                // Deduplicate bằng Fingerprint (Mã + Ngày + Nội dung) để loại bỏ hoàn toàn các bản ghi trùng lặp hình ảnh
+                const uniqueMap = new Map();
+                combined.forEach(item => {
+                  if (!item.id) return;
+                  
+                  // Tạo dấu vân tay duy nhất dựa trên nội dung thực tế hiển thị
+                  // Lấy 10 ký tự đầu của ngày để khớp cả ISO string và YYYY-MM-DD
+                  const fingerprint = `${item.code}_${(item.actualEndDate || '').substring(0, 10)}_${item.currentUpdate || ''}`;
+                  
+                  if (!uniqueMap.has(fingerprint)) {
+                    uniqueMap.set(fingerprint, item);
+                  } else {
+                    // Nếu trùng vân tay, ưu tiên giữ bản ghi có isCycleRecord vì nó chứa thông tin phiên bản lịch sử
+                    const existing = uniqueMap.get(fingerprint);
+                    if (item.isCycleRecord && !existing.isCycleRecord) {
+                      uniqueMap.set(fingerprint, item);
+                    }
+                  }
+                });
+                combined = Array.from(uniqueMap.values());
+
+                if (viewScope === 'mine') {
+                  combined = combined.filter(t => isUserTask(t, effectiveUser));
+                }
+                return combined.sort((a, b) => new Date(b.actualEndDate || 0).getTime() - new Date(a.actualEndDate || 0).getTime());
+              })()} 
+              user={effectiveUser} users={allUsers}
+              onUpdate={updateTask} onDelete={deleteTask} onViewHistory={(id) => setShowHistoryModal(id.split('_cycle_')[0])}
+              onOpenChat={(id) => setShowChatModal(id.split('_cycle_')[0])} showChatModal={showChatModal} onSendMessage={addTaskComment}
               onReact={updateTaskCommentReactions} onEdit={setEditingTask} setConfirmModal={setConfirmModal}
               type="completed" highlightedTaskId={highlightedTaskId}
               selectedIds={selectedTaskIds}
@@ -391,20 +608,6 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
               onBulkSelect={setBulkSelection}
             />
 
-            {effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
-              <div className="flex items-center gap-2 mt-4">
-                <motion.button
-                  initial={{ opacity: 0, x: -20, scale: 0.9 }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  exit={{ opacity: 0, x: -20, scale: 0.9 }}
-                  onClick={handleBulkDelete}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-200 active:scale-95 border-b-4 border-red-800"
-                >
-                  <Trash2 size={16} strokeWidth={2.5} />
-                  Xóa {selectedTaskIds.length} mục đã chọn
-                </motion.button>
-              </div>
-            )}
           </div>
         </motion.div>
       )}
@@ -470,18 +673,44 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
         </motion.div>
       )}
 
-      {activeTab === "trash" && effectiveUser?.role === "Admin" && (
+      {activeTab === "trash" && (effectiveUser?.role === "Admin" || effectiveUser?.role === "Staff") && (
         <motion.div key="trash" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
           <HolidayBanner />
-          <Header title="TRUNG TÂM XÓA (THÙNG RÁC)" onlineUsers={presence} currentUserId={effectiveUser.id} />
+          <div className="z-40">
+            <Header title={<span translate="no" className="notranslate">TRUNG TÂM XÓA (THÙNG RÁC)</span>} onlineUsers={presence} currentUserId={effectiveUser.id} />
+          </div>
           <div className="p-6 space-y-6">
             <div className="bg-red-50 p-4 rounded-xl border border-red-100 flex items-center gap-3">
               <div className="w-10 h-10 bg-red-100 text-red-600 rounded-full flex items-center justify-center"><Trash2 size={20} /></div>
               <div>
-                <h4 className="text-sm font-black text-red-800 uppercase">Lưu ý bảo mật</h4>
-                <p className="text-[10px] text-red-600 font-bold uppercase">Các công việc ở đây có thể được KHÔI PHỤC hoặc XÓA VĨNH VIỄN bởi Quản trị viên.</p>
+                <h4 className="text-sm font-black text-red-800 uppercase">
+                  <span translate="no" className="notranslate">Lưu ý bảo mật</span>
+                </h4>
+                <p className="text-[10px] text-red-600 font-bold uppercase">
+                  <span translate="no" className="notranslate">{effectiveUser.role === 'Admin' ? 'Các công việc ở đây có thể được KHÔI PHỤC hoặc XÓA VĨNH VIỄN bởi Quản trị viên.' : 'Các nhiệm vụ đã bị xóa đang nằm trong thùng rác này.'}</span>
+                </p>
               </div>
             </div>
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-black text-red-800 uppercase">
+                <span translate="no" className="notranslate">Danh sách lưu trữ</span>
+              </h4>
+            </div>
+            {effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center px-1 mb-4"
+              >
+                <button
+                  onClick={handlePermanentBulkDelete}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg active:scale-95 border-b-4 border-red-800"
+                >
+                  <Trash2 size={16} strokeWidth={2.5} />
+                  <span translate="no" className="notranslate">XÓA VĨNH VIỄN {selectedTaskIds.length} MỤC</span>
+                </button>
+              </motion.div>
+            )}
             <TaskList
               tasks={sortedTasks} user={effectiveUser} users={allUsers} onUpdate={updateTask} onDelete={permanentDeleteTask}
               onViewHistory={(id) => setShowHistoryModal(id)} onOpenChat={(id) => setShowChatModal(id)}
@@ -490,22 +719,9 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
               selectedIds={selectedTaskIds}
               onToggleSelect={toggleTaskSelection}
               onBulkSelect={setBulkSelection}
+              isReadOnly={effectiveUser.role !== 'Admin'}
             />
 
-            {effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
-              <div className="flex items-center gap-2 mt-4">
-                <motion.button
-                  initial={{ opacity: 0, x: -20, scale: 0.9 }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  exit={{ opacity: 0, x: -20, scale: 0.9 }}
-                  onClick={handlePermanentBulkDelete}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-200 active:scale-95 border-b-4 border-red-800"
-                >
-                  <Trash2 size={16} strokeWidth={2.5} />
-                  Xóa vĩnh viễn {selectedTaskIds.length} mục đã chọn
-                </motion.button>
-              </div>
-            )}
           </div>
         </motion.div>
       )}

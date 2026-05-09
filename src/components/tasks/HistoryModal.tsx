@@ -34,7 +34,7 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
     if (!acc[weekKey]) {
       acc[weekKey] = {
         weekNumber,
-        range: `${format(weekStart, 'dd/MM')} - ${format(weekEnd, 'dd/MM/yyyy')}`,
+        range: `${format(weekStart, 'dd/MM')} - ${format(weekEnd, 'dd/MM/yy')}`,
         items: []
       };
     }
@@ -119,18 +119,18 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
                                 <div className="flex items-center gap-1.5 text-gray-400">
                                   <Clock size={12} />
                                   <span translate="no" className="notranslate text-[10px] font-bold uppercase tracking-tighter">
-                                    {format(item.date, 'HH:mm - dd/MM/yyyy', { locale: vi })} ({format(item.date, 'EEEE', { locale: vi })})
+                                    <span translate="no" className="notranslate">{format(item.date, 'HH:mm - dd/MM/yy', { locale: vi })} ({format(item.date, 'EEEE', { locale: vi })})</span>
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-1.5 bg-gray-100 px-2 py-0.5 rounded-sm">
                                   <UserIcon size={10} className="text-gray-500" />
                                   <span translate="no" className="notranslate text-[9px] font-black text-gray-600 uppercase">
-                                    {author?.name || 'HỆ THỐNG'}
+                                    <span translate="no" className="notranslate">{author?.name || 'HỆ THỐNG'}</span>
                                   </span>
                                 </div>
                               </div>
                               <span translate="no" className="notranslate text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-sm border border-blue-100">
-                                V{item.version || (week.items.length - itemIdx)}
+                                <span translate="no" className="notranslate">V{item.version || (week.items.length - itemIdx)}</span>
                               </span>
                             </div>
 
@@ -152,7 +152,7 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
             <div className="h-full flex flex-col items-center justify-center opacity-30 py-20">
               <History size={48} className="mb-4" />
               <span translate="no" className="notranslate font-black text-xs uppercase tracking-widest">
-                Chưa có dữ liệu lịch sử
+                <span translate="no" className="notranslate">Chưa có dữ liệu lịch sử</span>
               </span>
             </div>
           )}

@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { motion, useMotionValue, useTransform } from 'motion/react';
-import { MessageSquare, Send, X, Smile } from 'lucide-react';
+import { MessageSquare, Send, X, Smile, Image, Paperclip } from 'lucide-react';
 import { Task, User } from '../../types';
 import { formatDateTime } from '../../lib/dateUtils';
 import { ReactionPicker, ReactionBadge } from '../common/ReactionPicker';
+import { EmojiPicker } from '../common/EmojiPicker';
 import { Avatar } from '../common/Avatar';
 import { Portal } from '../common/Portal';
 
@@ -22,9 +23,32 @@ interface TaskChatProps {
 export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onClose, anchorRef }: TaskChatProps) => {
   const [newMessage, setNewMessage] = useState('');
   const [showEmojiFor, setShowEmojiFor] = useState<string | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiTriggerRef = useRef<HTMLButtonElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const chatRef = useRef<HTMLDivElement>(null);
+  
+  const isLNT = currentUser.name === 'Lê Nhật Trường' || currentUser.personalEmail === 'lenhattruong.tpp@gmail.com';
+  const canAttach = currentUser.role === 'Admin' || currentUser.role === 'Trưởng Phòng' || isLNT;
+
+  const insertEmoji = (emoji: string) => {
+    if (!inputRef.current) return;
+    const start = inputRef.current.selectionStart;
+    const end = inputRef.current.selectionEnd;
+    const text = newMessage;
+    const before = text.substring(0, start);
+    const after = text.substring(end);
+    setNewMessage(before + emoji + after);
+    
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        const newPos = start + emoji.length;
+        inputRef.current.setSelectionRange(newPos, newPos);
+      }
+    }, 10);
+  };
   
   // Position state for global anchoring
   const [anchorPos, setAnchorPos] = useState({ top: 0, left: 0, width: 0, height: 0 });
@@ -219,11 +243,50 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
 
         {/* Input area - Ultra Slim */}
         <div className="p-2 border-t border-gray-100 bg-white rounded-b-lg">
+          <div className="flex items-center gap-2 mb-1.5 px-1">
+            <button 
+              ref={emojiTriggerRef}
+              onClick={() => setShowEmojiPicker(true)}
+              className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-blue-500 transition-colors flex items-center gap-1"
+            >
+              <Smile size={16} />
+              <span translate="no" className="notranslate text-[9px] font-bold uppercase truncate">
+                <span translate="no" className="notranslate">Emoji</span>
+              </span>
+            </button>
+            
+            {canAttach && (
+              <div className="flex items-center gap-1 border-l border-gray-100 ml-1 pl-2">
+                <button 
+                  className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-blue-500 transition-colors"
+                  title="Hình ảnh"
+                  onClick={() => alert("Tính năng gửi hình ảnh đang được đồng bộ...")}
+                >
+                  <Image size={15} />
+                </button>
+                <button 
+                  className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-blue-500 transition-colors"
+                  title="Đính kèm"
+                  onClick={() => alert("Tính năng đính kèm tài liệu đang được đồng bộ...")}
+                >
+                  <Paperclip size={15} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <EmojiPicker 
+            isOpen={showEmojiPicker}
+            onClose={() => setShowEmojiPicker(false)}
+            onSelect={insertEmoji}
+            anchorRect={emojiTriggerRef.current?.getBoundingClientRect()}
+          />
+
           <div className="relative flex gap-1.5 items-center bg-gray-50 rounded p-1 border border-gray-100">
             <textarea
               ref={inputRef}
-              className="flex-1 bg-transparent py-1 px-1.5 text-[12px] outline-none transition-all resize-none h-[32px] leading-tight text-gray-700 font-medium placeholder:text-gray-300"
-              placeholder="Tin nhắn..."
+              className="flex-1 bg-transparent py-1 px-1.5 text-[12px] outline-none transition-all resize-none h-[32px] leading-tight text-gray-700 font-medium placeholder:text-gray-300 notranslate"
+              placeholder="Nhập nội dung thảo luận mới..."
               value={newMessage}
               translate="no"
               onChange={(e) => setNewMessage(e.target.value)}

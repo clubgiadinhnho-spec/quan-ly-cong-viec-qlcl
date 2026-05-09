@@ -218,7 +218,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                     <span translate="no" className="notranslate">{saving ? 'ĐANG LƯU' : 'LƯU'}</span>
                   </button>
                   <button onClick={() => setIsEditing(false)} className="h-10 px-6 bg-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-300 transition-colors">
-                    HỦY
+                    <span translate="no" className="notranslate">HỦY</span>
                   </button>
                 </div>
               )}
@@ -286,7 +286,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                   <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-2">
                     <div className="flex items-center gap-2 mb-2 opacity-50">
                       <Shield size={12} className="text-slate-400" />
-                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">CHỨC DANH</span>
+                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">CHỨC DANH <span className="text-red-500">*</span></span>
                     </div>
                     {!isEditing ? (
                       <div className="h-5 flex items-center">
@@ -312,7 +312,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                   <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-2">
                     <div className="flex items-center gap-2 mb-2 opacity-50">
                       <Phone size={12} className="text-slate-400" />
-                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">ĐIỆN THOẠI</span>
+                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">SỐ ĐIỆN THOẠI <span className="text-red-500">*</span></span>
                     </div>
                     {!isEditing ? (
                       <div className="h-5 flex items-center">
@@ -332,7 +332,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                   <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-5">
                     <div className="flex items-center gap-2 mb-2 opacity-50">
                       <Mail size={12} className="text-slate-400" />
-                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">HỆ THỐNG EMAIL</span>
+                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">EMAIL CÔNG TY <span className="text-red-500">*</span></span>
                     </div>
                     {!isEditing ? (
                       <div translate="no" className="notranslate space-y-1 text-slate-900">
@@ -370,7 +370,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                   <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-3">
                     <div className="flex items-center gap-2 mb-2 opacity-50">
                       <Lock size={12} className="text-blue-500" />
-                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">{!isEditing ? 'MẬT KHẨU' : 'CẬP NHẬT MẬT KHẨU'}</span>
+                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">{!isEditing ? 'MẬT KHẨU' : 'CẬP NHẬT MẬT KHẨU'} <span className="text-red-500">*</span></span>
                     </div>
                     <div className="flex items-center justify-between">
                       {!isEditing ? (
@@ -387,12 +387,14 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                            <input 
                              type="password" placeholder="Mật khẩu mới" value={passwordData.newPassword}
                              onChange={e => setPasswordData({...passwordData, newPassword: e.target.value})}
-                             className="w-full text-[12px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-2 py-0.5"
+                             className="w-full text-[12px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-2 py-0.5 placeholder:notranslate"
+                             translate="no"
                            />
                            <input 
                              type="password" placeholder="Xác nhận" value={passwordData.confirmPassword}
                              onChange={e => setPasswordData({...passwordData, confirmPassword: e.target.value})}
-                             className="w-full text-[12px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-2 py-0.5"
+                             className="w-full text-[12px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-2 py-0.5 placeholder:notranslate"
+                             translate="no"
                            />
                         </div>
                       )}
@@ -422,23 +424,26 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                 </div>
                 <div className="space-y-4">
                   {myTasks.length === 0 ? (
-                    <p className="text-center text-gray-400 py-10 italic">Chưa có dữ liệu công việc.</p>
+                    <p className="text-center text-gray-400 py-10 italic">
+                      <span translate="no" className="notranslate">Chưa có dữ liệu công việc.</span>
+                    </p>
                   ) : (
                     myTasks.slice(0, 5).map((t) => (
                       <div key={t.id} className="p-5 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-between group hover:bg-white hover:border-blue-200 hover:shadow-md transition-all">
                         <div className="space-y-1">
                           <p translate="no" className="notranslate text-sm font-bold text-gray-800 group-hover:text-blue-600 transition-colors uppercase">{t.title}</p>
                           <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-black text-blue-500/60 uppercase">MÃ: {t.code}</span>
+                            <span translate="no" className="notranslate text-[10px] font-black text-blue-500/60 uppercase">MÃ: {t.code}</span>
                             <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1">
-                              <Clock size={10} /> HẠN: {formatDate(t.expectedEndDate)}
+                              <Clock size={10} /> 
+                              <span translate="no" className="notranslate">HẠN: {formatDate(t.expectedEndDate)}</span>
                             </span>
                           </div>
                         </div>
                         <span className={`text-[9px] font-black px-3 py-1 rounded-lg uppercase tracking-widest border ${
                           t.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'
                         }`}>
-                          {t.status === 'COMPLETED' ? 'HOÀN THÀNH' : 'ĐANG XỬ LÝ'}
+                          <span translate="no" className="notranslate">{t.status === 'COMPLETED' ? 'HOÀN THÀNH' : 'ĐANG XỬ LÝ'}</span>
                         </span>
                       </div>
                     ))
@@ -457,11 +462,13 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
                  <div className="prose prose-sm prose-blue text-xs leading-relaxed text-gray-700 whitespace-pre-wrap font-medium notranslate" translate="no">
                    {advice}
                  </div>
-                 <button onClick={getAdvice} className="mt-6 text-[10px] font-black text-blue-600 hover:underline">LÀM MỚI PHÂN TÍCH</button>
+                 <button onClick={getAdvice} className="mt-6 text-[10px] font-black text-blue-600 hover:underline border-none bg-transparent cursor-pointer">
+                   <span translate="no" className="notranslate">LÀM MỚI PHÂN TÍCH</span>
+                 </button>
               </div>
             ) : (
-              <button onClick={getAdvice} disabled={loadingAdvice} className="w-full bg-gray-900 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all disabled:opacity-50 text-xs uppercase tracking-widest">
-                {loadingAdvice ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : 'BẮT ĐẦU PHÂN TÍCH AI'}
+              <button onClick={getAdvice} disabled={loadingAdvice} className="w-full bg-gray-900 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all disabled:opacity-50 text-xs uppercase tracking-widest shadow-xl active:scale-95">
+                {loadingAdvice ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span translate="no" className="notranslate">BẮT ĐẦU PHÂN TÍCH AI</span>}
               </button>
             )}
           </div>

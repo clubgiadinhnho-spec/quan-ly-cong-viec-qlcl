@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User } from '../../types';
-import { ClipboardList, User as UserIcon, CheckCircle2, BarChart3, LogOut, MessageSquare, Users, Database, Sparkles, Trash2, ChevronRight, Tag } from 'lucide-react';
+import { ClipboardList, User as UserIcon, CheckCircle2, BarChart3, LogOut, MessageSquare, Users, Database, Sparkles, Trash2, ChevronRight, Tag, Clock, Workflow, LayoutGrid, ShieldAlert, CheckCheck, PlusSquare } from 'lucide-react';
 
 import { Avatar } from '../common/Avatar';
 import { GroupChatIcon, GroupDiscussionIcon } from '../common/Icons';
@@ -12,6 +12,7 @@ interface SidebarProps {
   setActiveTab: (tab: string) => void;
   onLogout: () => void;
   pendingTasksCount?: number;
+  pendingApprovalCount?: number;
   activeTasksCount?: number;
   completedTasksCount?: number;
   totalStaffCount?: number;
@@ -19,6 +20,9 @@ interface SidebarProps {
   trashTasksCount?: number;
   activeTasksAlert?: boolean;
   pendingTasksAlert?: boolean;
+  pendingApprovalAlert?: boolean;
+  completedTasksAlert?: boolean;
+  trashTasksAlert?: boolean;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
 }
@@ -29,6 +33,7 @@ export const Sidebar = ({
   setActiveTab, 
   onLogout, 
   pendingTasksCount = 0, 
+  pendingApprovalCount = 0,
   activeTasksCount = 0,
   completedTasksCount = 0,
   totalStaffCount = 0,
@@ -36,9 +41,47 @@ export const Sidebar = ({
   trashTasksCount = 0,
   activeTasksAlert = false,
   pendingTasksAlert = false,
+  pendingApprovalAlert = false,
+  completedTasksAlert = false,
+  trashTasksAlert = false,
   isCollapsed,
   onToggleCollapse,
 }: SidebarProps) => {
+  const prevCounts = React.useRef<Record<string, number>>({});
+  const [bouncingItems, setBouncingItems] = React.useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const currentCounts: Record<string, number> = {
+      pending_confirmation: pendingTasksCount,
+      tasks: activeTasksCount,
+      pending_approval: pendingApprovalCount,
+      completed_tasks: completedTasksCount,
+      trash: trashTasksCount,
+      staff_list: totalStaffCount,
+    };
+
+    const newBouncingItems = { ...bouncingItems };
+    let hasNewBounce = false;
+
+    Object.entries(currentCounts).forEach(([id, count]) => {
+      if (count > (prevCounts.current[id] ?? count)) {
+        newBouncingItems[id] = true;
+        hasNewBounce = true;
+      }
+      prevCounts.current[id] = count;
+    });
+
+    if (hasNewBounce) {
+      setBouncingItems(newBouncingItems);
+    }
+  }, [pendingTasksCount, activeTasksCount, pendingApprovalCount, completedTasksCount, trashTasksCount, totalStaffCount]);
+
+  useEffect(() => {
+    if (bouncingItems[activeTab]) {
+      setBouncingItems(prev => ({ ...prev, [activeTab]: false }));
+    }
+  }, [activeTab]);
+
   const [sidebarColor, setSidebarColor] = useState(() => {
     return localStorage.getItem('qlcl_sidebar_color') || 'white';
   });
@@ -103,58 +146,83 @@ export const Sidebar = ({
           </div>
         </div>
         
-        <nav className="space-y-1 flex-none mb-4">
+        <nav className="space-y-1 flex-none mb-4 relative">
+          {!isCollapsed && (
+            <div className="px-3.5 mb-2 mt-1 relative">
+              {/* Decorative line from title to first item */}
+              <div className={`absolute left-[23.5px] top-7 w-0.5 h-4 ${isDark ? 'bg-white/10' : 'bg-gray-200'} z-0`} />
+              
+              <div className="flex items-center gap-2.5">
+                <Workflow size={20} className={`${isDark ? 'text-white/40' : 'text-blue-400'} shrink-0`} />
+                <span translate="no" className={`notranslate text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-white/90' : 'text-blue-900'} opacity-80`}>
+                  QUY TRÌNH TÁC NGHIỆP
+                </span>
+              </div>
+            </div>
+          )}
           {[
-            { id: 'tasks', label: <span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>, icon: ClipboardList, count: activeTasksAlert ? activeTasksCount : 0, color: 'bg-orange-600 text-white shadow-orange-100', isAlert: activeTasksAlert },
-            { id: 'pending_confirmation', label: <span translate="no" className="notranslate"> ĐỀ XUẤT MỚI</span>, icon: Sparkles, count: pendingTasksCount, color: 'bg-emerald-500 text-white shadow-emerald-200', isAlert: pendingTasksAlert, isSubItem: true },
-            { id: 'completed_tasks', label: <span translate="no" className="notranslate">CÔNG VIỆC HOÀN THÀNH</span>, icon: CheckCircle2, count: completedTasksCount, color: 'bg-indigo-500 text-white shadow-indigo-100', isSubItem: true },
+            { id: 'pending_confirmation', label: <span translate="no" className="notranslate">ĐỀ XUẤT MỚI</span>, icon: Sparkles, count: pendingTasksCount, color: 'bg-emerald-500', isAlert: bouncingItems['pending_confirmation'], isSubItem: true },
+            { id: 'tasks', label: <span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>, icon: LayoutGrid, count: activeTasksCount, color: 'bg-red-600', isAlert: bouncingItems['tasks'], isSubItem: true },
+            { id: 'pending_approval', label: <span translate="no" className="notranslate">TRÌNH DUYỆT</span>, icon: ShieldAlert, count: pendingApprovalCount, color: 'bg-orange-500', isAlert: bouncingItems['pending_approval'], isSubItem: true },
+            { id: 'completed_tasks', label: <span translate="no" className="notranslate">CÔNG VIỆC HOÀN THÀNH</span>, icon: CheckCheck, count: completedTasksCount, color: 'bg-blue-600', isAlert: bouncingItems['completed_tasks'], isSubItem: true },
+            { id: 'trash', label: <span translate="no" className="notranslate">TRUNG TÂM XÓA</span>, icon: Trash2, count: trashTasksCount, color: 'bg-red-600', isAlert: bouncingItems['trash'], isSubItem: true },
             ...((user.role === 'Admin')
-              ? [{ id: 'staff_list', label: <span translate="no" className="notranslate">QUẢN LÝ NHÂN SỰ</span>, icon: Users, count: totalStaffCount, color: 'bg-amber-500 text-white shadow-amber-100' }] 
+              ? [{ id: 'staff_list', label: <span translate="no" className="notranslate">QUẢN LÝ NHÂN SỰ</span>, icon: Users, count: totalStaffCount, color: 'bg-orange-500', isAlert: bouncingItems['staff_list'] }] 
               : []),
             { id: 'profile', label: <span translate="no" className="notranslate">TRANG CÁ NHÂN</span>, icon: UserIcon },
-            { id: 'reports', label: <span translate="no" className="notranslate">BẢNG CÁO THÁNG</span>, icon: BarChart3 },
+            { id: 'reports', label: <span translate="no" className="notranslate">BÁO CÁO THÁNG</span>, icon: BarChart3 },
             ...(user.role === 'Admin'
               ? [
-                  { id: 'category_management', label: <span translate="no" className="notranslate">QUẢN LÝ DANH MỤC</span>, icon: Tag, color: 'bg-blue-600 text-white shadow-blue-100' },
-                  { id: 'trash', label: <span translate="no" className="notranslate">TRUNG TÂM XÓA</span>, icon: Trash2, count: trashTasksCount, color: 'bg-red-500 text-white shadow-red-200' },
+                  { id: 'category_management', label: <span translate="no" className="notranslate">MÃ HÓA CÔNG VIỆC</span>, icon: Tag, color: 'bg-blue-600 text-white shadow-blue-100' },
                   { id: 'system_history', label: <span translate="no" className="notranslate">NHẬT KÝ HỆ THỐNG</span>, icon: Database, color: 'bg-indigo-600 text-white shadow-indigo-100' }
                 ]
               : []),
-          ].map((item: any) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              title={isCollapsed ? item.label.props.children : undefined}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center p-3' : 'gap-2.5 py-2 px-3.5'} text-lg font-medium rounded-xl transition-all relative ${
-                activeTab === item.id 
-                  ? (isDark ? 'bg-white/20 text-white shadow-sm' : 'bg-blue-50 text-blue-700 shadow-sm')
-                  : (isDark ? 'text-white/60 hover:bg-white/10 hover:text-white' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900')
-              }`}
-            >
-              <item.icon size={20} className="shrink-0" />
-              {!isCollapsed && (
-                <div className="flex-1 text-left uppercase text-[11px] font-black whitespace-nowrap overflow-hidden truncate flex items-center">
-                  {item.label}
-                  {item.id === 'tasks' && item.count > 0 && (
-                    <div className="ml-auto bg-red-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center animate-bounce shadow-md border border-white/20">
-                      <span translate="no" className="notranslate font-black">
-                        <span translate="no" className="notranslate">{item.count}</span>
-                      </span>
+          ].map((item: any, idx: number, arr: any[]) => {
+            // Logic để vẽ đường kết nối giữa các item có isSubItem (quy trình công việc)
+            const isWorkflowItem = item.isSubItem && idx < 5;
+            const hasNextWorkflowItem = isWorkflowItem && idx < 4;
+
+            return (
+              <div key={item.id} className="relative group/nav">
+                {/* Connector Line */}
+                {hasNextWorkflowItem && !isCollapsed && (
+                  <div className={`absolute left-[23px] top-8 w-0.5 h-6 ${isDark ? 'bg-white/10' : 'bg-gray-200'} z-0`} />
+                )}
+                
+                <button
+                  onClick={() => setActiveTab(item.id)}
+                  title={isCollapsed ? item.label.props.children : undefined}
+                  className={`w-full flex items-center ${isCollapsed ? 'justify-center p-3' : 'gap-2.5 py-2 px-3.5'} text-lg font-medium rounded-xl transition-all relative z-10 ${
+                    activeTab === item.id 
+                      ? (isDark ? 'bg-white/20 text-white shadow-sm' : 'bg-blue-50 text-blue-700 shadow-sm')
+                      : (isDark ? 'text-white/60 hover:bg-white/10 hover:text-white' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900')
+                  } ${item.isSubItem && !isCollapsed ? 'pl-6' : ''} ${!isCollapsed && idx === 5 ? 'mt-5' : ''}`}
+                >
+                  <div className={`shrink-0 flex items-center justify-center transition-transform ${activeTab === item.id ? 'scale-110' : 'group-hover/nav:scale-110'}`}>
+                    {item.isSubItem && activeTab === item.id ? (
+                      <div className={`w-1 h-4 absolute -left-2 rounded-r-full ${isDark ? 'bg-white' : 'bg-blue-600'}`} />
+                    ) : null}
+                    <item.icon size={item.isSubItem ? 18 : 20} className={`${activeTab === item.id ? (isDark ? 'text-white' : 'text-blue-600') : ''}`} />
+                  </div>
+                  
+                  {!isCollapsed && (
+                    <div className={`flex-1 text-left uppercase ${item.isSubItem ? 'text-[10px]' : 'text-[11px]'} font-black whitespace-nowrap overflow-hidden truncate flex items-center`}>
+                      {item.label}
                     </div>
                   )}
-                </div>
-              )}
-              {item.count !== undefined && item.count > 0 && item.id !== 'tasks' && (
-                <span className={`${isCollapsed ? 'absolute -top-[5px] -right-[5px]' : ''} min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-lg shrink-0 ${
-                  item.id === 'tasks' && item.isAlert ? 'bg-orange-500 animate-pulse' : (item.color || 'bg-gray-500 text-white')
-                } ${item.isAlert && item.id !== 'tasks' ? 'animate-bounce' : ''}`}>
-                  <span translate="no" className="notranslate font-bold text-[10px] text-white">
-                    {item.count}
-                  </span>
-                </span>
-              )}
-            </button>
-          ))}
+                  {item.count !== undefined && (
+                    <span className={`${isCollapsed ? 'absolute -top-[5px] -right-[5px]' : 'ml-auto'} min-w-[22px] h-5.5 px-1.5 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-lg shrink-0 ${
+                      item.color || 'bg-gray-500'
+                    } text-white ${item.isAlert ? 'animate-bounce' : ''}`}>
+                      <span translate="no" className="notranslate font-normal text-[11px]">
+                        {item.count}
+                      </span>
+                    </span>
+                  )}
+                </button>
+              </div>
+            );
+          })}
         </nav>
 
         {/* Group Chat Moved Below Nav */}
@@ -170,7 +238,7 @@ export const Sidebar = ({
               </div>
               {groupUnreadCount > 0 && isCollapsed && (
                 <div className="absolute -top-1 -right-1 bg-blue-600 text-white min-w-[22px] h-5.5 px-1 rounded-full flex items-center justify-center border-2 border-white shadow-lg animate-bounce z-10">
-                  <span translate="no" className="notranslate text-white text-[9px] font-black">{groupUnreadCount}</span>
+                  <span translate="no" className="notranslate text-white text-[11px] font-normal">{groupUnreadCount}</span>
                 </div>
               )}
             </div>
@@ -186,10 +254,10 @@ export const Sidebar = ({
                     <span translate="no" className="notranslate">Cộng đồng QLCL</span>
                   </p>
                 </div>
-                <div className="flex items-center gap-1 flex-none relative">
+                <div className="flex items-center gap-1 flex-none relative pr-0.5">
                   {groupUnreadCount > 0 && !isCollapsed && (
-                    <div className="bg-blue-600 text-white min-w-[24px] h-6 px-2 rounded-full flex items-center justify-center shadow-lg shadow-blue-200 animate-bounce border border-white">
-                      <span translate="no" className="notranslate text-white text-[10px] font-bold">
+                    <div className="bg-blue-600 text-white min-w-[22px] h-5.5 px-1.5 rounded-full flex items-center justify-center shadow-lg shadow-blue-200 animate-bounce border-2 border-white">
+                      <span translate="no" className="notranslate text-white text-[11px] font-normal">
                         {groupUnreadCount}
                       </span>
                     </div>
@@ -252,7 +320,7 @@ export const Sidebar = ({
             <LogOut size={isCollapsed ? 20 : 18} />
             {/* Nút Đăng xuất Tooltip */}
             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest rounded-md opacity-0 group-hover/logout:opacity-100 pointer-events-none transition-all duration-200 whitespace-nowrap z-[110] shadow-xl translate-y-1 group-hover/logout:translate-y-0">
-              Đăng xuất
+              <span translate="no" className="notranslate">Đăng xuất</span>
               <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
             </div>
           </button>

@@ -33,6 +33,8 @@ import { ReactionPicker, ReactionBadge } from '../components/common/ReactionPick
 import { Avatar } from '../components/common/Avatar';
 import imageCompression from 'browser-image-compression';
 
+import { EmojiPicker } from '../components/common/EmojiPicker';
+
 interface GroupChatPageProps {
   currentUser: User;
   users: User[];
@@ -102,6 +104,38 @@ export const GroupChatPage = ({
   const [showMentionList, setShowMentionList] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
   const [filteredMentionUsers, setFilteredMentionUsers] = useState<User[]>([]);
+
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiTriggerRef = useRef<HTMLButtonElement>(null);
+  const isLNT = currentUser.name === 'Lê Nhật Trường' || currentUser.personalEmail === 'lenhattruong.tpp@gmail.com';
+  const canAttach = currentUser.role === 'Admin' || currentUser.role === 'Trưởng Phòng' || isLNT;
+
+  const insertEmoji = (emoji: string) => {
+    if (!inputRef.current) return;
+    
+    inputRef.current.focus();
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      
+      if (inputRef.current.contains(range.commonAncestorContainer)) {
+        range.deleteContents();
+        const textNode = document.createTextNode(emoji);
+        range.insertNode(textNode);
+        
+        range.setStartAfter(textNode);
+        range.setEndAfter(textNode);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        setHasContent(true);
+        return;
+      }
+    }
+    
+    inputRef.current.innerHTML += emoji;
+    setHasContent(true);
+  };
 
   // Update lastReadAt when topic is selected
   useEffect(() => {
@@ -1162,19 +1196,42 @@ const handleCreateTopic = () => {
 
                         <div className="flex items-center gap-1 shrink-0 mb-0.5">
                           <button 
-                            onClick={() => imageInputRef.current?.click()}
-                            className="w-12 h-12 text-slate-400 rounded-xl flex items-center justify-center hover:bg-white hover:text-blue-600 hover:shadow-md transition-all active:scale-95"
-                            title="Đính kèm ảnh"
+                            ref={emojiTriggerRef}
+                            onClick={() => setShowEmojiPicker(true)}
+                            className="w-10 h-10 text-slate-400 rounded-xl flex flex-col items-center justify-center hover:bg-white hover:text-blue-600 hover:shadow-md transition-all active:scale-95 gap-0.5"
+                            title="Biểu cảm"
                           >
-                            <ImageIcon size={24} />
+                            <Smile size={20} />
+                            <span translate="no" className="notranslate text-[8px] font-black uppercase">Emoji</span>
                           </button>
-                          <button 
-                            onClick={() => fileInputRef.current?.click()}
-                            className="w-12 h-12 text-slate-400 rounded-xl flex items-center justify-center hover:bg-white hover:text-blue-600 hover:shadow-md transition-all active:scale-95"
-                            title="Đính kèm tệp"
-                          >
-                            <Paperclip size={24} />
-                          </button>
+
+                          <EmojiPicker 
+                            isOpen={showEmojiPicker}
+                            onClose={() => setShowEmojiPicker(false)}
+                            onSelect={insertEmoji}
+                            anchorRect={emojiTriggerRef.current?.getBoundingClientRect()}
+                          />
+
+                          {canAttach && (
+                            <>
+                              <button 
+                                onClick={() => imageInputRef.current?.click()}
+                                className="w-10 h-10 text-slate-400 rounded-xl flex flex-col items-center justify-center hover:bg-white hover:text-blue-600 hover:shadow-md transition-all active:scale-95 gap-0.5"
+                                title="Đính kèm ảnh"
+                              >
+                                <ImageIcon size={20} />
+                                <span translate="no" className="notranslate text-[8px] font-black uppercase">Ảnh</span>
+                              </button>
+                              <button 
+                                onClick={() => fileInputRef.current?.click()}
+                                className="w-10 h-10 text-slate-400 rounded-xl flex flex-col items-center justify-center hover:bg-white hover:text-blue-600 hover:shadow-md transition-all active:scale-95 gap-0.5"
+                                title="Đính kèm tệp"
+                              >
+                                <Paperclip size={20} />
+                                <span translate="no" className="notranslate text-[8px] font-black uppercase">Tệp</span>
+                              </button>
+                            </>
+                          )}
                         </div>
 
                         <div 

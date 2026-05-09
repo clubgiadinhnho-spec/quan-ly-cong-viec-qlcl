@@ -19,7 +19,8 @@ import {
   runTransaction
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { User, UserPresence, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport, LogEntry, DiscussionTopic, DiscussionMessage, TaskCategory } from '../types';
+import { calculateNextDeadline } from '../lib/dateUtils';
+import { User, UserPresence, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport, LogEntry, DiscussionTopic, DiscussionMessage, TaskCategory, CycleHistoryEntry } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
 export const useFirebaseData = (currentUserId?: string) => {
@@ -266,44 +267,47 @@ export const useFirebaseData = (currentUserId?: string) => {
       }
     );
 
-    // Listen to Private Messages
+    // Listen to Private Messages - Tách query OR để tránh lỗi Internal Assertion của Firestore trong sandbox
     const firebaseUid = auth.currentUser?.uid || currentUserId;
     
-    if (!firebaseUid) return;
+    let unsubPrivateSent = () => {};
+    let unsubPrivateReceived = () => {};
 
-    const qPrivate = query(
-      collection(db, 'direct_messages'), 
-      or(
-        where('senderId', '==', firebaseUid),
+    if (firebaseUid) {
+      const qSent = query(
+        collection(db, 'direct_messages'), 
+        where('senderId', '==', firebaseUid)
+      );
+
+      const qReceived = query(
+        collection(db, 'direct_messages'), 
         where('receiverId', '==', firebaseUid)
-      )
-    );
+      );
 
-    const unsubPrivate = onSnapshot(qPrivate, (snapshot) => {
-      const now = new Date().toISOString();
-      const messagesData = snapshot.docs.map(doc => {
-        const data = doc.data();
-        let ts: string;
-        if (data.timestamp?.toDate) {
-          ts = data.timestamp.toDate().toISOString();
-        } else if (typeof data.timestamp === 'string') {
-          ts = data.timestamp;
-        } else {
-          ts = now;
-        }
-        return {
-          ...data,
-          id: doc.id,
-          timestamp: ts
-        } as PrivateMessage;
-      }).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-      
-      setPrivateMessages(messagesData);
-    }, (error) => {
-      if (error.code !== 'permission-denied') {
-        handleFirestoreError(error, OperationType.GET, 'direct_messages');
-      }
-    });
+      const handlePrivateSnapshot = (snapshot: any, type: 'sent' | 'received') => {
+        setPrivateMessages(prev => {
+          const others = prev.filter(m => type === 'sent' ? m.receiverId === firebaseUid : m.senderId === firebaseUid);
+          const current = snapshot.docs.map((doc: any) => ({
+            ...doc.data(),
+            id: doc.id,
+            timestamp: doc.data().timestamp?.toDate ? doc.data().timestamp.toDate().toISOString() : (doc.data().timestamp || new Date().toISOString())
+          }));
+          
+          const combined = [...others, ...current];
+          // Lọc trùng ID và sắp xếp
+          const unique = Array.from(new Map(combined.map(m => [m.id, m])).values());
+          return unique.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        });
+      };
+
+      unsubPrivateSent = onSnapshot(qSent, (s) => handlePrivateSnapshot(s, 'sent'), (e) => {
+        if (e.code !== 'permission-denied') handleFirestoreError(e, OperationType.GET, 'direct_messages_sent');
+      });
+
+      unsubPrivateReceived = onSnapshot(qReceived, (s) => handlePrivateSnapshot(s, 'received'), (e) => {
+        if (e.code !== 'permission-denied') handleFirestoreError(e, OperationType.GET, 'direct_messages_received');
+      });
+    }
 
     // Listen to Extra Users - ADMIN ONLY
     const isAdmin = [
@@ -359,7 +363,8 @@ export const useFirebaseData = (currentUserId?: string) => {
       discMessagesUnsubscribe();
       reportsUnsubscribe();
       logsUnsubscribe();
-      unsubPrivate();
+      unsubPrivateSent();
+      unsubPrivateReceived();
       extraUsersUnsubscribe();
       profilesUnsubscribe();
       presenceUnsubscribe();
@@ -440,14 +445,47 @@ export const useFirebaseData = (currentUserId?: string) => {
 
   const updateTask = useCallback(async (id: string, updates: Partial<Task>, modifierName?: string) => {
     try {
-      const taskRef = doc(db, 'tasks', id);
-      const existingTask = tasks.find(t => t.id === id);
+      let targetId = id;
+      let cycleVersion: number | null = null;
+      
+      // Kiểm tra xem ID có phải là bản ghi lịch sử chu kỳ không (virtual ID)
+      if (id.includes('_cycle_')) {
+        const parts = id.split('_cycle_');
+        targetId = parts[0];
+        cycleVersion = parseInt(parts[1], 10);
+      }
+
+      const taskRef = doc(db, 'tasks', targetId);
+      const existingTask = tasks.find(t => t.id === targetId);
       const taskCode = existingTask?.code || 'N/A';
 
       const cleanUpdates = Object.fromEntries(
         Object.entries(updates).filter(([_, v]) => v !== undefined)
       );
 
+      // Nếu là bản ghi chu kỳ, xử lý cập nhật mảng cycleHistory
+      if (cycleVersion !== null && existingTask) {
+        const isHistoryFieldUpdate = updates.currentUpdate !== undefined || updates.objective !== undefined;
+        
+        if (isHistoryFieldUpdate) {
+          const newCycleHistory = [...(existingTask.cycleHistory || [])];
+          const entryIndex = newCycleHistory.findIndex(e => e.version === cycleVersion);
+          
+          if (entryIndex > -1) {
+            if (updates.currentUpdate !== undefined) {
+               newCycleHistory[entryIndex].reportContent = updates.currentUpdate;
+               delete cleanUpdates.currentUpdate; // Không cập nhật vào task gốc (đang ở trạng thái active)
+            }
+            if (updates.objective !== undefined) {
+               newCycleHistory[entryIndex].objective = updates.objective;
+               delete cleanUpdates.objective;
+            }
+            cleanUpdates.cycleHistory = newCycleHistory;
+          }
+        }
+      }
+
+      // Cập nhật document gốc (Dùng targetId để tránh lỗi "No document to update")
       await updateDoc(taskRef, {
         ...cleanUpdates,
         updatedAt: serverTimestamp()
@@ -455,7 +493,7 @@ export const useFirebaseData = (currentUserId?: string) => {
 
       // Log specific actions
       let logType: LogEntry['type'] = 'TASK_UPDATE';
-      let logDetails = `Cập nhật công việc ${taskCode}`;
+      let logDetails = `Cập nhật công việc ${taskCode}${cycleVersion ? ` (Kỳ ${cycleVersion})` : ''}`;
 
       if (updates.isLocked === true) {
         logType = 'TASK_LOCK';
@@ -472,9 +510,9 @@ export const useFirebaseData = (currentUserId?: string) => {
         logDetails = `Di chuyển công việc ${taskCode} vào thùng rác`;
       } else if (updates.status) {
         if (updates.status === 'APPROVED') {
-          logDetails = `Admin đã duyệt công việc ${taskCode}`;
+          logDetails = `Admin đã duyệt công việc ${taskCode}${cycleVersion ? ` (Kỳ ${cycleVersion})` : ''}`;
         } else {
-          logDetails = `Thay đổi trạng thái công việc ${taskCode} thành "${updates.status.toUpperCase()}"`;
+          logDetails = `Thay đổi trạng thái công việc ${taskCode} thành "${updates.status.toUpperCase()}"${cycleVersion ? ` (Kỳ ${cycleVersion})` : ''}`;
         }
       } else {
         // Detailed log based on what fields were touched
@@ -490,7 +528,7 @@ export const useFirebaseData = (currentUserId?: string) => {
             priority: 'Độ ưu tiên'
           };
           const labels = changedFields.map(f => fieldMap[f] || f).join(', ');
-          logDetails = `Cập nhật ${labels} cho công việc ${taskCode}`;
+          logDetails = `Cập nhật ${labels} cho công việc ${taskCode}${cycleVersion ? ` (Kỳ ${cycleVersion})` : ''}`;
         }
       }
 
@@ -499,12 +537,126 @@ export const useFirebaseData = (currentUserId?: string) => {
         userId: auth.currentUser?.uid || currentUserId || 'SYSTEM',
         userName: modifierName,
         details: logDetails,
-        metadata: { taskId: id, taskCode, updates }
+        metadata: { taskId: targetId, taskCode, updates, cycleVersion, virtualId: id }
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `tasks/${id}`);
     }
   }, [currentUserId, addLog, tasks]);
+
+  const approveTaskCompletion = useCallback(async (id: string, modifierName?: string) => {
+    try {
+      const taskRef = doc(db, 'tasks', id);
+      const existingTask = tasks.find(t => t.id === id);
+      if (!existingTask) return;
+      
+      // Chặn duyệt trùng lặp nếu công việc không còn ở trạng thái chờ duyệt hoặc đã có chu kỳ mới tương tự
+      if (!existingTask.waitingApproval) {
+        console.warn(`Công việc ${existingTask.code} đã được duyệt hoặc không ở trạng thái chờ duyệt.`);
+        return;
+      }
+
+      const isRecurring = existingTask.recurrence && existingTask.recurrence !== 'NONE';
+      const nowTs = new Date().toISOString();
+      const todayDate = nowTs.split('T')[0];
+
+      // Nếu là việc định kỳ, kiểm tra xem nội dung cập nhật hiện tại đã được lưu vào lịch sử chưa (tránh trùng)
+      if (isRecurring && existingTask.cycleHistory?.some(h => 
+        h.reportContent === existingTask.currentUpdate && 
+        h.completedAt?.split('T')[0] === todayDate
+      )) {
+        console.warn(`Chu kỳ này cho công việc ${existingTask.code} đã tồn tại trong lịch sử.`);
+        // Vẫn cho phép reset trạng thái chờ duyệt nhưng không thêm history mới
+        await updateDoc(taskRef, {
+          waitingApproval: false,
+          updatedAt: serverTimestamp()
+        });
+        return;
+      }
+
+      const batch = writeBatch(db);
+      const now = new Date().toISOString();
+      const dateOnly = now.split('T')[0];
+
+      if (existingTask.recurrence && existingTask.recurrence !== 'NONE') {
+        const currentDeadline = existingTask.extensionDate || existingTask.expectedEndDate;
+        const nextDeadline = calculateNextDeadline(currentDeadline || dateOnly, existingTask.recurrence);
+        
+        // 1. Lưu lịch sử chu kỳ (BƯỚC A)
+        const newHistoryItem: CycleHistoryEntry = {
+          version: (existingTask.cycleHistory?.length || 0) + 1,
+          reportContent: existingTask.currentUpdate || '(Trống)',
+          objective: existingTask.objective || '',
+          completedAt: now,
+          nextDeadline: nextDeadline
+        };
+
+        const cycleHistory = [...(existingTask.cycleHistory || []), newHistoryItem];
+        
+        // 2. Ghi log lịch sử văn bản
+        const historyUpdates = [
+          `[HOÀN THÀNH KỲ] Chốt kỳ ngày ${new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: '2-digit' })}.`,
+          `Nội dung: ${existingTask.currentUpdate || '(Trống)'}`,
+          `Hạn tiếp theo: ${nextDeadline}`
+        ];
+        
+        const newHistory = [...(existingTask.history || [])];
+        newHistory.push({
+          version: (newHistory.length > 0 ? newHistory[newHistory.length - 1].version : 0) + 1,
+          content: historyUpdates.join(' | '),
+          timestamp: now,
+          authorId: auth.currentUser?.uid || 'SYSTEM'
+        });
+
+        // 3. Reset cho kỳ mới (BƯỚC B & C)
+        batch.update(taskRef, {
+          cycleHistory,
+          history: newHistory,
+          expectedEndDate: nextDeadline, // Nhảy hạn
+          extensionDate: null,
+          prevProgress: existingTask.currentUpdate,
+          currentUpdate: '', // Xóa trắng báo cáo
+          isNewUpdate: false, // Reset cờ
+          waitingApproval: false, // Hiện lại nút Xanh
+          version: (existingTask.version || 0) + 1,
+          updatedAt: serverTimestamp()
+        });
+
+        const logRef = doc(collection(db, 'system_logs'));
+        batch.set(logRef, {
+          type: 'TASK_UPDATE',
+          userId: auth.currentUser?.uid || 'SYSTEM',
+          userName: modifierName || null,
+          timestamp: serverTimestamp(),
+          details: `Duyệt hoàn thành kỳ cho công việc ${existingTask.code}. Hạn kỳ tới: ${nextDeadline}`,
+          metadata: { taskId: id, taskCode: existingTask.code, action: 'CYCLE_COMPLETE' }
+        });
+      } else {
+        // Trường hợp 1: Công việc không lặp
+        batch.update(taskRef, {
+          status: 'COMPLETED',
+          actualEndDate: dateOnly,
+          isLocked: true,
+          waitingApproval: false,
+          updatedAt: serverTimestamp()
+        });
+
+        const logRef = doc(collection(db, 'system_logs'));
+        batch.set(logRef, {
+          type: 'TASK_UPDATE',
+          userId: auth.currentUser?.uid || 'SYSTEM',
+          userName: modifierName || null,
+          timestamp: serverTimestamp(),
+          details: `Xác nhận hoàn thành công việc ${existingTask.code}`,
+          metadata: { taskId: id, taskCode: existingTask.code, action: 'COMPLETE' }
+        });
+      }
+
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `tasks/${id}/approve`);
+    }
+  }, [tasks]);
 
   const saveReportDraft = useCallback(async (draft: Omit<ReportDraft, 'id'>) => {
     try {
@@ -847,6 +999,7 @@ export const useFirebaseData = (currentUserId?: string) => {
       for (const taskId of taskIds) {
         batch.update(doc(db, 'tasks', taskId), {
           deletedAt: serverTimestamp(),
+          status: 'DELETED',
           updatedAt: serverTimestamp()
         });
         count++;
@@ -1052,6 +1205,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     presence,
     categories,
     updatePresence,
+    approveTaskCompletion,
     clearNewInBoardTasks,
     resetSystem,
     deleteLogsBulk

@@ -36,6 +36,8 @@ interface TaskRowProps {
   isReadOnly?: boolean;
   onRestore?: (id: string) => void;
   onApprove?: (id: string) => void;
+  approveTaskCompletion?: (id: string, modifierName?: string) => Promise<void>;
+  onNavigate?: (tab: string) => void;
   highlightedTaskId?: string | null;
   isSelected?: boolean;
   onToggleSelect?: (id: string) => void;
@@ -45,7 +47,7 @@ interface TaskRowProps {
 export const TaskRow: React.FC<TaskRowProps> = ({ 
   task, user, users, onUpdate, onDelete, onViewHistory, onOpenChat, 
   isChatOpen, onSendMessage, onReact, onTogglePriority, onSetPriority, onEdit, idx, setConfirmModal,
-  isReadOnly = false, onRestore, onApprove, highlightedTaskId, isSelected, onToggleSelect,
+  isReadOnly = false, onRestore, onApprove, approveTaskCompletion, onNavigate, highlightedTaskId, isSelected, onToggleSelect,
   createNotification
 }) => {
   const chatButtonRef = React.useRef<HTMLButtonElement>(null);
@@ -64,7 +66,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   }, [highlightedTaskId, task.id]);
 
   const isOwner = user?.uniqueKey === task.assigneeId || isUserTask(task, user);
-  const isAdmin = user.role?.toUpperCase() === 'ADMIN' || user.uniqueKey === 'LeNhatTruong09xxxxxxxx' || user.name === 'Lê Nhật Trường';
+  const isAdmin = user.role?.toUpperCase() === 'ADMIN' || user.uniqueKey === 'LeNhatTruong09xxxxxxxx' || user.name === 'Lê Nhật Trường' || user.id === 'lenhattruong.caphef1@gmail.com';
   const isAuthor = task.authorId === user.id || task.authorId === user.uniqueKey;
   const canApprove = isAdmin || !!user.delegatedPermissions?.canApproveTask;
   const canDelete = isAdmin || !!user.delegatedPermissions?.canDeleteTask;
@@ -136,18 +138,29 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     }
   };
 
-  const handleStatusAction = () => {
+  const [isProcessing, setIsProcessing] = React.useState(false);
+
+  const handleStatusAction = async () => {
+    if (isProcessing) return;
+    
     // Staff sends completion request
     if (!isAdmin) {
       if (!isOwner) return; // Chỉ người được giao việc mới được gửi hoàn thành
       if (task.waitingApproval) return; // Already sent
-      onUpdate(task.id, { 
-        waitingApproval: true,
-        isNewUpdate: true,
-        updatedAt: new Date().toISOString()
-      });
-      if (createNotification) {
-        createNotification(user.name, task.code, task.id, 'COMPLETED_REQUEST');
+      
+      setIsProcessing(true);
+      try {
+        onUpdate(task.id, { 
+          waitingApproval: true,
+          isNewUpdate: true,
+          updatedAt: new Date().toISOString()
+        });
+        if (onNavigate) onNavigate('pending_approval');
+        if (createNotification) {
+          await createNotification(user.name, task.code, task.id, 'COMPLETED_REQUEST');
+        }
+      } finally {
+        setIsProcessing(false);
       }
     } else {
       // Admin approves completion
@@ -155,40 +168,49 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         show: true,
         title: 'XÁC NHẬN HOÀN THÀNH',
         message: 'Bạn muốn chốt công việc này đã hoàn thành?',
-        onConfirm: () => {
-          if (task.recurrence && task.recurrence !== 'NONE') {
-            // Recurring task logic
-            const currentDeadline = task.extensionDate || task.expectedEndDate;
-            const nextDeadline = calculateNextDeadline(currentDeadline || new Date().toISOString().split('T')[0], task.recurrence);
-            
-            const newHistory: CycleHistoryEntry = {
-              version: (task.cycleHistory?.length || 0) + 1,
-              reportContent: task.currentUpdate,
-              completedAt: new Date().toISOString(),
-              nextDeadline: nextDeadline
-            };
+        onConfirm: async () => {
+          if (isProcessing) return;
+          setIsProcessing(true);
+          try {
+            if (approveTaskCompletion) {
+              await approveTaskCompletion(task.id, user.name);
+            } else {
+              // Fallback to old logic if prop not provided
+              if (task.recurrence && task.recurrence !== 'NONE') {
+                const currentDeadline = task.extensionDate || task.expectedEndDate;
+                const nextDeadline = calculateNextDeadline(currentDeadline || new Date().toISOString().split('T')[0], task.recurrence);
+                
+                const newHistory: CycleHistoryEntry = {
+                  version: (task.cycleHistory?.length || 0) + 1,
+                  reportContent: task.currentUpdate,
+                  completedAt: new Date().toISOString(),
+                  nextDeadline: nextDeadline
+                };
 
-            onUpdate(task.id, {
-              cycleHistory: [...(task.cycleHistory || []), newHistory],
-              expectedEndDate: nextDeadline,
-              extensionDate: null,
-              prevProgress: task.currentUpdate,
-              currentUpdate: '',
-              isNewUpdate: false,
-              waitingApproval: false,
-              updatedAt: new Date().toISOString()
-            });
-          } else {
-            // One-time task logic
-            onUpdate(task.id, { 
-              status: 'COMPLETED', 
-              actualEndDate: new Date().toISOString().split('T')[0], 
-              isLocked: true,
-              waitingApproval: false,
-              updatedAt: new Date().toISOString()
-            });
+                onUpdate(task.id, {
+                  cycleHistory: [...(task.cycleHistory || []), newHistory],
+                  expectedEndDate: nextDeadline,
+                  extensionDate: null,
+                  prevProgress: task.currentUpdate,
+                  currentUpdate: '',
+                  isNewUpdate: false,
+                  waitingApproval: false,
+                  updatedAt: new Date().toISOString()
+                });
+              } else {
+                onUpdate(task.id, { 
+                  status: 'COMPLETED', 
+                  actualEndDate: new Date().toISOString().split('T')[0], 
+                  isLocked: true,
+                  waitingApproval: false,
+                  updatedAt: new Date().toISOString()
+                });
+              }
+            }
+          } finally {
+            setIsProcessing(false);
+            setConfirmModal((p: any) => ({ ...p, show: false }));
           }
-          setConfirmModal((p: any) => ({ ...p, show: false }));
         }
       });
     }
@@ -259,10 +281,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               >
                 <Bell size={16} fill="currentColor" />
               </div>
-              <span translate="no" className={`notranslate text-[7px] font-black uppercase leading-none tracking-tight ${
-                deadlineStatus === 'overdue' ? 'text-red-700' : 'text-emerald-700'
-              }`}>
-                {deadlineStatus === 'overdue' ? 'QUÁ HẠN' : 'SẮP HẾT HẠN'}
+              <span translate="no" className="notranslate text-[7px] font-black uppercase leading-none tracking-tight text-white bg-red-600 px-1 py-0.5 rounded-sm">
+                <span translate="no" className="notranslate">{deadlineStatus === 'overdue' ? 'QUÁ HẠN' : 'SẮP HẾT HẠN'}</span>
               </span>
             </div>
           )}
@@ -286,7 +306,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               </p>
               <div className="mt-1.5">
                 <span translate="no" className="notranslate text-[10px] font-medium text-gray-400 uppercase tracking-tighter bg-gray-50 px-1 py-0.5 rounded-sm border border-gray-100">
-                  {assignee ? (assignee.title || assignee.role) : 'NHÂN SỰ'}
+                  {assignee ? <span translate="no" className="notranslate">{assignee.title || assignee.role}</span> : <span translate="no" className="notranslate">NHÂN SỰ</span>}
                 </span>
               </div>
             </div>
@@ -389,7 +409,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         )}
 
         <div className="flex flex-col h-full font-sans">
-          <p className="text-[15px] font-black text-gray-900 leading-tight pr-5 uppercase break-words whitespace-normal font-sans">
+          <p className="text-[15px] text-blue-900 font-bold leading-tight pr-5 uppercase break-words whitespace-normal font-sans">
             {isTrulyNew && (
               <span 
                 translate="no" 
@@ -414,7 +434,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           
           <div className="mt-1 flex items-center gap-1">
               {task.status === 'PENDING_APPROVAL' && (
-                <span className="text-[8px] font-black text-amber-500 bg-amber-50 px-1 py-0.2 rounded-sm animate-pulse border border-amber-100 uppercase tracking-tighter">DUYỆT</span>
+                <span className="text-[8px] font-black text-amber-500 bg-amber-50 px-1 py-0.2 rounded-sm animate-pulse border border-amber-100 uppercase tracking-tighter">
+                  <span translate="no" className="notranslate">DUYỆT</span>
+                </span>
               )}
           </div>
         </div>
@@ -526,7 +548,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                         } text-white`}
                       >
                         <CheckCircle2 size={24} strokeWidth={3} className={`${task.waitingApproval ? 'scale-110' : 'group-hover:scale-110'} transition-transform`} />
-                        <span className="sr-only notranslate" translate="no">XONG</span>
+                        <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">XONG</span></span>
                       </button>
                     )}
 
@@ -538,7 +560,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                         title="DUYỆT"
                       >
                         <CheckCircle2 size={24} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
-                        <span className="sr-only notranslate" translate="no">DUYỆT</span>
+                        <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">DUYỆT</span></span>
                       </button>
                     )}
 
@@ -550,7 +572,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                         className="w-10 h-10 flex items-center justify-center bg-green-600 text-white rounded-md hover:bg-green-700 transition-all group/btn border-2 border-green-400"
                       >
                         <ThumbsUp size={20} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
-                        <span className="sr-only notranslate" translate="no">XÁC NHẬN</span>
+                        <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">XÁC NHẬN</span></span>
                       </button>
                     )}
                   </>
@@ -563,8 +585,49 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   className="w-10 h-10 flex items-center justify-center bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-all group/btn border border-blue-400"
                 >
                   <History size={20} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
-                  <span className="sr-only notranslate" translate="no">XEM CHI TIẾT CẬP NHẬT</span>
+                  <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">XEM CHI TIẾT CẬP NHẬT</span></span>
                 </button>
+
+                {/* NÚT HOÀN TÁC CÔNG VIỆC CHO ADMIN TẠI CÔNG ĐOẠN TRƯỚC ĐÓ */}
+                {isAdmin && (task.status === 'APPROVED' || task.waitingApproval) && (
+                  <button 
+                    onClick={() => {
+                      setConfirmModal({
+                        show: true,
+                        title: <span translate="no" className="notranslate">HOÀN TÁC CÔNG VIỆC</span>,
+                        message: <span translate="no" className="notranslate">{`Bạn muốn hoàn tác công việc này về ${task.waitingApproval ? 'BẢNG CÔNG VIỆC' : 'MỤC ĐỀ XUẤT MỚI'}?`}</span>,
+                        onConfirm: () => {
+                          if (task.waitingApproval) {
+                            // Trình Duyệt -> Bảng Công Việc (Cảng công việc)
+                            onUpdate(task.id, { 
+                              status: 'APPROVED', // BẮT BUỘC để hiển thị ở Bảng Công Việc
+                              waitingApproval: false,
+                              isNewInBoard: true, // Để đánh dấu và có thể giúp nhận diện
+                              updatedAt: new Date().toISOString(),
+                              currentUpdate: '[HOÀN TÁC] Quay lại Bảng Công Việc'
+                            });
+                            // Chuyển tab về Cảng công việc
+                            if (onNavigate) onNavigate('tasks');
+                          } else {
+                            // Bảng Công Việc -> Đề xuất mới
+                            onUpdate(task.id, { 
+                              status: 'PENDING',
+                              waitingApproval: false,
+                              updatedAt: new Date().toISOString(),
+                              currentUpdate: '[HOÀN TÁC] Quay lại mục Đề xuất mới'
+                            });
+                          }
+                          setConfirmModal((p: any) => ({ ...p, show: false }));
+                        }
+                      });
+                    }}
+                    title="HOÀN TÁC"
+                    className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white border-2 border-blue-400 rounded-md hover:bg-blue-700 transition-all group/btn shadow-sm"
+                  >
+                    <RotateCcw size={20} strokeWidth={3} className="group-hover:-rotate-45 transition-transform" />
+                    <span className="sr-only notranslate" translate="no">HOÀN TÁC</span>
+                  </button>
+                )}
 
                 {/* REST OF THE BUTTONS */}
                 {!isReadOnly && (
@@ -573,7 +636,17 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                     {(task.status === 'DELETED' || !!task.deletedAt) ? (
                       <div className="flex flex-col gap-1.5 w-full items-center">
                         <button 
-                          onClick={() => onRestore && onRestore(task.id)}
+                          onClick={() => {
+                            if (isAdmin) {
+                              onUpdate(task.id, { 
+                                status: 'PENDING', 
+                                deletedAt: null,
+                                updatedAt: new Date().toISOString()
+                              });
+                            } else if (onRestore) {
+                              onRestore(task.id);
+                            }
+                          }}
                           title="PHỤC HỒI"
                           className="w-10 h-10 flex items-center justify-center bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-all group/btn border-2 border-emerald-400"
                         >
@@ -661,8 +734,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                           </div>
                         )}
 
-                        {/* HIỂN THỊ NÚT XÓA: CHỈ ADMIN */}
-                        {isAdmin && (
+                        {/* HIỂN THỊ NÚT XÓA: ADMIN HOẶC STAFF TẠI ĐỀ XUẤT MỚI */}
+                        {(isAdmin || (task.status === 'PENDING' && isOwner)) && (
                           <button 
                             onClick={() => onDelete(task.id)}
                             className="w-10 h-10 flex items-center justify-center bg-red-600 text-white rounded-md hover:bg-red-700 transition-all border-2 border-red-400 group/btn"
@@ -680,13 +753,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                               setConfirmModal({
                                 show: true,
                                 title: 'HOÀN TÁC CÔNG VIỆC',
-                                message: 'Bạn muốn chuyển công việc này quay lại bảng đang thực hiện?',
+                                message: 'Bạn muốn chuyển công việc này quay lại mục Trình Duyệt (Chờ duyệt)?',
                                 onConfirm: () => {
                                   onUpdate(task.id, { 
                                     status: 'APPROVED', 
+                                    waitingApproval: true,
                                     actualEndDate: null, 
                                     isLocked: false,
-                                    currentUpdate: '[HOÀN TÁC] Chuyển về bảng đang thực hiện'
+                                    currentUpdate: '[HOÀN TÁC] Quay lại mục Trình Duyệt'
                                   });
                                   setConfirmModal((p: any) => ({ ...p, show: false }));
                                 }

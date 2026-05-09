@@ -29,12 +29,13 @@ interface CompletedTaskRowProps {
   onReact?: (taskId: string, commentId: string, emoji: string) => void;
   onUndo: (id: string) => void;
   onUpdate: (id: string, updates: Partial<Task>) => void;
+  onDelete?: (id: string) => void;
   isSelected?: boolean;
   onToggleSelect?: (id: string) => void;
 }
 
 export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ 
-  task, user, users, idx, onViewHistory, onOpenChat, isChatOpen, onSendMessage, onReact, onUndo, onUpdate,
+  task, user, users, idx, onViewHistory, onOpenChat, isChatOpen, onSendMessage, onReact, onUndo, onUpdate, onDelete,
   isSelected, onToggleSelect
 }) => {
   const chatButtonRef = React.useRef<HTMLButtonElement>(null);
@@ -42,11 +43,12 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
   const assigneeName = getTaskAssigneeName(task, users);
   const assignee = getUserById(assigneeName, users) || getUserById(task.assigneeId, users);
   const isOwner = user?.uniqueKey === task.assigneeId || isUserTask(task, user);
-  const isAdmin = user.role?.toUpperCase() === 'ADMIN' || user.uniqueKey === 'LeNhatTruong09xxxxxxxx' || user.name === 'Lê Nhật Trường';
+  const isAdmin = user.role?.toUpperCase() === 'ADMIN' || user.uniqueKey === 'LeNhatTruong09xxxxxxxx' || user.name === 'Lê Nhật Trường' || user.id === 'lenhattruong.caphef1@gmail.com';
   const isManager = isAdmin;
 
   const [lastReadCount, setLastReadCount] = React.useState(task.comments?.length || 0);
   const [showColorPicker, setShowColorPicker] = React.useState(false);
+  const [isProcessing, setIsProcessing] = React.useState(false);
 
   // When chat opens, update last read count to current number of comments
   React.useEffect(() => {
@@ -91,7 +93,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
               </p>
               <div className="mt-1.5">
                 <span translate="no" className="notranslate text-[10px] font-medium text-gray-400 uppercase tracking-tighter bg-gray-50 px-1 py-0.5 rounded-sm border border-gray-100">
-                  {assignee ? (assignee.title || assignee.role) : 'NHÂN SỰ'}
+                  {assignee ? <span translate="no" className="notranslate">{assignee.title || assignee.role}</span> : <span translate="no" className="notranslate">NHÂN SỰ</span>}
                 </span>
               </div>
             </div>
@@ -101,7 +103,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           <div className="flex flex-col gap-1 py-1.5 border-y border-gray-50 border-dashed">
             {/* Hàng 1: Khởi tạo */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px]">📝</span>
+              <span className="text-[11px]" translate="no">📝</span>
               <p className="text-[10px] text-gray-500 font-medium tracking-tighter">
                 <span translate="no" className="notranslate">KHỞI TẠO: {formatDate(task.issueDate)}</span>
               </p>
@@ -109,7 +111,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
             
             {/* Hàng 2: Bắt đầu */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px]">🚀</span>
+              <span className="text-[11px]" translate="no">🚀</span>
               <p className="text-[10px] text-blue-600 font-medium tracking-tighter">
                 <span translate="no" className="notranslate">BẮT ĐẦU: {formatDate(task.startDate || task.issueDate)}</span>
               </p>
@@ -117,7 +119,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
             
             {/* Hàng 3: Hạn */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[12px]">🏁</span>
+              <span className="text-[12px]" translate="no">🏁</span>
               <p className="text-[11px] text-red-600 font-bold tracking-tighter">
                 <span translate="no" className="notranslate font-bold uppercase">HẠN: {formatDate(task.expectedEndDate)}</span>
               </p>
@@ -125,7 +127,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
 
             {/* Hàng 4: Kết thúc thực tế (Vì đây là CompletedTaskRow) */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[12px]">✅</span>
+              <span className="text-[12px]" translate="no">✅</span>
               <p className="text-[11px] font-black text-green-700 tracking-tighter leading-none">
                 <span translate="no" className="notranslate uppercase">XONG: {formatDate(task.actualEndDate)}</span>
               </p>
@@ -181,7 +183,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           </a>
         )}
         <div className="flex flex-col h-full font-sans">
-          <p className="text-[15px] font-black text-gray-900 pr-4 uppercase break-words whitespace-normal leading-tight font-sans">
+          <p className="text-[15px] text-blue-900 font-bold pr-4 uppercase break-words whitespace-normal leading-tight font-sans">
             <span translate="no" className="notranslate">{task.title}</span>
           </p>
           <p className="text-[15px] text-gray-900 leading-tight mt-2 break-words whitespace-normal flex-1 font-sans">
@@ -255,66 +257,78 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
         <div className="flex flex-col items-center justify-center gap-1.5 w-full max-w-[44px] mx-auto min-h-full py-1">
           {(isAdmin || isOwner) ? (
             <>
-              {/* 1. PRIMARY ACTION (HOÀN TÁC) - ON TOP */}
-              {task.requestUndo === 'PENDING' ? (
-                <div className="w-full flex flex-col gap-1 items-center">
-                  <span className="text-[7px] font-black text-amber-600 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 animate-pulse uppercase">
-                    <span translate="no" className="notranslate">Đợi duyệt HT</span>
-                  </span>
-                  {isAdmin && (
+              {/* 1. PRIMARY ACTION (HOÀN TÁC) - ON TOP (ADMIN ONLY) */}
+              {isAdmin && (
+                task.requestUndo === 'PENDING' ? (
+                  <div className="w-full flex flex-col gap-1 items-center">
+                    <span className="text-[7px] font-black text-amber-600 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 animate-pulse uppercase">
+                      <span translate="no" className="notranslate">Đợi duyệt HT</span>
+                    </span>
                     <div className="flex flex-row gap-1">
                       <button 
-                        onClick={() => onUndo(task.id)} 
+                        disabled={isProcessing}
+                        onClick={async () => {
+                          if (isProcessing) return;
+                          setIsProcessing(true);
+                          try {
+                            await onUndo(task.id);
+                          } finally {
+                            setIsProcessing(false);
+                          }
+                        }} 
                         title="DUYỆT HOÀN TÁC"
-                        className="w-8 h-8 flex items-center justify-center bg-green-600 text-white rounded-full hover:bg-green-700 transition-all shadow-sm"
+                        className={`w-8 h-8 flex items-center justify-center bg-green-600 text-white rounded-full hover:bg-green-700 transition-all shadow-sm ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <Check size={16} strokeWidth={4} />
                       </button>
                       <button 
-                        onClick={() => onUpdate(task.id, { requestUndo: 'REJECTED' })} 
+                        disabled={isProcessing}
+                        onClick={async () => {
+                          if (isProcessing) return;
+                          setIsProcessing(true);
+                          try {
+                            await onUpdate(task.id, { requestUndo: 'REJECTED' });
+                          } finally {
+                            setIsProcessing(false);
+                          }
+                        }} 
                         title="BÁC HOÀN TÁC"
-                        className="w-8 h-8 flex items-center justify-center bg-red-500 text-white rounded-full hover:bg-red-600 transition-all shadow-sm"
+                        className={`w-8 h-8 flex items-center justify-center bg-red-500 text-white rounded-full hover:bg-red-600 transition-all shadow-sm ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <X size={16} strokeWidth={4} />
                       </button>
                     </div>
-                  )}
-                </div>
-              ) : (isAdmin || isOwner) ? (
-                <button 
-                  onClick={() => {
-                    if (isAdmin) {
-                      onUndo(task.id);
-                    } else {
-                      onUpdate(task.id, { 
-                        requestUndo: 'PENDING', 
-                        undoRequestAt: new Date().toISOString(),
-                        undoRequestBy: user.name
-                      });
-                    }
-                  }} 
-                  title="YÊU CẦU HOÀN TÁC"
-                  disabled={task.requestUndo === 'REJECTED'}
-                  className={`w-10 h-10 flex items-center justify-center rounded-md transition-all group/btn ${
-                    task.requestUndo === 'REJECTED' 
-                      ? 'bg-gray-200 text-white cursor-not-allowed opacity-50' 
-                      : 'bg-green-600 text-white hover:bg-green-700 border-2 border-green-400'
-                  }`}
-                >
-                  <RotateCcw size={20} strokeWidth={3} className="group-hover/btn:-rotate-45 transition-transform" />
-                  <span className="sr-only notranslate" translate="no">YÊU CẦU HOÀN TÁC</span>
-                </button>
-              ) : null}
+                  </div>
+                ) : (
+                  <button 
+                    disabled={isProcessing}
+                    onClick={async () => {
+                      if (isProcessing) return;
+                      setIsProcessing(true);
+                      try {
+                        await onUndo(task.id);
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }} 
+                    title="HOÀN TÁC CÔNG VIỆC"
+                    className={`w-10 h-10 flex items-center justify-center bg-green-600 text-white font-black rounded-md hover:bg-green-700 transition-all border-2 border-green-400 group/btn shadow-md ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <RotateCcw size={20} strokeWidth={3} className={`group-hover/btn:-rotate-45 transition-transform ${isProcessing ? 'animate-spin' : ''}`} />
+                    <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">HOÀN TÁC CÔNG VIỆC</span></span>
+                  </button>
+                )
+              )}
 
               {/* 2. VIEW DETAILS BUTTON (HISTORY) - SECOND */}
-              <button 
-                onClick={() => onViewHistory(task.id)}
-                title="XEM CHI TIẾT CẬP NHẬT"
-                className="w-10 h-10 flex items-center justify-center bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-all group/btn border border-blue-400"
-              >
-                <History size={20} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
-                <span translate="no" className="sr-only notranslate">XEM CHI TIẾT CẬP NHẬT</span>
-              </button>
+                <button 
+                  onClick={() => onViewHistory(task.id)}
+                  title="XEM CHI TIẾT CẬP NHẬT"
+                  className="w-10 h-10 flex items-center justify-center bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-all group/btn border border-blue-400"
+                >
+                  <History size={20} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
+                  <span translate="no" className="sr-only notranslate"><span translate="no" className="notranslate">XEM CHI TIẾT CẬP NHẬT</span></span>
+                </button>
 
               {/* 3. HIGHLIGHT / TAG */}
               <div className="relative">
@@ -328,7 +342,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                    }`}
                  >
                    <Tag size={20} strokeWidth={2.5} className="group-hover:rotate-12 transition-transform" />
-                   <span className="sr-only notranslate" translate="no">LƯU Ý</span>
+                   <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">LƯU Ý</span></span>
                  </button>
                  
                  <AnimatePresence>
@@ -363,6 +377,18 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                     )}
                  </AnimatePresence>
               </div>
+
+              {/* 4. FORCE DELETE (ADMIN ONLY) - NEW */}
+              {isAdmin && (
+                <button 
+                  onClick={() => onDelete && onDelete(task.id)}
+                  title="XÓA CƯỠNG BỨC (VĨNH VIỄN)"
+                  className="w-10 h-10 flex items-center justify-center bg-red-600 text-white rounded-md hover:bg-red-700 transition-all border-2 border-red-400 group/btn"
+                >
+                  <Trash2 size={22} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+                  <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">XÓA CƯỠNG BỨC</span></span>
+                </button>
+              )}
             </>
           ) : (
             <span translate="no" className="notranslate text-gray-400 italic text-[10px]">Chỉ xem</span>

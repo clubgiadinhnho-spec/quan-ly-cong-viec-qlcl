@@ -161,9 +161,10 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
           <input 
             type="text" 
             placeholder="Tìm kiếm mã hoặc tên phân loại..."
-            className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-medium"
+            className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-medium placeholder:notranslate notranslate"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            translate="no"
           />
         </div>
 
@@ -173,16 +174,16 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
             <table className="w-full border-collapse">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-blue-600 text-white shadow-md">
-                  <th className="px-4 py-4 text-left text-xs font-black uppercase tracking-widest border-r border-blue-500/30">
+                  <th className="px-4 py-4 text-left text-[11px] font-black uppercase tracking-widest border-r border-blue-500/30">
                     <span translate="no" className="notranslate">STT</span>
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-black uppercase tracking-widest border-r border-blue-500/30">
+                  <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest border-r border-blue-500/30">
                     <span translate="no" className="notranslate">MÃ</span>
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-black uppercase tracking-widest border-r border-blue-500/30">
+                  <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest border-r border-blue-500/30">
                     <span translate="no" className="notranslate">TÊN PHÂN LOẠI</span>
                   </th>
-                  <th className="px-6 py-4 text-center text-xs font-black uppercase tracking-widest">
+                  <th className="px-6 py-4 text-center text-[11px] font-black uppercase tracking-widest">
                     <span translate="no" className="notranslate">THAO TÁC</span>
                   </th>
                 </tr>
@@ -238,9 +239,11 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
         </div>
 
         {!loading && filteredCategories.length === 0 && (
-          <div className="text-center py-20">
+          <div className="text-center py-20 pb-0 flex flex-col items-center">
             <Tag size={48} className="mx-auto text-gray-200 mb-4" />
-            <p className="text-gray-400 font-medium italic">Không tìm thấy danh mục nào</p>
+            <p className="text-gray-400 font-medium italic">
+              <span translate="no" className="notranslate">Không tìm thấy danh mục nào</span>
+            </p>
           </div>
         )}
       </div>
@@ -308,7 +311,7 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
                       translate="no"
                       type="text" 
                       placeholder="VD: TNG"
-                      className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-black text-gray-700 uppercase text-lg notranslate"
+                      className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-black text-gray-700 uppercase text-lg notranslate placeholder:notranslate"
                       value={formData.code}
                       onChange={(e) => setFormData({...formData, code: e.target.value})}
                     />
@@ -322,7 +325,7 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
                       translate="no"
                       type="text" 
                       placeholder="VD: Hoạt động thử nghiệm sản phẩm mới"
-                      className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold text-gray-700 text-lg notranslate"
+                      className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold text-gray-700 text-lg notranslate placeholder:notranslate"
                       value={formData.name}
                       onChange={(e) => setFormData({...formData, name: e.target.value})}
                     />

@@ -62,7 +62,7 @@ export default function App() {
   const {
     tasks, messages: generalMessages, privateMessages, officialReports, logs, presence, categories,
     loading: firebaseLoading, addTask: firebaseAddTask, updateTask: firebaseUpdateTask,
-    deleteTask: firebaseDeleteTask, trashTasksBulk, approveTasksBulk, sendMessage: firebaseSendMessage, sendDiscussionMessage,
+    deleteTask: firebaseDeleteTask, approveTaskCompletion, trashTasksBulk, approveTasksBulk, sendMessage: firebaseSendMessage, sendDiscussionMessage,
     createTopic, updateTopic, deleteTopic, deleteTopicsBulk, deleteTasksBulk, sendPrivateMessage: firebaseSendPrivateMsg,
     updateDiscussionMessageReactions, updatePrivateMessageReactions: firebaseUpdatePrivateMessageReactions,
     discussionTopics, discussionMessages, deleteDiscussionMessage,
@@ -306,6 +306,7 @@ export default function App() {
     // View thresholds
     const lastViewedTasks = lastViewedSections["tasks"] || 0;
     const lastViewedPending = lastViewedSections["pending_confirmation"] || 0;
+    const lastViewedPendingApproval = lastViewedSections["pending_approval"] || 0;
     const lastViewedCompleted = lastViewedSections["completed_tasks"] || 0;
     const lastViewedStaff = lastViewedSections["staff_list"] || 0;
 
@@ -329,7 +330,12 @@ export default function App() {
     // Logic for other alerts (if needed)
     const pendingTasksCount = tasks.filter(t => t.status === 'PENDING').length;
     
-    // Completed tasks (unread)
+    // Completed tasks (Total)
+    const totalCompleted = nonDeleted.filter(t => 
+      t.status === "COMPLETED" || t.status === "Hoàn thành"
+    ).length;
+
+    // Completed tasks (unread/new)
     const completedUnread = nonDeleted.filter(t => 
       (t.status === "COMPLETED" || t.status === "Hoàn thành") &&
       new Date(t.updatedAt).getTime() > lastViewedCompleted
@@ -340,15 +346,26 @@ export default function App() {
       new Date(u.updatedAt || 0).getTime() > lastViewedStaff
     );
 
+    // Pending approval (unread)
+    const pendingApprovalUnread = tasks.filter(t => 
+      t.waitingApproval === true && 
+      !t.deletedAt && 
+      new Date(t.updatedAt).getTime() > lastViewedPendingApproval
+    ).length;
+
     return {
       pending: pending.length,
       active: departmentActive.length,
       attention: newInBoardCount,
       allActive: departmentActive.length,
       mine: myActive.length,
-      completed: completedUnread.length,
-      staff: staffUnread.length,
-      trash: tasks.filter(t => !!t.deletedAt).length
+      completedTotal: totalCompleted,
+      completedUnread: completedUnread.length,
+      staffTotal: allUsers.length,
+      staffUnread: staffUnread.length,
+      trash: tasks.filter(t => !!t.deletedAt).length,
+      pendingApprovalTotal: tasks.filter(t => t.waitingApproval === true && !t.deletedAt).length,
+      pendingApprovalUnread: pendingApprovalUnread
     };
   }, [tasks, effectiveUser, lastViewedSections, allUsers]);
 
@@ -371,22 +388,44 @@ export default function App() {
   const groupTotalCount = useMemo(() => discussionMessages.length, [discussionMessages]);
 
   const sortedTasks = useMemo(() => {
-    const priorityWeight = { HIGH: 3, MEDIUM: 2, LOW: 1 };
+    const priorityWeight: Record<string, number> = { 
+      'Khẩn cấp': 4,
+      'Cao': 3, 
+      'HIGH': 3,
+      'Trung bình': 2, 
+      'MEDIUM': 2,
+      'Thấp': 1, 
+      'LOW': 1 
+    };
+
     return tasks.filter(t => {
       if (activeTab === "trash") return !!t.deletedAt;
       if (t.deletedAt) return false;
       
-      // Exclude PENDING tasks from all tabs except pending_confirmation
+      if (activeTab === "pending_confirmation") return t.status === "PENDING";
+      if (activeTab === "pending_approval") return t.waitingApproval === true && t.status !== "PENDING";
+      
       if (t.status === "PENDING" && activeTab !== "pending_confirmation") return false;
+      if (t.waitingApproval === true && activeTab !== "pending_approval") return false;
       
       const matchesSearch = (t.title || "").toLowerCase().includes(search.toLowerCase()) || (t.code || "").toLowerCase().includes(search.toLowerCase());
       if (!matchesSearch) return false;
       return viewScope === "mine" ? isUserTask(t, effectiveUser) : true;
     }).sort((a, b) => {
+      // 1. Manual priority order (1, 2, 3...)
+      const orderA = a.priorityOrder || 999;
+      const orderB = b.priorityOrder || 999;
+      if (orderA !== orderB) return orderA - orderB;
+
+      // 2. High priority levels
       const weightA = priorityWeight[a.priority as keyof typeof priorityWeight] || 0;
       const weightB = priorityWeight[b.priority as keyof typeof priorityWeight] || 0;
       if (weightB !== weightA) return weightB - weightA;
+
+      // 3. Highlighted
       if (a.isHighlighted !== b.isHighlighted) return a.isHighlighted ? -1 : 1;
+
+      // 4. Latest updated
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
   }, [tasks, activeTab, search, viewScope, effectiveUser]);
@@ -394,8 +433,8 @@ export default function App() {
   const restoreTaskLocal = useCallback(async (id: string) => {
     await firebaseUpdateTask(id, { 
       deletedAt: null as any,
-      status: 'APPROVED' as any,
-      isNewInBoard: true,
+      status: 'PENDING' as any,
+      isNewInBoard: false,
       lastActionAt: new Date().toISOString()
     });
   }, [firebaseUpdateTask]);
@@ -413,26 +452,30 @@ export default function App() {
   }, [firebaseDeleteTask]);
 
   const trashTasksBulkLocal = useCallback(async (ids: string[]) => {
-    for (const id of ids) {
-      const task = tasks.find(t => t.id === id);
-      await firebaseUpdateTask(id, { deletedAt: new Date().toISOString() });
-      if (task && effectiveUser?.role !== 'Admin') {
-        createNotification(effectiveUser?.name || 'Nhân viên', task.code, task.id, 'DELETE_REQUEST');
+    try {
+      await trashTasksBulk(ids, effectiveUser?.name);
+      
+      // Still send notifications as a follow-up
+      if (effectiveUser?.role !== 'Admin') {
+        for (const id of ids) {
+          const task = tasks.find(t => t.id === id);
+          if (task) {
+            await createNotification(effectiveUser?.name || 'Nhân viên', task.code, task.id, 'DELETE_REQUEST');
+          }
+        }
       }
+    } catch (error) {
+      console.error("Bulk trash error:", error);
     }
-  }, [firebaseUpdateTask, tasks, effectiveUser, createNotification]);
+  }, [trashTasksBulk, tasks, effectiveUser, createNotification]);
 
-  const deleteTasksBulkLocal = useCallback((ids: string[]) => {
-    setConfirmModal({
-      show: true,
-      title: "XÓA VĨNH VIỄN HÀNG LOẠT",
-      message: `Bạn chắc chắn muốn xóa vĩnh viễn ${ids.length} công việc đã chọn?`,
-      onConfirm: async () => {
-        await deleteTasksBulk(ids);
-        setConfirmModal(p => ({ ...p, show: false }));
-      }
-    });
-  }, [deleteTasksBulk]);
+  const deleteTasksBulkLocal = useCallback(async (ids: string[]) => {
+    try {
+      await deleteTasksBulk(ids, effectiveUser?.name);
+    } catch (error) {
+      console.error("Bulk delete error:", error);
+    }
+  }, [deleteTasksBulk, effectiveUser]);
 
   // 7. Mark as read when entering tabs or new messages arrive while in tab
   useEffect(() => {
@@ -452,10 +495,18 @@ export default function App() {
     <div className="flex min-h-screen bg-[#F9FAFB]">
       <Sidebar
         user={effectiveUser} activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout}
-        pendingTasksCount={counts.pending} activeTasksCount={counts.attention} completedTasksCount={counts.completed}
-        totalStaffCount={counts.staff} groupUnreadCount={groupUnreadCount} trashTasksCount={counts.trash}
+        pendingTasksCount={counts.pending} 
+        pendingApprovalCount={counts.pendingApprovalTotal} 
+        activeTasksCount={counts.active} 
+        completedTasksCount={counts.completedTotal}
+        totalStaffCount={counts.staffTotal} 
+        groupUnreadCount={groupUnreadCount} 
+        trashTasksCount={counts.trash}
         activeTasksAlert={counts.attention > 0} 
-        pendingTasksAlert={counts.pending > 0}
+        pendingTasksAlert={counts.pending > 0} // Could use counts.pendingUnread if implemented
+        pendingApprovalAlert={counts.pendingApprovalUnread > 0}
+        completedTasksAlert={counts.completedUnread > 0}
+        trashTasksAlert={false}
         isCollapsed={isMainSidebarCollapsed} onToggleCollapse={() => setIsMainSidebarCollapsed(!isMainSidebarCollapsed)}
       />
       <main className={`flex-1 relative flex flex-col ${activeTab === 'group_chat' ? 'h-screen overflow-hidden' : 'py-6'}`}>
@@ -467,6 +518,7 @@ export default function App() {
             tasks={tasks} filteredTasks={sortedTasks} sortedTasks={sortedTasks} viewScope={viewScope} setViewScope={setViewScope}
             search={search} setSearch={setSearch} myActiveCount={counts.mine} allActiveCount={counts.allActive} setShowTaskModal={setShowTaskModal}
             handleExportExcel={handleExportExcel} handleImportExcel={handleImportExcel} updateTask={updateTask} deleteTask={deleteTaskLocal}
+            approveTaskCompletion={approveTaskCompletion}
             setShowHistoryModal={setShowHistoryModal} setShowChatModal={setShowChatModal} showChatModal={showChatModal}
             addTaskComment={addTaskComment} updateTaskCommentReactions={updateTaskCommentReactions} setEditingTask={setEditingTask}
             setConfirmModal={setConfirmModal} highlightedTaskId={highlightedTaskId} discussionTopics={discussionTopics}

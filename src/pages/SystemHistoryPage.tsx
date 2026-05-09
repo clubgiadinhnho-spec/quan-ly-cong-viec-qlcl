@@ -211,7 +211,7 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
               </h2>
               <p className="text-blue-500 text-[11px] font-black mt-1 uppercase tracking-[0.2em] flex items-center gap-2">
                 <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                GIÁM SÁT BIẾN ĐỘNG & QUẢN TRỊ RỦI RO
+                <span translate="no" className="notranslate">GIÁM SÁT BIẾN ĐỘNG & QUẢN TRỊ RỦI RO</span>
               </p>
             </div>
           </div>
@@ -220,10 +220,12 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
             <div className="flex items-center gap-3">
               <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex items-center gap-6 min-w-[180px]">
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">Tổng nhật ký</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">
+                    <span translate="no" className="notranslate">Tổng nhật ký</span>
+                  </span>
                   <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-black text-blue-600 leading-none">{logs.length}</span>
-                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest translate-y-[-2px]">Dòng</span>
+                    <span translate="no" className="notranslate text-3xl font-black text-blue-600 leading-none">{logs.length}</span>
+                    <span translate="no" className="notranslate text-[10px] font-black text-blue-400 uppercase tracking-widest translate-y-[-2px]">Dòng</span>
                   </div>
                 </div>
                 <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500">
@@ -237,7 +239,7 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
                   className="px-6 py-4 bg-red-600 text-white rounded-2xl font-black text-[12px] uppercase tracking-widest shadow-lg shadow-red-200 hover:bg-red-700 transition-all flex items-center justify-center gap-2 animate-in fade-in slide-in-from-right-4"
                 >
                   <Trash2 size={20} strokeWidth={3} />
-                  Xóa {selectedIds.length} mục
+                  <span translate="no" className="notranslate">Xóa {selectedIds.length} mục</span>
                 </button>
               )}
             </div>
@@ -247,7 +249,7 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
               className="w-full md:w-auto px-6 py-3 bg-slate-100 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center gap-2 opacity-60 hover:opacity-100"
             >
               <Trash2 size={14} strokeWidth={3} />
-              DỌN DẸP TOÀN BỘ HỆ THỐNG
+              <span translate="no" className="notranslate">DỌN DẸP TOÀN BỘ HỆ THỐNG</span>
             </button>
           </div>
         </div>
@@ -264,11 +266,21 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
                     onChange={toggleAll}
                   />
                 </th>
-                <th className="px-4 py-5 text-[11px] font-black uppercase tracking-[0.2em] text-center border border-slate-700/50 w-[60px]">STT</th>
-                <th className="px-4 py-5 text-[11px] font-black uppercase tracking-[0.2em] text-left border border-slate-700/50 w-[250px]">NHÂN SỰ</th>
-                <th className="px-4 py-5 text-[11px] font-black uppercase tracking-[0.2em] text-left border border-slate-700/50 w-[140px]">PHÂN LOẠI</th>
-                <th className="px-6 py-5 text-[11px] font-black uppercase tracking-[0.2em] text-left border border-slate-700/50">NỘI DUNG ĐIỀU CHỈNH</th>
-                <th className="px-4 py-5 text-[11px] font-black uppercase tracking-[0.2em] text-center border border-slate-700/50 w-[150px]">NGÀY GIỜ</th>
+                <th className="px-4 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-center border border-slate-700/50 w-[60px]">
+                  <span translate="no" className="notranslate">STT</span>
+                </th>
+                <th className="px-4 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-left border border-slate-700/50 w-[250px]">
+                  <span translate="no" className="notranslate">NHÂN SỰ</span>
+                </th>
+                <th className="px-4 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-left border border-slate-700/50 w-[140px]">
+                  <span translate="no" className="notranslate">PHÂN LOẠI</span>
+                </th>
+                <th className="px-6 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-left border border-slate-700/50">
+                  <span translate="no" className="notranslate">NỘI DUNG ĐIỀU CHỈNH</span>
+                </th>
+                <th className="px-4 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-center border border-slate-700/50 w-[150px]">
+                  <span translate="no" className="notranslate">NGÀY GIỜ</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -277,7 +289,9 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
                   <td colSpan={6} className="py-24 text-center border border-slate-200">
                     <div className="flex flex-col items-center gap-4 opacity-10">
                       <History size={64} strokeWidth={1} />
-                      <p className="font-black uppercase tracking-[0.3em] text-sm">Hệ thống đang chờ lệnh...</p>
+                      <p className="font-black uppercase tracking-[0.3em] text-sm">
+                        <span translate="no" className="notranslate">Hệ thống đang chờ lệnh...</span>
+                      </p>
                     </div>
                   </td>
                 </tr>
@@ -323,7 +337,7 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
                       </div>
                     </td>
                     <td translate="no" className="notranslate px-6 py-6 text-sm font-bold text-slate-700 border border-slate-200 leading-relaxed italic">
-                      {log.details || 'Không có nội dung chi tiết'}
+                      {log.details || <span translate="no" className="notranslate">Không có nội dung chi tiết</span>}
                     </td>
                     <td className="px-4 py-6 text-center border border-slate-200">
                       <div className="flex flex-col items-center gap-2">

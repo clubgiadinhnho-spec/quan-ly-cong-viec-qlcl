@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Edit2, Plus, Info, Paperclip, X } from 'lucide-react';
+import { Edit2, Plus, Info, Paperclip, X, Calendar } from 'lucide-react';
 import { Task, User, RecurrenceType, TaskCategory } from '../../types';
 import { calculateNextDeadline } from '../../lib/dateUtils';
 import imageCompression from 'browser-image-compression';
@@ -53,6 +53,23 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
   const [showGuide, setShowGuide] = useState(false);
   const titleInputRef = React.useRef<HTMLTextAreaElement>(null);
   const isEdit = !!task;
+
+  // Helper for dd/mm/yy format
+  const formatToDisplayDate = (isoDate: string) => {
+    if (!isoDate) return '';
+    const [y, m, d] = isoDate.split('-');
+    if (!y || !m || !d) return isoDate;
+    return `${d}/${m}/${y.slice(2)}`;
+  };
+
+  const parseFromDisplayToISO = (displayDate: string) => {
+    const parts = displayDate.split('/');
+    if (parts.length !== 3) return '';
+    const d = parts[0].padStart(2, '0');
+    const m = parts[1].padStart(2, '0');
+    const y = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+    return `${y}-${m}-${d}`;
+  };
 
   // ESC key listener
   React.useEffect(() => {
@@ -191,7 +208,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
             {/* Row 1: Assignee (Full width) */}
             <div className="col-span-2">
               <label className="block text-[9px] font-black text-gray-400 mb-0.5 uppercase tracking-wider">
-                <span translate="no" className="notranslate">NGƯỜI THỰC HIỆN</span>
+                <span translate="no" className="notranslate">NGƯỜI THỰC HIỆN <span className="text-red-500">*</span></span>
               </label>
               {canAssignOthers ? (
                 <select 
@@ -199,10 +216,10 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                   value={assigneeId}
                   onChange={(e) => setAssigneeId(e.target.value)}
                 >
-                  <option value="" translate="no" className="notranslate">CHỌN NHÂN SỰ</option>
+                  <option value="" translate="no" className="notranslate"><span translate="no" className="notranslate">CHỌN NHÂN SỰ</span></option>
                   {sortedUsers.map((u) => (
                     <option key={u.id} value={u.id} className="notranslate">
-                      {u.name}
+                      <span translate="no" className="notranslate">{u.name}</span>
                     </option>
                   ))}
                 </select>
@@ -216,73 +233,120 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
             {/* Row 2: Dates (Split) */}
             <div>
               <label className="block text-[9px] font-black text-gray-400 mb-0.5 uppercase tracking-wider">
-                <span translate="no" className="notranslate">NGÀY KHỞI TẠO</span>
+                <span translate="no" className="notranslate">NGÀY KHỞI TẠO <span className="text-red-500">*</span></span>
               </label>
               <div className="w-full px-2 py-1 bg-slate-100 border border-gray-200 rounded-md text-xs font-bold text-gray-500 cursor-not-allowed">
-                <span translate="no" className="notranslate">{issueDate}</span>
+                <span translate="no" className="notranslate">{formatToDisplayDate(issueDate)}</span>
               </div>
             </div>
             <div>
               <label className="block text-[9px] font-black text-gray-400 mb-0.5 uppercase tracking-wider">
-                <span translate="no" className="notranslate">NGÀY BẮT ĐẦU</span>
+                <span translate="no" className="notranslate">NGÀY BẮT ĐẦU <span className="text-red-500">*</span></span>
               </label>
-              <input 
-                type="date"
-                className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 text-xs font-bold"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
+              <div className="relative group">
+                <input 
+                  type="text"
+                  placeholder="dd/mm/yy"
+                  className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 text-xs font-bold pr-7"
+                  value={formatToDisplayDate(startDate)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    // Allow typing dd/mm/yy
+                    if (val.length === 8 && val.includes('/')) {
+                      const iso = parseFromDisplayToISO(val);
+                      if (iso) setStartDate(iso);
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const val = e.target.value;
+                    const iso = parseFromDisplayToISO(val);
+                    if (!iso) {
+                      // Reset to today if invalid on leave
+                      setStartDate(new Date().toISOString().split('T')[0]);
+                    }
+                  }}
+                />
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
+                  <Calendar size={14} className="text-gray-400 group-focus-within:text-blue-500 pointer-events-none" />
+                  <input 
+                    type="date"
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Row 3: Recurrence & Deadline (Split) */}
             <div>
               <label className="block text-[9px] font-black text-blue-600 mb-0.5 uppercase tracking-wider">
-                <span translate="no" className="notranslate">CHU KỲ LẶP</span>
+                <span translate="no" className="notranslate">CHU KỲ LẶP <span className="text-red-500">*</span></span>
               </label>
               <select 
                 className="w-full px-2 py-1 bg-blue-50 border border-blue-100 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 text-xs font-bold text-blue-700"
                 value={recurrence}
                 onChange={(e) => setRecurrence(e.target.value as RecurrenceType)}
               >
-                <option value="NONE" translate="no" className="notranslate">KHÔNG LẶP</option>
-                <option value="DAILY" translate="no" className="notranslate">HÀNG NGÀY</option>
-                <option value="TRI_DAILY" translate="no" className="notranslate">2-3 NGÀY/LẦN</option>
-                <option value="WEEKLY" translate="no" className="notranslate">HÀNG TUẦN</option>
-                <option value="BI_WEEKLY" translate="no" className="notranslate">HÀNG 2 TUẦN</option>
-                <option value="TRI_WEEKLY" translate="no" className="notranslate">HÀNG 3 TUẦN</option>
-                <option value="MONTHLY" translate="no" className="notranslate">HÀNG THÁNG</option>
+                <option value="NONE" translate="no" className="notranslate"><span translate="no" className="notranslate">KHÔNG LẶP</span></option>
+                <option value="DAILY" translate="no" className="notranslate"><span translate="no" className="notranslate">HÀNG NGÀY</span></option>
+                <option value="TRI_DAILY" translate="no" className="notranslate"><span translate="no" className="notranslate">2-3 NGÀY/LẦN</span></option>
+                <option value="WEEKLY" translate="no" className="notranslate"><span translate="no" className="notranslate">HÀNG TUẦN</span></option>
+                <option value="BI_WEEKLY" translate="no" className="notranslate"><span translate="no" className="notranslate">HÀNG 2 TUẦN</span></option>
+                <option value="TRI_WEEKLY" translate="no" className="notranslate"><span translate="no" className="notranslate">HÀNG 3 TUẦN</span></option>
+                <option value="MONTHLY" translate="no" className="notranslate"><span translate="no" className="notranslate">HÀNG THÁNG</span></option>
               </select>
             </div>
             <div>
               <label className="block text-[9px] font-black text-gray-400 mb-0.5 uppercase tracking-wider">
-                <span translate="no" className="notranslate">HẠN HOÀN THÀNH</span>
+                <span translate="no" className="notranslate">HẠN HOÀN THÀNH <span className="text-red-500">*</span></span>
               </label>
-              <input 
-                type="date"
-                className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 text-xs font-bold text-blue-600"
-                value={expectedDate}
-                onChange={(e) => {
-                  setExpectedDate(e.target.value);
-                  setIsManualEdit(true);
-                }}
-                min={startDate}
-              />
+              <div className="relative group">
+                <input 
+                  type="text"
+                  placeholder="dd/mm/yy"
+                  className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 text-xs font-bold text-blue-600 pr-7"
+                  value={formatToDisplayDate(expectedDate)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val.length === 8 && val.includes('/')) {
+                      const iso = parseFromDisplayToISO(val);
+                      if (iso) {
+                        setExpectedDate(iso);
+                        setIsManualEdit(true);
+                      }
+                    }
+                  }}
+                />
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center">
+                  <Calendar size={14} className="text-gray-400 group-focus-within:text-blue-500 pointer-events-none" />
+                  <input 
+                    type="date"
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                    value={expectedDate}
+                    onChange={(e) => {
+                      setExpectedDate(e.target.value);
+                      setIsManualEdit(true);
+                    }}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Row 4: Classification (Full width) */}
             <div className="col-span-2">
               <label className="block text-[9px] font-black text-gray-400 mb-0.5 uppercase tracking-wider">
-                <span translate="no" className="notranslate">PHÂN LOẠI CÔNG VIỆC</span>
+                <span translate="no" className="notranslate">PHÂN LOẠI CÔNG VIỆC <span className="text-red-500">*</span></span>
               </label>
               <select 
                 className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 text-xs font-bold"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
-                <option value="" translate="no" className="notranslate">CHỌN PHÂN LOẠI</option>
+                <option value="" translate="no" className="notranslate"><span translate="no" className="notranslate">CHỌN PHÂN LOẠI</span></option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.code} className="notranslate">
-                    [{c.code}] {c.name}
+                    <span translate="no" className="notranslate">[{c.code}] {c.name}</span>
                   </option>
                 ))}
               </select>
@@ -291,13 +355,14 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
             {/* Row 5: Task Content (Full width) */}
             <div className="col-span-2">
               <label className="block text-[9px] font-black text-gray-400 mb-0.5 uppercase tracking-wider">
-                <span translate="no" className="notranslate">HẠNG MỤC CÔNG VIỆC *</span>
+                <span translate="no" className="notranslate">HẠNG MỤC CÔNG VIỆC <span className="text-red-500">*</span></span>
               </label>
               <textarea 
                 ref={titleInputRef}
-                className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 h-[40px] resize-none font-bold text-xs leading-tight"
+                className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 h-[40px] resize-none font-bold text-xs leading-tight notranslate"
                 placeholder="Nhập tên công việc..."
                 value={title}
+                translate="no"
                 onChange={(e) => setTitle(e.target.value)}
               />
             </div>
@@ -305,12 +370,13 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
             {/* Row 6: Objective (Full width) */}
             <div className="col-span-2">
               <label className="block text-[9px] font-black text-gray-400 mb-0.5 uppercase tracking-wider">
-                <span translate="no" className="notranslate">MỤC TIÊU ĐẠT ĐƯỢC *</span>
+                <span translate="no" className="notranslate">MỤC TIÊU ĐẠT ĐƯỢC <span className="text-red-500">*</span></span>
               </label>
               <textarea 
-                className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 h-[40px] resize-none font-bold text-xs leading-tight"
+                className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 h-[40px] resize-none font-bold text-xs leading-tight notranslate"
                 placeholder="Mục tiêu cụ thể cho công việc này..."
                 value={objective}
+                translate="no"
                 onChange={(e) => setObjective(e.target.value)}
               />
             </div>
@@ -423,7 +489,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
           </AnimatePresence>
 
           <button onClick={onClose} className="flex-1 py-2 text-gray-500 text-xs font-black hover:bg-gray-200 rounded-md transition-all uppercase tracking-wider bg-gray-100">
-            <span translate="no" className="notranslate">HỦY</span>
+            <span translate="no" className="notranslate"><span translate="no" className="notranslate">HỦY</span></span>
           </button>
           <button 
             disabled={isProcessingFile}
@@ -479,7 +545,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
             }}
             className="flex-1 py-2 bg-blue-600 text-white font-black rounded-md hover:bg-blue-700 transition-all disabled:opacity-50 uppercase text-xs tracking-widest"
           >
-            <span translate="no" className="notranslate">{isEdit ? 'CẬP NHẬT' : 'KHỞI TẠO'}</span>
+            <span translate="no" className="notranslate"><span translate="no" className="notranslate">{isEdit ? 'CẬP NHẬT' : 'KHỞI TẠO'}</span></span>
           </button>
         </div>
       </motion.div>

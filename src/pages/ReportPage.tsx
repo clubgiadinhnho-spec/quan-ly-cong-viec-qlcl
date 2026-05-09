@@ -218,9 +218,10 @@ export const ReportPage = ({
                 <select 
                   value={selectedStaffId}
                   onChange={(e) => setSelectedStaffId(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 px-3 py-1.5 text-slate-600 font-bold text-xs rounded-md outline-none focus:ring-2 focus:ring-blue-500/20 uppercase"
+                  disabled={currentUser.role === 'Staff'}
+                  className={`bg-slate-50 border border-slate-200 px-3 py-1.5 text-slate-600 font-bold text-xs rounded-md outline-none focus:ring-2 focus:ring-blue-500/20 uppercase ${currentUser.role === 'Staff' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  <option value="ALL" translate="no" className="notranslate">TOÀN PHÒNG</option>
+                  {currentUser.role !== 'Staff' && <option value="ALL" translate="no" className="notranslate">TOÀN PHÒNG</option>}
                   {users.map(u => (
                     <option key={u.id} value={u.id} translate="no" className="notranslate">{u.name.toUpperCase()}</option>
                   ))}
@@ -292,22 +293,22 @@ export const ReportPage = ({
           <table className="w-full border-collapse border border-slate-300">
             <thead>
               <tr className="bg-blue-600 text-white sticky top-0 z-20">
-                <th className="px-4 py-5 text-center text-[10px] font-black uppercase tracking-widest border border-slate-300 border-white/20 whitespace-nowrap w-[12%]">
+                <th className="px-4 py-5 text-center text-[9px] font-black uppercase tracking-widest border border-slate-300 border-white/20 whitespace-nowrap w-[12%]">
                   <span translate="no" className="notranslate">NHÓM KPI</span>
                 </th>
-                <th className="px-6 py-5 text-center text-[10px] font-black uppercase tracking-widest border border-slate-300 border-white/20 w-[22%]">
+                <th className="px-6 py-5 text-center text-[9px] font-black uppercase tracking-widest border border-slate-300 border-white/20 w-[22%]">
                   <span translate="no" className="notranslate">NỘI DUNG KPI</span>
                 </th>
-                <th className="px-4 py-5 text-center text-[10px] font-black uppercase tracking-widest border border-slate-300 border-white/20 w-[8%]">
+                <th className="px-4 py-5 text-center text-[9px] font-black uppercase tracking-widest border border-slate-300 border-white/20 w-[8%]">
                   <span translate="no" className="notranslate">TỶ TRỌNG</span>
                 </th>
-                <th className="px-6 py-5 text-center text-[10px] font-black uppercase tracking-widest border border-slate-300 border-white/20 w-[8%]">
+                <th className="px-6 py-5 text-center text-[9px] font-black uppercase tracking-widest border border-slate-300 border-white/20 w-[8%]">
                   <span translate="no" className="notranslate">KPI</span>
                 </th>
-                <th className="px-6 py-5 text-center text-[10px] font-black uppercase tracking-widest border border-slate-300 border-white/20 w-[10%]">
+                <th className="px-6 py-5 text-center text-[9px] font-black uppercase tracking-widest border border-slate-300 border-white/20 w-[10%]">
                   <span translate="no" className="notranslate">KẾT QUẢ</span>
                 </th>
-                <th className="px-6 py-5 text-center text-[10px] font-black uppercase tracking-widest border border-slate-300 w-[40%]">
+                <th className="px-6 py-5 text-center text-[9px] font-black uppercase tracking-widest border border-slate-300 w-[40%]">
                   <span translate="no" className="notranslate">DIỄN GIẢI CHI TIẾT</span>
                 </th>
               </tr>

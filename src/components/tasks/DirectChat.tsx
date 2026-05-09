@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessageCircle, Send, X, Minus, ChevronUp, Smile } from 'lucide-react';
+import { MessageCircle, Send, X, Minus, ChevronUp, Smile, Image, Paperclip } from 'lucide-react';
 import { User, PrivateMessage } from '../../types';
 import { formatDateTime } from '../../lib/dateUtils';
 import { ReactionPicker, ReactionBadge } from '../common/ReactionPicker';
+import { EmojiPicker } from '../common/EmojiPicker';
 import { Avatar } from '../common/Avatar';
 import { ChatIcon } from '../common/Icons';
 import { auth } from '../../lib/firebase';
@@ -41,8 +42,31 @@ export const DirectChat = ({
 }: DirectChatProps) => {
   const [newMessage, setNewMessage] = useState('');
   const [showEmojiFor, setShowEmojiFor] = useState<string | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiTriggerRef = useRef<HTMLButtonElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const isLNT = currentUser.name === 'Lê Nhật Trường' || currentUser.personalEmail === 'lenhattruong.tpp@gmail.com';
+  const canAttach = currentUser.role === 'Admin' || currentUser.role === 'Trưởng Phòng' || isLNT;
+
+  const insertEmoji = (emoji: string) => {
+    if (!inputRef.current) return;
+    const start = inputRef.current.selectionStart;
+    const end = inputRef.current.selectionEnd;
+    const text = newMessage;
+    const before = text.substring(0, start);
+    const after = text.substring(end);
+    setNewMessage(before + emoji + after);
+    
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        const newPos = start + emoji.length;
+        inputRef.current.setSelectionRange(newPos, newPos);
+      }
+    }, 10);
+  };
 
   // Auto-focus input when panel opens or bubble is shown
   useEffect(() => {
@@ -303,6 +327,41 @@ export const DirectChat = ({
 
               {/* Input area - BOTTOM */}
               <div className="p-3 border-t border-gray-100 bg-white rounded-b-[2.5rem]">
+                <div className="flex items-center gap-2 mb-2 px-1">
+                  <button 
+                    ref={emojiTriggerRef}
+                    onClick={() => setShowEmojiPicker(true)}
+                    className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-blue-500 transition-colors flex items-center gap-1"
+                  >
+                    <Smile size={16} />
+                    <span translate="no" className="notranslate text-[9px] font-bold uppercase">Emoji</span>
+                  </button>
+
+                  <EmojiPicker 
+                    isOpen={showEmojiPicker}
+                    onClose={() => setShowEmojiPicker(false)}
+                    onSelect={insertEmoji}
+                    anchorRect={emojiTriggerRef.current?.getBoundingClientRect()}
+                  />
+
+                  {canAttach && (
+                    <div className="flex items-center gap-1 border-l border-gray-100 ml-1 pl-2">
+                      <button 
+                        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"
+                        onClick={() => alert("Tính năng gửi hình ảnh đang được đồng bộ...")}
+                      >
+                        <Image size={15} />
+                      </button>
+                      <button 
+                        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-blue-600 transition-colors"
+                        onClick={() => alert("Tính năng đính kèm đang được đồng bộ...")}
+                      >
+                        <Paperclip size={15} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="relative">
                   <textarea
                     ref={inputRef}

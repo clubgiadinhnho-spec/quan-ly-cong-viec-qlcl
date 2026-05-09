@@ -10,13 +10,13 @@ export function formatDate(dateString: string | null | undefined): string {
         if (parts[0].length === 4) { // YYYY-MM-DD
            const d = parts[2].padStart(2, '0');
            const m = parts[1].padStart(2, '0');
-           const y = parts[0];
+           const y = parts[0].slice(-2);
            return `${d}/${m}/${y}`;
         }
         if (parts[2].length === 4) { // DD/MM/YYYY
            const d = parts[0].padStart(2, '0');
            const m = parts[1].padStart(2, '0');
-           const y = parts[2];
+           const y = parts[2].slice(-2);
            return `${d}/${m}/${y}`;
         }
       }
@@ -25,7 +25,7 @@ export function formatDate(dateString: string | null | undefined): string {
     
     const d = date.getDate().toString().padStart(2, '0');
     const m = (date.getMonth() + 1).toString().padStart(2, '0');
-    const y = date.getFullYear();
+    const y = date.getFullYear().toString().slice(-2);
     
     return `${d}/${m}/${y}`;
   } catch (e) {
@@ -42,7 +42,7 @@ export function formatDateTime(dateString: string | null | undefined): string {
     
     const d = date.getDate().toString().padStart(2, '0');
     const m = (date.getMonth() + 1).toString().padStart(2, '0');
-    const y = date.getFullYear();
+    const y = date.getFullYear().toString().slice(-2);
     const hh = date.getHours().toString().padStart(2, '0');
     const mm = date.getMinutes().toString().padStart(2, '0');
     
@@ -61,7 +61,7 @@ export function formatFullDateTime(dateString: string | null | undefined): strin
     
     const d = date.getDate().toString().padStart(2, '0');
     const m = (date.getMonth() + 1).toString().padStart(2, '0');
-    const y = date.getFullYear();
+    const y = date.getFullYear().toString().slice(-2);
     const hh = date.getHours().toString().padStart(2, '0');
     const mm = date.getMinutes().toString().padStart(2, '0');
     const ss = date.getSeconds().toString().padStart(2, '0');

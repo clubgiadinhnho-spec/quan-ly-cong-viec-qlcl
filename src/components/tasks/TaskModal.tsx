@@ -52,11 +52,37 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const titleInputRef = React.useRef<HTMLTextAreaElement>(null);
-
   const isEdit = !!task;
+
+  // ESC key listener
+  React.useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
   const isLNT = currentUser.name === 'Lê Nhật Trường';
   const isAdmin = currentUser.role === 'Admin' || isLNT;
-  const canAssignOthers = isAdmin || currentUser.role === 'Leader';
+  const isDeptHead = currentUser.role === 'Trưởng Phòng';
+  const canAssignOthers = isAdmin || currentUser.role === 'Leader' || isDeptHead;
+  const canAttach = isAdmin || isDeptHead;
+
+  // Helper for +7 days logic
+  const getSevenDaysLater = (dateStr: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    date.setDate(date.getDate() + 7);
+    return date.toISOString().split('T')[0];
+  };
+
+  // Set default expected date to +7 days for new tasks
+  React.useEffect(() => {
+    if (!isEdit && !expectedDate && startDate) {
+      setExpectedDate(getSevenDaysLater(startDate));
+    }
+  }, [startDate, isEdit, expectedDate]);
 
   // Function to reset form for next entry
   const resetFormForNext = () => {
@@ -86,9 +112,13 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
 
   // Sync deadline if cycle or start date changes, unless manually edited
   React.useEffect(() => {
-    if (!isEdit && !isManualEdit && recurrence !== 'NONE') {
-      const calculated = calculateNextDeadline(startDate || new Date().toISOString().split('T')[0], recurrence);
-      setExpectedDate(calculated);
+    if (!isEdit && !isManualEdit) {
+      if (recurrence !== 'NONE') {
+        const calculated = calculateNextDeadline(startDate || new Date().toISOString().split('T')[0], recurrence);
+        setExpectedDate(calculated);
+      } else if (startDate) {
+        setExpectedDate(getSevenDaysLater(startDate));
+      }
     }
   }, [recurrence, startDate, isEdit, isManualEdit]);
 
@@ -98,147 +128,138 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="relative bg-white w-full max-w-lg rounded-2xl p-8 shadow-2xl"
+        className="relative bg-white w-full max-w-lg rounded-xl border border-gray-200 flex flex-col max-h-[85vh] overflow-hidden"
       >
-        <div className="flex justify-between items-start mb-4">
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            {isEdit ? <Edit2 className="text-blue-600" /> : <Plus className="text-blue-600" />}
-            <span translate="no" className="notranslate">{isEdit ? 'CẬP NHẬT CÔNG VIỆC' : 'NHẬP CÔNG VIỆC MỚI'}</span>
+        <div className="flex justify-between items-center p-3 border-b border-gray-100 bg-gray-50/30">
+          <h2 className="text-sm font-black flex items-center gap-2">
+            {isEdit ? <Edit2 size={16} className="text-blue-600" /> : <Plus size={16} className="text-blue-600" />}
+            <span translate="no" className="notranslate">{isEdit ? 'CẬP NHẬT CÔNG VIỆC' : 'KHỞI TẠO CÔNG VIỆC MỚI'}</span>
           </h2>
-          {!isEdit && (
-            <div className="flex flex-col items-end">
-              <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter mb-0.5">Mã dự kiến:</span>
-              <span translate="no" className="notranslate text-blue-600 font-black font-mono text-lg leading-none bg-blue-50 px-2 py-1 rounded border border-blue-100">{nextCode}</span>
-            </div>
-          )}
-        </div>
-
-        {!isEdit && (
-          <div className="mb-6">
-            <button 
-              onClick={() => setShowGuide(!showGuide)}
-              className="flex items-center gap-2 text-[10px] font-black text-blue-600 uppercase tracking-widest hover:text-blue-700 transition-colors bg-blue-50/50 px-3 py-1.5 rounded-lg border border-blue-100"
-            >
-              <Info size={14} />
-              <span translate="no" className="notranslate">{showGuide ? 'Đóng hướng dẫn' : 'Xem hướng dẫn nhập liệu'}</span>
-            </button>
-            
-            <AnimatePresence>
-              {showGuide && (
-                <motion.div 
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="mt-2 p-4 bg-slate-50 rounded-xl border border-slate-200 text-[11px] leading-relaxed text-slate-600 space-y-2">
-                    <div className="flex gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1 shrink-0" />
-                      <span translate="no" className="notranslate">
-                        <strong>NGÀY BẮT ĐẦU:</strong> Nếu để trống, hệ thống tự lấy ngày hôm nay.
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1 shrink-0" />
-                      <span translate="no" className="notranslate">
-                        <strong>CHU KỲ:</strong> Chọn tần suất lặp lại. Hệ thống sẽ tự tính toán <strong>HẠN HOÀN THÀNH</strong>.
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1 shrink-0" />
-                      <span translate="no" className="notranslate">
-                        <strong>HẠN HOÀN THÀNH:</strong> Đây là hạn chót của chu kỳ hiện tại. Bạn có thể sửa tay nếu cần xê dịch.
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1 shrink-0" />
-                      <span translate="no" className="notranslate">
-                        <strong>NỘI DUNG & MỤC TIÊU:</strong> Phải ghi rõ kết quả cần đạt được (Ví dụ: Hoàn thành 100% hồ sơ).
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-        
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
-              <span translate="no" className="notranslate">Người thực hiện</span>
-            </label>
-            {canAssignOthers ? (
-              <select 
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                value={assigneeId}
-                onChange={(e) => setAssigneeId(e.target.value)}
-              >
-                <option value="" translate="no" className="notranslate">CHỌN NHÂN SỰ</option>
-                {sortedUsers.map((u) => (
-                  <option key={u.id} value={u.id} className="notranslate">
-                    {u.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-lg text-slate-600 font-bold flex items-center cursor-not-allowed opacity-80 shadow-inner">
-                <span translate="no" className="notranslate">{currentUser.name}</span>
+          <div className="flex items-center gap-3">
+            {!isEdit && (
+              <div className="flex flex-col items-end">
+                <span translate="no" className="notranslate text-[9px] font-black text-gray-400 uppercase tracking-tighter">Mã dự kiến:</span>
+                <span translate="no" className="notranslate text-blue-600 font-black font-mono text-xs leading-none">{nextCode}</span>
               </div>
             )}
+            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full transition-colors">
+              <X size={18} className="text-gray-400" />
+            </button>
           </div>
+        </div>
 
-          <div className="grid grid-cols-2 gap-4">
+        <div className="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar">
+          {!isEdit && (
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
+              <button 
+                onClick={() => setShowGuide(!showGuide)}
+                className="flex items-center gap-1.5 text-[9px] font-black text-blue-600 uppercase tracking-widest hover:text-blue-700 transition-colors bg-blue-50/50 px-2 py-0.5 rounded border border-blue-100"
+              >
+                <Info size={10} />
+                <span translate="no" className="notranslate">HƯỚNG DẪN NHANH</span>
+              </button>
+              
+              <AnimatePresence>
+                {showGuide && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mt-2 p-3 bg-slate-50 rounded-lg border border-slate-200 text-[10px] leading-relaxed text-slate-600 space-y-1">
+                      <div className="flex gap-2">
+                        <div className="w-1 h-1 rounded-full bg-blue-500 mt-1 shrink-0" />
+                        <span translate="no" className="notranslate">
+                          <strong>NGÀY BẮT ĐẦU:</strong> Mặc định là hôm nay.
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="w-1 h-1 rounded-full bg-blue-500 mt-1 shrink-0" />
+                        <span translate="no" className="notranslate">
+                          <strong>CHU KỲ:</strong> Tự động tính <strong>HẠN HOÀN THÀNH</strong>.
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+          
+          <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+            {/* Row 1: Assignee (Full width) */}
+            <div className="col-span-2">
+              <label className="block text-[9px] font-black text-gray-400 mb-0.5 uppercase tracking-wider">
+                <span translate="no" className="notranslate">NGƯỜI THỰC HIỆN</span>
+              </label>
+              {canAssignOthers ? (
+                <select 
+                  className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 text-xs font-bold"
+                  value={assigneeId}
+                  onChange={(e) => setAssigneeId(e.target.value)}
+                >
+                  <option value="" translate="no" className="notranslate">CHỌN NHÂN SỰ</option>
+                  {sortedUsers.map((u) => (
+                    <option key={u.id} value={u.id} className="notranslate">
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="w-full px-2 py-1 bg-slate-100 border border-slate-200 rounded-md text-slate-600 text-xs font-bold flex items-center cursor-not-allowed opacity-80">
+                  <span translate="no" className="notranslate">{currentUser.name}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Row 2: Dates (Split) */}
+            <div>
+              <label className="block text-[9px] font-black text-gray-400 mb-0.5 uppercase tracking-wider">
                 <span translate="no" className="notranslate">NGÀY KHỞI TẠO</span>
               </label>
-              <input 
-                type="date"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
-                value={issueDate}
-                onChange={(e) => setIssueDate(e.target.value)}
-              />
+              <div className="w-full px-2 py-1 bg-slate-100 border border-gray-200 rounded-md text-xs font-bold text-gray-500 cursor-not-allowed">
+                <span translate="no" className="notranslate">{issueDate}</span>
+              </div>
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
+              <label className="block text-[9px] font-black text-gray-400 mb-0.5 uppercase tracking-wider">
                 <span translate="no" className="notranslate">NGÀY BẮT ĐẦU</span>
               </label>
               <input 
                 type="date"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
+                className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 text-xs font-bold"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-4">
+            {/* Row 3: Recurrence & Deadline (Split) */}
             <div>
-              <label className="block text-xs font-bold text-blue-600 mb-1 uppercase">
-                <span translate="no" className="notranslate">Chu kỳ (Lặp lại)</span>
+              <label className="block text-[9px] font-black text-blue-600 mb-0.5 uppercase tracking-wider">
+                <span translate="no" className="notranslate">CHU KỲ LẶP</span>
               </label>
               <select 
-                className="w-full px-4 py-3 bg-blue-50 border border-blue-100 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
+                className="w-full px-2 py-1 bg-blue-50 border border-blue-100 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 text-xs font-bold text-blue-700"
                 value={recurrence}
                 onChange={(e) => setRecurrence(e.target.value as RecurrenceType)}
               >
                 <option value="NONE" translate="no" className="notranslate">KHÔNG LẶP</option>
-                <option value="DAILY" translate="no" className="notranslate">HÀNG NGÀY (+1 NGÀY)</option>
-                <option value="TRI_DAILY" translate="no" className="notranslate">2-3 NGÀY/LẦN (+3 NGÀY)</option>
-                <option value="WEEKLY" translate="no" className="notranslate">HÀNG TUẦN (+7 NGÀY)</option>
-                <option value="BI_WEEKLY" translate="no" className="notranslate">HÀNG 2 TUẦN (+14 NGÀY)</option>
-                <option value="TRI_WEEKLY" translate="no" className="notranslate">HÀNG 3 TUẦN (+21 NGÀY)</option>
-                <option value="MONTHLY" translate="no" className="notranslate">HÀNG THÁNG (+1 THÁNG)</option>
+                <option value="DAILY" translate="no" className="notranslate">HÀNG NGÀY</option>
+                <option value="TRI_DAILY" translate="no" className="notranslate">2-3 NGÀY/LẦN</option>
+                <option value="WEEKLY" translate="no" className="notranslate">HÀNG TUẦN</option>
+                <option value="BI_WEEKLY" translate="no" className="notranslate">HÀNG 2 TUẦN</option>
+                <option value="TRI_WEEKLY" translate="no" className="notranslate">HÀNG 3 TUẦN</option>
+                <option value="MONTHLY" translate="no" className="notranslate">HÀNG THÁNG</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
-                <span translate="no" className="notranslate">Hạn hoàn thành</span>
+              <label className="block text-[9px] font-black text-gray-400 mb-0.5 uppercase tracking-wider">
+                <span translate="no" className="notranslate">HẠN HOÀN THÀNH</span>
               </label>
               <input 
                 type="date"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold text-blue-600"
+                className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 text-xs font-bold text-blue-600"
                 value={expectedDate}
                 onChange={(e) => {
                   setExpectedDate(e.target.value);
@@ -247,193 +268,185 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                 min={startDate}
               />
             </div>
-          </div>
 
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
-              <span translate="no" className="notranslate">Hạng mục công việc *</span>
-            </label>
-            <textarea 
-              ref={titleInputRef}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-20 resize-none font-bold"
-              placeholder="Nhập tên công việc..."
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
-              <span translate="no" className="notranslate">PHÂN LOẠI</span>
-            </label>
-            <select 
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
-              <option value="" translate="no" className="notranslate">CHỌN PHÂN LOẠI</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.code} className="notranslate">
-                  [{c.code}] {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
-              <span translate="no" className="notranslate">Mục tiêu đạt được *</span>
-            </label>
-            <input 
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-bold"
-              placeholder="Mục tiêu cụ thể cho công việc này..."
-              value={objective}
-              onChange={(e) => setObjective(e.target.value)}
-            />
-          </div>
-          
-          {isEdit && (
-            <div>
-              <label className="block text-xs font-bold text-emerald-600 mb-1 uppercase">
-                <span translate="no" className="notranslate">Gia hạn (nếu có)</span>
+            {/* Row 4: Classification (Full width) */}
+            <div className="col-span-2">
+              <label className="block text-[9px] font-black text-gray-400 mb-0.5 uppercase tracking-wider">
+                <span translate="no" className="notranslate">PHÂN LOẠI CÔNG VIỆC</span>
               </label>
-              <input 
-                type="date"
-                className="w-full px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-emerald-700 font-bold"
-                value={extensionDate}
-                onChange={(e) => setExtensionDate(e.target.value)}
-                min={expectedDate}
+              <select 
+                className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 text-xs font-bold"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="" translate="no" className="notranslate">CHỌN PHÂN LOẠI</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.code} className="notranslate">
+                    [{c.code}] {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Row 5: Task Content (Full width) */}
+            <div className="col-span-2">
+              <label className="block text-[9px] font-black text-gray-400 mb-0.5 uppercase tracking-wider">
+                <span translate="no" className="notranslate">HẠNG MỤC CÔNG VIỆC *</span>
+              </label>
+              <textarea 
+                ref={titleInputRef}
+                className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 h-[40px] resize-none font-bold text-xs leading-tight"
+                placeholder="Nhập tên công việc..."
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
               />
             </div>
-          )}
-          
-          {!isEdit && (
-            <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">
-                <span translate="no" className="notranslate">Đính kèm tài liệu mô tả (PDF/Ảnh)</span>
+
+            {/* Row 6: Objective (Full width) */}
+            <div className="col-span-2">
+              <label className="block text-[9px] font-black text-gray-400 mb-0.5 uppercase tracking-wider">
+                <span translate="no" className="notranslate">MỤC TIÊU ĐẠT ĐƯỢC *</span>
               </label>
-              <div className="relative group">
+              <textarea 
+                className="w-full px-2 py-1 bg-gray-50 border border-gray-200 rounded-md outline-none focus:ring-1 focus:ring-blue-500/20 focus:border-blue-500 h-[40px] resize-none font-bold text-xs leading-tight"
+                placeholder="Mục tiêu cụ thể cho công việc này..."
+                value={objective}
+                onChange={(e) => setObjective(e.target.value)}
+              />
+            </div>
+
+            {/* Optional Extension Row */}
+            {isEdit && (
+              <div className="col-span-2">
+                <label className="block text-[9px] font-black text-emerald-600 mb-0.5 uppercase tracking-wider">
+                  <span translate="no" className="notranslate">GIA HẠN (NẾU CÓ)</span>
+                </label>
                 <input 
-                  type="file"
-                  accept="image/*,application/pdf"
-                  className="hidden"
-                  id="task-attachment"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-
-                    setIsProcessingFile(true);
-                    let processedFile: File | Blob = file;
-
-                    if (file.type.startsWith('image/')) {
-                      try {
-                        const options = {
-                          maxSizeMB: 0.7,
-                          maxWidthOrHeight: 1920,
-                          useWebWorker: true,
-                        };
-                        processedFile = await imageCompression(file, options);
-                        if (processedFile.size > 850 * 1024) {
-                          processedFile = await imageCompression(file, { ...options, maxSizeMB: 0.5 });
-                        }
-                      } catch (error) {
-                        console.error("Compression failed:", error);
-                      }
-                    }
-
-                    // Total limit ~800KB for Firestore safety
-                    if (processedFile.size > 800 * 1024) {
-                      alert(`Tệp "${file.name}" quá lớn (${(processedFile.size / 1024 / 1024).toFixed(2)}MB). Giới hạn tối đa là 800KB để lưu vào hệ thống.`);
-                      setIsProcessingFile(false);
-                      return;
-                    }
-
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                      setAttachmentData({
-                        url: reader.result as string,
-                        name: file.name
-                      });
-                      setAttachment(file);
-                      setIsProcessingFile(false);
-                    };
-                    reader.readAsDataURL(processedFile);
-                  }}
+                  type="date"
+                  className="w-full px-2 py-1 bg-emerald-50 border border-emerald-200 rounded-md outline-none focus:ring-1 focus:ring-emerald-500/20 focus:border-emerald-500 text-xs text-emerald-700 font-bold"
+                  value={extensionDate}
+                  onChange={(e) => setExtensionDate(e.target.value)}
+                  min={expectedDate}
                 />
-                <div className="flex flex-col gap-2">
+              </div>
+            )}
+            
+            {/* Row 7: Attachment (Gọn) - Security check applied */}
+            {!isEdit && canAttach && (
+              <div className="col-span-2">
+                <label className="block text-[9px] font-black text-gray-400 mb-0.5 uppercase tracking-wider">
+                  <span translate="no" className="notranslate">ĐÍNH KÈM TÀI LIỆU (PDF/ẢNH)</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="hidden"
+                    id="task-attachment"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+
+                      setIsProcessingFile(true);
+                      let processedFile: File | Blob = file;
+
+                      if (file.type.startsWith('image/')) {
+                        try {
+                          const options = {
+                            maxSizeMB: 0.7,
+                            maxWidthOrHeight: 1920,
+                            useWebWorker: true,
+                          };
+                          processedFile = await imageCompression(file, options);
+                        } catch (error) {
+                          console.error("Compression failed:", error);
+                        }
+                      }
+
+                      if (processedFile.size > 800 * 1024) {
+                        alert(`Tệp quá lớn. Giới hạn là 800KB.`);
+                        setIsProcessingFile(false);
+                        return;
+                      }
+
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        setAttachmentData({
+                          url: reader.result as string,
+                          name: file.name
+                        });
+                        setAttachment(file);
+                        setIsProcessingFile(false);
+                      };
+                      reader.readAsDataURL(processedFile);
+                    }}
+                  />
                   <label 
                     htmlFor="task-attachment"
-                    className={`flex items-center justify-between w-full px-4 py-3 bg-gray-50 border border-gray-200 border-dashed rounded-lg cursor-pointer group-hover:border-blue-400 group-hover:bg-blue-50/30 transition-all ${isProcessingFile ? 'opacity-50 cursor-wait' : ''}`}
+                    className={`flex items-center gap-2 px-3 py-1 bg-gray-50 border border-gray-200 border-dashed rounded-md cursor-pointer hover:bg-blue-50 transition-all text-[10px] font-bold text-gray-500 overflow-hidden ${isProcessingFile ? 'opacity-50 cursor-wait' : ''}`}
                   >
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <Paperclip size={16} className="text-gray-400 shrink-0" />
-                      <span className="text-gray-400 text-sm truncate pr-4">
-                        {isProcessingFile ? "Đang xử lý..." : (attachment ? attachment.name : "Chọn file PDF hoặc Ảnh...")}
-                      </span>
-                    </div>
-                    {!isProcessingFile && (
-                      <span className="text-[10px] font-bold bg-gray-200 text-gray-600 px-2 py-1 rounded group-hover:bg-blue-600 group-hover:text-white uppercase transition-all">
-                        {attachment ? "Thay đổi" : "Browse"}
-                      </span>
-                    )}
+                    <Paperclip size={12} />
+                    <span className="truncate max-w-[200px]">
+                      {isProcessingFile ? "Đang xử lý..." : (attachment ? attachment.name : "CHỌN PDF/ẢNH...")}
+                    </span>
                   </label>
                   
                   {attachmentData && !isProcessingFile && (
-                    <div className="flex items-center justify-between p-2 bg-blue-50 rounded-lg border border-blue-100 text-xs text-blue-700">
-                      <span className="truncate flex-1 font-bold italic">{attachmentData.name} (Ready)</span>
-                      <button 
-                        type="button"
-                        onClick={() => { setAttachment(null); setAttachmentData(null); }}
-                        className="p-1 hover:bg-blue-100 rounded-full text-blue-600"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => { setAttachment(null); setAttachmentData(null); }}
+                      className="p-1 bg-red-50 text-red-500 rounded-md hover:bg-red-100 transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
                   )}
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
-        <div className="mt-8 flex items-center gap-3 relative">
+        <div className="p-3 border-t border-gray-100 bg-gray-50/30 flex items-center gap-3 relative rounded-b-xl">
           <AnimatePresence>
             {showSuccessToast && (
               <motion.div 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="absolute -top-12 left-0 right-0 flex justify-center pointer-events-none"
+                className="absolute -top-10 left-0 right-0 flex justify-center pointer-events-none"
               >
-                <div className="bg-emerald-500 text-white px-4 py-2 rounded-full text-[10px] font-black shadow-lg flex items-center gap-2">
-                  <span translate="no" className="notranslate whitespace-nowrap">ĐÃ LƯU CÔNG VIỆC! MỜI NHẬP TIẾP.</span>
+                <div className="bg-emerald-500 text-white px-3 py-1 rounded-full text-[9px] font-black flex items-center gap-2">
+                  <span translate="no" className="notranslate whitespace-nowrap">ĐÃ LƯU! MỜI NHẬP TIẾP.</span>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          <button onClick={onClose} className="flex-1 px-4 py-3 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-all uppercase">
+          <button onClick={onClose} className="flex-1 py-2 text-gray-500 text-xs font-black hover:bg-gray-200 rounded-md transition-all uppercase tracking-wider bg-gray-100">
             <span translate="no" className="notranslate">HỦY</span>
           </button>
           <button 
-            disabled={!title || !assigneeId || isProcessingFile}
+            disabled={isProcessingFile}
             onClick={async () => {
               try {
+                // Validation: All fields mandatory
+                if (!assigneeId) { alert("Vui lòng chọn NGƯỜI THỰC HIỆN"); return; }
+                if (!issueDate) { alert("Thiếu NGÀY KHỞI TẠO"); return; }
+                if (!startDate) { alert("Vui lòng chọn NGÀY BẮT ĐẦU"); return; }
+                if (!expectedDate) { alert("Vui lòng chọn HẠN HOÀN THÀNH"); return; }
+                if (!category) { alert("Vui lòng chọn PHÂN LOẠI CÔNG VIỆC"); return; }
+                if (!title.trim()) { alert("Vui lòng nhập HẠNG MỤC CÔNG VIỆC"); return; }
+                if (!objective.trim()) { alert("Vui lòng nhập MỤC TIÊU ĐẠT ĐƯỢC"); return; }
+
                 const assignee = users.find(u => u.id === assigneeId);
                 // Final validation/defaults
-                const finalStartDate = startDate || new Date().toISOString().split('T')[0];
-                const finalIssueDate = issueDate || new Date().toISOString().split('T')[0];
+                const finalStartDate = startDate;
+                const finalIssueDate = issueDate;
                 let finalExpectedDate = expectedDate;
-                if (!finalExpectedDate && recurrence !== 'NONE') {
-                  finalExpectedDate = calculateNextDeadline(finalStartDate, recurrence);
-                }
-
-                if (!title.trim()) {
-                  alert("Vui lòng nhập hạng mục công việc");
-                  return;
-                }
 
                 await onSave({ 
-                  title, 
-                  objective: objective || '',
+                  title: title.trim(), 
+                  objective: objective.trim(),
                   category: category || '',
                   assigneeId, 
                   assignedTo: assignee?.name || '',
@@ -464,7 +477,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                 alert("Có lỗi xảy ra khi lưu công việc. Vui lòng thử lại!");
               }
             }}
-            className="flex-1 px-4 py-3 bg-[#1A56DB] text-white font-bold rounded-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none uppercase"
+            className="flex-1 py-2 bg-blue-600 text-white font-black rounded-md hover:bg-blue-700 transition-all disabled:opacity-50 uppercase text-xs tracking-widest"
           >
             <span translate="no" className="notranslate">{isEdit ? 'CẬP NHẬT' : 'KHỞI TẠO'}</span>
           </button>

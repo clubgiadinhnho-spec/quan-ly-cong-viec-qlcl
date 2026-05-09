@@ -1,4 +1,4 @@
-export type UserRoleType = 'Staff' | 'Leader' | 'Admin';
+export type UserRoleType = 'Staff' | 'Leader' | 'Admin' | 'Trưởng Phòng';
 
 export interface HealthReminder {
   enabled: boolean;

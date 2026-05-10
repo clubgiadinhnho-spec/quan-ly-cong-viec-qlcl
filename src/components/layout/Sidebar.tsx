@@ -237,16 +237,16 @@ export const Sidebar = ({
         </nav>
 
         {/* Bottom Fixed Area */}
-        <div className="flex-none space-y-1.5 pt-2 border-t border-gray-100/30">
+        <div className="flex-none space-y-4 pt-4 border-t border-gray-100/30 mt-auto">
           {/* Group Chat */}
           <button 
             onClick={() => setActiveTab('group_chat')}
             title={isCollapsed ? "Room Thảo Luận" : undefined}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center p-2' : 'gap-2.5 px-3 py-1.5'} group rounded-xl transition-all ${activeTab === 'group_chat' ? (isDark ? 'bg-white/20 ring-1 ring-white/20' : 'bg-rose-50/50 ring-1 ring-rose-100') : 'hover:bg-gray-50/50'}`}
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center p-2' : 'gap-3 px-4 py-2.5'} group rounded-2xl transition-all ${activeTab === 'group_chat' ? (isDark ? 'bg-white/20 ring-1 ring-white/20' : 'bg-rose-50/50 ring-1 ring-rose-100') : 'hover:bg-gray-50/50'}`}
           >
             <div className="relative flex-none">
-              <div className="w-8 h-8 flex items-center justify-center bg-gradient-to-br from-rose-500 to-rose-600 rounded-lg shadow-sm">
-                <GroupChatIcon className="w-4.5 h-4.5 text-white" />
+              <div className="w-9 h-9 flex items-center justify-center bg-gradient-to-br from-rose-500 to-rose-600 rounded-xl shadow-md group-hover:scale-110 transition-transform">
+                <GroupChatIcon className="w-5 h-5 text-white" />
               </div>
               {groupUnreadCount > 0 && isCollapsed && (
                 <div className="absolute -top-2 -right-2 bg-blue-600 text-white min-w-[14px] h-3.5 px-0.5 rounded-full flex items-center justify-center border border-white shadow-xl z-[30]">
@@ -256,17 +256,17 @@ export const Sidebar = ({
             </div>
             {!isCollapsed && (
               <div className="flex-1 min-w-0 text-left">
-                <p className={`text-[11px] font-black uppercase truncate transition-colors ${activeTab === 'group_chat' ? (isDark ? 'text-white' : 'text-rose-600') : (isDark ? 'text-white/80 group-hover:text-white' : 'text-gray-700 group-hover:text-rose-600')}`}>
+                <p className={`text-[12px] font-black uppercase truncate transition-colors leading-tight ${activeTab === 'group_chat' ? (isDark ? 'text-white' : 'text-rose-600') : (isDark ? 'text-white/80 group-hover:text-white' : 'text-gray-700 group-hover:text-rose-600')}`}>
                   <span translate="no" className="notranslate">ROOM THẢO LUẬN</span>
                 </p>
-                <p className={`text-[8px] font-black uppercase tracking-widest truncate ${isDark ? 'text-white/40' : 'text-gray-400'}`}>
+                <p className={`text-[8.5px] font-black uppercase tracking-[0.1em] truncate mt-0.5 ${isDark ? 'text-white/40' : 'text-gray-400'}`}>
                   <span translate="no" className="notranslate">CỘNG ĐỒNG QLCL</span>
                 </p>
               </div>
             )}
             {groupUnreadCount > 0 && !isCollapsed && (
-              <div className="bg-blue-600 text-white min-w-[18px] h-4.5 px-1 rounded-full flex items-center justify-center shadow-sm border border-white">
-                <span translate="no" className="notranslate text-white text-[9px] font-black">
+              <div className="bg-blue-600 text-white min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center shadow-md border border-white">
+                <span translate="no" className="notranslate text-white text-[10px] font-black">
                   {groupUnreadCount}
                 </span>
               </div>
@@ -274,23 +274,23 @@ export const Sidebar = ({
           </button>
 
           {/* Color Switcher & User Profile combined for space optimization */}
-          <div className={`${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50/50 border-slate-100'} border rounded-2xl p-1.5 space-y-1.5`}>
+          <div className={`${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50/50 border-slate-200/50'} border rounded-[24px] p-3.5 space-y-4 shadow-sm`}>
             {/* Color Switcher Row */}
-            <div className={`flex items-center justify-center ${isCollapsed ? 'py-0.5' : 'py-1'} bg-white/40 rounded-lg shadow-inner-sm overflow-hidden`}>
+            <div className={`flex items-center justify-center ${isCollapsed ? 'py-1' : 'py-2'} bg-white/50 rounded-xl shadow-inner-sm border border-black/5`}>
               {isCollapsed ? (
-                <div className={`w-4 h-4 rounded-full border border-gray-300 flex items-center justify-center p-0.5`}>
+                <div className={`w-5 h-5 rounded-full border border-gray-300 flex items-center justify-center p-0.5`}>
                   <div className={`w-full h-full rounded-full ${currentColor.dot.split(' ')[0]}`} />
                 </div>
               ) : (
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5 px-1">
                   {COLOR_OPTIONS.map((option) => (
                     <button
                       key={option.id}
                       onClick={() => setSidebarColor(option.id)}
-                      className={`w-2.5 h-2.5 rounded-full border shadow-sm transition-all duration-300 ${option.dot} ${
+                      className={`w-3 h-3 rounded-full border shadow-sm transition-all duration-300 ${option.dot} ${
                         sidebarColor === option.id 
-                          ? 'scale-125 ring-1 ring-blue-500 ring-offset-1 z-10' 
-                          : 'hover:scale-110 opacity-70 hover:opacity-100'
+                          ? 'scale-125 ring-2 ring-blue-500 ring-offset-1 z-10' 
+                          : 'hover:scale-125 opacity-70 hover:opacity-100'
                       }`}
                     />
                   ))}
@@ -299,28 +299,31 @@ export const Sidebar = ({
             </div>
 
             {/* Profile Row */}
-            <div className={`flex items-center gap-2 ${isCollapsed ? 'flex-col p-1' : 'px-1.5'}`}>
-              <Avatar src={user.avatar} name={user.name} size={isCollapsed ? "sm" : "sm"} />
+            <div className={`flex items-center gap-3 ${isCollapsed ? 'flex-col p-1' : 'px-1'}`}>
+              <div className="relative group/avatar">
+                <Avatar src={user.avatar} name={user.name} size={isCollapsed ? "sm" : "md"} className="ring-2 ring-white shadow-md transition-transform group-hover/avatar:scale-105" />
+                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full shadow-sm" />
+              </div>
               {!isCollapsed ? (
                 <div className="flex-1 min-w-0">
-                  <div className={`text-[11px] font-black whitespace-nowrap notranslate leading-tight truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  <div className={`text-[12px] font-black whitespace-nowrap notranslate leading-snug truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
                     <span translate="no" className="notranslate">{user.name}</span>
                   </div>
-                  <p className={`text-[8px] font-black uppercase tracking-tighter ${isDark ? 'text-white/60' : (hasDelegatedPermissions(user) ? 'text-amber-600' : 'text-slate-500')}`}>
-                    {user.role === 'Admin' ? <span translate="no" className="notranslate">ADMIN</span> : user.role}
+                  <p className={`text-[9px] font-black uppercase tracking-wider mt-0.5 ${isDark ? 'text-white/60' : (hasDelegatedPermissions(user) ? 'text-amber-600' : 'text-slate-500')}`}>
+                    {user.role === 'Admin' ? <span translate="no" className="notranslate">ADMIN</span> : (user.role === 'Staff' ? 'NHÂN VIÊN' : user.role)}
                   </p>
                 </div>
               ) : null}
               <button 
                 onClick={onLogout}
                 title="Đăng xuất"
-                className={`flex items-center justify-center p-1.5 rounded-lg transition-all ${
+                className={`flex items-center justify-center p-2 rounded-xl transition-all ${
                   isDark 
                     ? 'text-white/60 hover:bg-red-500/20 hover:text-red-400' 
                     : 'text-slate-400 hover:bg-red-50 hover:text-red-600'
-                } w-7 h-7 flex-none ml-auto`}
+                } w-9 h-9 flex-none ml-auto border border-transparent hover:border-red-100 shadow-sm hover:shadow-md active:scale-90`}
               >
-                <LogOut size={14} strokeWidth={3} />
+                <LogOut size={16} strokeWidth={3} />
               </button>
             </div>
           </div>

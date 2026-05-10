@@ -13,7 +13,7 @@ export const Avatar: React.FC<AvatarProps> = ({ src, name, className = '', size 
     'sm': 'w-6 h-6 min-w-[24px]',
     'md': 'w-8 h-8 min-w-[32px]',
     'lg': 'w-10 h-10 min-w-[40px]',
-    'xl': 'w-16 h-16 min-w-[64px]',
+    'xl': 'w-12 h-12 min-w-[48px]',
     'full': 'w-full h-full'
   };
 

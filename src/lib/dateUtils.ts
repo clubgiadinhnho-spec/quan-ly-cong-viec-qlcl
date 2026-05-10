@@ -85,3 +85,90 @@ export function calculateNextDeadline(start: string, type: string): string {
   }
   return date.toISOString().split('T')[0];
 }
+
+export type DeadlineStatus = 'CRITICAL' | 'URGENT' | 'WARNING' | 'NORMAL';
+
+export interface DeadlineInfo {
+  status: DeadlineStatus;
+  displayText: string;
+  className: string;
+  isOverdue: boolean;
+  isUrgent: boolean;
+  animate: boolean;
+}
+
+export const getTaskDeadlineStatus = (task: any, referenceDate: Date = new Date()): DeadlineInfo => {
+  const dueDateStr = task.extensionDate || task.expectedEndDate;
+  const startDateStr = task.issueDate || task.startDate;
+  
+  if (!dueDateStr) {
+    return {
+      status: 'NORMAL',
+      displayText: 'HẠN: CHƯA XÁC ĐỊNH',
+      className: 'text-gray-400',
+      isOverdue: false,
+      isUrgent: false,
+      animate: false
+    };
+  }
+
+  const dueDate = new Date(dueDateStr);
+  const startDate = new Date(startDateStr || dueDateStr);
+  
+  // Normalize dates to start of day for accurate day-to-day comparison
+  const dD = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate()).getTime();
+  const rD = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate()).getTime();
+  const sD = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()).getTime();
+
+  const formattedDate = formatDate(dueDateStr);
+  const totalTime = dD - sD;
+  const remainingTime = dD - rD;
+
+  // 1. CRITICAL (Overdue): Today > DueDate
+  if (rD > dD) {
+    return {
+      status: 'CRITICAL',
+      displayText: `HẠN: ${formattedDate}`,
+      className: 'text-red-600 font-bold',
+      isOverdue: true,
+      isUrgent: false,
+      animate: true
+    };
+  }
+
+  // 2. URGENT (Today): Today === DueDate
+  if (rD === dD) {
+    return {
+      status: 'URGENT',
+      displayText: `HẠN: ${formattedDate}`,
+      className: 'text-orange-500 font-bold',
+      isOverdue: false,
+      isUrgent: true,
+      animate: false
+    };
+  }
+
+  // 3. WARNING (Soon): R <= T * 0.2
+  // totalTime <= 0 means start date >= due date (invalid but handled)
+  const threshold = totalTime > 0 ? (totalTime * 0.2) : 0;
+  if (remainingTime <= threshold) {
+    return {
+      status: 'WARNING',
+      displayText: `HẠN: ${formattedDate}`,
+      className: 'text-yellow-600 font-bold',
+      isOverdue: false,
+      isUrgent: false,
+      animate: false
+    };
+  }
+
+  // 4. NORMAL (Safe)
+  return {
+    status: 'NORMAL',
+    displayText: `HẠN: ${formattedDate}`,
+    className: 'text-emerald-600 font-bold',
+    isOverdue: false,
+    isUrgent: false,
+    animate: false
+  };
+};

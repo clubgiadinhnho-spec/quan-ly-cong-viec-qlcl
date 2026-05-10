@@ -157,16 +157,16 @@ export const TaskList: React.FC<TaskListProps> = ({
                  }}
                />
             </th>
-            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[5%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
+            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[7.5%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
               <span translate="no" className="notranslate">Mã</span>
             </th>
-            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[20%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
+            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[21.5%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
               <span translate="no" className="notranslate">Nhân sự</span>
             </th>
-            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] w-[33%] align-middle">
+            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] w-[35%] align-middle">
               <span translate="no" className="notranslate">Nội dung & Mục tiêu</span>
             </th>
-            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[30%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
+            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[24%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
               <span translate="no" className="notranslate">Cập nhật</span>
             </th>
             <th className="p-3 text-[14px] font-black text-white uppercase tracking-tighter w-[6%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">

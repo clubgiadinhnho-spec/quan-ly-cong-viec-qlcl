@@ -11,6 +11,7 @@ import { useStaff } from "./hooks/useStaff";
 import { useAppNotifications } from "./hooks/useAppNotifications";
 import { useNotifications } from "./hooks/useNotifications";
 import { useExcelHandlers } from "./hooks/useExcelHandlers";
+import { getTaskDeadlineStatus } from "./lib/dateUtils";
 
 // Import Components
 import { Sidebar } from "./components/layout/Sidebar";
@@ -158,14 +159,18 @@ export default function App() {
     const trashList = filterByScope(baseTrash);
 
     // 4. Đặc biệt: Công việc mới (Báo động Sidebar)
-    const attentionCount = activeList.filter(t => t.isNewInBoard === true).length;
+    const alertList = activeList.filter(t => {
+      const d = getTaskDeadlineStatus(t);
+      return d.status === 'CRITICAL' || d.status === 'URGENT' || d.status === 'WARNING';
+    });
+    const criticalCount = alertList.length;
 
     return {
       pending: pendingList.length,
-      active: activeList.length,
-      attention: attentionCount,
-      allActive: baseActive.length,
-      mine: baseActive.filter(t => isUserTask(t, effectiveUser)).length,
+      active: criticalCount, // Badge Sidebar shows only Alerts as requested
+      attention: criticalCount > 0 || activeList.some(t => t.isNewInBoard),
+      allActive: activeList.length, // Keep allActive as total for other uses
+      mine: activeList.filter(t => isUserTask(t, effectiveUser)).length,
       completedTotal: completedList.length,
       trash: trashList.length,
       pendingApprovalTotal: approvalList.length,

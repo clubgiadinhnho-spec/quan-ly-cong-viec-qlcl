@@ -84,29 +84,29 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
 
   return (
     <tr id={`task-${task.id}`} className={`hover:bg-gray-50/50 transition-all ${isSelected ? 'bg-blue-50/50' : ''} ${highlightClass}`}>
-      <td className="p-2 text-center border-b border-l border-r border-gray-300 align-middle">
+      <td className="p-1 text-center border-b border-l border-r border-gray-300 align-middle">
          <input 
            type="checkbox" 
            checked={isSelected}
            onChange={() => onToggleSelect?.(task.id)}
-           className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all"
+           className="w-3 h-3 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all"
          />
       </td>
-      <td className="p-2 text-center text-[10px] font-bold text-gray-300 border-b border-r border-gray-300 align-top">
-        <div className="flex flex-col items-center gap-1 pt-1 opacity-60">
+      <td className="p-1 text-center text-[12px] font-bold text-gray-300 border-b border-r border-gray-300 align-top">
+        <div className="flex flex-col items-center gap-1 pt-0.5 opacity-60">
           <span translate="no" className="notranslate leading-none">
             {task.code}
           </span>
           {task.category && (
-            <span translate="no" className="notranslate text-[7px] font-black text-white bg-indigo-400 px-1 py-0.5 rounded leading-none" title="PHÂN LOẠI">
-              <span translate="no" className="notranslate">{task.category}</span>
+            <span translate="no" className="notranslate text-[9px] font-black text-white bg-indigo-400 px-1 py-0.5 rounded leading-none" title="PHÂN LOẠI">
+              <span translate="no" className="notranslate text-[11px]">{task.category}</span>
             </span>
           )}
           {/* Recurrence Badge for Completed Tasks */}
           {task.recurrence && task.recurrence !== 'NONE' && (
             <div className="flex flex-col items-center gap-0.5 mt-2 opacity-90" title="CÔNG VIỆC ĐỊNH KỲ">
-              <RotateCcw size={12} className="text-emerald-500 animate-spin-slow" />
-              <span translate="no" className="notranslate text-[7px] font-black text-emerald-700 bg-emerald-50 px-1 rounded-sm uppercase tracking-tighter border border-emerald-100">
+              <RotateCcw size={14} className="text-emerald-500 animate-spin-slow" />
+              <span translate="no" className="notranslate text-[9px] font-black text-emerald-700 bg-emerald-50 px-1 rounded-sm uppercase tracking-tighter border border-emerald-100">
                 {task.recurrence === 'DAILY' && 'HÀNG NGÀY'}
                 {task.recurrence === 'TRI_DAILY' && '2-3 NGÀY/LẦN'}
                 {task.recurrence === 'WEEKLY' && 'HÀNG TUẦN'}
@@ -118,17 +118,17 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           )}
         </div>
       </td>
-      <td className={`p-1.5 border-b border-r border-gray-300 align-top h-px transition-colors ${task.highlightColor || task.isHighlighted ? 'border-l-4 border-amber-500' : ''}`}>
-        <div className="flex flex-col h-full gap-2 px-0.5 pt-1">
+      <td className={`p-1 border-b border-r border-gray-300 align-top h-px transition-colors ${task.highlightColor || task.isHighlighted ? 'border-l-4 border-amber-500' : ''}`}>
+        <div className="flex flex-col h-full gap-1.5 px-0.5 pt-0.5 pb-4">
           {/* Identity Section */}
           <div className="flex items-center gap-2">
             <Avatar src={assignee?.avatar} name={assigneeName} size="xs" />
             <div className="min-w-0 flex-1">
-              <p {...getSafeNameProps()} className="text-[13px] font-bold text-gray-900 leading-none truncate notranslate" title={assigneeName}>
+              <p {...getSafeNameProps()} className="text-[14px] font-bold text-gray-900 leading-none truncate notranslate" title={assigneeName}>
                 <span translate="no" className="notranslate">{assigneeName}</span>
               </p>
               <div className="mt-1.5">
-                <span translate="no" className="notranslate text-[10px] font-medium text-gray-400 uppercase tracking-tighter bg-gray-50 px-1 py-0.5 rounded-sm border border-gray-100">
+                <span translate="no" className="notranslate text-[11px] font-medium text-gray-400 uppercase tracking-tighter bg-gray-50 px-1 py-0.5 rounded-sm border border-gray-100">
                   {assignee ? <span translate="no" className="notranslate">{assignee.title || assignee.role}</span> : <span translate="no" className="notranslate">NHÂN SỰ</span>}
                 </span>
               </div>
@@ -136,35 +136,35 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           </div>
 
           {/* Timeline Section - Vertical 4 Rows */}
-          <div className="flex flex-col gap-1 py-1.5 border-y border-gray-50 border-dashed">
+          <div className="flex flex-col gap-1.5 py-1.5 border-y border-gray-50 border-dashed">
             {/* Hàng 1: Khởi tạo */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px]" translate="no">📝</span>
-              <p className="text-[10px] text-gray-500 font-medium tracking-tighter">
+              <span className="text-[12px]" translate="no">📝</span>
+              <p className="text-[11px] text-gray-500 font-medium tracking-tighter">
                 <span translate="no" className="notranslate">KHỞI TẠO: {formatDate(task.issueDate)}</span>
               </p>
             </div>
             
             {/* Hàng 2: Bắt đầu */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px]" translate="no">🚀</span>
-              <p className="text-[10px] text-blue-600 font-medium tracking-tighter">
+              <span className="text-[12px]" translate="no">🚀</span>
+              <p className="text-[11px] text-blue-600 font-medium tracking-tighter">
                 <span translate="no" className="notranslate">BẮT ĐẦU: {formatDate(task.startDate || task.issueDate)}</span>
               </p>
             </div>
             
             {/* Hàng 3: Hạn */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[12px]" translate="no">🏁</span>
-              <p className="text-[11px] text-red-600 font-bold tracking-tighter">
+              <span className="text-[13px]" translate="no">🏁</span>
+              <p className="text-[12px] text-red-600 font-bold tracking-tighter">
                 <span translate="no" className="notranslate font-bold uppercase">HẠN: {formatDate(task.expectedEndDate)}</span>
               </p>
             </div>
 
             {/* Hàng 4: Kết thúc thực tế (Vì đây là CompletedTaskRow) */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[12px]" translate="no">✅</span>
-              <p className="text-[11px] font-black text-green-700 tracking-tighter leading-none">
+              <span className="text-[13px]" translate="no">✅</span>
+              <p className="text-[12px] font-black text-green-700 tracking-tighter leading-none">
                 <span translate="no" className="notranslate uppercase">XONG: {formatDate(task.actualEndDate)}</span>
               </p>
             </div>
@@ -180,14 +180,14 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
               }`}
             >
               <div className="relative">
-                <MessageSquare size={14} fill={(task.comments?.length || 0) > 0 ? "currentColor" : "none"} className="opacity-90" />
+                <MessageSquare size={16} fill={(task.comments?.length || 0) > 0 ? "currentColor" : "none"} className="opacity-90" />
                 {showBadge && isAdmin && (
-                  <span translate="no" className="notranslate absolute -top-2 -right-2 flex items-center justify-center min-w-[14px] h-[14px] px-1 bg-red-600 text-white text-[8px] font-black rounded-full border border-white shadow-sm">
+                  <span translate="no" className="notranslate absolute -top-2 -right-2 flex items-center justify-center min-w-[17px] h-[17px] px-1 bg-red-600 text-white text-[10px] font-black rounded-full border border-white shadow-sm">
                     <span translate="no" className="notranslate">{unreadCount}</span>
                    </span>
                 )}
               </div>
-              <span translate="no" className="notranslate text-[11px] font-black tracking-widest uppercase">
+              <span translate="no" className="notranslate text-[12px] font-black tracking-widest uppercase">
                 <span translate="no" className="notranslate">CHAT</span>
               </span>
             </button>
@@ -206,7 +206,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           </div>
         </div>
       </td>
-      <td className={`p-2 border-b border-r border-gray-300 relative group align-top h-px ${(!isAdmin && !isOwner) ? 'bg-gray-50' : ''}`}>
+      <td className={`p-1.5 border-b border-r border-gray-300 relative group align-top h-px ${(!isAdmin && !isOwner) ? 'bg-gray-50' : ''}`}>
         {task.attachmentUrl && (
           <a 
             href={task.attachmentUrl} 
@@ -219,7 +219,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           </a>
         )}
         <div className="flex flex-col h-full font-sans">
-          <p className="text-[15px] text-blue-950 font-black pr-4 uppercase break-words whitespace-normal leading-tight font-sans">
+          <p className="text-[15px] text-blue-800 font-bold pr-4 uppercase break-words whitespace-normal leading-tight font-sans">
             <span translate="no" className="notranslate">
               [{task.category?.toUpperCase() || 'KHÁC'}] - {task.title}
             </span>
@@ -291,8 +291,8 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           <span className="text-[9px] font-bold text-gray-300">-</span>
         )}
       </td>
-      <td className="py-2 px-1 text-center border-b border-r border-gray-300 align-middle">
-        <div className="flex flex-col items-center justify-center gap-1.5 w-full max-w-[44px] mx-auto min-h-full py-1">
+      <td className="py-1 px-1 text-center border-b border-r border-gray-300 align-middle">
+        <div className="flex flex-col items-center justify-center gap-1.5 w-full max-w-[44px] mx-auto min-h-full py-0.5">
           {(isAdmin || isOwner) ? (
             <>
               {/* 1. PRIMARY ACTION (HOÀN TÁC) */}
@@ -319,9 +319,9 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                           }
                         }} 
                         title={isRecurringTask ? "CẤM HOÀN TÁC VIỆC ĐỊNH KỲ" : "DUYỆT HOÀN TÁC"}
-                        className={`w-8 h-8 flex items-center justify-center bg-green-600 text-white rounded-full hover:bg-green-700 transition-all shadow-sm ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''} ${isRecurringTask ? 'opacity-30' : ''}`}
+                        className={`w-7 h-7 flex items-center justify-center bg-green-600 text-white rounded-full hover:bg-green-700 transition-all shadow-sm ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''} ${isRecurringTask ? 'opacity-30' : ''}`}
                       >
-                        <Check size={16} strokeWidth={4} />
+                        <Check size={14} strokeWidth={4} />
                       </button>
                       <button 
                         disabled={isProcessing}
@@ -335,9 +335,9 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                           }
                         }} 
                         title="BÁC HOÀN TÁC"
-                        className={`w-8 h-8 flex items-center justify-center bg-red-500 text-white rounded-full hover:bg-red-600 transition-all shadow-sm ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`w-7 h-7 flex items-center justify-center bg-red-500 text-white rounded-full hover:bg-red-600 transition-all shadow-sm ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                        <X size={16} strokeWidth={4} />
+                        <X size={14} strokeWidth={4} />
                       </button>
                     </div>
                   </div>
@@ -358,9 +358,9 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                       }
                     }} 
                     title={isRecurringTask ? "CẤM HOÀN TÁC VIỆC ĐỊNH KỲ" : "HOÀN TÁC CÔNG VIỆC"}
-                    className={`w-10 h-10 flex items-center justify-center bg-green-600 text-white font-black rounded-md hover:bg-green-700 transition-all border-2 border-green-400 group/btn shadow-md ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''} ${isRecurringTask ? 'opacity-30' : ''}`}
+                    className={`w-7 h-7 flex items-center justify-center bg-green-600 text-white font-black rounded-md hover:bg-green-700 transition-all border-2 border-green-400 group/btn shadow-md ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''} ${isRecurringTask ? 'opacity-30' : ''}`}
                   >
-                    <RotateCcw size={20} strokeWidth={3} className={`group-hover/btn:-rotate-45 transition-transform ${isProcessing ? 'animate-spin' : ''}`} />
+                    <RotateCcw size={16} strokeWidth={3} className={`group-hover/btn:-rotate-45 transition-transform ${isProcessing ? 'animate-spin' : ''}`} />
                     <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">HOÀN TÁC CÔNG VIỆC</span></span>
                   </button>
                 )
@@ -386,9 +386,9 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                       }
                     }} 
                     title={isRecurringTask ? "CẤM HOÀN TÁC VIỆC ĐỊNH KỲ" : "YÊU CẦU HOÀN TÁC"}
-                    className={`w-10 h-10 flex items-center justify-center bg-amber-500 text-white font-black rounded-md hover:bg-amber-600 transition-all border-2 border-amber-300 group/btn shadow-md ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''} ${isRecurringTask ? 'opacity-30' : ''}`}
+                    className={`w-7 h-7 flex items-center justify-center bg-amber-500 text-white font-black rounded-md hover:bg-amber-600 transition-all border-2 border-amber-300 group/btn shadow-md ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''} ${isRecurringTask ? 'opacity-30' : ''}`}
                   >
-                    <RotateCcw size={20} strokeWidth={3} className={`group-hover/btn:-rotate-45 transition-transform ${isProcessing ? 'animate-spin' : ''}`} />
+                    <RotateCcw size={16} strokeWidth={3} className={`group-hover/btn:-rotate-45 transition-transform ${isProcessing ? 'animate-spin' : ''}`} />
                     <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">YÊU CẦU HOÀN TÁC</span></span>
                   </button>
                 )
@@ -398,9 +398,9 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                 <button 
                   onClick={() => onViewHistory(task.id)}
                   title="XEM CHI TIẾT CẬP NHẬT"
-                  className="w-10 h-10 flex items-center justify-center bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-all group/btn border border-blue-400"
+                  className="w-7 h-7 flex items-center justify-center bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-all group/btn border border-blue-400"
                 >
-                  <History size={20} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
+                  <History size={16} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
                   <span translate="no" className="sr-only notranslate"><span translate="no" className="notranslate">XEM CHI TIẾT CẬP NHẬT</span></span>
                 </button>
 
@@ -409,13 +409,13 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                 <button 
                    onClick={() => setShowColorPicker(!showColorPicker)}
                    title="LƯU Ý"
-                   className={`w-10 h-10 flex items-center justify-center rounded-md transition-all border-2 group/btn ${
+                   className={`w-7 h-7 flex items-center justify-center rounded-md transition-all border-2 group/btn ${
                      task.highlightColor || task.isHighlighted
                        ? 'bg-emerald-500 text-white border-emerald-600 ring-2 ring-emerald-100' 
                        : 'bg-white text-emerald-600 border-emerald-500 hover:bg-emerald-50'
                    }`}
                  >
-                   <Tag size={20} strokeWidth={2.5} className="group-hover:rotate-12 transition-transform" />
+                   <Tag size={16} strokeWidth={2.5} className="group-hover:rotate-12 transition-transform" />
                    <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">LƯU Ý</span></span>
                  </button>
                  
@@ -457,9 +457,9 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                 <button 
                   onClick={() => onDelete && onDelete(task.id)}
                   title="XÓA CƯỠNG BỨC (VĨNH VIỄN)"
-                  className="w-10 h-10 flex items-center justify-center bg-red-600 text-white rounded-md hover:bg-red-700 transition-all border-2 border-red-400 group/btn"
+                  className="w-7 h-7 flex items-center justify-center bg-red-600 text-white rounded-md hover:bg-red-700 transition-all border-2 border-red-400 group/btn"
                 >
-                  <Trash2 size={22} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+                  <Trash2 size={18} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
                   <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">XÓA CƯỠNG BỨC</span></span>
                 </button>
               )}

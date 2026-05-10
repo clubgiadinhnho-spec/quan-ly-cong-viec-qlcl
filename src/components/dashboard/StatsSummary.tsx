@@ -1,6 +1,7 @@
 import React from 'react';
 import { Task } from '../../types';
 import { Activity, Zap, Shield, CheckCircle } from 'lucide-react';
+import { getTaskDeadlineStatus } from '../../lib/dateUtils';
 
 interface StatsSummaryProps {
   tasks: Task[];
@@ -14,7 +15,10 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
   const totalCount = approvedTasks.length;
   const activeTasks = approvedTasks; // Tất cả APPROVED được coi là đang xử lý cho Dashboard này
   
-  const priorityTasks = activeTasks.filter(t => t.priority === 'HIGH' || t.priority === 'URGENT' || t.isHighlighted);
+  const priorityTasks = activeTasks.filter(t => {
+    const d = getTaskDeadlineStatus(t);
+    return t.priority === 'HIGH' || t.priority === 'URGENT' || t.isHighlighted || d.status === 'CRITICAL' || d.status === 'URGENT' || d.status === 'WARNING';
+  });
   const normalTasks = activeTasks.filter(t => !priorityTasks.includes(t));
   const completedCount = nonDeleted.filter(t => t.status === 'COMPLETED' || t.status === 'Hoàn thành').length;
 

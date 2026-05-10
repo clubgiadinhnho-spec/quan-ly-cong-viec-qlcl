@@ -48,6 +48,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentData, setAttachmentData] = useState<{ url: string, name: string } | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [isManualEdit, setIsManualEdit] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -124,8 +125,10 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
   const nextCode = React.useMemo(() => {
     if (isEdit) return task.code;
     const count = tasks.length;
-    return `C${String(count + 1).padStart(4, '0')}`;
-  }, [tasks.length, isEdit, task?.code]);
+    const base = `C${String(count + 1).padStart(4, '0')}`;
+    if (recurrence !== 'NONE') return `${base}-K1`;
+    return base;
+  }, [tasks.length, isEdit, task?.code, recurrence]);
 
   // Sync deadline if cycle or start date changes, unless manually edited
   React.useEffect(() => {
@@ -216,10 +219,10 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                   value={assigneeId}
                   onChange={(e) => setAssigneeId(e.target.value)}
                 >
-                  <option value="" translate="no" className="notranslate"><span translate="no" className="notranslate">CHỌN NHÂN SỰ</span></option>
+                  <option value="" translate="no" className="notranslate">CHỌN NHÂN SỰ</option>
                   {sortedUsers.map((u) => (
-                    <option key={u.id} value={u.id} className="notranslate">
-                      <span translate="no" className="notranslate">{u.name}</span>
+                    <option key={u.id} value={u.id} translate="no" className="notranslate">
+                      {u.name}
                     </option>
                   ))}
                 </select>
@@ -288,13 +291,13 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                 value={recurrence}
                 onChange={(e) => setRecurrence(e.target.value as RecurrenceType)}
               >
-                <option value="NONE" translate="no" className="notranslate"><span translate="no" className="notranslate">KHÔNG LẶP</span></option>
-                <option value="DAILY" translate="no" className="notranslate"><span translate="no" className="notranslate">HÀNG NGÀY</span></option>
-                <option value="TRI_DAILY" translate="no" className="notranslate"><span translate="no" className="notranslate">2-3 NGÀY/LẦN</span></option>
-                <option value="WEEKLY" translate="no" className="notranslate"><span translate="no" className="notranslate">HÀNG TUẦN</span></option>
-                <option value="BI_WEEKLY" translate="no" className="notranslate"><span translate="no" className="notranslate">HÀNG 2 TUẦN</span></option>
-                <option value="TRI_WEEKLY" translate="no" className="notranslate"><span translate="no" className="notranslate">HÀNG 3 TUẦN</span></option>
-                <option value="MONTHLY" translate="no" className="notranslate"><span translate="no" className="notranslate">HÀNG THÁNG</span></option>
+                <option value="NONE" translate="no" className="notranslate">KHÔNG LẶP</option>
+                <option value="DAILY" translate="no" className="notranslate">HÀNG NGÀY</option>
+                <option value="TRI_DAILY" translate="no" className="notranslate">2-3 NGÀY/LẦN</option>
+                <option value="WEEKLY" translate="no" className="notranslate">HÀNG TUẦN</option>
+                <option value="BI_WEEKLY" translate="no" className="notranslate">HÀNG 2 TUẦN</option>
+                <option value="TRI_WEEKLY" translate="no" className="notranslate">HÀNG 3 TUẦN</option>
+                <option value="MONTHLY" translate="no" className="notranslate">HÀNG THÁNG</option>
               </select>
             </div>
             <div>
@@ -343,10 +346,10 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
-                <option value="" translate="no" className="notranslate"><span translate="no" className="notranslate">CHỌN PHÂN LOẠI</span></option>
+                <option value="" translate="no" className="notranslate">CHỌN PHÂN LOẠI</option>
                 {categories.map((c) => (
-                  <option key={c.id} value={c.code} className="notranslate">
-                    <span translate="no" className="notranslate">[{c.code}] {c.name}</span>
+                  <option key={c.id} value={c.code} translate="no" className="notranslate">
+                    [{c.code}] {c.name}
                   </option>
                 ))}
               </select>
@@ -492,8 +495,9 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
             <span translate="no" className="notranslate"><span translate="no" className="notranslate">HỦY</span></span>
           </button>
           <button 
-            disabled={isProcessingFile}
+            disabled={isProcessingFile || isSaving}
             onClick={async () => {
+              if (isSaving) return;
               try {
                 // Validation: All fields mandatory
                 if (!assigneeId) { alert("Vui lòng chọn NGƯỜI THỰC HIỆN"); return; }
@@ -504,6 +508,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                 if (!title.trim()) { alert("Vui lòng nhập HẠNG MỤC CÔNG VIỆC"); return; }
                 if (!objective.trim()) { alert("Vui lòng nhập MỤC TIÊU ĐẠT ĐƯỢC"); return; }
 
+                setIsSaving(true);
                 const assignee = users.find(u => u.id === assigneeId);
                 // Final validation/defaults
                 const finalStartDate = startDate;
@@ -541,11 +546,13 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
               } catch (error) {
                 console.error("Lỗi khi lưu công việc:", error);
                 alert("Có lỗi xảy ra khi lưu công việc. Vui lòng thử lại!");
+              } finally {
+                setIsSaving(false);
               }
             }}
             className="flex-1 py-2 bg-blue-600 text-white font-black rounded-md hover:bg-blue-700 transition-all disabled:opacity-50 uppercase text-xs tracking-widest"
           >
-            <span translate="no" className="notranslate"><span translate="no" className="notranslate">{isEdit ? 'CẬP NHẬT' : 'KHỞI TẠO'}</span></span>
+            <span translate="no" className="notranslate"><span translate="no" className="notranslate">{isSaving ? 'ĐANG LƯU...' : (isEdit ? 'CẬP NHẬT' : 'KHỞI TẠO')}</span></span>
           </button>
         </div>
       </motion.div>

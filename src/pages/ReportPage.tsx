@@ -80,11 +80,24 @@ export const ReportPage = ({
     
     // AI participation
     const aiTasks = currentMonthTasks.filter(t => t.category === 'AI');
-    const aiCount = aiTasks.filter(t => t.status === 'APPROVED').length;
+    const aiCount = aiTasks.filter(t => t.status === 'APPROVED' || t.status === 'COMPLETED').length;
     const aiRate = total > 0 ? Math.round((aiCount / total) * 100) : 0;
 
-    return { kpiRate, profCount, cảiTiếnCount, aiRate };
+    // QCD Calculation
+    const completedWithQCD = currentMonthTasks.filter(t => (t.status === 'COMPLETED' || t.status === 'APPROVED') && t.leaderQCD);
+    const qcdRate = completedWithQCD.length > 0 
+      ? Math.round((completedWithQCD.reduce((acc, t) => acc + ((t.leaderQCD!.q + t.leaderQCD!.c + t.leaderQCD!.d) / 3), 0) / completedWithQCD.length) / 5 * 100)
+      : 0;
+
+    return { kpiRate, profCount, cảiTiếnCount, aiRate, qcdRate };
   }, [currentMonthTasks]);
+
+  const getCategoryKPI = (code: string) => {
+    const catTasks = currentMonthTasks.filter(t => t.category === code);
+    if (catTasks.length === 0) return '100%';
+    const done = catTasks.filter(t => t.status === 'APPROVED' || t.status === 'COMPLETED').length;
+    return `${Math.round((done / catTasks.length) * 100)}%`;
+  };
 
   useEffect(() => {
     loadDraft();
@@ -348,17 +361,18 @@ export const ReportPage = ({
               {/* NHÓM 2: KPI CHUYÊN MÔN (55%) */}
               {(() => {
                 const group2Items = [
-                  { label: 'Tiếp nhận và triển khai xử lý khiếu nại khách hàng B2C <=48h (Bên ngoài và nội bộ) mảng B2C', weight: '15%', kpi: '100%' },
-                  { label: 'Hoàn thành 100% hồ sơ công bố của TPP', weight: '20%', kpi: '100%' },
-                  { label: 'Hoàn thành 100% công tác kiểm soát 5S tại các NM', weight: '10%', kpi: '100%' },
-                  { label: 'Hoàn thành 100% công tác hỗ trợ đánh giá chứng nhận các HT.QLCL (Phối hợp cùng NM)', weight: '10%', kpi: '100%' },
+                  { label: 'Tiếp nhận và triển khai xử lý khiếu nại khách hàng KNN <=48h (Bên ngoài và nội bộ)', weight: '15%', kpi: getCategoryKPI('KNN') },
+                  { label: 'Tiếp nhận và triển khai xử lý khiếu nại khách hàng B2C <=48h (Bên ngoài và nội bộ) mảng B2C', weight: '10%', kpi: '100%' },
+                  { label: 'Hoàn thành 100% hồ sơ công bố của TPP', weight: '15%', kpi: getCategoryKPI('CBO') },
+                  { label: 'Hoàn thành 100% công tác kiểm soát 5S tại các NM', weight: '5%', kpi: '100%' },
+                  { label: 'Hoàn thành 100% công tác hỗ trợ đánh giá chứng nhận các HT.QLCL (Phối hợp cùng NM)', weight: '5%', kpi: '100%' },
                   { label: 'Tỷ lệ đáp ứng yêu cầu từ các bộ phận khác (Khảo sát)', weight: '5%', kpi: '100%' }
                 ];
 
                 return group2Items.map((item, idx) => (
                   <tr key={idx} className="hover:bg-blue-50/30 transition-colors">
                     {idx === 0 && (
-                      <td rowSpan={5} className="px-4 py-8 font-black text-blue-800 border border-slate-300 bg-blue-50/30 align-middle text-center">
+                      <td rowSpan={6} className="px-4 py-8 font-black text-blue-800 border border-slate-300 bg-blue-50/30 align-middle text-center">
                         <span translate="no" className="notranslate uppercase">2. KPI CHUYÊN MÔN (55%)</span>
                       </td>
                     )}
@@ -378,6 +392,26 @@ export const ReportPage = ({
                   </tr>
                 ));
               })()}
+
+              {/* NHÓM 4: HIỆU QUẢ/CHẤT LƯỢNG CÔNG VIỆC (20%) */}
+              <tr className="bg-amber-50/30 hover:bg-amber-100/30 transition-colors">
+                <td className="px-4 py-8 font-black text-amber-800 border border-slate-300 bg-amber-50/80 align-middle text-center">
+                  <span translate="no" className="notranslate uppercase text-xs">HIỆU QUẢ CÔNG VIỆC (20%)</span>
+                </td>
+                <td className="px-6 py-4 border border-slate-300">
+                  <span translate="no" className="notranslate font-bold text-slate-800 leading-snug">Chỉ số đánh giá Chất lượng - Chi phí - Tiến độ (Q-C-D) bình quân tháng</span>
+                </td>
+                <td className="px-4 py-4 text-center border border-slate-300 font-black text-amber-600">20%</td>
+                <td className={`px-6 py-4 text-center border border-slate-300 font-black text-[18px] text-amber-700`}>
+                  <span translate="no" className="notranslate">{stats.qcdRate}%</span>
+                </td>
+                <td className="px-6 py-4 text-center border border-slate-300">
+                  {getResultLabel(`${stats.qcdRate}%`)}
+                </td>
+                <td className="px-6 py-4 border border-slate-300 text-slate-500 text-[11px] italic">
+                  <span translate="no" className="notranslate">Dữ liệu đánh giá Q-C-D trực tiếp từ Lãnh đạo cho từng đầu việc.</span>
+                </td>
+              </tr>
 
               {/* NHÓM 3: KPI PHÁT TRIỂN TỔ CHỨC (15%) */}
               {(() => {
@@ -519,13 +553,31 @@ export const ReportPage = ({
               <td className="border border-black p-0" colSpan={3}>
                 <table className="w-full border-none">
                   <tbody>
-                   {KPI_CATEGORIES.PROFESSIONAL.codes.map(c => (
-                     <tr key={c} className="border-b border-black last:border-0 italic">
-                        <td className="p-2 w-1/2">Hoàn thành hồ sơ {c}</td>
+                    <tr className="border-b border-black italic">
+                        <td className="p-2 w-1/2">Khiếu nại khách hàng KNN (&lt;=48h)</td>
+                        <td className="p-2 border-l border-black text-center">{getCategoryKPI('KNN')}</td>
+                        <td className="p-2 border-l border-black text-center">{getResultLabel(getCategoryKPI('KNN'))}</td>
+                    </tr>
+                    <tr className="border-b border-black italic">
+                        <td className="p-2 w-1/2">Khiếu nại khách hàng B2C (&lt;=48h)</td>
                         <td className="p-2 border-l border-black text-center">100%</td>
                         <td className="p-2 border-l border-black text-center">ĐẠT</td>
-                     </tr>
-                   ))}
+                    </tr>
+                    <tr className="border-b border-black italic">
+                        <td className="p-2 w-1/2">Hồ sơ công bố TPP (CBO)</td>
+                        <td className="p-2 border-l border-black text-center">{getCategoryKPI('CBO')}</td>
+                        <td className="p-2 border-l border-black text-center">{getResultLabel(getCategoryKPI('CBO'))}</td>
+                    </tr>
+                    <tr className="italic">
+                        <td className="p-2 w-1/2">Kiểm soát 5S & HT.QLCL</td>
+                        <td className="p-2 border-l border-black text-center">100%</td>
+                        <td className="p-2 border-l border-black text-center">ĐẠT</td>
+                    </tr>
+                    <tr className="italic border-t border-black bg-gray-50">
+                        <td className="p-2 w-1/2 font-bold">HIỆU QUẢ/CHẤT LƯỢNG (Q-C-D)</td>
+                        <td className="p-2 border-l border-black text-center font-bold">{stats.qcdRate}%</td>
+                        <td className="p-2 border-l border-black text-center font-bold">{getResultLabel(`${stats.qcdRate}%`)}</td>
+                    </tr>
                   </tbody>
                 </table>
               </td>

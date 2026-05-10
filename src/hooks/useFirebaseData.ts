@@ -544,7 +544,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, [currentUserId, addLog, tasks]);
 
-  const approveTaskCompletion = useCallback(async (id: string, modifierName?: string) => {
+  const approveTaskCompletion = useCallback(async (id: string, modifierName?: string, leaderQCD?: any) => {
     try {
       const taskRef = doc(db, 'tasks', id);
       const existingTask = tasks.find(t => t.id === id);
@@ -583,8 +583,14 @@ export const useFirebaseData = (currentUserId?: string) => {
         const nextDeadline = calculateNextDeadline(currentDeadline || dateOnly, existingTask.recurrence);
         
         // 1. Lưu lịch sử chu kỳ (BƯỚC A)
+        const currentVersion = (existingTask.cycleHistory?.length || 0) + 1;
+        const baseCode = existingTask.code ? existingTask.code.split('-K')[0] : 'N/A';
+        const currentCode = `${baseCode}-K${currentVersion}`;
+        const nextCode = `${baseCode}-K${currentVersion + 1}`;
+
         const newHistoryItem: CycleHistoryEntry = {
-          version: (existingTask.cycleHistory?.length || 0) + 1,
+          version: currentVersion,
+          code: currentCode,
           reportContent: existingTask.currentUpdate || '(Trống)',
           objective: existingTask.objective || '',
           completedAt: now,
@@ -595,7 +601,8 @@ export const useFirebaseData = (currentUserId?: string) => {
         
         // 2. Ghi log lịch sử văn bản
         const historyUpdates = [
-          `[HOÀN THÀNH KỲ] Chốt kỳ ngày ${new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: '2-digit' })}.`,
+          `[HOÀN THÀNH KỲ] Chốt kỳ ${currentVersion} ngày ${new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: '2-digit' })}.`,
+          `Mã cũ: ${currentCode}`,
           `Nội dung: ${existingTask.currentUpdate || '(Trống)'}`,
           `Hạn tiếp theo: ${nextDeadline}`
         ];
@@ -610,6 +617,7 @@ export const useFirebaseData = (currentUserId?: string) => {
 
         // 3. Reset cho kỳ mới (BƯỚC B & C)
         batch.update(taskRef, {
+          code: nextCode, // Cấp mã mới cho kỳ tiếp theo
           cycleHistory,
           history: newHistory,
           expectedEndDate: nextDeadline, // Nhảy hạn
@@ -618,6 +626,7 @@ export const useFirebaseData = (currentUserId?: string) => {
           currentUpdate: '', // Xóa trắng báo cáo
           isNewUpdate: false, // Reset cờ
           waitingApproval: false, // Hiện lại nút Xanh
+          leaderQCD: leaderQCD || null, // Lưu điểm đánh giá (nếu có, thường là của Admin)
           version: (existingTask.version || 0) + 1,
           updatedAt: serverTimestamp()
         });
@@ -629,7 +638,7 @@ export const useFirebaseData = (currentUserId?: string) => {
           userName: modifierName || null,
           timestamp: serverTimestamp(),
           details: `Duyệt hoàn thành kỳ cho công việc ${existingTask.code}. Hạn kỳ tới: ${nextDeadline}`,
-          metadata: { taskId: id, taskCode: existingTask.code, action: 'CYCLE_COMPLETE' }
+          metadata: { taskId: id, taskCode: existingTask.code, action: 'CYCLE_COMPLETE', leaderQCD }
         });
       } else {
         // Trường hợp 1: Công việc không lặp
@@ -638,6 +647,7 @@ export const useFirebaseData = (currentUserId?: string) => {
           actualEndDate: dateOnly,
           isLocked: true,
           waitingApproval: false,
+          leaderQCD: leaderQCD || null,
           updatedAt: serverTimestamp()
         });
 
@@ -648,7 +658,7 @@ export const useFirebaseData = (currentUserId?: string) => {
           userName: modifierName || null,
           timestamp: serverTimestamp(),
           details: `Xác nhận hoàn thành công việc ${existingTask.code}`,
-          metadata: { taskId: id, taskCode: existingTask.code, action: 'COMPLETE' }
+          metadata: { taskId: id, taskCode: existingTask.code, action: 'COMPLETE', leaderQCD }
         });
       }
 

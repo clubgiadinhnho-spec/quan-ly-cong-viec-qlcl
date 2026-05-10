@@ -23,6 +23,7 @@ interface NewProposalsPageProps {
   onBulkSelect?: (ids: string[], select: boolean) => void;
   approveTasksBulk?: (ids: string[], modifierName: string) => Promise<boolean>;
   onBulkDelete?: () => void;
+  onOpenCategoryManagement?: () => void;
 }
 
 export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
@@ -34,10 +35,12 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
   onToggleSelect,
   onBulkSelect,
   approveTasksBulk,
-  onBulkDelete
+  onBulkDelete,
+  onOpenCategoryManagement
 }) => {
   const [search, setSearch] = useState('');
   const isManager = currentUser.role === 'Admin' || !!currentUser.delegatedPermissions?.canApproveTask;
+  const isAdmin = currentUser.role === 'Admin';
 
   const pendingTasks = useMemo(() => {
     return tasks
@@ -130,15 +133,27 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
           </div>
         </div>
         
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400 font-bold" size={14} />
-          <input
-            type="text"
-            placeholder="Tìm mã hoặc tên..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 pr-4 py-2 bg-white border border-emerald-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 text-xs w-64 font-bold shadow-sm"
-          />
+        <div className="flex items-center gap-4">
+          <div className="relative group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400 font-bold" size={14} />
+            <input
+              type="text"
+              placeholder="Tìm mã hoặc tên..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-white border border-emerald-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 text-xs w-64 font-bold shadow-sm"
+            />
+          </div>
+
+          {isAdmin && onOpenCategoryManagement && (
+            <button
+              onClick={onOpenCategoryManagement}
+              className="flex items-center gap-2 px-4 py-2 bg-white text-emerald-700 border-2 border-emerald-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-50 hover:border-emerald-300 transition-all shadow-sm active:scale-95"
+            >
+              <Sparkles size={14} className="text-emerald-500" />
+              <span translate="no" className="notranslate">MÃ HÓA CÔNG VIỆC</span>
+            </button>
+          )}
         </div>
       </div>
 

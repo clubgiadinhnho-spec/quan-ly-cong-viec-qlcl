@@ -1,3 +1,4 @@
+// Checkpoint: He thong on dinh truoc khi lam Bao cao
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { User as UserType, Task, TaskCategory } from "./types";
 import Login from "./components/Login";

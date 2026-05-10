@@ -231,6 +231,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
               onBulkSelect={setBulkSelection}
               approveTasksBulk={approveTasksBulk}
               onBulkDelete={handleBulkDelete}
+              onOpenCategoryManagement={() => setActiveTab('category_management')}
             />
           </div>
         </motion.div>
@@ -557,14 +558,15 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                   if (t.cycleHistory && t.cycleHistory.length > 0) {
                     t.cycleHistory.forEach(entry => {
                       cycleItems.push({
-                        ...t,
-                        id: `${t.id}_cycle_${entry.version}`,
-                        originalTaskId: t.id,
-                        actualEndDate: entry.completedAt,
-                        currentUpdate: entry.reportContent,
-                        objective: entry.objective || t.objective,
-                        version: entry.version,
-                        isCycleRecord: true
+                         ...t,
+                         id: `${t.id}_cycle_${entry.version}`,
+                         code: entry.code || `${t.code}-K${entry.version}`,
+                         originalTaskId: t.id,
+                         actualEndDate: entry.completedAt,
+                         currentUpdate: entry.reportContent,
+                         objective: entry.objective || t.objective,
+                         version: entry.version,
+                         isCycleRecord: true
                       });
                     });
                   }
@@ -575,16 +577,23 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                 // Deduplicate bằng Fingerprint (Mã + Ngày + Nội dung) để loại bỏ hoàn toàn các bản ghi trùng lặp hình ảnh
                 const uniqueMap = new Map();
                 combined.forEach(item => {
-                  if (!item.id) return;
+                  if (!item.id || !item.code) return;
+                  
+                  // Chỉ lấy 10 ký tự đầu của ngày (YYYY-MM-DD) để đảm bảo so sánh chính xác giữa ISO string và date string
+                  const rawDate = item.actualEndDate || '';
+                  const dateStr = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate.substring(0, 10);
+                  
+                  // Trim nội dung để tránh sai lệch do khoảng trắng
+                  const contentStr = (item.currentUpdate || '').trim();
                   
                   // Tạo dấu vân tay duy nhất dựa trên nội dung thực tế hiển thị
-                  // Lấy 10 ký tự đầu của ngày để khớp cả ISO string và YYYY-MM-DD
-                  const fingerprint = `${item.code}_${(item.actualEndDate || '').substring(0, 10)}_${item.currentUpdate || ''}`;
+                  const fingerprint = `${item.code}_${dateStr}_${contentStr}`;
                   
                   if (!uniqueMap.has(fingerprint)) {
                     uniqueMap.set(fingerprint, item);
                   } else {
-                    // Nếu trùng vân tay, ưu tiên giữ bản ghi có isCycleRecord vì nó chứa thông tin phiên bản lịch sử
+                    // Nếu đã tồn tại vân tay này (trùng lặp hiển thị):
+                    // Ưu tiên giữ bản ghi có isCycleRecord vì nó chứa thông tin phiên bản lịch sử chính xác hơn
                     const existing = uniqueMap.get(fingerprint);
                     if (item.isCycleRecord && !existing.isCycleRecord) {
                       uniqueMap.set(fingerprint, item);

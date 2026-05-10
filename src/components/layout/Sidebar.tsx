@@ -118,16 +118,16 @@ export const Sidebar = ({
       {/* Toggle Button Inside Sidebar Top */}
       <button 
         onClick={onToggleCollapse}
-        className={`absolute top-10 -right-0.5 z-10 w-6 h-12 bg-white border border-gray-200 rounded-l-xl shadow-lg flex items-center justify-center text-gray-400 hover:text-blue-600 transition-all ${isCollapsed ? 'translate-x-0' : 'translate-x-0'}`}
+        className={`absolute top-12 -right-3 z-[110] w-6 h-10 bg-white border border-gray-200 rounded-lg shadow-md flex items-center justify-center text-gray-400 hover:text-blue-600 transition-all hover:scale-110 active:scale-95`}
       >
-        <ChevronRight size={16} className={`transition-transform duration-300 ${isCollapsed ? '' : 'rotate-180'}`} />
+        <ChevronRight size={14} strokeWidth={3} className={`transition-transform duration-300 ${isCollapsed ? '' : 'rotate-180'}`} />
       </button>
 
-      <div className={`flex flex-col h-full ${isCollapsed ? 'p-4' : 'p-6'}`}>
+      <div className={`flex flex-col h-full ${isCollapsed ? 'p-3' : 'p-6'}`}>
         <div className={`flex flex-col gap-1 mb-6 ${isCollapsed ? 'items-center' : 'px-0.5'}`}>
-          <div className={`flex items-center gap-3 p-3 ${isDark ? 'bg-white/10' : 'bg-gradient-to-br from-blue-50 to-indigo-50/50'} rounded-2xl border ${isDark ? 'border-white/10' : 'border-blue-100/50'} shadow-sm relative overflow-hidden group w-full`}>
+          <div className={`${isCollapsed ? 'w-12 h-12 p-0 justify-center' : 'p-3 w-full'} flex items-center gap-3 ${isDark ? 'bg-white/10' : 'bg-gradient-to-br from-blue-50 to-indigo-50/50'} rounded-2xl border ${isDark ? 'border-white/10' : 'border-blue-100/50'} shadow-sm relative overflow-hidden group transition-all`}>
             <div className="absolute top-0 right-0 w-12 h-12 bg-blue-400/5 rounded-full blur-xl -mr-6 -mt-6" />
-            <div className={`w-10 h-10 shrink-0 ${isDark ? 'bg-white text-gray-900' : 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white'} rounded-xl flex items-center justify-center text-sm font-black shadow-lg ring-2 ring-white/20`}>Q</div>
+            <div className={`${isCollapsed ? 'w-9 h-9 text-xs' : 'w-10 h-10 text-sm'} shrink-0 ${isDark ? 'bg-white text-gray-900' : 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white'} rounded-xl flex items-center justify-center font-black shadow-lg ring-2 ring-white/10 hover:rotate-12 transition-transform`}>Q</div>
             <AnimatePresence>
               {!isCollapsed && (
                 <motion.div 
@@ -146,20 +146,21 @@ export const Sidebar = ({
           </div>
         </div>
         
-        <nav className="space-y-1 flex-none mb-4 relative">
-          {!isCollapsed && (
-            <div className="px-3.5 mb-2 mt-1 relative">
-              {/* Decorative line from title to first item */}
+        <nav className="flex-1 overflow-y-auto no-scrollbar space-y-0.5 mb-2 relative">
+          <div className={`px-3.5 mb-1.5 mt-0.5 relative flex items-center ${isCollapsed ? 'justify-center' : 'gap-2.5'}`}>
+            {/* Decorative line from title to first item */}
+            {!isCollapsed && (
               <div className={`absolute left-[23.5px] top-7 w-0.5 h-4 ${isDark ? 'bg-white/10' : 'bg-gray-200'} z-0`} />
-              
-              <div className="flex items-center gap-2.5">
-                <Workflow size={20} className={`${isDark ? 'text-white/40' : 'text-blue-400'} shrink-0`} />
-                <span translate="no" className={`notranslate text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-white/90' : 'text-blue-900'} opacity-80`}>
-                  QUY TRÌNH TÁC NGHIỆP
-                </span>
-              </div>
-            </div>
-          )}
+            )}
+            
+            <Workflow size={20} className={`${isDark ? 'text-white/40' : 'text-blue-400'} shrink-0`} />
+            
+            {!isCollapsed && (
+              <span translate="no" className={`notranslate text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-white/90' : 'text-blue-900'} opacity-80`}>
+                QUY TRÌNH TÁC NGHIỆP
+              </span>
+            )}
+          </div>
           {[
             { id: 'pending_confirmation', label: <span translate="no" className="notranslate">ĐỀ XUẤT MỚI</span>, icon: Sparkles, count: pendingTasksCount, color: 'bg-emerald-500', isAlert: bouncingItems['pending_confirmation'], isSubItem: true },
             { id: 'tasks', label: <span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>, icon: LayoutGrid, count: activeTasksCount, color: 'bg-red-600', isAlert: bouncingItems['tasks'], isSubItem: true },
@@ -173,7 +174,6 @@ export const Sidebar = ({
             { id: 'reports', label: <span translate="no" className="notranslate">BÁO CÁO THÁNG</span>, icon: BarChart3 },
             ...(user.role === 'Admin'
               ? [
-                  { id: 'category_management', label: <span translate="no" className="notranslate">MÃ HÓA CÔNG VIỆC</span>, icon: Tag, color: 'bg-blue-600 text-white shadow-blue-100' },
                   { id: 'system_history', label: <span translate="no" className="notranslate">NHẬT KÝ HỆ THỐNG</span>, icon: Database, color: 'bg-indigo-600 text-white shadow-indigo-100' }
                 ]
               : []),
@@ -198,11 +198,22 @@ export const Sidebar = ({
                       : (isDark ? 'text-white/60 hover:bg-white/10 hover:text-white' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900')
                   } ${item.isSubItem && !isCollapsed ? 'pl-6' : ''} ${!isCollapsed && idx === 5 ? 'mt-5' : ''}`}
                 >
-                  <div className={`shrink-0 flex items-center justify-center transition-transform ${activeTab === item.id ? 'scale-110' : 'group-hover/nav:scale-110'}`}>
+                  <div className={`shrink-0 flex items-center justify-center transition-transform ${activeTab === item.id ? 'scale-110' : 'group-hover/nav:scale-110'} ${isCollapsed ? 'relative' : ''}`}>
                     {item.isSubItem && activeTab === item.id ? (
                       <div className={`w-1 h-4 absolute -left-2 rounded-r-full ${isDark ? 'bg-white' : 'bg-blue-600'}`} />
                     ) : null}
                     <item.icon size={item.isSubItem ? 18 : 20} className={`${activeTab === item.id ? (isDark ? 'text-white' : 'text-blue-600') : ''}`} />
+                    
+                    {/* Collapsed Badge (Over icon) */}
+                    {item.count !== undefined && isCollapsed && (
+                      <span className={`absolute -top-2 -right-2 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center border border-white shadow-xl z-[30] ${
+                        item.color || 'bg-gray-500'
+                      } text-white ${item.isAlert ? 'animate-bounce' : ''}`}>
+                        <span translate="no" className="notranslate font-black text-[9px] leading-tight filter drop-shadow-sm">
+                          {item.count}
+                        </span>
+                      </span>
+                    )}
                   </div>
                   
                   {!isCollapsed && (
@@ -210,8 +221,8 @@ export const Sidebar = ({
                       {item.label}
                     </div>
                   )}
-                  {item.count !== undefined && (
-                    <span className={`${isCollapsed ? 'absolute -top-[5px] -right-[5px]' : 'ml-auto'} min-w-[22px] h-5.5 px-1.5 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-lg shrink-0 ${
+                  {item.count !== undefined && !isCollapsed && (
+                    <span className={`ml-auto min-w-[22px] h-5.5 px-1.5 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-lg shrink-0 ${
                       item.color || 'bg-gray-500'
                     } text-white ${item.isAlert ? 'animate-bounce' : ''}`}>
                       <span translate="no" className="notranslate font-normal text-[11px]">
@@ -225,105 +236,94 @@ export const Sidebar = ({
           })}
         </nav>
 
-        {/* Group Chat Moved Below Nav */}
-        <div className="flex-1 overflow-y-auto no-scrollbar pb-6 pt-4">
+        {/* Bottom Fixed Area */}
+        <div className="flex-none space-y-1.5 pt-2 border-t border-gray-100/30">
+          {/* Group Chat */}
           <button 
             onClick={() => setActiveTab('group_chat')}
             title={isCollapsed ? "Room Thảo Luận" : undefined}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center p-2' : 'gap-2.5 px-3.5 py-3'} group hover:bg-rose-50/10 rounded-xl transition-all ${activeTab === 'group_chat' ? (isDark ? 'bg-white/20 ring-1 ring-white/20' : 'bg-rose-50/50 ring-1 ring-rose-100') : ''}`}
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center p-2' : 'gap-2.5 px-3 py-1.5'} group rounded-xl transition-all ${activeTab === 'group_chat' ? (isDark ? 'bg-white/20 ring-1 ring-white/20' : 'bg-rose-50/50 ring-1 ring-rose-100') : 'hover:bg-gray-50/50'}`}
           >
             <div className="relative flex-none">
-              <div className={`p-2 bg-gradient-to-br from-rose-500 to-rose-600 rounded-xl shadow-sm border border-rose-400/20`}>
-                 <GroupChatIcon className="w-5 h-5 text-white" />
+              <div className="w-8 h-8 flex items-center justify-center bg-gradient-to-br from-rose-500 to-rose-600 rounded-lg shadow-sm">
+                <GroupChatIcon className="w-4.5 h-4.5 text-white" />
               </div>
               {groupUnreadCount > 0 && isCollapsed && (
-                <div className="absolute -top-1 -right-1 bg-blue-600 text-white min-w-[22px] h-5.5 px-1 rounded-full flex items-center justify-center border-2 border-white shadow-lg animate-bounce z-10">
-                  <span translate="no" className="notranslate text-white text-[11px] font-normal">{groupUnreadCount}</span>
+                <div className="absolute -top-2 -right-2 bg-blue-600 text-white min-w-[14px] h-3.5 px-0.5 rounded-full flex items-center justify-center border border-white shadow-xl z-[30]">
+                  <span translate="no" className="notranslate text-[8px] font-black leading-tight filter drop-shadow-sm">{groupUnreadCount}</span>
                 </div>
               )}
             </div>
             {!isCollapsed && (
-              <div className="flex-1 min-w-0 text-left flex items-center justify-between gap-1">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className={`text-[12px] font-black uppercase truncate transition-colors ${activeTab === 'group_chat' ? (isDark ? 'text-white' : 'text-rose-600') : (isDark ? 'text-white/80 group-hover:text-white' : 'text-gray-700 group-hover:text-rose-600')}`}>
-                      <span translate="no" className="notranslate">Room Thảo Luận</span>
-                    </p>
-                  </div>
-                  <p className={`text-[8px] font-bold uppercase tracking-widest truncate ${isDark ? 'text-white/40' : 'text-gray-400'}`}>
-                    <span translate="no" className="notranslate">Cộng đồng QLCL</span>
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 flex-none relative pr-0.5">
-                  {groupUnreadCount > 0 && !isCollapsed && (
-                    <div className="bg-blue-600 text-white min-w-[22px] h-5.5 px-1.5 rounded-full flex items-center justify-center shadow-lg shadow-blue-200 animate-bounce border-2 border-white">
-                      <span translate="no" className="notranslate text-white text-[11px] font-normal">
-                        {groupUnreadCount}
-                      </span>
-                    </div>
-                  )}
-                </div>
+              <div className="flex-1 min-w-0 text-left">
+                <p className={`text-[11px] font-black uppercase truncate transition-colors ${activeTab === 'group_chat' ? (isDark ? 'text-white' : 'text-rose-600') : (isDark ? 'text-white/80 group-hover:text-white' : 'text-gray-700 group-hover:text-rose-600')}`}>
+                  <span translate="no" className="notranslate">ROOM THẢO LUẬN</span>
+                </p>
+                <p className={`text-[8px] font-black uppercase tracking-widest truncate ${isDark ? 'text-white/40' : 'text-gray-400'}`}>
+                  <span translate="no" className="notranslate">CỘNG ĐỒNG QLCL</span>
+                </p>
+              </div>
+            )}
+            {groupUnreadCount > 0 && !isCollapsed && (
+              <div className="bg-blue-600 text-white min-w-[18px] h-4.5 px-1 rounded-full flex items-center justify-center shadow-sm border border-white">
+                <span translate="no" className="notranslate text-white text-[9px] font-black">
+                  {groupUnreadCount}
+                </span>
               </div>
             )}
           </button>
-        </div>
-      </div>
-      
-        <div className={`px-4 py-3 border-t ${isDark ? 'border-white/10' : 'border-gray-100/50'} flex justify-center`}>
-          {isCollapsed ? (
-            <div className={`w-6 h-6 rounded-full border-2 ${isDark ? 'border-white/40' : 'border-gray-300'} flex items-center justify-center p-0.5`}>
-              <div className={`w-full h-full rounded-full ${currentColor.dot.split(' ')[0]}`} />
-            </div>
-          ) : (
-            <div className={`flex items-center gap-2 ${isDark ? 'bg-white/10' : 'bg-gray-100/50'} p-1 rounded-full border ${isDark ? 'border-white/10' : 'border-gray-200/50'}`}>
-              {COLOR_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  onClick={() => setSidebarColor(option.id)}
-                  className={`w-3.5 h-3.5 rounded-full border shadow-sm transition-all duration-300 ${option.dot} ${
-                    sidebarColor === option.id 
-                      ? 'scale-150 ring-2 ring-blue-400 ring-offset-1 z-10' 
-                      : 'hover:scale-125 opacity-80 hover:opacity-100'
-                  }`}
-                />
-              ))}
-            </div>
-          )}
-        </div>
 
-      <div className={`mt-0 border-t ${isDark ? 'border-white/10' : 'border-gray-100'} ${isDark ? 'bg-white/5' : 'bg-gray-50/50'} ${isCollapsed ? 'p-4 flex flex-col items-center gap-4' : 'p-4'}`}>
-        <div className={`flex items-center gap-3 ${isCollapsed ? 'flex-col' : 'px-2'}`}>
-          <Avatar src={user.avatar} name={user.name} size={isCollapsed ? "md" : "lg"} />
-          {!isCollapsed ? (
-            <div className="flex-1 min-w-0">
-              <div className={`text-sm font-bold whitespace-nowrap notranslate ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                <span translate="no" className="notranslate">{user.name}</span>
-              </div>
-              <p className={`text-[10px] font-semibold uppercase ${isDark ? 'text-white/60' : (hasDelegatedPermissions(user) ? 'text-amber-600' : 'text-gray-500')}`}>
-                {user.role === 'Admin' ? <span translate="no" className="notranslate">ADMIN</span> : user.role} {user.delegatedPermissions && (() => {
-                  const count = Object.values(user.delegatedPermissions).filter(Boolean).length;
-                  if (count === 0) return null;
-                  if (count === 6) return '(QUYỀN TP)';
-                  return `(ỦY QUYỀN ${count}/6)`;
-                })()}
-              </p>
+          {/* Color Switcher & User Profile combined for space optimization */}
+          <div className={`${isDark ? 'bg-white/5 border-white/10' : 'bg-slate-50/50 border-slate-100'} border rounded-2xl p-1.5 space-y-1.5`}>
+            {/* Color Switcher Row */}
+            <div className={`flex items-center justify-center ${isCollapsed ? 'py-0.5' : 'py-1'} bg-white/40 rounded-lg shadow-inner-sm overflow-hidden`}>
+              {isCollapsed ? (
+                <div className={`w-4 h-4 rounded-full border border-gray-300 flex items-center justify-center p-0.5`}>
+                  <div className={`w-full h-full rounded-full ${currentColor.dot.split(' ')[0]}`} />
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  {COLOR_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      onClick={() => setSidebarColor(option.id)}
+                      className={`w-2.5 h-2.5 rounded-full border shadow-sm transition-all duration-300 ${option.dot} ${
+                        sidebarColor === option.id 
+                          ? 'scale-125 ring-1 ring-blue-500 ring-offset-1 z-10' 
+                          : 'hover:scale-110 opacity-70 hover:opacity-100'
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-          ) : null}
-          <button 
-            onClick={onLogout}
-            className={`relative group/logout flex items-center justify-center p-2 rounded-xl transition-all ${
-              isDark 
-                ? 'text-white/60 hover:bg-red-500/20 hover:text-red-400' 
-                : 'text-gray-500 hover:bg-red-50 hover:text-red-600'
-            } w-10 h-10 flex-none`}
-          >
-            <LogOut size={isCollapsed ? 20 : 18} />
-            {/* Nút Đăng xuất Tooltip */}
-            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest rounded-md opacity-0 group-hover/logout:opacity-100 pointer-events-none transition-all duration-200 whitespace-nowrap z-[110] shadow-xl translate-y-1 group-hover/logout:translate-y-0">
-              <span translate="no" className="notranslate">Đăng xuất</span>
-              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+
+            {/* Profile Row */}
+            <div className={`flex items-center gap-2 ${isCollapsed ? 'flex-col p-1' : 'px-1.5'}`}>
+              <Avatar src={user.avatar} name={user.name} size={isCollapsed ? "sm" : "sm"} />
+              {!isCollapsed ? (
+                <div className="flex-1 min-w-0">
+                  <div className={`text-[11px] font-black whitespace-nowrap notranslate leading-tight truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    <span translate="no" className="notranslate">{user.name}</span>
+                  </div>
+                  <p className={`text-[8px] font-black uppercase tracking-tighter ${isDark ? 'text-white/60' : (hasDelegatedPermissions(user) ? 'text-amber-600' : 'text-slate-500')}`}>
+                    {user.role === 'Admin' ? <span translate="no" className="notranslate">ADMIN</span> : user.role}
+                  </p>
+                </div>
+              ) : null}
+              <button 
+                onClick={onLogout}
+                title="Đăng xuất"
+                className={`flex items-center justify-center p-1.5 rounded-lg transition-all ${
+                  isDark 
+                    ? 'text-white/60 hover:bg-red-500/20 hover:text-red-400' 
+                    : 'text-slate-400 hover:bg-red-50 hover:text-red-600'
+                } w-7 h-7 flex-none ml-auto`}
+              >
+                <LogOut size={14} strokeWidth={3} />
+              </button>
             </div>
-          </button>
+          </div>
         </div>
       </div>
     </motion.aside>

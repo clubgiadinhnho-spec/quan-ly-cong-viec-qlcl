@@ -74,7 +74,11 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
       </td>
       <td className="p-2 text-center text-[10px] font-bold text-gray-300 border-b border-r border-gray-300 align-top">
         <div className="flex flex-col items-center gap-1 pt-1 opacity-60">
-          <span translate="no" className="notranslate leading-none">{task.code}</span>
+          <span translate="no" className="notranslate leading-none">
+            {task.recurrence && task.recurrence !== 'NONE' && !task.code?.includes('-K') 
+              ? `${task.code}-K${task.version || (task.cycleHistory?.length || 0)}` 
+              : task.code}
+          </span>
           {task.category && (
             <span translate="no" className="notranslate text-[7px] font-black text-white bg-indigo-400 px-1 py-0.5 rounded leading-none" title="PHÂN LOẠI">
               <span translate="no" className="notranslate">{task.category}</span>
@@ -257,8 +261,8 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
         <div className="flex flex-col items-center justify-center gap-1.5 w-full max-w-[44px] mx-auto min-h-full py-1">
           {(isAdmin || isOwner) ? (
             <>
-              {/* 1. PRIMARY ACTION (HOÀN TÁC) - ON TOP (ADMIN ONLY) */}
-              {isAdmin && (
+              {/* 1. PRIMARY ACTION (HOÀN TÁC) */}
+              {isAdmin ? (
                 task.requestUndo === 'PENDING' ? (
                   <div className="w-full flex flex-col gap-1 items-center">
                     <span className="text-[7px] font-black text-amber-600 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 animate-pulse uppercase">
@@ -316,6 +320,30 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                   >
                     <RotateCcw size={20} strokeWidth={3} className={`group-hover/btn:-rotate-45 transition-transform ${isProcessing ? 'animate-spin' : ''}`} />
                     <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">HOÀN TÁC CÔNG VIỆC</span></span>
+                  </button>
+                )
+              ) : isOwner && (
+                task.requestUndo === 'PENDING' ? (
+                  <span className="text-[7px] font-black text-amber-600 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 animate-pulse uppercase text-center leading-tight">
+                    <span translate="no" className="notranslate">Đang chờ<br/>duyệt HT</span>
+                  </span>
+                ) : (
+                  <button 
+                    disabled={isProcessing}
+                    onClick={async () => {
+                      if (isProcessing) return;
+                      setIsProcessing(true);
+                      try {
+                        await onUpdate(task.id, { requestUndo: 'PENDING' });
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }} 
+                    title="YÊU CẦU HOÀN TÁC"
+                    className={`w-10 h-10 flex items-center justify-center bg-amber-500 text-white font-black rounded-md hover:bg-amber-600 transition-all border-2 border-amber-300 group/btn shadow-md ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <RotateCcw size={20} strokeWidth={3} className={`group-hover/btn:-rotate-45 transition-transform ${isProcessing ? 'animate-spin' : ''}`} />
+                    <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">YÊU CẦU HOÀN TÁC</span></span>
                   </button>
                 )
               )}

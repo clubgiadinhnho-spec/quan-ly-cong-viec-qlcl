@@ -125,6 +125,7 @@ export type RecurrenceType = 'NONE' | 'DAILY' | 'TRI_DAILY' | 'WEEKLY' | 'BI_WEE
 
 export interface CycleHistoryEntry {
   version: number;
+  code?: string;
   reportContent: string;
   objective?: string;
   completedAt: string;
@@ -135,6 +136,19 @@ export interface TaskCategory {
   id: string;
   code: string;
   name: string;
+}
+
+export interface QCDEvaluation {
+  q: number;
+  c: number;
+  d: number;
+  explanation: string;
+  qExplanation?: string;
+  cExplanation?: string;
+  dExplanation?: string;
+  qComment?: string;
+  cComment?: string;
+  dComment?: string;
 }
 
 export interface Task {
@@ -185,6 +199,10 @@ export interface Task {
   isCycleRecord?: boolean;
   lastUpdateAt?: string;
   waitingApproval?: boolean;
+  staffQCD?: QCDEvaluation;
+  leaderQCD?: QCDEvaluation;
+  isNewInBoard?: boolean;
+  lastActionAt?: string;
 }
 
 export interface ReportDraft {

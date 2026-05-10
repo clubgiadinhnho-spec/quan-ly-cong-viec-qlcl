@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw, Trash2, Bell, RefreshCw, Highlighter, Check, ThumbsUp, CheckCircle2, Tag, Pencil, Eye, History } from 'lucide-react';
+import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw, Trash2, Bell, RefreshCw, Highlighter, Check, ThumbsUp, CheckCircle2, Tag, Pencil, Eye, History, UserCircle, ChevronDown, Zap, Banknote } from 'lucide-react';
 import { Task, User } from '../../types';
 import { formatDate, calculateNextDeadline } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
@@ -36,7 +36,7 @@ interface TaskRowProps {
   isReadOnly?: boolean;
   onRestore?: (id: string) => void;
   onApprove?: (id: string) => void;
-  approveTaskCompletion?: (id: string, modifierName?: string) => Promise<void>;
+  approveTaskCompletion?: (id: string, modifierName?: string, leaderQCD?: any) => Promise<void>;
   onNavigate?: (tab: string) => void;
   highlightedTaskId?: string | null;
   isSelected?: boolean;
@@ -76,6 +76,24 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const canEditPriority = isAdmin;
   const [lastReadCount, setLastReadCount] = React.useState(task.comments?.length || 0);
   const [showColorPicker, setShowColorPicker] = React.useState(false);
+  const [showQCDModal, setShowQCDModal] = React.useState(false);
+  const [openGuide, setOpenGuide] = React.useState<string | null>(null);
+
+  // QCD Local State for Staff
+  const [staffQ, setStaffQ] = React.useState(task.staffQCD?.q || 0);
+  const [staffC, setStaffC] = React.useState(task.staffQCD?.c || 0);
+  const [staffD, setStaffD] = React.useState(task.staffQCD?.d || 0);
+  const [staffQExp, setStaffQExp] = React.useState(task.staffQCD?.qExplanation || '');
+  const [staffCExp, setStaffCExp] = React.useState(task.staffQCD?.cExplanation || '');
+  const [staffDExp, setStaffDExp] = React.useState(task.staffQCD?.dExplanation || '');
+
+  // Leader QCD State
+  const [leaderQ, setLeaderQ] = React.useState(5);
+  const [leaderC, setLeaderC] = React.useState(5);
+  const [leaderD, setLeaderD] = React.useState(5);
+  const [leaderQComment, setLeaderQComment] = React.useState('');
+  const [leaderCComment, setLeaderCComment] = React.useState('');
+  const [leaderDComment, setLeaderDComment] = React.useState('');
 
   // When chat opens, update last read count to current number of comments
   React.useEffect(() => {
@@ -145,74 +163,81 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     
     // Staff sends completion request
     if (!isAdmin) {
-      if (!isOwner) return; // Chỉ người được giao việc mới được gửi hoàn thành
-      if (task.waitingApproval) return; // Already sent
+      if (!isOwner) return;
+      if (task.waitingApproval) return;
       
-      setIsProcessing(true);
-      try {
-        onUpdate(task.id, { 
-          waitingApproval: true,
-          isNewUpdate: true,
-          updatedAt: new Date().toISOString()
-        });
-        if (onNavigate) onNavigate('pending_approval');
-        if (createNotification) {
-          await createNotification(user.name, task.code, task.id, 'COMPLETED_REQUEST');
-        }
-      } finally {
-        setIsProcessing(false);
-      }
+      // Open QCD Modal for Staff to fill details
+      setShowQCDModal(true);
     } else {
-      // Admin approves completion
-      setConfirmModal({
-        show: true,
-        title: 'XÁC NHẬN HOÀN THÀNH',
-        message: 'Bạn muốn chốt công việc này đã hoàn thành?',
-        onConfirm: async () => {
-          if (isProcessing) return;
-          setIsProcessing(true);
-          try {
-            if (approveTaskCompletion) {
-              await approveTaskCompletion(task.id, user.name);
-            } else {
-              // Fallback to old logic if prop not provided
-              if (task.recurrence && task.recurrence !== 'NONE') {
-                const currentDeadline = task.extensionDate || task.expectedEndDate;
-                const nextDeadline = calculateNextDeadline(currentDeadline || new Date().toISOString().split('T')[0], task.recurrence);
-                
-                const newHistory: CycleHistoryEntry = {
-                  version: (task.cycleHistory?.length || 0) + 1,
-                  reportContent: task.currentUpdate,
-                  completedAt: new Date().toISOString(),
-                  nextDeadline: nextDeadline
-                };
+      // Admin approves completion - Show review modal
+      setShowQCDModal(true);
+    }
+  };
 
-                onUpdate(task.id, {
-                  cycleHistory: [...(task.cycleHistory || []), newHistory],
-                  expectedEndDate: nextDeadline,
-                  extensionDate: null,
-                  prevProgress: task.currentUpdate,
-                  currentUpdate: '',
-                  isNewUpdate: false,
-                  waitingApproval: false,
-                  updatedAt: new Date().toISOString()
-                });
-              } else {
-                onUpdate(task.id, { 
-                  status: 'COMPLETED', 
-                  actualEndDate: new Date().toISOString().split('T')[0], 
-                  isLocked: true,
-                  waitingApproval: false,
-                  updatedAt: new Date().toISOString()
-                });
-              }
-            }
-          } finally {
-            setIsProcessing(false);
-            setConfirmModal((p: any) => ({ ...p, show: false }));
-          }
+  const submitStaffQCD = async () => {
+    if (!staffQ || !staffC || !staffD || !staffQExp.trim() || !staffCExp.trim() || !staffDExp.trim()) return;
+    setIsProcessing(true);
+    try {
+      onUpdate(task.id, { 
+        waitingApproval: true,
+        isNewUpdate: true,
+        updatedAt: new Date().toISOString(),
+        staffQCD: {
+          q: staffQ,
+          c: staffC,
+          d: staffD,
+          explanation: `${staffQExp.trim()} | ${staffCExp.trim()} | ${staffDExp.trim()}`,
+          qExplanation: staffQExp.trim(),
+          cExplanation: staffCExp.trim(),
+          dExplanation: staffDExp.trim()
         }
       });
+      setShowQCDModal(false);
+      if (onNavigate) onNavigate('pending_approval');
+      if (createNotification) {
+        await createNotification(user.name, task.code, task.id, 'COMPLETED_REQUEST');
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const submitLeaderApproval = async () => {
+    setIsProcessing(true);
+    try {
+      const qC = leaderQComment.trim() || 'Đồng ý';
+      const cC = leaderCComment.trim() || 'Đồng ý';
+      const dC = leaderDComment.trim() || 'Đồng ý';
+
+      if (approveTaskCompletion) {
+        await approveTaskCompletion(task.id, user.name, {
+          q: leaderQ,
+          c: leaderC,
+          d: leaderD,
+          explanation: `Q: ${qC} | C: ${cC} | D: ${dC}`,
+          qComment: qC,
+          cComment: cC,
+          dComment: dC
+        });
+      } else {
+        onUpdate(task.id, {
+          status: 'COMPLETED',
+          leaderQCD: { 
+            q: leaderQ, 
+            c: leaderC, 
+            d: leaderD, 
+            explanation: `Q: ${qC} | C: ${cC} | D: ${dC}`,
+            qComment: qC,
+            cComment: cC,
+            dComment: dC
+          },
+          waitingApproval: false,
+          updatedAt: new Date().toISOString()
+        });
+      }
+      setShowQCDModal(false);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -248,7 +273,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         <div className="flex flex-col items-center pt-1 h-full justify-between">
           <div className="flex flex-col items-center gap-1 mb-3">
             <div translate="no" className="notranslate leading-none text-[10px] font-mono font-black text-blue-600 bg-blue-50/50 px-1 py-0.5 rounded-sm border border-blue-100/50">
-              <span translate="no" className="notranslate">{task.code}</span>
+               <span translate="no" className="notranslate">
+                 {task.recurrence && task.recurrence !== 'NONE' && !task.code?.includes('-K') 
+                   ? `${task.code}-K${(task.cycleHistory?.length || 0) + 1}` 
+                   : task.code}
+               </span>
             </div>
             {task.category && (
               <div translate="no" className="notranslate leading-none text-[9px] font-mono font-black text-white bg-indigo-500 px-1 py-0.5 rounded-sm border border-indigo-400" title="PHÂN LOẠI">
@@ -782,8 +811,246 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               <span translate="no" className="notranslate text-gray-400 italic text-[10px]">Chỉ xem</span>
             )}
           </div>
-        </td>
+          
+          <AnimatePresence>
+            {showQCDModal && (
+              <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowQCDModal(false)} />
+                <motion.div 
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  className="relative bg-white w-full max-w-4xl rounded-xl shadow-2xl flex flex-col max-h-[76vh] overflow-hidden border border-gray-100"
+                >
+                  <div className="p-2 border-b border-gray-50 bg-slate-50">
+                    <div className="flex justify-between items-center mb-2 px-1">
+                      <h3 className="font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                        <CheckCircle className="text-blue-600" size={20} />
+                        <span translate="no" className="notranslate uppercase text-base">
+                          {isAdmin ? <span translate="no" className="notranslate">PHÊ DUYỆT HOÀN THÀNH (Q-C-D)</span> : <span translate="no" className="notranslate">TỰ ĐÁNH GIÁ CHẤT LƯỢNG (Q-C-D)</span>}
+                        </span>
+                      </h3>
+                      <button onClick={() => setShowQCDModal(false)} className="p-1 hover:bg-white rounded-full transition-colors">
+                        <X size={20} className="text-gray-400" />
+                      </button>
+                    </div>
 
-    </motion.tr>
-  );
+                    <div className="bg-white/80 p-2 rounded-lg border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
+                        <div className="space-y-0.5">
+                          <p translate="no" className="notranslate text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                            <span translate="no" className="notranslate">CÔNG VIỆC</span>
+                          </p>
+                          <p translate="no" className="notranslate font-black text-blue-900 text-sm uppercase leading-tight">
+                            <span translate="no" className="notranslate">{task.title}</span>
+                          </p>
+                        </div>
+                        <div className="space-y-0.5">
+                          <p translate="no" className="notranslate text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                            <span translate="no" className="notranslate">NGƯỜI THỰC HIỆN</span>
+                          </p>
+                          <p translate="no" className="notranslate font-black text-gray-700 text-sm uppercase">
+                            <span translate="no" className="notranslate">{assigneeName}</span>
+                          </p>
+                        </div>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
+                    {/* QUY CHUẨN ĐÁNH GIÁ (COLLAPSIBLE) */}
+                    <div className="bg-blue-50/50 rounded-lg border border-blue-100 overflow-hidden">
+                      <button 
+                        onClick={() => setOpenGuide(openGuide === 'all' ? null : 'all')}
+                        className="w-full p-2 flex items-center justify-between hover:bg-blue-100/50 transition-colors"
+                      >
+                        <h4 className="text-[10px] font-black text-blue-800 flex items-center gap-2 uppercase tracking-widest">
+                          <Tag size={14} className="text-blue-600" />
+                          <span translate="no" className="notranslate">QUY CHUẨN ĐÁNH GIÁ</span>
+                        </h4>
+                        <RefreshCw size={12} className={`text-blue-400 transition-transform duration-300 ${openGuide === 'all' ? 'rotate-180' : ''}`} />
+                      </button>
+                      
+                      <AnimatePresence>
+                        {openGuide === 'all' && (
+                          <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="px-3 pb-3 space-y-2"
+                          >
+                            {[
+                              { lv: 'M5', label: 'XUẤT SẮC', desc: 'Hoàn thành tốt nhiệm vụ; Có ứng dụng AI hoặc Sáng kiến giúp công việc nhanh hơn, nhàn hơn rõ rệt; Được cấp trên khen ngợi.' },
+                              { lv: 'M4', label: 'TỐT', desc: 'Hoàn thành đúng hạn; Kết quả sạch sẽ, ít sai sót; Có ý thức sắp xếp công việc khoa học.' },
+                              { lv: 'M3', label: 'ĐẠT', desc: 'Hoàn thành đầy đủ công việc được giao; Đúng tiến độ; Đạt yêu cầu chất lượng cơ bản (Đây là mức 100% theo yêu cầu của công ty).' },
+                              { lv: 'M2', label: 'CẦN CỐ GẮNG', desc: 'Công việc còn chút sai sót nhỏ phải nhắc nhở; Trễ hạn nhưng không ảnh hưởng nghiêm trọng.' },
+                              { lv: 'M1', label: 'KÉM', desc: 'Không hoàn thành việc; Sai sót gây hậu quả phải xử lý lại; Thiếu trách nhiệm trong tác nghiệp.' }
+                            ].map((item, i) => (
+                              <div key={i} className="flex items-start gap-2 p-1.5 rounded-md border border-blue-100 bg-white shadow-sm">
+                                <span translate="no" className="notranslate text-[9px] font-black text-blue-700 min-w-[35px]">
+                                  <span translate="no" className="notranslate">{item.lv}</span>
+                                </span>
+                                <p translate="no" className="notranslate text-[10px] font-medium leading-tight text-slate-700">
+                                  <span translate="no" className="notranslate font-black text-blue-800">{item.label}: </span>
+                                  <span translate="no" className="notranslate">{item.desc}</span>
+                                </p>
+                              </div>
+                            ))}
+                            <div className="mt-2 p-2 bg-amber-50 rounded border border-amber-100 space-y-1">
+                                <p translate="no" className="notranslate text-[9px] font-black text-amber-800 uppercase tracking-widest">
+                                    <span translate="no" className="notranslate">GỢI Ý TÁC CHIẾN</span>
+                                </p>
+                                <p translate="no" className="notranslate text-[10px] text-amber-900 leading-tight">
+                                    <span translate="no" className="notranslate font-bold">Q (QUALITY): </span>
+                                    <span translate="no" className="notranslate">Chỉ cần làm đúng hướng dẫn kỹ thuật, hồ sơ đầy đủ là được điểm 3. Không sai lỗi chính tả/số liệu là điểm 4-5.</span>
+                                </p>
+                                <p translate="no" className="notranslate text-[10px] text-amber-900 leading-tight">
+                                    <span translate="no" className="notranslate font-bold">C (COST): </span>
+                                    <span translate="no" className="notranslate">Làm xong đúng thời gian quy định là điểm 3. Có dùng thêm công cụ hỗ trợ cho nhanh hơn là điểm 4-5.</span>
+                                </p>
+                                <p translate="no" className="notranslate text-[10px] text-amber-900 leading-tight">
+                                    <span translate="no" className="notranslate font-bold">D (DELIVERY): </span>
+                                    <span translate="no" className="notranslate">Đúng hạn là điểm 3. Gửi sớm hoặc xử lý linh hoạt cho anh em khác là điểm 4-5.</span>
+                                </p>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 divide-x divide-gray-100">
+                      {/* LEFT: STAFF VIEW */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 mb-0.5 pl-1">
+                          <UserCircle size={12} className="text-slate-400" />
+                          <span translate="no" className="notranslate font-black text-[9px] uppercase tracking-widest text-slate-500">NHÂN VIÊN TỰ CHẤM</span>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          {[
+                            { label: 'QUALITY', val: staffQ, set: setStaffQ, exp: staffQExp, setExp: setStaffQExp, icon: <Sparkles size={11} className="text-yellow-500" fill="currentColor" />, bgColor: 'bg-amber-50', borderColor: 'border-amber-200', accent: 'amber' },
+                            { label: 'COST', val: staffC, set: setStaffC, exp: staffCExp, setExp: setStaffCExp, icon: <Banknote size={11} className="text-emerald-600" />, bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200', accent: 'emerald' },
+                            { label: 'DELIVERY', val: staffD, set: setStaffD, exp: staffDExp, setExp: setStaffDExp, icon: <Zap size={11} className="text-blue-600" fill="currentColor" />, bgColor: 'bg-blue-50', borderColor: 'border-blue-200', accent: 'blue' }
+                          ].map(item => (
+                            <div key={item.label} className={`${item.bgColor} p-2 rounded-lg border ${item.borderColor} space-y-2 shadow-sm`}>
+                              <div className="flex justify-between items-center">
+                                <span translate="no" className="notranslate text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 text-slate-800">
+                                  {item.icon} <span translate="no" className="notranslate">{item.label}</span>
+                                </span>
+                                <div className="flex gap-1">
+                                  {[1, 2, 3, 4, 5].map(v => (
+                                    <button
+                                      key={v}
+                                      type="button"
+                                      disabled={!isOwner}
+                                      onClick={() => item.set(v)}
+                                      className={`w-7 h-7 rounded flex items-center justify-center text-[10px] font-black border-2 transition-all ${
+                                        item.val === v 
+                                          ? `bg-${item.accent}-500 text-white border-${item.accent}-600 shadow-sm scale-105` 
+                                          : 'bg-white border-white text-slate-400 hover:bg-white/50'
+                                      } ${!isOwner ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                      <span translate="no" className="notranslate">{v}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <textarea 
+                                translate="no"
+                                readOnly={!isOwner}
+                                value={item.exp}
+                                onChange={(e) => item.setExp(e.target.value)}
+                                className={`w-full p-2 bg-white/60 border border-slate-100 rounded-md text-[10px] h-12 resize-none outline-none focus:ring-2 focus:ring-blue-100 font-medium text-slate-700 leading-tight placeholder:text-slate-300 ${!isOwner ? 'cursor-not-allowed' : ''}`}
+                                placeholder="Bằng chứng hoàn thành..." 
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* RIGHT: LEADER VIEW */}
+                      <div className="pl-4 space-y-3">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <Sparkles size={12} className="text-blue-600" />
+                          <span translate="no" className="notranslate font-black text-[9px] uppercase tracking-widest text-blue-600">LÃNH ĐẠO PHÊ DUYỆT</span>
+                        </div>
+
+                        <div className="space-y-3">
+                          {[
+                            { label: 'QUALITY', val: leaderQ, set: setLeaderQ, comment: leaderQComment, setComment: setLeaderQComment, bgColor: 'bg-amber-50', borderColor: 'border-amber-200', activeColor: 'bg-amber-500', textColor: 'text-amber-700', activeBorder: 'border-amber-600', icon: <Sparkles size={11} className="text-yellow-500" fill="currentColor" /> },
+                            { label: 'COST', val: leaderC, set: setLeaderC, comment: leaderCComment, setComment: setLeaderCComment, bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200', activeColor: 'bg-emerald-500', textColor: 'text-emerald-700', activeBorder: 'border-emerald-600', icon: <Banknote size={11} className="text-emerald-600" /> },
+                            { label: 'DELIVERY', val: leaderD, set: setLeaderD, comment: leaderDComment, setComment: setLeaderDComment, bgColor: 'bg-blue-50', borderColor: 'border-blue-200', activeColor: 'bg-blue-600', textColor: 'text-blue-700', activeBorder: 'border-blue-700', icon: <Zap size={11} className="text-blue-600" fill="currentColor" /> }
+                          ].map(item => (
+                            <div key={item.label} className={`${item.bgColor} p-2 rounded-lg border ${item.borderColor} space-y-2 shadow-sm`}>
+                              <div className="flex justify-between items-center">
+                                <div className="flex flex-col">
+                                  <span translate="no" className="notranslate text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 text-slate-800">
+                                      {item.icon} <span translate="no" className="notranslate">{item.label}</span>
+                                  </span>
+                                  <span translate="no" className="notranslate text-[7px] font-bold text-slate-400 uppercase tracking-tighter">
+                                    <span translate="no" className="notranslate">PHÊ DUYỆT</span>
+                                  </span>
+                                </div>
+                                <div className="flex gap-1">
+                                  {[1, 2, 3, 4, 5].map(v => (
+                                    <button
+                                      key={v}
+                                      type="button"
+                                      disabled={!isAdmin}
+                                      onClick={() => item.set(v)}
+                                      className={`w-7 h-7 rounded flex items-center justify-center text-[10px] font-black transition-all ${
+                                        item.val === v 
+                                          ? `${item.activeColor} text-white shadow-sm border-2 ${item.activeBorder} scale-105` 
+                                          : `bg-white border border-slate-100 ${item.textColor} hover:bg-slate-50`
+                                      } ${!isAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                      <span translate="no" className="notranslate">{v}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <textarea
+                                translate="no"
+                                readOnly={!isAdmin}
+                                value={item.comment}
+                                onChange={(e) => item.setComment(e.target.value)}
+                                className={`w-full p-2 bg-white/60 border border-slate-100 rounded-md text-[10px] h-12 resize-none outline-none focus:ring-2 focus:ring-blue-100 font-medium text-slate-700 leading-tight placeholder:text-slate-300 ${!isAdmin ? 'cursor-not-allowed' : ''}`}
+                                placeholder="Nhận xét của lãnh đạo..."
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-2 border-t border-gray-100 bg-slate-50 flex gap-3">
+                    <button 
+                      type="button"
+                      onClick={() => setShowQCDModal(false)}
+                      className="flex-1 h-9 bg-white border-2 border-slate-200 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-100 transition-all active:scale-95 shadow-sm"
+                    >
+                      <span translate="no" className="notranslate">HỦY BỎ</span>
+                    </button>
+                    <button 
+                      type="button"
+                      disabled={isProcessing || (!isAdmin && (!staffQ || !staffC || !staffD || !staffQExp.trim() || !staffCExp.trim() || !staffDExp.trim()))}
+                      onClick={isAdmin ? submitLeaderApproval : submitStaffQCD}
+                      className="flex-2 h-9 bg-blue-700 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-800 shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isProcessing ? (
+                        <RefreshCw size={14} className="animate-spin" />
+                      ) : (
+                        <CheckCircle2 size={14} />
+                      )}
+                      <span translate="no" className="notranslate uppercase">
+                        {isAdmin ? <span translate="no" className="notranslate">XÁC NHẬN PHÊ DUYỆT</span> : <span translate="no" className="notranslate">GỬI HOÀN THÀNH (Q-C-D)</span>}
+                      </span>
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+        </td>
+      </motion.tr>
+    );
 };

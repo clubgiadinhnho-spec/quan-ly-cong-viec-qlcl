@@ -256,14 +256,58 @@ export const TaskList: React.FC<TaskListProps> = ({
                 onSendMessage={onSendMessage}
                 onReact={onReact}
                 onUndo={(id) => {
-                  const realId = id.includes('_cycle_') ? id.split('_cycle_')[0] : id;
-                  onUpdate(realId, { 
-                    status: 'APPROVED', 
-                    waitingApproval: true,
-                    actualEndDate: null, 
-                    isLocked: false, 
-                    requestUndo: null as any,
-                    lastActionAt: new Date().toISOString()
+                  const isCycle = id.includes('_cycle_');
+                  const taskToUndo = tasks.find(t => t.id === id);
+                  
+                  if (!taskToUndo) return;
+
+                  const realId = isCycle ? id.split('_cycle_')[0] : id;
+
+                  setConfirmModal({
+                    show: true,
+                    title: <span translate="no" className="notranslate">XÁC NHẬN HOÀN TÁC</span>,
+                    message: (
+                      <span translate="no" className="notranslate">
+                        {isCycle 
+                          ? `Bạn muốn hoàn tác kỳ hoàn thành này? Công việc sẽ quay lại mục TRÌNH DUYỆT HOÀN THÀNH.`
+                          : `Bạn muốn hoàn tác công việc này? Công việc sẽ quay lại mục TRÌNH DUYỆT HOÀN THÀNH.`}
+                      </span>
+                    ),
+                    onConfirm: () => {
+                      const updates: Partial<Task> = { 
+                        status: 'APPROVED', 
+                        waitingApproval: true,
+                        actualEndDate: null as any, 
+                        isLocked: false, 
+                        isNewInBoard: true,
+                        requestUndo: null as any,
+                        lastActionAt: new Date().toISOString(),
+                      };
+
+                      if (isCycle && taskToUndo.cycleHistory) {
+                        const version = parseInt(id.split('_cycle_')[1], 10);
+                        const cycleEntry = taskToUndo.cycleHistory.find(h => h.version === version);
+                        
+                        // Remove this cycle from history
+                        updates.cycleHistory = taskToUndo.cycleHistory.filter(h => h.version !== version);
+                        
+                        // Restore report content, objective and CODE from the cycle being undone
+                        if (cycleEntry) {
+                          updates.currentUpdate = cycleEntry.reportContent;
+                          if (cycleEntry.objective) {
+                            updates.objective = cycleEntry.objective;
+                          }
+                          
+                          // Restore code with fallback for legacy entries
+                          const baseCode = taskToUndo.code ? taskToUndo.code.split('-K')[0] : 'N/A';
+                          updates.code = cycleEntry.code || `${baseCode}-K${version}`;
+                        }
+                      }
+
+                      onUpdate(realId, updates);
+                      setConfirmModal((p: any) => ({ ...p, show: false }));
+                      if (onNavigate) onNavigate('pending_approval');
+                    }
                   });
                 }}
                 onUpdate={(id, updates) => {

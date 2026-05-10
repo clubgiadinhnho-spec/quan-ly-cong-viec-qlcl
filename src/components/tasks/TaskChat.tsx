@@ -148,14 +148,14 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
         initial={{ opacity: 0, scale: 0.95, y: -10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: -10 }}
-        className="w-[250px] bg-white rounded-lg shadow-[0_10px_30px_rgba(0,0,0,0.15)] z-[99999] flex flex-col border-[0.5px] border-gray-300 overflow-visible cursor-default"
+        className="w-[280px] bg-white rounded-xl shadow-[0_15px_50px_rgba(0,0,0,0.2)] z-[99999] flex flex-col border border-gray-200 overflow-visible cursor-default"
       >
         {/* Minimalist Comic Tail SVG */}
         <svg className="absolute inset-0 overflow-visible pointer-events-none z-[-1]">
           <motion.path
             d={tetherPath}
-            fill="white"
-            stroke="#d1d5db"
+            fill="#3b82f6"
+            stroke="#3b82f6"
             strokeWidth="0.5"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -163,57 +163,65 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
         </svg>
 
         {/* Minimal Header */}
-        <div className="p-2 border-b border-gray-100 flex items-center justify-between bg-white rounded-t-lg cursor-grab active:cursor-grabbing">
+        <div className="p-3 border-b border-blue-400/20 flex items-center justify-between bg-blue-500 rounded-t-xl cursor-grab active:cursor-grabbing shadow-sm">
           <div className="flex items-center gap-2">
-             <span translate="no" className="notranslate text-[10px] font-black text-gray-400 uppercase tracking-tighter">{task.code}</span>
+             <MessageSquare size={14} className="text-blue-100" />
+             <span translate="no" className="notranslate text-[11px] font-black text-white uppercase tracking-widest">{task.code}</span>
           </div>
           <button 
             onClick={onClose} 
-            className="p-1 hover:bg-gray-50 rounded-full transition-colors text-gray-300 hover:text-red-400"
+            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-white/50 hover:text-white"
           >
-            <X size={14} />
+            <X size={16} strokeWidth={3} />
           </button>
         </div>
 
         {/* Messages area - Compact */}
         <div 
           ref={scrollRef}
-          className="h-[220px] overflow-y-auto p-3 space-y-3 bg-[#fafafa] scroll-smooth"
+          className="h-[260px] overflow-y-auto p-4 space-y-4 bg-blue-50/30 scroll-smooth"
         >
           {(!task.comments || task.comments.length === 0) ? (
-            <div className="h-full flex flex-col items-center justify-center opacity-10">
-              <MessageSquare size={24} />
+            <div className="h-full flex flex-col items-center justify-center text-blue-200">
+              <MessageSquare size={32} strokeWidth={1} />
+              <p translate="no" className="notranslate text-[9px] font-bold uppercase tracking-widest mt-2">Chưa có thảo luận</p>
             </div>
           ) : (
-            task.comments.map((comment) => {
+            task.comments.map((comment, i) => {
               const isMe = comment.authorId === currentUser.id || comment.authorId === currentUser.uniqueKey;
               const author = getUserById(comment.authorId, users);
               const authorName = author?.name || 'User';
               
               return (
-                <div key={comment.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                  <div className={`flex items-end gap-1.5 max-w-[90%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                <motion.div 
+                  key={comment.id} 
+                  initial={{ opacity: 0, x: isMe ? 20 : -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                >
+                  <div className={`flex items-end gap-2 max-w-[92%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                     {!isMe && (
-                      <div className="flex-shrink-0">
+                      <div className="flex-shrink-0 shadow-sm rounded-full overflow-hidden border border-white">
                         <Avatar src={author?.avatar} name={authorName} size="xs" />
                       </div>
                     )}
                     <div className="group/msg relative">
-                      <div className={`px-2.5 py-1.5 rounded-lg text-[12px] font-medium leading-tight border ${
+                      <div className={`px-3 py-2 rounded-2xl text-[12px] font-medium leading-normal shadow-sm border ${
                         isMe 
-                          ? 'bg-blue-500 text-white border-blue-400 rounded-br-none' 
-                          : 'bg-white text-gray-700 border-gray-200 rounded-bl-none shadow-sm'
+                          ? 'bg-blue-600 text-white border-blue-500 rounded-br-sm' 
+                          : 'bg-white text-gray-800 border-gray-100 rounded-bl-sm shadow-[0_2px_5px_rgba(0,0,0,0.05)]'
                       }`}>
-                        <span translate="no" className="notranslate">{comment.content}</span>
+                        <span translate="no" className="notranslate whitespace-pre-wrap">{comment.content}</span>
                       </div>
 
                       {/* Reaction trigger */}
-                      <div className={`absolute top-0 opacity-0 group-hover/msg:opacity-100 transition-opacity flex z-10 ${isMe ? '-left-6' : '-right-6'}`}>
+                      <div className={`absolute top-0 opacity-0 group-hover/msg:opacity-100 transition-opacity flex z-10 ${isMe ? '-left-7' : '-right-7'}`}>
                         <button 
                           onClick={(e) => { e.stopPropagation(); setShowEmojiFor(comment.id); }}
-                          className="p-1 bg-white border border-gray-200 rounded-full text-gray-400 hover:bg-gray-50"
+                          className="p-1.5 bg-white border border-gray-200 rounded-full text-gray-400 hover:text-blue-500 hover:border-blue-200 shadow-sm transition-all"
                         >
-                          <Smile size={10} />
+                          <Smile size={12} />
                         </button>
                       </div>
 
@@ -226,50 +234,50 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
                     </div>
                   </div>
                   
-                  <div className={`${isMe ? 'mr-0' : 'ml-6'} mt-0.5`}>
+                  <div className={`${isMe ? 'mr-1' : 'ml-10'} mt-1`}>
                     <ReactionBadge reactions={comment.reactions} users={users} />
                   </div>
 
                   {!isMe && (
-                    <div className="ml-6 mt-0.5">
-                      <span {...getSafeNameProps()} className="text-[8px] text-blue-500 font-bold uppercase notranslate italic">@{authorName}</span>
+                    <div className="ml-10 mt-0.5">
+                      <span {...getSafeNameProps()} className="text-[9px] text-blue-600 font-black uppercase notranslate tracking-tight opacity-70">@{authorName}</span>
                     </div>
                   )}
-                </div>
+                </motion.div>
               );
             })
           )}
         </div>
 
-        {/* Input area - Ultra Slim */}
-        <div className="p-2 border-t border-gray-100 bg-white rounded-b-lg">
-          <div className="flex items-center gap-2 mb-1.5 px-1">
+        {/* Input area - Refined */}
+        <div className="p-3 bg-white rounded-b-xl border-t border-gray-100 shadow-[0_-5px_15px_rgba(0,0,0,0.02)]">
+          <div className="flex items-center gap-3 mb-2 px-1">
             <button 
               ref={emojiTriggerRef}
               onClick={() => setShowEmojiPicker(true)}
-              className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-blue-500 transition-colors flex items-center gap-1"
+              className="px-2 py-1 bg-gray-50 hover:bg-blue-50 rounded-lg text-gray-500 hover:text-blue-600 transition-all flex items-center gap-1.5 border border-gray-100"
             >
-              <Smile size={16} />
-              <span translate="no" className="notranslate text-[9px] font-bold uppercase truncate">
-                <span translate="no" className="notranslate">Emoji</span>
+              <Smile size={14} className="text-amber-400" />
+              <span translate="no" className="notranslate text-[9px] font-black uppercase tracking-wider">
+                Emoji
               </span>
             </button>
             
             {canAttach && (
-              <div className="flex items-center gap-1 border-l border-gray-100 ml-1 pl-2">
+              <div className="flex items-center gap-1 border-l border-gray-100 ml-1 pl-3">
                 <button 
-                  className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-blue-500 transition-colors"
+                  className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-all border border-transparent hover:border-blue-100"
                   title="Hình ảnh"
                   onClick={() => alert("Tính năng gửi hình ảnh đang được đồng bộ...")}
                 >
-                  <Image size={15} />
+                  <Image size={16} />
                 </button>
                 <button 
-                  className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-blue-500 transition-colors"
+                  className="p-1.5 hover:bg-blue-50 rounded-lg text-gray-400 hover:text-blue-600 transition-all border border-transparent hover:border-blue-100"
                   title="Đính kèm"
                   onClick={() => alert("Tính năng đính kèm tài liệu đang được đồng bộ...")}
                 >
-                  <Paperclip size={15} />
+                  <Paperclip size={16} />
                 </button>
               </div>
             )}
@@ -282,11 +290,11 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
             anchorRect={emojiTriggerRef.current?.getBoundingClientRect()}
           />
 
-          <div className="relative flex gap-1.5 items-center bg-gray-50 rounded p-1 border border-gray-100">
+          <div className="relative flex gap-2 items-center bg-gray-50/80 rounded-xl p-2 border border-gray-100 focus-within:border-blue-300 focus-within:bg-white transition-all focus-within:shadow-[0_0_10px_rgba(59,130,246,0.1)]">
             <textarea
               ref={inputRef}
-              className="flex-1 bg-transparent py-1 px-1.5 text-[12px] outline-none transition-all resize-none h-[32px] leading-tight text-gray-700 font-medium placeholder:text-gray-300 notranslate"
-              placeholder="Nhập nội dung thảo luận mới..."
+              className="flex-1 bg-transparent py-1.5 px-2 text-[13px] outline-none transition-all resize-none h-[38px] leading-snug text-gray-800 font-medium placeholder:text-gray-400 notranslate"
+              placeholder="Nhập thảo luận..."
               value={newMessage}
               translate="no"
               onChange={(e) => setNewMessage(e.target.value)}
@@ -300,9 +308,9 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
             <button 
               onClick={handleSend}
               disabled={!newMessage.trim()}
-              className="p-1.5 text-blue-500 hover:text-blue-600 disabled:opacity-30 transition-all"
+              className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 transition-all shadow-md shadow-blue-600/20 active:scale-95"
             >
-              <Send size={14} />
+              <Send size={16} strokeWidth={2.5} />
             </button>
           </div>
         </div>

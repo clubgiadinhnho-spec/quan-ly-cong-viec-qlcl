@@ -121,6 +121,7 @@ export const useFirebaseData = (currentUserId?: string) => {
               ...data,
               id: doc.id,
               updatedAt: (data.updatedAt as any)?.toDate ? (data.updatedAt as any).toDate().toISOString() : (data.updatedAt || now),
+              lastActionAt: (data.lastActionAt as any)?.toDate ? (data.lastActionAt as any).toDate().toISOString() : (data.lastActionAt || (data.updatedAt as any)?.toDate ? (data.updatedAt as any).toDate().toISOString() : data.updatedAt || now),
               systemCreatedAt: (data.systemCreatedAt as any)?.toDate ? (data.systemCreatedAt as any).toDate().toISOString() : data.systemCreatedAt,
               issueDate: data.issueDate || now.split('T')[0],
               startDate: data.startDate || data.issueDate || now.split('T')[0],
@@ -371,6 +372,71 @@ export const useFirebaseData = (currentUserId?: string) => {
     };
   }, [currentUserId, auth.currentUser?.uid]);
 
+  useEffect(() => {
+    // Data Migration: Đảm bảo TẤT CẢ mã công việc là duy nhất và không có hậu tố -K
+    const isAdmin = [
+      "truong.le@tanphuvietnam.vn", 
+      "lenhattruong.tpp@gmail.com", 
+      "lenhattruong.caphef1@gmail.com",
+      "club.nhuatanphu@gmail.com", 
+      "tanphuvietnam.tpp@gmail.com", 
+      "truongln.tanhongngoc@gmail.com"
+    ].includes((auth.currentUser?.email || "").toLowerCase());
+
+    if (isAdmin && tasks.length > 0) {
+      // Đếm số lần xuất hiện của từng mã
+      const codeCounts: {[code: string]: number} = {};
+      tasks.forEach(t => { 
+        if (t.code) codeCounts[t.code] = (codeCounts[t.code] || 0) + 1; 
+      });
+
+      // Tìm các task cần sửa: có -K HOẶC bị trùng mã
+      const tasksToFix = tasks.filter(t => (t.code && codeCounts[t.code] > 1) || t.code?.includes('-K'));
+      
+      if (tasksToFix.length > 0) {
+        console.log(`[MIGRATION] Phát hiện ${tasksToFix.length} bản ghi cần xử lý trùng lặp/chuẩn hóa.`);
+        const batch = writeBatch(db);
+        
+        // Tập hợp các mã "an toàn" (không trùng, không -K)
+        const usedCodes = new Set(
+          tasks.filter(t => t.code && !t.code.includes('-K') && codeCounts[t.code] === 1)
+               .map(t => t.code)
+        );
+        
+        let maxNum = tasks.reduce((max, t) => {
+          const match = t.code?.match(/C(\d+)/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            return num > max ? num : max;
+          }
+          return max;
+        }, 0);
+
+        tasksToFix.forEach(t => {
+          let cleanCode = t.code?.split('-K')[0];
+          
+          // Nếu mã sau khi làm sạch vẫn bị trùng hoặc t.code ban đầu đã bị trùng
+          if (!cleanCode || usedCodes.has(cleanCode) || codeCounts[t.code || ''] > 1) {
+            maxNum++;
+            cleanCode = `C${String(maxNum).padStart(4, '0')}`;
+          }
+          
+          usedCodes.add(cleanCode);
+          batch.update(doc(db, 'tasks', t.id), {
+            code: cleanCode,
+            updatedAt: serverTimestamp()
+          });
+        });
+
+        batch.commit().then(() => {
+          console.log("[MIGRATION] Đã chuẩn hóa mã duy nhất cho toàn bộ hệ thống.");
+        }).catch(err => {
+          console.warn("[MIGRATION] Lỗi hệ thống:", err);
+        });
+      }
+    }
+  }, [tasks.length, auth.currentUser?.email]);
+
   const lastPresenceData = useRef<{name: string, avatar: string} | null>(null);
   const lastPresenceUpdate = useRef<number>(0);
 
@@ -457,11 +523,92 @@ export const useFirebaseData = (currentUserId?: string) => {
 
       const taskRef = doc(db, 'tasks', targetId);
       const existingTask = tasks.find(t => t.id === targetId);
-      const taskCode = existingTask?.code || 'N/A';
+      if (!existingTask) return;
+
+      const taskCode = existingTask.code || 'N/A';
 
       const cleanUpdates = Object.fromEntries(
         Object.entries(updates).filter(([_, v]) => v !== undefined)
       );
+
+      // THIẾT QUÂN LUẬT LUÂN HỒI: Nếu cập nhật status -> COMPLETED mà chưa qua approveTaskCompletion
+      const isCompleting = (updates.status === 'COMPLETED' || updates.status === 'Hoàn thành') && existingTask.status !== 'COMPLETED';
+      const isRecurring = !!(existingTask.recurrence && existingTask.recurrence !== 'NONE' && (existingTask.recurrence as any) !== 'KHÔNG LẶP');
+
+      if (isCompleting && isRecurring && !id.includes('_cycle_')) {
+        const batch = writeBatch(db);
+        const now = new Date().toISOString();
+        const dateOnly = now.split('T')[0];
+        const currentDeadline = existingTask.extensionDate || existingTask.expectedEndDate;
+        const nextDeadline = calculateNextDeadline(currentDeadline || dateOnly, existingTask.recurrence);
+
+        // 1. Sinh mã mới
+        const codes = tasks.map(t => {
+          const m = (t.code || '').match(/C(\d+)/);
+          return m ? parseInt(m[1], 10) : 0;
+        });
+        const maxCodeNum = Math.max(0, ...codes);
+        const nextCode = `C${String(maxCodeNum + 1).padStart(4, '0')}`;
+
+        // 2. Kết thúc kỳ cũ
+        batch.update(taskRef, {
+          ...cleanUpdates,
+          actualEndDate: dateOnly,
+          isLocked: true,
+          waitingApproval: false,
+          updatedAt: serverTimestamp(),
+          lastActionAt: serverTimestamp()
+        });
+
+        // 3. Kỳ mới
+        const nextTaskRef = doc(collection(db, 'tasks'));
+        const { id: _, ...baseData } = existingTask;
+        const cleanBaseData = { ...baseData };
+        delete (cleanBaseData as any).staffQCD;
+        delete (cleanBaseData as any).reportExplanation;
+        delete (cleanBaseData as any).reportAttachments;
+        delete (cleanBaseData as any).requestUndo;
+
+        const nextTaskData: any = {
+          ...cleanBaseData,
+          status: 'APPROVED',
+          code: nextCode,
+          issueDate: dateOnly,
+          startDate: currentDeadline || dateOnly,
+          expectedEndDate: nextDeadline,
+          extensionDate: null,
+          actualEndDate: null,
+          waitingApproval: false,
+          isLocked: false,
+          isNewInBoard: true,
+          currentUpdate: '',
+          prevProgress: updates.currentUpdate || existingTask.currentUpdate || '',
+          cycleHistory: [],
+          leaderQCD: null,
+          history: [{
+            version: 1,
+            content: `[TỰ ĐỘNG LUÂN HỒI] MÃ MỚI: ${nextCode}. HẠN: ${nextDeadline}`,
+            timestamp: now,
+            authorId: 'system'
+          }],
+          createdAt: serverTimestamp(),
+          systemCreatedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          lastActionAt: serverTimestamp()
+        };
+
+        batch.set(nextTaskRef, nextTaskData);
+        await batch.commit();
+
+        await addLog({
+          type: 'TASK_UPDATE',
+          userId: auth.currentUser?.uid || 'SYSTEM',
+          userName: modifierName,
+          details: `Hoàn thành ${taskCode} -> Luân hồi sang ${nextCode}`,
+          metadata: { taskId: targetId, nextCode }
+        });
+        return;
+      }
 
       // Nếu là bản ghi chu kỳ, xử lý cập nhật mảng cycleHistory
       if (cycleVersion !== null && existingTask) {
@@ -488,7 +635,8 @@ export const useFirebaseData = (currentUserId?: string) => {
       // Cập nhật document gốc (Dùng targetId để tránh lỗi "No document to update")
       await updateDoc(taskRef, {
         ...cleanUpdates,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        lastActionAt: serverTimestamp()
       });
 
       // Log specific actions
@@ -550,86 +698,90 @@ export const useFirebaseData = (currentUserId?: string) => {
       const existingTask = tasks.find(t => t.id === id);
       if (!existingTask) return;
       
-      // Chặn duyệt trùng lặp nếu công việc không còn ở trạng thái chờ duyệt hoặc đã có chu kỳ mới tương tự
-      if (!existingTask.waitingApproval) {
-        console.warn(`Công việc ${existingTask.code} đã được duyệt hoặc không ở trạng thái chờ duyệt.`);
+      // CHỈ CHẶN NẾU ĐÃ COMPLETED (Tránh chặn Admin duyệt trực tiếp tại Bảng Công Việc)
+      if (existingTask.status === 'COMPLETED') {
+        console.warn(`Công việc ${existingTask.code} đã hoàn thành.`);
         return;
       }
 
-      const isRecurring = existingTask.recurrence && existingTask.recurrence !== 'NONE';
-      const nowTs = new Date().toISOString();
-      const todayDate = nowTs.split('T')[0];
-
-      // Nếu là việc định kỳ, kiểm tra xem nội dung cập nhật hiện tại đã được lưu vào lịch sử chưa (tránh trùng)
-      if (isRecurring && existingTask.cycleHistory?.some(h => 
-        h.reportContent === existingTask.currentUpdate && 
-        h.completedAt?.split('T')[0] === todayDate
-      )) {
-        console.warn(`Chu kỳ này cho công việc ${existingTask.code} đã tồn tại trong lịch sử.`);
-        // Vẫn cho phép reset trạng thái chờ duyệt nhưng không thêm history mới
-        await updateDoc(taskRef, {
-          waitingApproval: false,
-          updatedAt: serverTimestamp()
-        });
-        return;
-      }
-
+      const isRecurring = existingTask.recurrence && existingTask.recurrence !== 'NONE' && (existingTask.recurrence as any) !== 'KHÔNG LẶP';
+      
       const batch = writeBatch(db);
       const now = new Date().toISOString();
       const dateOnly = now.split('T')[0];
 
-      if (existingTask.recurrence && existingTask.recurrence !== 'NONE') {
+      if (isRecurring) {
         const currentDeadline = existingTask.extensionDate || existingTask.expectedEndDate;
         const nextDeadline = calculateNextDeadline(currentDeadline || dateOnly, existingTask.recurrence);
         
-        // 1. Lưu lịch sử chu kỳ (BƯỚC A)
-        const currentVersion = (existingTask.cycleHistory?.length || 0) + 1;
-        const baseCode = existingTask.code ? existingTask.code.split('-K')[0] : 'N/A';
-        const currentCode = `${baseCode}-K${currentVersion}`;
-        const nextCode = `${baseCode}-K${currentVersion + 1}`;
+        // 1. Tìm mã Cxxxx lớn nhất hiện có (Unique ID) - THIẾT QUÂN LUẬT SINH MÃ
+        const getNextTaskCode = () => {
+          const codes = tasks.map(t => {
+            const m = (t.code || '').match(/C(\d+)/);
+            return m ? parseInt(m[1], 10) : 0;
+          });
+          const maxCodeNum = Math.max(0, ...codes);
+          return `C${String(maxCodeNum + 1).padStart(4, '0')}`;
+        };
+        const nextCode = getNextTaskCode();
 
-        const newHistoryItem: CycleHistoryEntry = {
-          version: currentVersion,
-          code: currentCode,
-          reportContent: existingTask.currentUpdate || '(Trống)',
-          objective: existingTask.objective || '',
-          completedAt: now,
-          nextDeadline: nextDeadline
+        // 2. PHÊ DUYỆT KỲ CŨ (COMPLETED)
+        batch.update(taskRef, {
+          status: 'COMPLETED',
+          actualEndDate: dateOnly,
+          isLocked: true,
+          waitingApproval: false,
+          leaderQCD: leaderQCD || null,
+          updatedAt: serverTimestamp(),
+          lastActionAt: serverTimestamp()
+        });
+
+        // 3. KHỞI TẠO KỲ TIẾP THEO (APPROVED) - THIẾT QUÂN LUẬT LUÂN HỒI
+        const nextTaskRef = doc(collection(db, 'tasks'));
+        
+        // Kế thừa khung nhưng làm sạch dữ liệu thực thi
+        const { id: _, ...baseData } = existingTask;
+        
+        // Loại bỏ các trường không mong muốn từ kỳ cũ (LÀM SẠCH TUYỆT ĐỐI)
+        const cleanBaseData = { ...baseData };
+        delete (cleanBaseData as any).staffQCD;
+        delete (cleanBaseData as any).reportExplanation;
+        delete (cleanBaseData as any).reportAttachments;
+        delete (cleanBaseData as any).requestUndo;
+        delete (cleanBaseData as any).undoRequestAt;
+        delete (cleanBaseData as any).undoRequestBy;
+
+        const nextTaskData: any = {
+          ...cleanBaseData,
+          status: 'APPROVED', 
+          code: nextCode,
+          issueDate: dateOnly,
+          startDate: currentDeadline || dateOnly, // Ngày bắt đầu kỳ mới = Hạn cũ
+          expectedEndDate: nextDeadline,
+          extensionDate: null,
+          actualEndDate: null,
+          waitingApproval: false,
+          isLocked: false,
+          isNewInBoard: true,
+          currentUpdate: '', // LÀM SẠCH GIẢI TRÌNH
+          prevProgress: existingTask.currentUpdate || '',
+          cycleHistory: [], 
+          leaderQCD: null, // RESET ĐIỂM QCD
+          history: [
+            {
+              version: 1,
+              content: `[LUÂN HỒI CÔNG VIỆC] KỲ TIẾP THEO TỰ ĐỘNG. MÃ MỚI: ${nextCode}. HẠN: ${nextDeadline}`,
+              timestamp: now,
+              authorId: 'system'
+            }
+          ],
+          createdAt: serverTimestamp(),
+          systemCreatedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          lastActionAt: serverTimestamp()
         };
 
-        const cycleHistory = [...(existingTask.cycleHistory || []), newHistoryItem];
-        
-        // 2. Ghi log lịch sử văn bản
-        const historyUpdates = [
-          `[HOÀN THÀNH KỲ] Chốt kỳ ${currentVersion} ngày ${new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: '2-digit' })}.`,
-          `Mã cũ: ${currentCode}`,
-          `Nội dung: ${existingTask.currentUpdate || '(Trống)'}`,
-          `Hạn tiếp theo: ${nextDeadline}`
-        ];
-        
-        const newHistory = [...(existingTask.history || [])];
-        newHistory.push({
-          version: (newHistory.length > 0 ? newHistory[newHistory.length - 1].version : 0) + 1,
-          content: historyUpdates.join(' | '),
-          timestamp: now,
-          authorId: auth.currentUser?.uid || 'SYSTEM'
-        });
-
-        // 3. Reset cho kỳ mới (BƯỚC B & C)
-        batch.update(taskRef, {
-          code: nextCode, // Cấp mã mới cho kỳ tiếp theo
-          cycleHistory,
-          history: newHistory,
-          expectedEndDate: nextDeadline, // Nhảy hạn
-          extensionDate: null,
-          prevProgress: existingTask.currentUpdate,
-          currentUpdate: '', // Xóa trắng báo cáo
-          isNewUpdate: false, // Reset cờ
-          waitingApproval: false, // Hiện lại nút Xanh
-          leaderQCD: leaderQCD || null, // Lưu điểm đánh giá (nếu có, thường là của Admin)
-          version: (existingTask.version || 0) + 1,
-          updatedAt: serverTimestamp()
-        });
+        batch.set(nextTaskRef, nextTaskData);
 
         const logRef = doc(collection(db, 'system_logs'));
         batch.set(logRef, {
@@ -637,8 +789,8 @@ export const useFirebaseData = (currentUserId?: string) => {
           userId: auth.currentUser?.uid || 'SYSTEM',
           userName: modifierName || null,
           timestamp: serverTimestamp(),
-          details: `Duyệt hoàn thành kỳ cho công việc ${existingTask.code}. Hạn kỳ tới: ${nextDeadline}`,
-          metadata: { taskId: id, taskCode: existingTask.code, action: 'CYCLE_COMPLETE', leaderQCD }
+          details: `HOÀN THÀNH KỲ ${existingTask.code} -> SINH KỲ MỚI ${nextCode}`,
+          metadata: { taskId: id, taskCode: existingTask.code, nextTaskId: nextTaskRef.id, nextTaskCode: nextCode }
         });
       } else {
         // Trường hợp 1: Công việc không lặp
@@ -648,7 +800,8 @@ export const useFirebaseData = (currentUserId?: string) => {
           isLocked: true,
           waitingApproval: false,
           leaderQCD: leaderQCD || null,
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
+          lastActionAt: serverTimestamp()
         });
 
         const logRef = doc(collection(db, 'system_logs'));
@@ -657,7 +810,7 @@ export const useFirebaseData = (currentUserId?: string) => {
           userId: auth.currentUser?.uid || 'SYSTEM',
           userName: modifierName || null,
           timestamp: serverTimestamp(),
-          details: `Xác nhận hoàn thành công việc ${existingTask.code}`,
+          details: `XÁC NHẬN PHÊ DUYỆT HOÀN THÀNH: ${existingTask.code}`,
           metadata: { taskId: id, taskCode: existingTask.code, action: 'COMPLETE', leaderQCD }
         });
       }
@@ -666,7 +819,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `tasks/${id}/approve`);
     }
-  }, [tasks]);
+  }, [tasks, auth.currentUser?.uid]);
 
   const saveReportDraft = useCallback(async (draft: Omit<ReportDraft, 'id'>) => {
     try {

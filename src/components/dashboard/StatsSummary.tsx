@@ -8,8 +8,8 @@ interface StatsSummaryProps {
 
 export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
   const nonDeleted = tasks.filter(t => !t.deletedAt);
-  // YÊU CẦU BẮT BUỘC: Dashboard chỉ tính các việc APPROVED
-  const approvedTasks = nonDeleted.filter(t => t.status === 'APPROVED');
+  // YÊU CẦU BẮT BUỘC: Dashboard chỉ tính các việc APPROVED và KHÔNG đang chờ duyệt
+  const approvedTasks = nonDeleted.filter(t => t.status === 'APPROVED' && !t.waitingApproval);
   
   const totalCount = approvedTasks.length;
   const activeTasks = approvedTasks; // Tất cả APPROVED được coi là đang xử lý cho Dashboard này

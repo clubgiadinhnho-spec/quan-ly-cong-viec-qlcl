@@ -117,7 +117,11 @@ export const useTaskActions = ({
       content,
       timestamp: new Date().toISOString()
     });
-    firebaseUpdateTask(taskId, { comments: newComments });
+    firebaseUpdateTask(taskId, { 
+      comments: newComments,
+      lastActionAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
   }, [tasks, currentUser, firebaseUpdateTask]);
 
   const updateTaskCommentReactions = useCallback((taskId: string, commentId: string, emoji: string) => {
@@ -133,9 +137,6 @@ export const useTaskActions = ({
         if (existingIdx > -1) {
           reactions.splice(existingIdx, 1);
         } else {
-          // Zalo style: typically one emoji per user? Or multiple?
-          // Let's do: clicking same emoji toggles it. 
-          // Optional: clicking different emoji replaces if we want single reaction per user, but let's allow multiple for now as "reactions".
           reactions.push({ userId: currentUser.id, emoji });
         }
         return { ...c, reactions };
@@ -143,7 +144,11 @@ export const useTaskActions = ({
       return c;
     });
 
-    firebaseUpdateTask(taskId, { comments: newComments });
+    firebaseUpdateTask(taskId, { 
+      comments: newComments,
+      lastActionAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
   }, [tasks, currentUser, firebaseUpdateTask]);
 
   return {

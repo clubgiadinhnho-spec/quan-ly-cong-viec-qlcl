@@ -127,11 +127,51 @@ export default function App() {
     firebaseSendPrivateMsg
   });
 
-  // 6. Notifications & Unread Counts Hook
+    // 6. Notifications & Unread Counts Hook
   const { unreadNotifications, setUnreadNotifications, lastReadChatTimestamps, lastViewedSections, markAsRead, markSectionAsViewed } = useAppNotifications(
     effectiveUser, authReady, firebaseLoading, tasks, privateMessages, generalMessages, discussionMessages,
     showDirectChat?.id || null, activeTab, showChatModal
   );
+
+  // Derived counts for sidebar and summary - THIẾT QUÂN LUẬT ĐỒNG NHẤT
+  const counts = useMemo(() => {
+    // 1. Phân loại Master Tasks (Cần bao gồm cả Search để đồng nhất 100%)
+    const matchesSearch = (t: Task) => (t.title || "").toLowerCase().includes(search.toLowerCase()) || (t.code || "").toLowerCase().includes(search.toLowerCase());
+    const nonDeleted = tasks.filter(t => !t.deletedAt && matchesSearch(t));
+    
+    // 2. Chặn đếm t.waitingApproval trong BẢNG CÔNG VIỆC
+    const baseActive = nonDeleted.filter(t => t.status === "APPROVED" && !t.waitingApproval);
+    const basePending = nonDeleted.filter(t => t.status === "PENDING");
+    const baseApproval = nonDeleted.filter(t => !!t.waitingApproval && t.status !== "PENDING");
+    const baseCompleted = nonDeleted.filter(t => !t.deletedAt && ((t.status === "COMPLETED" || t.status === "Hoàn thành") || (t.cycleHistory && t.cycleHistory.length > 0)));
+    const baseTrash = tasks.filter(t => !!t.deletedAt && matchesSearch(t));
+
+    // 3. Hàm lọc theo phạm vi (Mine/All) để đồng nhất với Table
+    const filterByScope = (list: Task[]) => {
+      return list.filter(t => viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
+    };
+
+    const activeList = filterByScope(baseActive);
+    const pendingList = filterByScope(basePending);
+    const approvalList = filterByScope(baseApproval);
+    const completedList = filterByScope(baseCompleted);
+    const trashList = filterByScope(baseTrash);
+
+    // 4. Đặc biệt: Công việc mới (Báo động Sidebar)
+    const attentionCount = activeList.filter(t => t.isNewInBoard === true).length;
+
+    return {
+      pending: pendingList.length,
+      active: activeList.length,
+      attention: attentionCount,
+      allActive: baseActive.length,
+      mine: baseActive.filter(t => isUserTask(t, effectiveUser)).length,
+      completedTotal: completedList.length,
+      trash: trashList.length,
+      pendingApprovalTotal: approvalList.length,
+      staffTotal: allUsers.length
+    };
+  }, [tasks, effectiveUser, viewScope, allUsers]);
 
   // Clear unread count for current section and clearance for new board tasks
   useEffect(() => {
@@ -299,77 +339,6 @@ export default function App() {
     }});
   }, [firebaseUpdateTask, effectiveUser, tasks, createNotification]);
 
-  // Derived counts for sidebar
-  const counts = useMemo(() => {
-    const nonDeleted = tasks.filter(t => !t.deletedAt);
-    const isManager = effectiveUser?.role === "Admin" || !!effectiveUser?.delegatedPermissions?.canApproveTask;
-    
-    // View thresholds
-    const lastViewedTasks = lastViewedSections["tasks"] || 0;
-    const lastViewedPending = lastViewedSections["pending_confirmation"] || 0;
-    const lastViewedPendingApproval = lastViewedSections["pending_approval"] || 0;
-    const lastViewedCompleted = lastViewedSections["completed_tasks"] || 0;
-    const lastViewedStaff = lastViewedSections["staff_list"] || 0;
-
-    // Tasks awaiting confirmation or pending approval
-    const pending = nonDeleted.filter(t => 
-      t.status === "PENDING" && 
-      (isManager || t.authorId === effectiveUser?.id || t.authorId === effectiveUser?.uniqueKey || isUserTask(t, effectiveUser))
-    );
-    
-    // All active tasks in the department (APPROVED)
-    const departmentActive = nonDeleted.filter(t => 
-      t.status === "APPROVED"
-    );
-
-    // Active tasks for current user
-    const myActive = departmentActive.filter(t => isUserTask(t, effectiveUser));
-
-    // The Counting Logic: tasks with status 'APPROVED' AND isNewInBoard true
-    const newInBoardCount = tasks.filter(t => t.status === 'APPROVED' && t.isNewInBoard === true).length;
-    
-    // Logic for other alerts (if needed)
-    const pendingTasksCount = tasks.filter(t => t.status === 'PENDING').length;
-    
-    // Completed tasks (Total)
-    const totalCompleted = nonDeleted.filter(t => 
-      t.status === "COMPLETED" || t.status === "Hoàn thành"
-    ).length;
-
-    // Completed tasks (unread/new)
-    const completedUnread = nonDeleted.filter(t => 
-      (t.status === "COMPLETED" || t.status === "Hoàn thành") &&
-      new Date(t.updatedAt).getTime() > lastViewedCompleted
-    );
-
-    // Staff unread (new or updated profiles)
-    const staffUnread = allUsers.filter(u => 
-      new Date(u.updatedAt || 0).getTime() > lastViewedStaff
-    );
-
-    // Pending approval (unread)
-    const pendingApprovalUnread = tasks.filter(t => 
-      t.waitingApproval === true && 
-      !t.deletedAt && 
-      new Date(t.updatedAt).getTime() > lastViewedPendingApproval
-    ).length;
-
-    return {
-      pending: pending.length,
-      active: departmentActive.length,
-      attention: newInBoardCount,
-      allActive: departmentActive.length,
-      mine: myActive.length,
-      completedTotal: totalCompleted,
-      completedUnread: completedUnread.length,
-      staffTotal: allUsers.length,
-      staffUnread: staffUnread.length,
-      trash: tasks.filter(t => !!t.deletedAt).length,
-      pendingApprovalTotal: tasks.filter(t => t.waitingApproval === true && !t.deletedAt).length,
-      pendingApprovalUnread: pendingApprovalUnread
-    };
-  }, [tasks, effectiveUser, lastViewedSections, allUsers]);
-
   const unreadCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     privateMessages.forEach(m => { if (m.receiverId === currentUser?.id) { const lastRead = lastReadChatTimestamps[m.senderId] || 0; if (new Date(m.timestamp).getTime() > lastRead) counts[m.senderId] = (counts[m.senderId] || 0) + 1; } });
@@ -400,34 +369,39 @@ export default function App() {
     };
 
     return tasks.filter(t => {
-      if (activeTab === "trash") return !!t.deletedAt;
+      if (activeTab === "trash") return !!t.deletedAt && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
       if (t.deletedAt) return false;
       
-      if (activeTab === "pending_confirmation") return t.status === "PENDING";
-      if (activeTab === "pending_approval") return t.waitingApproval === true && t.status !== "PENDING";
-      
-      if (t.status === "PENDING" && activeTab !== "pending_confirmation") return false;
-      if (t.waitingApproval === true && activeTab !== "pending_approval") return false;
+      // THIẾT QUÂN LUẬT: Logic lọc bảng phải trùng khớp hoàn toàn với đếm Badge
+      if (activeTab === "pending_confirmation") return t.status === "PENDING" && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
+      if (activeTab === "pending_approval") return !!t.waitingApproval && t.status !== "PENDING" && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
       
       const matchesSearch = (t.title || "").toLowerCase().includes(search.toLowerCase()) || (t.code || "").toLowerCase().includes(search.toLowerCase());
       if (!matchesSearch) return false;
+
+      if (activeTab === "completed_tasks") {
+        const isCompleted = t.status === "COMPLETED" || t.status === "Hoàn thành" || (t.cycleHistory && t.cycleHistory.length > 0);
+        return isCompleted && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
+      }
+      
+      if (activeTab === "tasks") {
+        return t.status === "APPROVED" && !t.waitingApproval && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
+      }
+
       return viewScope === "mine" ? isUserTask(t, effectiveUser) : true;
     }).sort((a, b) => {
-      // 1. Manual priority order (1, 2, 3...)
-      const orderA = a.priorityOrder || 999;
-      const orderB = b.priorityOrder || 999;
-      if (orderA !== orderB) return orderA - orderB;
+      // Lớp 1 (Ưu tiên tuyệt đối): Priority Order (1 -> 2 -> 3...)
+      if (a.priorityOrder && !b.priorityOrder) return -1;
+      if (b.priorityOrder && !a.priorityOrder) return 1;
+      if (a.priorityOrder && b.priorityOrder) return a.priorityOrder - b.priorityOrder;
 
-      // 2. High priority levels
-      const weightA = priorityWeight[a.priority as keyof typeof priorityWeight] || 0;
-      const weightB = priorityWeight[b.priority as keyof typeof priorityWeight] || 0;
-      if (weightB !== weightA) return weightB - weightA;
+      // Lớp 2 (Hoạt động mới nhất): Dựa trên lastActionAt hoặc updatedAt
+      const timeA = new Date(a.lastActionAt || a.updatedAt || 0).getTime();
+      const timeB = new Date(b.lastActionAt || b.updatedAt || 0).getTime();
+      if (timeB !== timeA) return timeB - timeA;
 
-      // 3. Highlighted
-      if (a.isHighlighted !== b.isHighlighted) return a.isHighlighted ? -1 : 1;
-
-      // 4. Latest updated
-      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      // Lớp 3: Theo mã công việc
+      return b.code.localeCompare(a.code);
     });
   }, [tasks, activeTab, search, viewScope, effectiveUser]);
 

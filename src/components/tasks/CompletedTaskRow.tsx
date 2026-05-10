@@ -32,11 +32,12 @@ interface CompletedTaskRowProps {
   onDelete?: (id: string) => void;
   isSelected?: boolean;
   onToggleSelect?: (id: string) => void;
+  setConfirmModal: (modal: any) => void;
 }
 
 export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ 
   task, user, users, idx, onViewHistory, onOpenChat, isChatOpen, onSendMessage, onReact, onUndo, onUpdate, onDelete,
-  isSelected, onToggleSelect
+  isSelected, onToggleSelect, setConfirmModal
 }) => {
   const chatButtonRef = React.useRef<HTMLButtonElement>(null);
 
@@ -60,6 +61,25 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
   const unreadCount = (task.comments?.length || 0) - lastReadCount;
   const showBadge = unreadCount > 0 && !isChatOpen;
 
+  const isRecurringTask = task.recurrence && task.recurrence !== 'NONE' && task.recurrence !== 'KHÔNG LẶP';
+
+  const showRedAlert = () => {
+    setConfirmModal({
+      show: true,
+      title: <span translate="no" className="notranslate">LỖI THAO TÁC</span>,
+      message: (
+        <div className="bg-red-600 p-4 rounded-xl text-center border-4 border-red-400 shadow-[0_0_20px_rgba(220,38,38,0.5)]">
+          <p className="text-white font-black text-lg uppercase leading-tight">
+            <span translate="no" className="notranslate">ĐÂY LÀ CÔNG VIỆC ĐỊNH KỲ ĐÃ PHÁT SINH KỲ MỚI, KHÔNG THỂ HOÀN TÁC ĐỂ TRÁNH TRÙNG LẶP MÃ SỐ!</span>
+          </p>
+        </div>
+      ),
+      confirmText: <span translate="no" className="notranslate">ĐÃ HIỂU</span>,
+      onConfirm: () => setConfirmModal((p: any) => ({ ...p, show: false })),
+      isAlert: true
+    });
+  };
+
   const highlightClass = task.highlightColor ? HIGHLIGHT_COLORS[task.highlightColor] : (task.isHighlighted ? HIGHLIGHT_COLORS['amber'] : '');
 
   return (
@@ -75,14 +95,26 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
       <td className="p-2 text-center text-[10px] font-bold text-gray-300 border-b border-r border-gray-300 align-top">
         <div className="flex flex-col items-center gap-1 pt-1 opacity-60">
           <span translate="no" className="notranslate leading-none">
-            {task.recurrence && task.recurrence !== 'NONE' && !task.code?.includes('-K') 
-              ? `${task.code}-K${task.version || (task.cycleHistory?.length || 0)}` 
-              : task.code}
+            {task.code}
           </span>
           {task.category && (
             <span translate="no" className="notranslate text-[7px] font-black text-white bg-indigo-400 px-1 py-0.5 rounded leading-none" title="PHÂN LOẠI">
               <span translate="no" className="notranslate">{task.category}</span>
             </span>
+          )}
+          {/* Recurrence Badge for Completed Tasks */}
+          {task.recurrence && task.recurrence !== 'NONE' && (
+            <div className="flex flex-col items-center gap-0.5 mt-2 opacity-90" title="CÔNG VIỆC ĐỊNH KỲ">
+              <RotateCcw size={12} className="text-emerald-500 animate-spin-slow" />
+              <span translate="no" className="notranslate text-[7px] font-black text-emerald-700 bg-emerald-50 px-1 rounded-sm uppercase tracking-tighter border border-emerald-100">
+                {task.recurrence === 'DAILY' && 'HÀNG NGÀY'}
+                {task.recurrence === 'TRI_DAILY' && '2-3 NGÀY/LẦN'}
+                {task.recurrence === 'WEEKLY' && 'HÀNG TUẦN'}
+                {task.recurrence === 'BI_WEEKLY' && 'HÀNG 2 TUẦN'}
+                {task.recurrence === 'TRI_WEEKLY' && 'HÀNG 3 TUẦN'}
+                {task.recurrence === 'MONTHLY' && 'HÀNG THÁNG'}
+              </span>
+            </div>
           )}
         </div>
       </td>
@@ -187,8 +219,10 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           </a>
         )}
         <div className="flex flex-col h-full font-sans">
-          <p className="text-[15px] text-blue-900 font-bold pr-4 uppercase break-words whitespace-normal leading-tight font-sans">
-            <span translate="no" className="notranslate">{task.title}</span>
+          <p className="text-[15px] text-blue-950 font-black pr-4 uppercase break-words whitespace-normal leading-tight font-sans">
+            <span translate="no" className="notranslate">
+              [{task.category?.toUpperCase() || 'KHÁC'}] - {task.title}
+            </span>
           </p>
           <p className="text-[15px] text-gray-900 leading-tight mt-2 break-words whitespace-normal flex-1 font-sans">
             <span translate="no" className="notranslate font-bold">MỤC TIÊU: </span>
@@ -273,6 +307,10 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                         disabled={isProcessing}
                         onClick={async () => {
                           if (isProcessing) return;
+                          if (isRecurringTask) {
+                            showRedAlert();
+                            return;
+                          }
                           setIsProcessing(true);
                           try {
                             await onUndo(task.id);
@@ -280,8 +318,8 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                             setIsProcessing(false);
                           }
                         }} 
-                        title="DUYỆT HOÀN TÁC"
-                        className={`w-8 h-8 flex items-center justify-center bg-green-600 text-white rounded-full hover:bg-green-700 transition-all shadow-sm ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        title={isRecurringTask ? "CẤM HOÀN TÁC VIỆC ĐỊNH KỲ" : "DUYỆT HOÀN TÁC"}
+                        className={`w-8 h-8 flex items-center justify-center bg-green-600 text-white rounded-full hover:bg-green-700 transition-all shadow-sm ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''} ${isRecurringTask ? 'opacity-30' : ''}`}
                       >
                         <Check size={16} strokeWidth={4} />
                       </button>
@@ -308,6 +346,10 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                     disabled={isProcessing}
                     onClick={async () => {
                       if (isProcessing) return;
+                      if (isRecurringTask) {
+                        showRedAlert();
+                        return;
+                      }
                       setIsProcessing(true);
                       try {
                         await onUndo(task.id);
@@ -315,8 +357,8 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                         setIsProcessing(false);
                       }
                     }} 
-                    title="HOÀN TÁC CÔNG VIỆC"
-                    className={`w-10 h-10 flex items-center justify-center bg-green-600 text-white font-black rounded-md hover:bg-green-700 transition-all border-2 border-green-400 group/btn shadow-md ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={isRecurringTask ? "CẤM HOÀN TÁC VIỆC ĐỊNH KỲ" : "HOÀN TÁC CÔNG VIỆC"}
+                    className={`w-10 h-10 flex items-center justify-center bg-green-600 text-white font-black rounded-md hover:bg-green-700 transition-all border-2 border-green-400 group/btn shadow-md ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''} ${isRecurringTask ? 'opacity-30' : ''}`}
                   >
                     <RotateCcw size={20} strokeWidth={3} className={`group-hover/btn:-rotate-45 transition-transform ${isProcessing ? 'animate-spin' : ''}`} />
                     <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">HOÀN TÁC CÔNG VIỆC</span></span>
@@ -332,6 +374,10 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                     disabled={isProcessing}
                     onClick={async () => {
                       if (isProcessing) return;
+                      if (isRecurringTask) {
+                        showRedAlert();
+                        return;
+                      }
                       setIsProcessing(true);
                       try {
                         await onUpdate(task.id, { requestUndo: 'PENDING' });
@@ -339,8 +385,8 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                         setIsProcessing(false);
                       }
                     }} 
-                    title="YÊU CẦU HOÀN TÁC"
-                    className={`w-10 h-10 flex items-center justify-center bg-amber-500 text-white font-black rounded-md hover:bg-amber-600 transition-all border-2 border-amber-300 group/btn shadow-md ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={isRecurringTask ? "CẤM HOÀN TÁC VIỆC ĐỊNH KỲ" : "YÊU CẦU HOÀN TÁC"}
+                    className={`w-10 h-10 flex items-center justify-center bg-amber-500 text-white font-black rounded-md hover:bg-amber-600 transition-all border-2 border-amber-300 group/btn shadow-md ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''} ${isRecurringTask ? 'opacity-30' : ''}`}
                   >
                     <RotateCcw size={20} strokeWidth={3} className={`group-hover/btn:-rotate-45 transition-transform ${isProcessing ? 'animate-spin' : ''}`} />
                     <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">YÊU CẦU HOÀN TÁC</span></span>

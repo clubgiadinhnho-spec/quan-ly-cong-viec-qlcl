@@ -124,11 +124,19 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
   // Generate Preview Code for New Tasks
   const nextCode = React.useMemo(() => {
     if (isEdit) return task.code;
-    const count = tasks.length;
-    const base = `C${String(count + 1).padStart(4, '0')}`;
-    if (recurrence !== 'NONE') return `${base}-K1`;
-    return base;
-  }, [tasks.length, isEdit, task?.code, recurrence]);
+    
+    // Tìm mã Cxxxx lớn nhất hiện có
+    const maxNum = tasks.reduce((max, t) => {
+      const match = t.code?.match(/C(\d+)/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        return num > max ? num : max;
+      }
+      return max;
+    }, 0);
+    
+    return `C${String(maxNum + 1).padStart(4, '0')}`;
+  }, [tasks, isEdit, task?.code]);
 
   // Sync deadline if cycle or start date changes, unless manually edited
   React.useEffect(() => {
@@ -530,6 +538,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                   attachmentName: attachmentData?.name || "",
                   code: nextCode, 
                   status: isEdit ? task.status : (isAdmin ? 'APPROVED' : 'PENDING'),
+                  waitingApproval: isEdit ? (task.waitingApproval || false) : (isAdmin ? false : false),
                   isNewUpdate: true,
                   authorId: currentUser.uniqueKey || currentUser.id,
                   authorName: currentUser.name,

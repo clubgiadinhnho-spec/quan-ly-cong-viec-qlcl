@@ -9,10 +9,23 @@
    - Phản hồi tối giản: Chỉ xác nhận "Đã nhận lệnh nguyên văn" và thực hiện code. Không viết báo cáo diễn giải.
    - Nguyên tắc lập trình: Trong code, các biến chuỗi (string) phải giữ nguyên 100% nội dung người dùng nhập, không được thêm các hàm xử lý văn bản (.trim(), .toLowerCase(),...) nếu không được yêu cầu.
 
-5. **BẢO VỆ THIẾT KẾ ĐÃ TỐI ƯU (UI/UX PROTECT)**:
-   - **Sidebar Badge**: Số thông báo (Badges) trong Sidebar thu nhỏ phải luôn nằm ở góc trên bên phải của Icon, sử dụng `z-index` cao (z-30+) và số liệu font-black để đảm bảo hiển thị rõ nét trên Icon.
-   - **Mã hóa công việc**: Chức năng này đã được di chuyển vào trang `NewProposalsPage`, tuyệt đối không đưa ngược lại vào Sidebar chính trừ khi có yêu cầu đặc biệt.
-   - **Sidebar Layout**: Giữ nguyên cụm Bottom kết hợp (Color + Profile) và cơ chế hiển thị Icon "Quy trình tác nghiệp" khi thu nhỏ để tối ưu không gian.
-   - **Logo Q**: Giữ nguyên tỉ lệ và hiệu ứng của Logo Q trong cả hai chế độ Sidebar.
+5. **THIẾT QUÂN LUẬT ĐỒNG NHẤT (METRIC INTEGRITY)**:
+   - **Đồng bộ hóa tuyệt đối**: Con số trên Sidebar, Dashboard Summary và số dòng thực tế trên Table phải khớp nhau 100%.
+   - **Logic lọc chuẩn**:
+     - `BẢNG CÔNG VIỆC`: `status === 'APPROVED' && !waitingApproval && !deletedAt`.
+     - `TRÌNH DUYỆT`: `waitingApproval === true && !deletedAt`.
+     - `ĐỀ XUẤT MỚI`: `status === 'PENDING' && !deletedAt`.
+   - **Admin Creation**: Khi Admin tạo Task, phải ép `status: 'APPROVED'` và `waitingApproval: false` để việc xuất hiện ngay tại Bảng công việc.
+   - **Master Data Only**: Chỉ đếm các Task gốc (Master), không đếm trùng các bản ghi lịch sử trong `cycleHistory`.
 
-6. **KẾT THÚC PHIÊN LÀM VIỆC**: Khi người dùng yêu cầu "đóng gói" hoặc "nghỉ ngơi", hãy tổng hợp lại các thay đổi quan trọng và đảm bảo các file cấu hình như metadata.json, package.json luôn ở trạng thái ổn định nhất.
+6. **THIẾT QUÂN LUẬT LUÂN HỒI (RECURRENCE LOGIC)**:
+   - Khi Task có `recurrence` được duyệt `COMPLETED`, phải dùng `writeBatch` để kết thúc kỳ cũ và sinh kỳ mới với Mã (Code) mới và Hạn (Deadline) mới theo chu kỳ.
+   - Tuyệt đối không để mất luồng sinh việc tự động cho các công việc hàng ngày/tuần.
+
+7. **BẢO VỆ THIẾT KẾ ĐÃ TỐI ƯU (UI/UX PROTECT)**:
+   - **Sidebar Badge**: Số lượng phải bọc trong `<span translate="no" className="notranslate">`. Badge Sidebar thu nhỏ nằm góc trên bên phải Icon, `z-index` cao, font-black.
+   - **Mã hóa công việc**: Đã di chuyển vào `NewProposalsPage`, không đưa ngược lại Sidebar.
+   - **Sidebar Layout**: Giữ nguyên cụm Bottom (Color + Profile) và cơ chế hiển thị Icon khi thu nhỏ.
+   - **Logo Q**: Giữ nguyên tỉ lệ và hiệu ứng trong cả hai chế độ.
+
+8. **KẾT THÚC PHIÊN LÀM VIỆC**: Khi người dùng yêu cầu "đóng gói" hoặc "nghỉ ngơi", hãy tổng hợp lại các thay đổi quan trọng và đảm bảo các file cấu hình luôn ổn định.

@@ -73,9 +73,7 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
               </h3>
               <p className="text-blue-100 text-[10px] font-bold mt-1 uppercase tracking-widest opacity-80">
                 <span translate="no" className="notranslate">
-                  {(task.recurrence && task.recurrence !== 'NONE' && !task.code?.includes('-K')) 
-                    ? `${task.code}-K${(task.cycleHistory?.length || 0) + 1}` 
-                    : task.code} | {task.title}
+                  {task.code} | {task.title}
                 </span>
               </p>
             </div>

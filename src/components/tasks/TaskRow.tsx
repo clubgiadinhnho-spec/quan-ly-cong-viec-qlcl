@@ -140,6 +140,25 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     isAdmin || isOwner
   );
 
+  const isRecurringTask = task.recurrence && task.recurrence !== 'NONE' && task.recurrence !== 'KHÔNG LẶP';
+
+  const showRedAlert = () => {
+    setConfirmModal({
+      show: true,
+      title: <span translate="no" className="notranslate">LỖI THAO TÁC</span>,
+      message: (
+        <div className="bg-red-600 p-4 rounded-xl text-center border-4 border-red-400 shadow-[0_0_20px_rgba(220,38,38,0.5)]">
+          <p className="text-white font-black text-lg uppercase leading-tight">
+            <span translate="no" className="notranslate">ĐÂY LÀ CÔNG VIỆC ĐỊNH KỲ ĐÃ PHÁT SINH KỲ MỚI, KHÔNG THỂ HOÀN TÁC ĐỂ TRÁNH TRÙNG LẶP MÃ SỐ!</span>
+          </p>
+        </div>
+      ),
+      confirmText: <span translate="no" className="notranslate">ĐÃ HIỂU</span>,
+      onConfirm: () => setConfirmModal((p: any) => ({ ...p, show: false })),
+      isAlert: true
+    });
+  };
+
   const isTrulyNew = task.isNewInBoard && task.lastUpdatedByRole !== user.role && isOwner;
 
   const isNewInBoard = task.isNewInBoard && isAdmin;
@@ -274,9 +293,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           <div className="flex flex-col items-center gap-1 mb-3">
             <div translate="no" className="notranslate leading-none text-[10px] font-mono font-black text-blue-600 bg-blue-50/50 px-1 py-0.5 rounded-sm border border-blue-100/50">
                <span translate="no" className="notranslate">
-                 {task.recurrence && task.recurrence !== 'NONE' && !task.code?.includes('-K') 
-                   ? `${task.code}-K${(task.cycleHistory?.length || 0) + 1}` 
-                   : task.code}
+                 {task.code}
                </span>
             </div>
             {task.category && (
@@ -345,7 +362,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           <div className="flex flex-col gap-1 py-1.5 border-y border-gray-50 border-dashed">
             {/* Hàng 1: Khởi tạo */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px]">📝</span>
+              <span className="text-[11px]" translate="no">📝</span>
               <p className="text-[10px] text-gray-500 font-medium tracking-tighter">
                 <span translate="no" className="notranslate">KHỞI TẠO: {formatDate(task.issueDate)}</span>
               </p>
@@ -353,7 +370,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             
             {/* Hàng 2: Bắt đầu */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px]">🚀</span>
+              <span className="text-[11px]" translate="no">🚀</span>
               <p className="text-[10px] text-blue-600 font-medium tracking-tighter">
                 <span translate="no" className="notranslate">BẮT ĐẦU: {formatDate(task.startDate || task.issueDate)}</span>
               </p>
@@ -361,7 +378,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             
             {/* Hàng 3: Hạn */}
             <div className="flex items-center gap-1.5">
-              <span className="text-[12px]">🏁</span>
+              <span className="text-[12px]" translate="no">🏁</span>
               <p className="text-[11px] text-red-600 font-bold tracking-tighter">
                 <span translate="no" className="notranslate font-bold uppercase">HẠN: {formatDate(task.expectedEndDate)}</span>
               </p>
@@ -370,7 +387,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             {/* Hàng 4: Gia hạn (Nếu có) */}
             {task.extensionDate && (
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px]">🔄</span>
+                <span className="text-[11px]" translate="no">🔄</span>
                 <p className="text-[10px] text-orange-600 font-medium tracking-tighter">
                   <span translate="no" className="notranslate uppercase font-medium">GIA HẠN: {formatDate(task.extensionDate)}</span>
                 </p>
@@ -438,22 +455,24 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         )}
 
         <div className="flex flex-col h-full font-sans">
-          <p className="text-[15px] text-blue-900 font-bold leading-tight pr-5 uppercase break-words whitespace-normal font-sans">
+          <p className="text-[15px] text-blue-950 font-black leading-tight pr-5 break-words whitespace-normal font-sans">
             {isTrulyNew && (
               <span 
                 translate="no" 
-                className="notranslate inline-block bg-red-600 text-white text-[9px] font-black px-1 py-0.5 rounded-sm mr-1 animate-pulse uppercase cursor-pointer"
+                className="notranslate inline-block bg-red-600 text-white text-[9px] font-black px-1 py-0.5 rounded-sm mr-1 animate-pulse uppercase cursor-pointer align-middle"
                 onClick={() => onUpdate(task.id, { isNewInBoard: false })}
               >
                 NEW
               </span>
             )}
             {isNewInBoard && (
-              <span className="inline-flex items-center mr-1">
+              <span className="inline-flex items-center mr-1 align-middle">
                 <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse ring-1 ring-emerald-100" />
               </span>
             )}
-            <span translate="no" className="notranslate">{task.title}</span>
+            <span translate="no" className="notranslate uppercase">
+              [{task.category?.toUpperCase() || 'KHÁC'}] - {task.title}
+            </span>
           </p>
           
           <div className="text-[15px] text-gray-900 leading-tight mt-2 break-words whitespace-normal flex-1 font-sans pr-5">
@@ -621,6 +640,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 {isAdmin && (task.status === 'APPROVED' || task.waitingApproval) && (
                   <button 
                     onClick={() => {
+                      if (isRecurringTask) {
+                        showRedAlert();
+                        return;
+                      }
                       setConfirmModal({
                         show: true,
                         title: <span translate="no" className="notranslate">HOÀN TÁC CÔNG VIỆC</span>,
@@ -629,13 +652,12 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                           if (task.waitingApproval) {
                             // Trình Duyệt -> Bảng Công Việc (Cảng công việc)
                             onUpdate(task.id, { 
-                              status: 'APPROVED', // BẮT BUỘC để hiển thị ở Bảng Công Việc
+                              status: 'APPROVED', 
                               waitingApproval: false,
-                              isNewInBoard: true, // Để đánh dấu và có thể giúp nhận diện
+                              isNewInBoard: true,
                               updatedAt: new Date().toISOString(),
                               currentUpdate: '[HOÀN TÁC] Quay lại Bảng Công Việc'
                             });
-                            // Chuyển tab về Cảng công việc
                             if (onNavigate) onNavigate('tasks');
                           } else {
                             // Bảng Công Việc -> Đề xuất mới
@@ -650,8 +672,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                         }
                       });
                     }}
-                    title="HOÀN TÁC"
-                    className="w-10 h-10 flex items-center justify-center bg-blue-600 text-white border-2 border-blue-400 rounded-md hover:bg-blue-700 transition-all group/btn shadow-sm"
+                    title={isRecurringTask ? "CẤM HOÀN TÁC VIỆC ĐỊNH KỲ" : "HOÀN TÁC"}
+                    className={`w-10 h-10 flex items-center justify-center bg-blue-600 text-white border-2 border-blue-400 rounded-md hover:bg-blue-700 transition-all group/btn shadow-sm ${isRecurringTask ? 'opacity-30' : ''}`}
                   >
                     <RotateCcw size={20} strokeWidth={3} className="group-hover:-rotate-45 transition-transform" />
                     <span className="sr-only notranslate" translate="no">HOÀN TÁC</span>
@@ -661,27 +683,31 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 {/* REST OF THE BUTTONS */}
                 {!isReadOnly && (
                   <>
-                    {/* THÙNG RÁC: Trạng thái DELETED hoặc có deletedAt */}
-                    {(task.status === 'DELETED' || !!task.deletedAt) ? (
-                      <div className="flex flex-col gap-1.5 w-full items-center">
-                        <button 
-                          onClick={() => {
-                            if (isAdmin) {
-                              onUpdate(task.id, { 
-                                status: 'PENDING', 
-                                deletedAt: null,
-                                updatedAt: new Date().toISOString()
-                              });
-                            } else if (onRestore) {
-                              onRestore(task.id);
-                            }
-                          }}
-                          title="PHỤC HỒI"
-                          className="w-10 h-10 flex items-center justify-center bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-all group/btn border-2 border-emerald-400"
-                        >
-                          <RotateCcw size={20} strokeWidth={3} className="group-hover:rotate-45 transition-transform" />
-                          <span className="sr-only notranslate" translate="no">PHỤC HỒI</span>
-                        </button>
+                     {/* THÙNG RÁC: Trạng thái DELETED hoặc có deletedAt */}
+                     {(task.status === 'DELETED' || !!task.deletedAt) ? (
+                       <div className="flex flex-col gap-1.5 w-full items-center">
+                         <button 
+                           onClick={() => {
+                             if (isRecurringTask) {
+                               showRedAlert();
+                               return;
+                             }
+                             if (isAdmin) {
+                               onUpdate(task.id, { 
+                                 status: 'PENDING', 
+                                 deletedAt: null,
+                                 updatedAt: new Date().toISOString()
+                               });
+                             } else if (onRestore) {
+                               onRestore(task.id);
+                             }
+                           }}
+                           title={isRecurringTask ? "CẤM HOÀN TÁC VIỆC ĐỊNH KỲ" : "PHỤC HỒI"}
+                           className={`w-10 h-10 flex items-center justify-center bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-all group/btn border-2 border-emerald-400 ${isRecurringTask ? 'opacity-30' : ''}`}
+                         >
+                           <RotateCcw size={20} strokeWidth={3} className="group-hover:rotate-45 transition-transform" />
+                           <span className="sr-only notranslate" translate="no">PHỤC HỒI</span>
+                         </button>
                         
                         {isAdmin && (
                           <button 
@@ -779,6 +805,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                         {task.status === 'COMPLETED' && isAdmin && (
                           <button 
                             onClick={() => {
+                              if (isRecurringTask) {
+                                showRedAlert();
+                                return;
+                              }
                               setConfirmModal({
                                 show: true,
                                 title: 'HOÀN TÁC CÔNG VIỆC',
@@ -795,8 +825,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                                 }
                               });
                             }}
-                            title="HOÀN TÁC"
-                            className="w-10 h-10 flex items-center justify-center bg-gray-100 text-gray-600 border-2 border-gray-200 rounded-md hover:bg-gray-200 transition-all group/btn"
+                            title={isRecurringTask ? "CẤM HOÀN TÁC VIỆC ĐỊNH KỲ" : "HOÀN TÁC"}
+                            className={`w-10 h-10 flex items-center justify-center bg-gray-100 text-gray-600 border-2 border-gray-200 rounded-md hover:bg-gray-200 transition-all group/btn ${isRecurringTask ? 'opacity-30' : ''}`}
                           >
                             <RotateCcw size={20} strokeWidth={3} className="group-hover:rotate-45 transition-transform" />
                             <span className="sr-only notranslate" translate="no">HOÀN TÁC</span>

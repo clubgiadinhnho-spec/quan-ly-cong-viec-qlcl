@@ -273,7 +273,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                   }`}
                 >
                   <UserIcon size={14} />
-                  <span translate="no" className="notranslate">Cá nhân ({myActiveCount})</span>
+                  <span translate="no" className="notranslate">Cá nhân (<span translate="no" className="notranslate">{myActiveCount}</span>)</span>
                 </button>
                 <button
                   onClick={() => setViewScope("all")}
@@ -282,7 +282,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                   }`}
                 >
                   <UsersIcon size={14} />
-                  <span translate="no" className="notranslate">Phòng QLCL ({allActiveCount})</span>
+                  <span translate="no" className="notranslate">Phòng QLCL (<span translate="no" className="notranslate">{allActiveCount}</span>)</span>
                 </button>
               </div>
               
@@ -378,10 +378,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
             )}
 
             <TaskList
-              tasks={sortedTasks.filter((t) => {
-                // YÊU CẦU BẮT BUỘC: Bảng chính chỉ hiển thị trạng thái APPROVED
-                return t.status === "APPROVED";
-              })}
+              tasks={sortedTasks}
               user={effectiveUser}
               users={allUsers}
               onUpdate={updateTask}
@@ -500,7 +497,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                   }`}
                 >
                   <UserIcon size={14} />
-                  <span translate="no" className="notranslate">Cá nhân ({tasks.filter(t => ((t.status === "COMPLETED" || t.status === "Hoàn thành") || (t.cycleHistory && t.cycleHistory.length > 0)) && isUserTask(t, effectiveUser)).length})</span>
+                  <span translate="no" className="notranslate">Cá nhân (<span translate="no" className="notranslate">{tasks.filter(t => !t.deletedAt && ((t.status === "COMPLETED" || t.status === "Hoàn thành") || (t.cycleHistory && t.cycleHistory.length > 0)) && isUserTask(t, effectiveUser)).length}</span>)</span>
                 </button>
                 <button
                   onClick={() => setViewScope("all")}
@@ -509,7 +506,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                   }`}
                 >
                   <UsersIcon size={14} />
-                  <span translate="no" className="notranslate">Phòng QLCL ({tasks.filter(t => (t.status === "COMPLETED" || t.status === "Hoàn thành") || (t.cycleHistory && t.cycleHistory.length > 0)).length})</span>
+                  <span translate="no" className="notranslate">Phòng QLCL (<span translate="no" className="notranslate">{tasks.filter(t => !t.deletedAt && ((t.status === "COMPLETED" || t.status === "Hoàn thành") || (t.cycleHistory && t.cycleHistory.length > 0))).length}</span>)</span>
                 </button>
               </div>
               <div className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full border border-green-100">
@@ -560,7 +557,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
                       cycleItems.push({
                          ...t,
                          id: `${t.id}_cycle_${entry.version}`,
-                         code: entry.code || `${t.code}-K${entry.version}`,
+                         code: entry.code || t.code,
                          originalTaskId: t.id,
                          actualEndDate: entry.completedAt,
                          currentUpdate: entry.reportContent,

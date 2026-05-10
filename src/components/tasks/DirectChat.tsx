@@ -219,26 +219,26 @@ export const DirectChat = ({
       ) : (
         <>
           {/* Header */}
-          <div className={`p-4 ${isMinimized ? 'h-full' : 'border-b border-gray-100 bg-gray-50/50 backdrop-blur-sm'} flex items-center justify-between cursor-pointer`} onClick={() => isMinimized && onMinimizeChange?.(false)}>
+          <div className={`p-4 ${isMinimized ? 'h-full' : 'border-b border-blue-400/20 bg-blue-500 rounded-t-[2.5rem]'} flex items-center justify-between cursor-pointer shadow-md`} onClick={() => isMinimized && onMinimizeChange?.(false)}>
             <div className="flex items-center gap-3">
               <div className="relative">
                 <Avatar 
                   src={otherUser.avatar} 
                   name={otherUser.name} 
                   size={isMinimized || variant === 'bubble' ? 'sm' : 'lg'}
-                  className="border-2 border-white shadow-sm transition-all"
+                  className="border-2 border-white/20 shadow-sm transition-all"
                 />
                 {otherUser.lastActive && Date.now() - otherUser.lastActive < 60000 && (
-                  <span className={`absolute bottom-0 right-0 ${isMinimized ? 'w-2 h-2' : 'w-2.5 h-2.5'} bg-green-500 border-2 border-white rounded-full`}></span>
+                  <span className={`absolute bottom-0 right-0 ${isMinimized ? 'w-2 h-2' : 'w-2.5 h-2.5'} bg-green-400 border-2 border-blue-500 rounded-full`}></span>
                 )}
               </div>
               <div className="min-w-0">
-                <h3 {...getSafeNameProps()} className={`${isMinimized || variant === 'bubble' ? 'text-[11px]' : 'text-sm'} font-black text-gray-800 uppercase tracking-tighter truncate w-32 notranslate`}>
+                <h3 {...getSafeNameProps()} className={`${isMinimized || variant === 'bubble' ? 'text-[11px]' : 'text-sm'} font-black text-white uppercase tracking-tighter truncate w-32 notranslate`}>
                    <span translate="no" className="notranslate">{otherUser.name}</span>
                 </h3>
                 {!isMinimized && variant !== 'bubble' && (
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-2">
-                    {otherUser.role} <span className="w-1 h-1 bg-gray-300 rounded-full"></span> {otherUser.abbreviation}
+                  <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest flex items-center gap-2">
+                    {otherUser.role} <span className="w-1 h-1 bg-white/30 rounded-full"></span> {otherUser.abbreviation}
                   </p>
                 )}
               </div>
@@ -249,19 +249,19 @@ export const DirectChat = ({
                   e.stopPropagation();
                   onMinimizeChange?.(!isMinimized);
                 }} 
-                className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
                 title={isMinimized ? "Mở rộng" : "Thu gọn"}
               >
-                {isMinimized ? <ChevronUp size={16} className="text-gray-500" /> : <Minus size={16} className="text-gray-500" />}
+                {isMinimized ? <ChevronUp size={16} className="text-white" /> : <Minus size={16} className="text-white" />}
               </button>
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
                   onClose();
                 }} 
-                className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
               >
-                <X size={16} className="text-gray-400" />
+                <X size={16} className="text-white/70" />
               </button>
             </div>
           </div>

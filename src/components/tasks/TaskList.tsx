@@ -55,30 +55,21 @@ export const TaskList: React.FC<TaskListProps> = ({
   createNotification
 }) => {
   const sortedTasks = [...tasks].sort((a, b) => {
-    // 1. Phê duyệt (Dành cho cấp quản lý xác nhận lính mới) - nếu có status AWAITING_CONFIRMATION
-    if (a.status === 'AWAITING_CONFIRMATION' && b.status !== 'AWAITING_CONFIRMATION') return -1;
-    if (b.status === 'AWAITING_CONFIRMATION' && a.status !== 'AWAITING_CONFIRMATION') return 1;
-
-    // 2. Lính mới xác nhận (hoặc Hoàn tác về) - Ưu tiên nhảy lên trên cùng
-    if (a.isNewInBoard && !b.isNewInBoard) return -1;
-    if (b.isNewInBoard && !a.isNewInBoard) return 1;
-
-    if (type === 'active') {
-      if (a.isNewSoldier && !b.isNewSoldier) return -1;
-      if (b.isNewSoldier && !a.isNewSoldier) return 1;
-    }
-
-    // 3. Ưu tiên do người dùng gán (Priority Order)
+    // Lớp 1 (Ưu tiên tuyệt đối): Priority Order (1 -> 2 -> 3...)
     if (a.priorityOrder && !b.priorityOrder) return -1;
     if (b.priorityOrder && !a.priorityOrder) return 1;
     if (a.priorityOrder && b.priorityOrder) return a.priorityOrder - b.priorityOrder;
 
-    // 4. Thời gian cập nhật mới nhất (Dành cho Hoàn tác)
-    const timeA = new Date(a.updatedAt || 0).getTime();
-    const timeB = new Date(b.updatedAt || 0).getTime();
+    // Lớp đặc biệt: Phê duyệt (Dành cho cấp quản lý xác nhận lính mới)
+    if (a.status === 'AWAITING_CONFIRMATION' && b.status !== 'AWAITING_CONFIRMATION') return -1;
+    if (b.status === 'AWAITING_CONFIRMATION' && a.status !== 'AWAITING_CONFIRMATION') return 1;
+
+    // Lớp 2 (Hoạt động mới nhất): Dựa trên lastActionAt hoặc updatedAt
+    const timeA = new Date(a.lastActionAt || a.updatedAt || 0).getTime();
+    const timeB = new Date(b.lastActionAt || b.updatedAt || 0).getTime();
     if (timeB !== timeA) return timeB - timeA;
 
-    // 5. Mã công việc (Mới nhất lên trên)
+    // Lớp cuối: Mã công việc (Mới nhất lên trên)
     return b.code.localeCompare(a.code);
   }).slice(0, 100);
 
@@ -261,6 +252,26 @@ export const TaskList: React.FC<TaskListProps> = ({
                   
                   if (!taskToUndo) return;
 
+                  // Guard for recurring tasks
+                  const isRecurringTask = taskToUndo.recurrence && taskToUndo.recurrence !== 'NONE' && taskToUndo.recurrence !== 'KHÔNG LẶP';
+                  if (isRecurringTask) {
+                    setConfirmModal({
+                      show: true,
+                      title: <span translate="no" className="notranslate">LỖI THAO TÁC</span>,
+                      message: (
+                        <div className="bg-red-600 p-4 rounded-xl text-center border-4 border-red-400 shadow-[0_0_20px_rgba(220,38,38,0.5)]">
+                          <p className="text-white font-black text-lg uppercase leading-tight">
+                            <span translate="no" className="notranslate">ĐÂY LÀ CÔNG VIỆC ĐỊNH KỲ ĐÃ PHÁT SINH KỲ MỚI, KHÔNG THỂ HOÀN TÁC ĐỂ TRÁNH TRÙNG LẶP MÃ SỐ!</span>
+                          </p>
+                        </div>
+                      ),
+                      confirmText: <span translate="no" className="notranslate">ĐÃ HIỂU</span>,
+                      onConfirm: () => setConfirmModal((p: any) => ({ ...p, show: false })),
+                      isAlert: true
+                    });
+                    return;
+                  }
+
                   const realId = isCycle ? id.split('_cycle_')[0] : id;
 
                   setConfirmModal({
@@ -298,9 +309,8 @@ export const TaskList: React.FC<TaskListProps> = ({
                             updates.objective = cycleEntry.objective;
                           }
                           
-                          // Restore code with fallback for legacy entries
-                          const baseCode = taskToUndo.code ? taskToUndo.code.split('-K')[0] : 'N/A';
-                          updates.code = cycleEntry.code || `${baseCode}-K${version}`;
+                          // Restore code - no more -K suffix
+                          updates.code = cycleEntry.code || taskToUndo.code;
                         }
                       }
 
@@ -317,6 +327,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                 onDelete={onDelete}
                 isSelected={selectedIds.includes(task.id)}
                 onToggleSelect={onToggleSelect}
+                setConfirmModal={setConfirmModal}
               />
             )
           ))}

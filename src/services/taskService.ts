@@ -59,32 +59,7 @@ export const prepareTaskUpdates = (
     newUpdates.lastUpdatedByRole = currentUser.role;
   }
 
-  // Handle Recurring Task "Done" Magic
-  if (updates.status === 'COMPLETED' && task.recurrence && task.recurrence !== 'NONE') {
-    const nextDueDate = calculateNextDueDate(task.expectedEndDate || new Date().toISOString(), task.recurrence);
-    
-    // 1. Capture current report to cycleHistory
-    const cycleEntry: CycleHistoryEntry = {
-      version: (task.cycleHistory?.length || 0) + 1,
-      reportContent: task.currentUpdate || 'Không có báo cáo chi tiết',
-      completedAt: new Date().toISOString(),
-      nextDeadline: nextDueDate
-    };
-    
-    newUpdates.cycleHistory = [...(task.cycleHistory || []), cycleEntry];
-    
-    // 2. Push to history with special message
-    changes.push(`[CHU KỲ] Hoàn thành kỳ hiện tại. Báo cáo: ${task.currentUpdate || '(Trống)'}`);
-    changes.push(`[CHU KỲ] Tự động gia hạn đến: ${nextDueDate}`);
-    
-    // 3. Keep status in progress, clear update field
-    newUpdates.status = task.status; // Revert status change from updates
-    if (newUpdates.status === 'COMPLETED') newUpdates.status = 'IN_PROGRESS'; // Safety
-    newUpdates.currentUpdate = '';
-    newUpdates.expectedEndDate = nextDueDate;
-    newUpdates.actualEndDate = null;
-    delete newUpdates.isLocked; // Don't lock recurring task when cycle rolls
-  }
+  // We no longer handle recurring magic here. It's handled in useFirebaseData approveTaskCompletion.
 
   // Track progress update changes
   if (updates.currentUpdate !== undefined && updates.currentUpdate !== task.currentUpdate && !updates.status) {
@@ -151,6 +126,7 @@ export const prepareTaskUpdates = (
 
   if (changes.length > 0) {
     newUpdates.history = createHistoryEntry(task.history, changes, currentUser?.id || 'system');
+    newUpdates.lastActionAt = new Date().toISOString();
   }
 
   // Ensure fields are properly cleared if requested

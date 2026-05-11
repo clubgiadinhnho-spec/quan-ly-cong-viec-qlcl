@@ -1,10 +1,8 @@
 {
-  "projectId": "qlcl-hub-final",
-  "appId": "1:520643410016:web:67b5fface94bf533552b05",
   "apiKey": "AIzaSyBgyXrAFPKayuYmzG7y7CS6UhOpUiuYxeY",
   "authDomain": "qlcl-hub-final.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-e4294bc8-a04a-4b6d-8369-23f3a40e7515",
+  "projectId": "qlcl-hub-final",
   "storageBucket": "qlcl-hub-final.firebasestorage.app",
   "messagingSenderId": "520643410016",
-  "measurementId": ""
+  "appId": "1:520643410016:web:b2499b46166e6ad1552b05"
 }

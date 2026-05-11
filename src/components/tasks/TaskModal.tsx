@@ -156,36 +156,36 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="relative bg-white w-full max-w-2xl rounded-2xl border border-gray-200 flex flex-col h-[calc(100vh-80px)] max-h-[calc(100vh-80px)] shadow-2xl overflow-hidden"
+        className="relative bg-white w-full max-w-xl rounded-2xl border border-gray-200 flex flex-col h-[calc(100vh-100px)] max-h-[calc(100vh-100px)] shadow-2xl overflow-hidden"
       >
-        <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50/30 shrink-0">
-          <h2 className="text-lg font-black flex items-center gap-3">
-            {isEdit ? <Edit2 size={22} className="text-blue-600" /> : <Plus size={22} className="text-blue-600" />}
+        <div className="flex justify-between items-center py-3 px-4 border-b border-gray-100 bg-gray-50/30 shrink-0">
+          <h2 className="text-base font-black flex items-center gap-2">
+            {isEdit ? <Edit2 size={18} className="text-blue-600" /> : <Plus size={18} className="text-blue-600" />}
             <span translate="no" className="notranslate uppercase tracking-tight">{isEdit ? 'CẬP NHẬT CÔNG VIỆC' : 'KHỞI TẠO CÔNG VIỆC MỚI'}</span>
           </h2>
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-4">
             {!isEdit && (
               <div className="flex flex-col items-end">
-                <span translate="no" className="notranslate text-[11px] font-black text-gray-400 uppercase tracking-tighter">Mã dự kiến:</span>
-                <span translate="no" className="notranslate text-blue-600 font-black font-mono text-base leading-none text-[15px]">{nextCode}</span>
+                <span translate="no" className="notranslate text-[10px] font-black text-gray-400 uppercase tracking-tighter">Mã dự kiến:</span>
+                <span translate="no" className="notranslate text-blue-600 font-black font-mono text-sm leading-none">{nextCode}</span>
               </div>
             )}
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-              <X size={24} className="text-gray-400" />
+            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors">
+              <X size={20} className="text-gray-400" />
             </button>
           </div>
         </div>
 
-        <div className="flex-1 p-6 flex flex-col justify-between overflow-hidden">
-          <div className="flex flex-col h-full justify-between gap-y-4">
+        <div className="flex-1 px-4 py-3 flex flex-col overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
+          <div className="flex flex-col gap-y-3">
             {!isEdit && (
-              <div className="flex items-center justify-between shrink-0">
+              <div className="flex items-center justify-between shrink-0 mb-1">
                 <button 
                   onClick={() => setShowGuide(!showGuide)}
-                  className="flex items-center gap-2 text-[11px] font-black text-blue-600 uppercase tracking-widest hover:text-blue-700 transition-colors bg-blue-50/50 px-3 py-1.5 rounded-lg border border-blue-100"
+                  className="flex items-center gap-1.5 text-[10px] font-black text-blue-600 uppercase tracking-widest hover:text-blue-700 transition-colors bg-blue-50/50 px-2.5 py-1 rounded-lg border border-blue-100"
                 >
-                  <Info size={14} />
-                  <span translate="no" className="notranslate">HƯỚNG DẪN NHANH</span>
+                  <Info size={12} />
+                  <span translate="no" className="notranslate">HƯỚNG DẪN</span>
                 </button>
                 
                 <AnimatePresence mode="wait">
@@ -194,19 +194,19 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden flex-1 ml-6"
+                      className="overflow-hidden flex-1 ml-4"
                     >
-                      <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px] leading-snug text-slate-600 flex gap-6">
-                        <div className="flex gap-2 items-center">
-                          <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                      <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 text-[10px] leading-tight text-slate-600 flex gap-4">
+                        <div className="flex gap-1.5 items-center">
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
                           <span translate="no" className="notranslate">
-                            <strong>BẮT ĐẦU:</strong> Mặc định là hôm nay.
+                            <strong>BẮT ĐẦU:</strong> Hôm nay.
                           </span>
                         </div>
-                        <div className="flex gap-2 items-center">
-                          <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                        <div className="flex gap-1.5 items-center">
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
                           <span translate="no" className="notranslate">
-                            <strong>CHU KỲ:</strong> Tự động tính <strong>HẠN</strong>.
+                            <strong>LẶP:</strong> Tự tính <strong>HẠN</strong>.
                           </span>
                         </div>
                       </div>
@@ -216,14 +216,14 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
               </div>
             )}
             
-            <div className={`grid grid-cols-2 gap-x-6 ${showGuide ? 'gap-y-3' : 'gap-y-5'}`}>
+            <div className={`grid grid-cols-2 gap-x-4 gap-y-2.5`}>
               <div className="col-span-2">
-                <label className="block text-[11px] font-black text-gray-500 mb-1.5 uppercase tracking-wider">
+                <label className="block text-[10px] font-black text-gray-500 mb-1 uppercase tracking-wider">
                   <span translate="no" className="notranslate">NGƯỜI THỰC HIỆN <span className="text-red-500">*</span></span>
                 </label>
                 {canAssignOthers ? (
                   <select 
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold transition-all appearance-none"
+                    className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold transition-all appearance-none"
                     value={assigneeId}
                     onChange={(e) => setAssigneeId(e.target.value)}
                   >
@@ -235,7 +235,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                     ))}
                   </select>
                 ) : (
-                  <div className="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 text-sm font-bold flex items-center cursor-not-allowed opacity-80">
+                  <div className="w-full px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 text-sm font-bold flex items-center cursor-not-allowed opacity-80">
                     <span translate="no" className="notranslate">{currentUser.name}</span>
                   </div>
                 )}
@@ -243,22 +243,22 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
 
               {/* Row 2: Dates */}
               <div>
-                <label className="block text-[11px] font-black text-gray-500 mb-1.5 uppercase tracking-wider">
-                  <span translate="no" className="notranslate">NGÀY KHỞI TẠO <span className="text-red-500">*</span></span>
+                <label className="block text-[10px] font-black text-gray-500 mb-1 uppercase tracking-wider">
+                  <span translate="no" className="notranslate">KHỞI TẠO <span className="text-red-500">*</span></span>
                 </label>
-                <div className="w-full px-4 py-2 bg-slate-100 border border-gray-200 rounded-xl text-sm font-bold text-gray-500 cursor-not-allowed opacity-70">
+                <div className="w-full px-3 py-1.5 bg-slate-100 border border-gray-200 rounded-xl text-sm font-bold text-gray-500 cursor-not-allowed opacity-70">
                   <span translate="no" className="notranslate">{formatToDisplayDate(issueDate)}</span>
                 </div>
               </div>
               <div>
-                <label className="block text-[11px] font-black text-gray-500 mb-1.5 uppercase tracking-wider">
-                  <span translate="no" className="notranslate">NGÀY BẮT ĐẦU <span className="text-red-500">*</span></span>
+                <label className="block text-[10px] font-black text-gray-500 mb-1 uppercase tracking-wider">
+                  <span translate="no" className="notranslate">BẮT ĐẦU <span className="text-red-500">*</span></span>
                 </label>
                 <div className="relative group">
                   <input 
                     type="text"
                     placeholder="dd/mm/yy"
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold pr-12 transition-all"
+                    className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold pr-10 transition-all"
                     value={formatToDisplayDate(startDate)}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -268,8 +268,8 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                       }
                     }}
                   />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
-                    <Calendar size={18} className="text-gray-400 group-focus-within:text-blue-500 pointer-events-none" />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+                    <Calendar size={16} className="text-gray-400 group-focus-within:text-blue-500 pointer-events-none" />
                     <input 
                       type="date"
                       className="absolute inset-0 opacity-0 cursor-pointer w-full"
@@ -282,11 +282,11 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
 
               {/* Row 3: Recurrence & Deadline */}
               <div>
-                <label className="block text-[11px] font-black text-blue-600 mb-1.5 uppercase tracking-wider">
+                <label className="block text-[10px] font-black text-blue-600 mb-1 uppercase tracking-wider">
                   <span translate="no" className="notranslate">CHU KỲ LẶP <span className="text-red-500">*</span></span>
                 </label>
                 <select 
-                  className="w-full px-4 py-2 bg-blue-50 border border-blue-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold text-blue-700 shadow-sm appearance-none transition-all"
+                  className="w-full px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold text-blue-700 shadow-sm appearance-none transition-all"
                   value={recurrence}
                   onChange={(e) => setRecurrence(e.target.value as RecurrenceType)}
                 >
@@ -300,14 +300,14 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] font-black text-gray-500 mb-1.5 uppercase tracking-wider">
+                <label className="block text-[10px] font-black text-gray-500 mb-1 uppercase tracking-wider">
                   <span translate="no" className="notranslate">HẠN HOÀN THÀNH <span className="text-red-500">*</span></span>
                 </label>
                 <div className="relative group">
                   <input 
                     type="text"
                     placeholder="dd/mm/yy"
-                    className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold text-blue-600 pr-12 transition-all"
+                    className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold text-blue-600 pr-10 transition-all"
                     value={formatToDisplayDate(expectedDate)}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -320,8 +320,8 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                       }
                     }}
                   />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
-                    <Calendar size={18} className="text-gray-400 group-focus-within:text-blue-500 pointer-events-none" />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+                    <Calendar size={16} className="text-gray-400 group-focus-within:text-blue-500 pointer-events-none" />
                     <input 
                       type="date"
                       className="absolute inset-0 opacity-0 cursor-pointer w-full"
@@ -337,11 +337,11 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
 
               {/* Row 4: Classification */}
               <div className="col-span-2">
-                <label className="block text-[11px] font-black text-gray-500 mb-1.5 uppercase tracking-wider">
+                <label className="block text-[10px] font-black text-gray-500 mb-1 uppercase tracking-wider">
                   <span translate="no" className="notranslate">PHÂN LOẠI CÔNG VIỆC <span className="text-red-500">*</span></span>
                 </label>
                 <select 
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold appearance-none transition-all"
+                  className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold appearance-none transition-all"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                 >
@@ -356,12 +356,12 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
 
               {/* Row 5: Task Content */}
               <div className="col-span-2">
-                <label className="block text-[11px] font-black text-gray-500 mb-1.5 uppercase tracking-wider">
+                <label className="block text-[10px] font-black text-gray-500 mb-1 uppercase tracking-wider">
                   <span translate="no" className="notranslate">HẠNG MỤC CÔNG VIỆC <span className="text-red-500">*</span></span>
                 </label>
                 <textarea 
                   ref={titleInputRef}
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-[65px] resize-none font-bold text-sm leading-relaxed notranslate"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-[50px] resize-none font-bold text-sm leading-snug notranslate"
                   placeholder="Nhập tên công việc..."
                   value={title}
                   translate="no"
@@ -371,11 +371,11 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
 
               {/* Row 6: Objective */}
               <div className="col-span-2">
-                <label className="block text-[11px] font-black text-gray-500 mb-1.5 uppercase tracking-wider">
+                <label className="block text-[10px] font-black text-gray-500 mb-1 uppercase tracking-wider">
                   <span translate="no" className="notranslate">MỤC TIÊU ĐẠT ĐƯỢC <span className="text-red-500">*</span></span>
                 </label>
                 <textarea 
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-[65px] resize-none font-bold text-sm leading-relaxed notranslate"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-[50px] resize-none font-bold text-sm leading-snug notranslate"
                   placeholder="Mục tiêu cụ thể cho công việc này..."
                   value={objective}
                   translate="no"
@@ -386,12 +386,12 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
               {/* Row 7: Attachment */}
               {!isEdit && canAttach && (
                 <div className="col-span-2">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
                     <div className="flex-1">
-                      <label className="block text-[11px] font-black text-gray-500 mb-1.5 uppercase tracking-wider">
+                      <label className="block text-[10px] font-black text-gray-500 mb-1 uppercase tracking-wider">
                         <span translate="no" className="notranslate">ĐÍNH KÈM TÀI LIỆU (PDF/ẢNH)</span>
                       </label>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         <input 
                           type="file"
                           accept="image/*,application/pdf"
@@ -437,10 +437,10 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                         />
                         <label 
                           htmlFor="task-attachment"
-                          className={`flex items-center gap-3 px-4 py-2 bg-gray-50 border border-gray-200 border-dashed rounded-xl cursor-pointer hover:bg-blue-50 transition-all text-[11px] font-bold text-gray-500 overflow-hidden flex-1 ${isProcessingFile ? 'opacity-50 cursor-wait' : ''}`}
+                          className={`flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 border-dashed rounded-xl cursor-pointer hover:bg-blue-50 transition-all text-[10px] font-bold text-gray-500 overflow-hidden flex-1 ${isProcessingFile ? 'opacity-50 cursor-wait' : ''}`}
                         >
-                          <Paperclip size={16} />
-                          <span className="truncate max-w-[300px]">
+                          <Paperclip size={14} />
+                          <span className="truncate max-w-[200px]">
                             {isProcessingFile ? "Đang xử lý..." : (attachment ? attachment.name : "CHỌN PDF/ẢNH...")}
                           </span>
                         </label>
@@ -448,9 +448,9 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                           <button 
                             type="button"
                             onClick={() => { setAttachment(null); setAttachmentData(null); }}
-                            className="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors shadow-sm"
+                            className="p-1.5 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors shadow-sm"
                           >
-                            <X size={16} />
+                            <X size={14} />
                           </button>
                         )}
                       </div>
@@ -462,24 +462,24 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
           </div>
         </div>
 
-        <div className="p-4 border-t border-gray-100 bg-gray-50/30 flex items-center gap-5 relative shrink-0">
+        <div className="p-3 border-t border-gray-100 bg-gray-50/30 flex items-center gap-4 relative shrink-0">
           <AnimatePresence>
             {showSuccessToast && (
               <motion.div 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="absolute -top-12 left-0 right-0 flex justify-center pointer-events-none"
+                className="absolute -top-10 left-0 right-0 flex justify-center pointer-events-none"
               >
-                <div className="bg-emerald-500 text-white px-5 py-1.5 rounded-full text-xs font-black flex items-center gap-2 shadow-xl">
-                  <CheckCircle2 size={14} />
-                  <span translate="no" className="notranslate whitespace-nowrap uppercase tracking-widest text-[10px]">ĐÃ LƯU! MỜI NHẬP TIẾP.</span>
+                <div className="bg-emerald-500 text-white px-4 py-1.5 rounded-full text-[10px] font-black flex items-center gap-2 shadow-xl">
+                  <CheckCircle2 size={12} />
+                  <span translate="no" className="notranslate whitespace-nowrap uppercase tracking-widest">ĐÃ LƯU! MỜI NHẬP TIẾP.</span>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          <button onClick={onClose} className="flex-1 py-3 text-gray-500 text-xs font-black hover:bg-gray-200 rounded-xl transition-all uppercase tracking-widest bg-gray-100 shadow-sm border border-gray-200">
+          <button onClick={onClose} className="flex-1 py-2.5 text-gray-500 text-[10px] font-black hover:bg-gray-200 rounded-xl transition-all uppercase tracking-widest bg-gray-100 shadow-sm border border-gray-200">
             <span translate="no" className="notranslate">HỦY</span>
           </button>
           <button 
@@ -537,14 +537,14 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                 setIsSaving(false);
               }
             }}
-            className={`flex-[2.2] py-3 bg-blue-600 text-white rounded-xl font-black text-xs hover:bg-blue-700 transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:cursor-wait uppercase tracking-widest flex items-center justify-center gap-3 border-b-4 border-blue-800 ${isSaving ? 'animate-pulse' : ''}`}
+            className={`flex-[2.2] py-2.5 bg-blue-600 text-white rounded-xl font-black text-[10px] hover:bg-blue-700 transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:cursor-wait uppercase tracking-widest flex items-center justify-center gap-2 border-b-4 border-blue-800 ${isSaving ? 'animate-pulse' : ''}`}
           >
             {isSaving ? (
               <span translate="no" className="notranslate">ĐANG LƯU...</span>
             ) : (
               <>
                 <span translate="no" className="notranslate">{isEdit ? 'CẬP NHẬT' : 'KHỞI TẠO'}</span>
-                {!isEdit && <ArrowRight size={16} />}
+                {!isEdit && <ArrowRight size={14} />}
               </>
             )}
           </button>

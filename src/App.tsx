@@ -136,16 +136,16 @@ export default function App() {
 
   // Derived counts for sidebar and summary - THIẾT QUÂN LUẬT ĐỒNG NHẤT
   const counts = useMemo(() => {
-    // 1. Phân loại Master Tasks (Cần bao gồm cả Search để đồng nhất 100%)
+    // 1. Phân loại Master Tasks (Cần bao gồm cả Search để đồng nhất 100%) - THIẾT QUÂN LUẬT RADAR SỐ LIỆU
     const matchesSearch = (t: Task) => (t.title || "").toLowerCase().includes(search.toLowerCase()) || (t.code || "").toLowerCase().includes(search.toLowerCase());
-    const nonDeleted = tasks.filter(t => !t.deletedAt && matchesSearch(t));
+    const nonDeleted = tasks.filter(t => !t.deletedAt && t.status !== 'DELETED' && matchesSearch(t));
     
-    // 2. Chặn đếm t.waitingApproval trong BẢNG CÔNG VIỆC
-    const baseActive = nonDeleted.filter(t => t.status === "APPROVED" && !t.waitingApproval);
-    const basePending = nonDeleted.filter(t => t.status === "PENDING");
-    const baseApproval = nonDeleted.filter(t => !!t.waitingApproval && t.status !== "PENDING");
-    const baseCompleted = nonDeleted.filter(t => !t.deletedAt && ((t.status === "COMPLETED" || t.status === "Hoàn thành") || (t.cycleHistory && t.cycleHistory.length > 0)));
-    const baseTrash = tasks.filter(t => !!t.deletedAt && matchesSearch(t));
+    // 2. Công thức lọc chuẩn (Strict Filter) theo yêu cầu User
+    const basePending = tasks.filter(t => t.status === 'PENDING' && !t.deletedAt);
+    const baseActive = tasks.filter(t => t.status === 'APPROVED' && !t.waitingApproval && !t.deletedAt);
+    const baseApproval = tasks.filter(t => t.waitingApproval === true && !t.deletedAt);
+    const baseCompleted = tasks.filter(t => t.status === 'COMPLETED' && !t.deletedAt);
+    const baseTrash = tasks.filter(t => (t.deletedAt || t.status === 'DELETED') && matchesSearch(t));
 
     // 3. Hàm lọc theo phạm vi (Mine/All) để đồng nhất với Table
     const filterByScope = (list: Task[]) => {
@@ -167,9 +167,10 @@ export default function App() {
 
     return {
       pending: pendingList.length,
-      active: criticalCount, // Badge Sidebar shows only Alerts as requested
+      active: activeList.length, // Trả về số lượng thực tế của Bảng công việc
+      activeAlerts: criticalCount, // Số lượng cảnh báo
       attention: criticalCount > 0 || activeList.some(t => t.isNewInBoard),
-      allActive: activeList.length, // Keep allActive as total for other uses
+      allActive: activeList.length,
       mine: activeList.filter(t => isUserTask(t, effectiveUser)).length,
       completedTotal: completedList.length,
       trash: trashList.length,

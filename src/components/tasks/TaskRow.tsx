@@ -37,7 +37,7 @@ interface TaskRowProps {
   isReadOnly?: boolean;
   onRestore?: (id: string) => void;
   onApprove?: (id: string) => void;
-  approveTaskCompletion?: (id: string, modifierName?: string, leaderQCD?: any) => Promise<void>;
+  approveTaskCompletion?: (id: string, modifierName?: string, leaderQCD?: any, stopRecurrence?: boolean) => Promise<void>;
   onNavigate?: (tab: string) => void;
   highlightedTaskId?: string | null;
   isSelected?: boolean;
@@ -81,17 +81,17 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const [openGuide, setOpenGuide] = React.useState<string | null>(null);
 
   // QCD Local State for Staff
-  const [staffQ, setStaffQ] = React.useState(task.staffQCD?.q || 0);
-  const [staffC, setStaffC] = React.useState(task.staffQCD?.c || 0);
-  const [staffD, setStaffD] = React.useState(task.staffQCD?.d || 0);
+  const [staffQ, setStaffQ] = React.useState(task.staffQCD?.q || 3);
+  const [staffC, setStaffC] = React.useState(task.staffQCD?.c || 3);
+  const [staffD, setStaffD] = React.useState(task.staffQCD?.d || 3);
   const [staffQExp, setStaffQExp] = React.useState(task.staffQCD?.qExplanation || '');
   const [staffCExp, setStaffCExp] = React.useState(task.staffQCD?.cExplanation || '');
   const [staffDExp, setStaffDExp] = React.useState(task.staffQCD?.dExplanation || '');
 
   // Leader QCD State
-  const [leaderQ, setLeaderQ] = React.useState(5);
-  const [leaderC, setLeaderC] = React.useState(5);
-  const [leaderD, setLeaderD] = React.useState(5);
+  const [leaderQ, setLeaderQ] = React.useState(task.leaderQCD?.q || 3);
+  const [leaderC, setLeaderC] = React.useState(task.leaderQCD?.c || 3);
+  const [leaderD, setLeaderD] = React.useState(task.leaderQCD?.d || 3);
   const [leaderQComment, setLeaderQComment] = React.useState('');
   const [leaderCComment, setLeaderCComment] = React.useState('');
   const [leaderDComment, setLeaderDComment] = React.useState('');
@@ -157,6 +157,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   };
 
   const [isProcessing, setIsProcessing] = React.useState(false);
+  const [stopRecurrence, setStopRecurrence] = React.useState(false);
 
   const handleStatusAction = async () => {
     if (isProcessing) return;
@@ -218,7 +219,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           qComment: qC,
           cComment: cC,
           dComment: dC
-        });
+        }, stopRecurrence);
       } else {
         onUpdate(task.id, {
           status: 'COMPLETED',
@@ -578,7 +579,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       </td>
       <td className="py-1 px-1 text-center border border-gray-300 align-middle">
           <div className="flex flex-col items-center justify-center gap-1.5 w-full max-w-[44px] mx-auto min-h-full py-0.5">
-            {(isAdmin || isOwner) ? (
+            {(isAdmin || isOwner || isAuthor) ? (
               <>
                 {/* 1. PRIMARY ACTION (CHECKMARK) - NOW ON TOP */}
                 {!isReadOnly && (
@@ -724,7 +725,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                         {/* KHỐI SỬA CHO PENDING (HIỂN THỊ SAU HISTORY) */}
                         {task.status === 'PENDING' && (
                           <div className="flex flex-col gap-1.5 w-full items-center">
-                            {isManager && (
+                            {(isManager || isOwner || isAuthor) && (
                               <button 
                                 onClick={() => onEdit(task)}
                                 className="w-7 h-7 flex items-center justify-center bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-all group/btn border-2 border-emerald-400"
@@ -810,8 +811,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                               }
                               setConfirmModal({
                                 show: true,
-                                title: 'HOÀN TÁC CÔNG VIỆC',
-                                message: 'Bạn muốn chuyển công việc này quay lại mục Trình Duyệt (Chờ duyệt)?',
+                                title: <span translate="no" className="notranslate">HOÀN TÁC CÔNG VIỆC</span>,
+                                message: <span translate="no" className="notranslate">Bạn muốn chuyển công việc này quay lại mục Trình Duyệt (Chờ duyệt)?</span>,
                                 onConfirm: () => {
                                   onUpdate(task.id, { 
                                     status: 'APPROVED', 
@@ -1054,29 +1055,45 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                         </div>
                       </div>
 
-                      <div className="p-2 border-t border-gray-100 bg-slate-50 flex gap-3">
-                        <button 
-                          type="button"
-                          onClick={() => setShowQCDModal(false)}
-                          className="flex-1 h-9 bg-white border-2 border-slate-200 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-slate-100 transition-all active:scale-95 shadow-sm"
-                        >
-                          <span translate="no" className="notranslate">HỦY BỎ</span>
-                        </button>
-                        <button 
-                          type="button"
-                          disabled={isProcessing || (!isAdmin && (!staffQ || !staffC || !staffD || !staffQExp.trim() || !staffCExp.trim() || !staffDExp.trim()))}
-                          onClick={isAdmin ? submitLeaderApproval : submitStaffQCD}
-                          className="flex-2 h-9 bg-blue-700 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-blue-800 shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                        >
-                          {isProcessing ? (
-                            <RefreshCw size={14} className="animate-spin" />
-                          ) : (
-                            <CheckCircle2 size={14} />
-                          )}
-                          <span translate="no" className="notranslate uppercase">
-                            {isAdmin ? <span translate="no" className="notranslate">XÁC NHẬN PHÊ DUYỆT</span> : <span translate="no" className="notranslate">GỬI HOÀN THÀNH (Q-C-D)</span>}
-                          </span>
-                        </button>
+                      <div className="p-2 border-t border-gray-100 bg-slate-50 flex flex-col sm:flex-row gap-3">
+                        {isAdmin && isRecurringTask && (
+                          <div className="flex items-center gap-3 bg-red-50 px-4 py-2 rounded-lg border border-red-100 flex-1">
+                            <span translate="no" className="notranslate text-[10px] font-black text-red-700 uppercase leading-tight">DỪNG LẶP LẠI (KẾT THÚC HOÀN TOÀN CÔNG VIỆC NÀY)</span>
+                            <button 
+                              type="button"
+                              onClick={() => setStopRecurrence(!stopRecurrence)}
+                              className={`w-12 h-6 rounded-full relative transition-all duration-300 shadow-inner ${stopRecurrence ? 'bg-red-600' : 'bg-gray-300'}`}
+                            >
+                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 shadow-sm ${stopRecurrence ? 'left-7' : 'left-1'}`} />
+                            </button>
+                          </div>
+                        )}
+                        <div className="flex gap-3 flex-1">
+                          <button 
+                            type="button"
+                            onClick={() => setShowQCDModal(false)}
+                            className="flex-1 h-10 bg-white border-2 border-slate-200 text-slate-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 transition-all active:scale-95 shadow-sm"
+                          >
+                            <span translate="no" className="notranslate">HỦY BỎ</span>
+                          </button>
+                          <button 
+                            type="button"
+                            disabled={isProcessing || (!isAdmin && (!staffQ || !staffC || !staffD || !staffQExp.trim() || !staffCExp.trim() || !staffDExp.trim()))}
+                            onClick={isAdmin ? submitLeaderApproval : submitStaffQCD}
+                            className={`flex-2 h-10 text-white rounded-lg text-[11px] font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                              isAdmin && stopRecurrence ? 'bg-red-700 hover:bg-red-800 shadow-red-100' : 'bg-blue-700 hover:bg-blue-800 shadow-blue-100'
+                            }`}
+                          >
+                            {isProcessing ? (
+                              <RefreshCw size={16} className="animate-spin" />
+                            ) : (
+                              <CheckCircle2 size={16} />
+                            )}
+                            <span translate="no" className="notranslate uppercase">
+                              {isAdmin ? <span translate="no" className="notranslate">XÁC NHẬN PHÊ DUYỆT</span> : <span translate="no" className="notranslate">GỬI HOÀN THÀNH (Q-C-D)</span>}
+                            </span>
+                          </button>
+                        </div>
                       </div>
                     </motion.div>
                   </div>

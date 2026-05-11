@@ -18,7 +18,7 @@ interface TaskListProps {
   onEdit: (task: Task) => void;
   setConfirmModal: (modal: any) => void;
   onApprove?: (id: string) => void;
-  approveTaskCompletion?: (id: string, modifierName?: string) => Promise<void>;
+  approveTaskCompletion?: (id: string, modifierName?: string, leaderQCD?: any, stopRecurrence?: boolean) => Promise<void>;
   onNavigate?: (tab: string) => void;
   type: 'active' | 'completed' | 'trash';
   isReadOnly?: boolean;

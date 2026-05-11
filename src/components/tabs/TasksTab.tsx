@@ -1,0 +1,206 @@
+import React from 'react';
+import { motion } from 'motion/react';
+import { Plus, User as UserIcon, Users as UsersIcon, FileDown, FileUp, Search, Trash2 } from 'lucide-react';
+import { User, Task } from '../../types';
+import { Header } from '../layout/Header';
+import { HolidayBanner } from '../layout/HolidayBanner';
+import { StatsSummary } from '../dashboard/StatsSummary';
+import { TaskList } from '../tasks/TaskList';
+import { downloadSampleExcel } from '../../utils/excelUtils';
+
+interface TasksTabProps {
+  effectiveUser: User;
+  presence: any[];
+  setShowTaskModal: (show: boolean) => void;
+  adminUnreadCount: number;
+  onOpenNotifications: () => void;
+  filteredTasks: Task[];
+  viewScope: 'mine' | 'all';
+  setViewScope: (scope: 'mine' | 'all') => void;
+  myActiveCount: number;
+  allActiveCount: number;
+  selectedTaskIds: string[];
+  handleBulkDelete: () => void;
+  sortedTasks: Task[];
+  allUsers: User[];
+  search: string;
+  setSearch: (s: string) => void;
+  handleExportExcel: () => void;
+  handleImportExcel: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  updateTask: any;
+  deleteTask: any;
+  setShowHistoryModal: (id: string | null) => void;
+  setShowChatModal: (id: string | null) => void;
+  showChatModal: string | null;
+  addTaskComment: any;
+  updateTaskCommentReactions: any;
+  setEditingTask: (t: Task | null) => void;
+  setConfirmModal: (m: any) => void;
+  approveTaskCompletion?: (id: string, modifierName?: string, leaderQCD?: any, stopRecurrence?: boolean) => Promise<void>;
+  setActiveTab: (tab: string) => void;
+  highlightedTaskId: string | null;
+  toggleTaskSelection: (taskId: string) => void;
+  setBulkSelection: (ids: string[], select: boolean) => void;
+  createNotification: any;
+}
+
+export const TasksTab: React.FC<TasksTabProps> = ({
+  effectiveUser, presence, setShowTaskModal, adminUnreadCount, onOpenNotifications,
+  filteredTasks, viewScope, setViewScope, myActiveCount, allActiveCount,
+  selectedTaskIds, handleBulkDelete, sortedTasks, allUsers, search, setSearch,
+  handleExportExcel, handleImportExcel, updateTask, deleteTask,
+  setShowHistoryModal, setShowChatModal, showChatModal, addTaskComment,
+  updateTaskCommentReactions, setEditingTask, setConfirmModal,
+  approveTaskCompletion, setActiveTab, highlightedTaskId,
+  toggleTaskSelection, setBulkSelection, createNotification
+}) => {
+  return (
+    <motion.div
+      key="tasks"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2 }}
+      className="flex flex-col"
+    >
+      <HolidayBanner />
+      <div className="z-40">
+        <Header
+          title={<span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>}
+          badge={<span translate="no" className="notranslate">{effectiveUser.role}</span>}
+          onAction={() => setShowTaskModal(true)}
+          actionLabel={<span translate="no" className="notranslate">NHẬP CÔNG VIỆC MỚI</span>}
+          actionIcon={Plus}
+          onlineUsers={presence}
+          currentUserId={effectiveUser.id}
+          adminUnreadCount={adminUnreadCount}
+          onOpenNotifications={effectiveUser.role === 'Admin' ? onOpenNotifications : undefined}
+        />
+      </div>
+
+      <div className="p-4 space-y-4">
+        <StatsSummary tasks={filteredTasks} />
+
+        <div className="flex items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm transition-all duration-300">
+          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
+            <button
+              onClick={() => setViewScope("mine")}
+              className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                viewScope === "mine" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <UserIcon size={14} />
+              <span translate="no" className="notranslate">Cá nhân (<span translate="no" className="notranslate">{myActiveCount}</span>)</span>
+            </button>
+            <button
+              onClick={() => setViewScope("all")}
+              className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                viewScope === "all" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <UsersIcon size={14} />
+              <span translate="no" className="notranslate">Phòng QLCL (<span translate="no" className="notranslate">{allActiveCount}</span>)</span>
+            </button>
+          </div>
+          
+          {effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleBulkDelete}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg active:scale-95 border-b-4 border-red-800"
+              >
+                <Trash2 size={16} strokeWidth={2.5} />
+                <span translate="no" className="notranslate">XÓA ({selectedTaskIds.length})</span>
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full border border-blue-100">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+            <span translate="no" className="notranslate text-[10px] text-blue-700 font-black uppercase tracking-widest">
+              Đang xem: {viewScope === "mine" ? "Nhiệm vụ của bạn" : "Toàn bộ phòng"}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h3 className="text-[14px] font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+              <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
+              <span translate="no" className="notranslate">DANH SÁCH BẢNG CÔNG VIỆC</span>
+            </h3>
+            {(effectiveUser.role !== "Staff" || effectiveUser.delegatedPermissions?.canExportExcel || effectiveUser.delegatedPermissions?.canImportExcel) && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={downloadSampleExcel}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 text-gray-700 border border-gray-200 rounded-lg text-[10px] font-bold hover:bg-gray-100 transition-all uppercase"
+                  title="Tải file Excel mẫu"
+                >
+                  <FileDown size={12} />
+                  <span translate="no" className="notranslate">File Mẫu</span>
+                </button>
+                {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canExportExcel) && (
+                  <button
+                    onClick={handleExportExcel}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-all uppercase"
+                  >
+                    <FileDown size={12} />
+                    <span translate="no" className="notranslate">Xuất Excel</span>
+                  </button>
+                )}
+                {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canImportExcel) && (
+                  <button
+                    onClick={() => {}} 
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-all uppercase cursor-pointer"
+                  >
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <FileUp size={12} />
+                      <span translate="no" className="notranslate">Nhập từ Excel</span>
+                      <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
+                    </label>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="relative group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+              <input
+                type="text"
+                placeholder="Tìm kiếm..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 text-xs w-64 placeholder:notranslate"
+              />
+            </div>
+          </div>
+        </div>
+
+        <TaskList
+          tasks={sortedTasks}
+          user={effectiveUser}
+          users={allUsers}
+          onUpdate={updateTask}
+          onDelete={deleteTask}
+          onViewHistory={(id) => setShowHistoryModal(id)}
+          onOpenChat={(id) => setShowChatModal(id)}
+          showChatModal={showChatModal}
+          onSendMessage={addTaskComment}
+          onReact={updateTaskCommentReactions}
+          onEdit={setEditingTask}
+          setConfirmModal={setConfirmModal}
+          approveTaskCompletion={approveTaskCompletion}
+          onNavigate={setActiveTab}
+          type="active"
+          isReadOnly={false}
+          highlightedTaskId={highlightedTaskId}
+          selectedIds={selectedTaskIds}
+          onToggleSelect={toggleTaskSelection}
+          onBulkSelect={setBulkSelection}
+          createNotification={createNotification}
+        />
+      </div>
+    </motion.div>
+  );
+};

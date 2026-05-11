@@ -692,7 +692,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, [currentUserId, addLog, tasks]);
 
-  const approveTaskCompletion = useCallback(async (id: string, modifierName?: string, leaderQCD?: any) => {
+  const approveTaskCompletion = useCallback(async (id: string, modifierName?: string, leaderQCD?: any, stopRecurrence: boolean = false) => {
     try {
       const taskRef = doc(db, 'tasks', id);
       const existingTask = tasks.find(t => t.id === id);
@@ -710,7 +710,7 @@ export const useFirebaseData = (currentUserId?: string) => {
       const now = new Date().toISOString();
       const dateOnly = now.split('T')[0];
 
-      if (isRecurring) {
+      if (isRecurring && !stopRecurrence) {
         const currentDeadline = existingTask.extensionDate || existingTask.expectedEndDate;
         const nextDeadline = calculateNextDeadline(currentDeadline || dateOnly, existingTask.recurrence);
         
@@ -793,13 +793,24 @@ export const useFirebaseData = (currentUserId?: string) => {
           metadata: { taskId: id, taskCode: existingTask.code, nextTaskId: nextTaskRef.id, nextTaskCode: nextCode }
         });
       } else {
-        // Trường hợp 1: Công việc không lặp
+        // Trường hợp 1: Công việc không lặp HOẶC Tích chọn dừng lặp (Dừng lặp là priority over isRecurring)
+        const newHistory = [...(existingTask.history || [])];
+        if (stopRecurrence) {
+          newHistory.push({
+            version: newHistory.length + 1,
+            content: 'Lãnh đạo đã chốt kết thúc chu kỳ định kỳ.',
+            timestamp: now,
+            authorId: auth.currentUser?.uid || 'system'
+          });
+        }
+
         batch.update(taskRef, {
           status: 'COMPLETED',
           actualEndDate: dateOnly,
           isLocked: true,
           waitingApproval: false,
           leaderQCD: leaderQCD || null,
+          history: newHistory,
           updatedAt: serverTimestamp(),
           lastActionAt: serverTimestamp()
         });
@@ -810,8 +821,10 @@ export const useFirebaseData = (currentUserId?: string) => {
           userId: auth.currentUser?.uid || 'SYSTEM',
           userName: modifierName || null,
           timestamp: serverTimestamp(),
-          details: `XÁC NHẬN PHÊ DUYỆT HOÀN THÀNH: ${existingTask.code}`,
-          metadata: { taskId: id, taskCode: existingTask.code, action: 'COMPLETE', leaderQCD }
+          details: stopRecurrence 
+            ? `XÁC NHẬN PHÊ DUYỆT & KẾT THÚC CHU KỲ: ${existingTask.code}`
+            : `XÁC NHẬN PHÊ DUYỆT HOÀN THÀNH: ${existingTask.code}`,
+          metadata: { taskId: id, taskCode: existingTask.code, action: 'COMPLETE', leaderQCD, stopRecurrence }
         });
       }
 

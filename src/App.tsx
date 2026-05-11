@@ -22,6 +22,8 @@ import { DirectChat } from "./components/tasks/DirectChat";
 import { NotificationCenter } from "./components/layout/NotificationCenter";
 import { ConfirmModal } from "./components/common/ConfirmModal";
 import { HealthReminder } from "./components/common/HealthReminder";
+import { AppModals } from "./components/layout/AppModals";
+import { useAppLogic } from "./hooks/useAppLogic";
 import { isUserTask } from "./utils/userUtils";
 import { db } from "./lib/firebase";
 
@@ -134,50 +136,10 @@ export default function App() {
     showDirectChat?.id || null, activeTab, showChatModal
   );
 
-  // Derived counts for sidebar and summary - THIẾT QUÂN LUẬT ĐỒNG NHẤT
-  const counts = useMemo(() => {
-    // 1. Phân loại Master Tasks (Cần bao gồm cả Search để đồng nhất 100%) - THIẾT QUÂN LUẬT RADAR SỐ LIỆU
-    const matchesSearch = (t: Task) => (t.title || "").toLowerCase().includes(search.toLowerCase()) || (t.code || "").toLowerCase().includes(search.toLowerCase());
-    const nonDeleted = tasks.filter(t => !t.deletedAt && t.status !== 'DELETED' && matchesSearch(t));
-    
-    // 2. Công thức lọc chuẩn (Strict Filter) theo yêu cầu User
-    const basePending = tasks.filter(t => t.status === 'PENDING' && !t.deletedAt);
-    const baseActive = tasks.filter(t => t.status === 'APPROVED' && !t.waitingApproval && !t.deletedAt);
-    const baseApproval = tasks.filter(t => t.waitingApproval === true && !t.deletedAt);
-    const baseCompleted = tasks.filter(t => t.status === 'COMPLETED' && !t.deletedAt);
-    const baseTrash = tasks.filter(t => (t.deletedAt || t.status === 'DELETED') && matchesSearch(t));
-
-    // 3. Hàm lọc theo phạm vi (Mine/All) để đồng nhất với Table
-    const filterByScope = (list: Task[]) => {
-      return list.filter(t => viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
-    };
-
-    const activeList = filterByScope(baseActive);
-    const pendingList = filterByScope(basePending);
-    const approvalList = filterByScope(baseApproval);
-    const completedList = filterByScope(baseCompleted);
-    const trashList = filterByScope(baseTrash);
-
-    // 4. Đặc biệt: Công việc mới (Báo động Sidebar)
-    const alertList = activeList.filter(t => {
-      const d = getTaskDeadlineStatus(t);
-      return d.status === 'CRITICAL' || d.status === 'URGENT' || d.status === 'WARNING';
-    });
-    const criticalCount = alertList.length;
-
-    return {
-      pending: pendingList.length,
-      active: activeList.length, // Trả về số lượng thực tế của Bảng công việc
-      activeAlerts: criticalCount, // Số lượng cảnh báo
-      attention: criticalCount > 0 || activeList.some(t => t.isNewInBoard),
-      allActive: activeList.length,
-      mine: activeList.filter(t => isUserTask(t, effectiveUser)).length,
-      completedTotal: completedList.length,
-      trash: trashList.length,
-      pendingApprovalTotal: approvalList.length,
-      staffTotal: allUsers.length
-    };
-  }, [tasks, effectiveUser, viewScope, allUsers]);
+  // 5. App Logic Hook (Counts & Sorting)
+  const { counts, sortedTasks } = useAppLogic({
+    tasks, effectiveUser, viewScope, search, activeTab, allUsers
+  });
 
   // Clear unread count for current section and clearance for new board tasks
   useEffect(() => {
@@ -363,54 +325,6 @@ export default function App() {
 
   const groupTotalCount = useMemo(() => discussionMessages.length, [discussionMessages]);
 
-  const sortedTasks = useMemo(() => {
-    const priorityWeight: Record<string, number> = { 
-      'Khẩn cấp': 4,
-      'Cao': 3, 
-      'HIGH': 3,
-      'Trung bình': 2, 
-      'MEDIUM': 2,
-      'Thấp': 1, 
-      'LOW': 1 
-    };
-
-    return tasks.filter(t => {
-      if (activeTab === "trash") return !!t.deletedAt && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
-      if (t.deletedAt) return false;
-      
-      // THIẾT QUÂN LUẬT: Logic lọc bảng phải trùng khớp hoàn toàn với đếm Badge
-      if (activeTab === "pending_confirmation") return t.status === "PENDING" && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
-      if (activeTab === "pending_approval") return !!t.waitingApproval && t.status !== "PENDING" && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
-      
-      const matchesSearch = (t.title || "").toLowerCase().includes(search.toLowerCase()) || (t.code || "").toLowerCase().includes(search.toLowerCase());
-      if (!matchesSearch) return false;
-
-      if (activeTab === "completed_tasks") {
-        const isCompleted = t.status === "COMPLETED" || t.status === "Hoàn thành" || (t.cycleHistory && t.cycleHistory.length > 0);
-        return isCompleted && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
-      }
-      
-      if (activeTab === "tasks") {
-        return t.status === "APPROVED" && !t.waitingApproval && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
-      }
-
-      return viewScope === "mine" ? isUserTask(t, effectiveUser) : true;
-    }).sort((a, b) => {
-      // Lớp 1 (Ưu tiên tuyệt đối): Priority Order (1 -> 2 -> 3...)
-      if (a.priorityOrder && !b.priorityOrder) return -1;
-      if (b.priorityOrder && !a.priorityOrder) return 1;
-      if (a.priorityOrder && b.priorityOrder) return a.priorityOrder - b.priorityOrder;
-
-      // Lớp 2 (Hoạt động mới nhất): Dựa trên lastActionAt hoặc updatedAt
-      const timeA = new Date(a.lastActionAt || a.updatedAt || 0).getTime();
-      const timeB = new Date(b.lastActionAt || b.updatedAt || 0).getTime();
-      if (timeB !== timeA) return timeB - timeA;
-
-      // Lớp 3: Theo mã công việc
-      return b.code.localeCompare(a.code);
-    });
-  }, [tasks, activeTab, search, viewScope, effectiveUser]);
-
   const restoreTaskLocal = useCallback(async (id: string) => {
     await firebaseUpdateTask(id, { 
       deletedAt: null as any,
@@ -524,35 +438,33 @@ export default function App() {
         onDelete={deleteNotif}
         onGoToTask={handleJumpToTask}
       />
-      {(showTaskModal || editingTask) && (
-        <TaskModal 
-          onClose={() => { setShowTaskModal(false); setEditingTask(null); }} 
-          onSave={editingTask ? (data: any) => updateTask(editingTask.id, data) : baseAddTask} 
-          users={allUsers} 
-          tasks={tasks}
-          task={editingTask || undefined} 
-          currentUser={effectiveUser!} 
-          categories={categories}
-        />
-      )}
-      {showHistoryModal && <HistoryModal taskId={showHistoryModal} tasks={tasks} users={allUsers} onClose={() => setShowHistoryModal(null)} />}
-      {showDirectChat && (
-        <DirectChat 
-          variant="bubble" 
-          isMinimized={isChatMinimized} 
-          onMinimizeChange={setIsChatMinimized} 
-          currentUser={effectiveUser!} 
-          otherUser={allUsers.find(u => u.id === showDirectChat.id) || showDirectChat} 
-          messages={privateMessages} 
-          onSendMessage={firebaseSendPrivateMsg} 
-          onClose={() => setShowDirectChat(null)} 
-          onReact={(msgId, emoji) => {/* Logic react */}} 
-          allUsers={allUsers}
-          onJumpToTask={handleJumpToTask}
-        />
-      )}
-      <ConfirmModal show={confirmModal.show} title={confirmModal.title} message={confirmModal.message} onConfirm={confirmModal.onConfirm} onClose={() => setConfirmModal(p => ({ ...p, show: false }))} />
-      {showHealthReminder && currentUser?.reminderSettings && <HealthReminder settings={currentUser.reminderSettings} onClose={() => setShowHealthReminder(false)} />}
+      
+      <AppModals 
+        showTaskModal={showTaskModal}
+        setShowTaskModal={setShowTaskModal}
+        editingTask={editingTask}
+        setEditingTask={setEditingTask}
+        updateTask={updateTask}
+        baseAddTask={baseAddTask}
+        allUsers={allUsers}
+        tasks={tasks}
+        effectiveUser={effectiveUser}
+        categories={categories}
+        showHistoryModal={showHistoryModal}
+        setShowHistoryModal={setShowHistoryModal}
+        showDirectChat={showDirectChat}
+        setShowDirectChat={setShowDirectChat}
+        isChatMinimized={isChatMinimized}
+        setIsChatMinimized={setIsChatMinimized}
+        privateMessages={privateMessages}
+        firebaseSendPrivateMsg={firebaseSendPrivateMsg}
+        handleJumpToTask={handleJumpToTask}
+        confirmModal={confirmModal}
+        setConfirmModal={setConfirmModal}
+        showHealthReminder={showHealthReminder}
+        setShowHealthReminder={setShowHealthReminder}
+        currentUser={currentUser}
+      />
     </div>
   );
 }

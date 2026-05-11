@@ -64,15 +64,9 @@ export const Sidebar = ({
     let hasNewBounce = false;
 
     Object.entries(currentCounts).forEach(([id, count]) => {
-      // Logic: Nếu số lượng TĂNG LÊN so với trước đó
       if (count > (prevCounts.current[id] ?? count)) {
         newBouncingItems[id] = true;
         hasNewBounce = true;
-        
-        // Luôn giữ hiệu ứng trong 10 giây theo thiết quân luật
-        setTimeout(() => {
-          setBouncingItems(prev => ({ ...prev, [id]: false }));
-        }, 10000);
       }
       prevCounts.current[id] = count;
     });
@@ -168,19 +162,19 @@ export const Sidebar = ({
             )}
           </div>
           {[
-            { id: 'pending_confirmation', label: 'ĐỀ XUẤT MỚI', icon: Sparkles, count: pendingTasksCount, color: 'bg-emerald-500', isAlert: bouncingItems['pending_confirmation'], isSubItem: true },
-            { id: 'tasks', label: 'BẢNG CÔNG VIỆC', icon: LayoutGrid, count: activeTasksCount, color: 'bg-red-600', isAlert: bouncingItems['tasks'], isSubItem: true },
-            { id: 'pending_approval', label: 'TRÌNH DUYỆT', icon: ShieldAlert, count: pendingApprovalCount, color: 'bg-orange-500', isAlert: bouncingItems['pending_approval'], isSubItem: true },
-            { id: 'completed_tasks', label: 'CÔNG VIỆC HOÀN THÀNH', icon: CheckCheck, count: completedTasksCount, color: 'bg-blue-600', isAlert: bouncingItems['completed_tasks'], isSubItem: true },
-            { id: 'trash', label: 'TRUNG TÂM XÓA', icon: Trash2, count: trashTasksCount, color: 'bg-red-600', isAlert: bouncingItems['trash'], isSubItem: true },
+            { id: 'pending_confirmation', label: <span translate="no" className="notranslate">ĐỀ XUẤT MỚI</span>, icon: Sparkles, count: pendingTasksCount, color: 'bg-emerald-500', isAlert: bouncingItems['pending_confirmation'], isSubItem: true },
+            { id: 'tasks', label: <span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>, icon: LayoutGrid, count: activeTasksCount, color: 'bg-red-600', isAlert: bouncingItems['tasks'], isSubItem: true },
+            { id: 'pending_approval', label: <span translate="no" className="notranslate">TRÌNH DUYỆT</span>, icon: ShieldAlert, count: pendingApprovalCount, color: 'bg-orange-500', isAlert: bouncingItems['pending_approval'], isSubItem: true },
+            { id: 'completed_tasks', label: <span translate="no" className="notranslate">CÔNG VIỆC HOÀN THÀNH</span>, icon: CheckCheck, count: completedTasksCount, color: 'bg-blue-600', isAlert: bouncingItems['completed_tasks'], isSubItem: true },
+            { id: 'trash', label: <span translate="no" className="notranslate">TRUNG TÂM XÓA</span>, icon: Trash2, count: trashTasksCount, color: 'bg-red-600', isAlert: bouncingItems['trash'], isSubItem: true },
             ...((user.role === 'Admin')
-              ? [{ id: 'staff_list', label: 'QUẢN LÝ NHÂN SỰ', icon: Users, count: totalStaffCount, color: 'bg-orange-500', isAlert: bouncingItems['staff_list'] }] 
+              ? [{ id: 'staff_list', label: <span translate="no" className="notranslate">QUẢN LÝ NHÂN SỰ</span>, icon: Users, count: totalStaffCount, color: 'bg-orange-500', isAlert: bouncingItems['staff_list'] }] 
               : []),
-            { id: 'profile', label: 'TRANG CÁ NHÂN', icon: UserIcon },
-            { id: 'reports', label: 'BÁO CÁO THÁNG', icon: BarChart3 },
+            { id: 'profile', label: <span translate="no" className="notranslate">TRANG CÁ NHÂN</span>, icon: UserIcon },
+            { id: 'reports', label: <span translate="no" className="notranslate">BÁO CÁO THÁNG</span>, icon: BarChart3 },
             ...(user.role === 'Admin'
               ? [
-                  { id: 'system_history', label: 'NHẬT KÝ HỆ THỐNG', icon: Database, color: 'bg-indigo-600 text-white shadow-indigo-100' }
+                  { id: 'system_history', label: <span translate="no" className="notranslate">NHẬT KÝ HỆ THỐNG</span>, icon: Database, color: 'bg-indigo-600 text-white shadow-indigo-100' }
                 ]
               : []),
           ].map((item: any, idx: number, arr: any[]) => {
@@ -224,14 +218,14 @@ export const Sidebar = ({
                   
                   {!isCollapsed && (
                     <div className={`flex-1 text-left uppercase ${item.isSubItem ? 'text-[10px]' : 'text-[11px]'} font-black whitespace-nowrap overflow-hidden truncate flex items-center`}>
-                      <span translate="no" className="notranslate uppercase tracking-tight">{item.label}</span>
+                      {item.label}
                     </div>
                   )}
                   {item.count !== undefined && !isCollapsed && (
                     <span className={`ml-auto min-w-[22px] h-5.5 px-1.5 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-lg shrink-0 ${
                       item.color || 'bg-gray-500'
                     } text-white ${item.isAlert ? 'animate-bounce' : ''}`}>
-                      <span translate="no" className="notranslate font-black text-[11px] leading-none">
+                      <span translate="no" className="notranslate font-normal text-[11px]">
                         {item.count}
                       </span>
                     </span>
@@ -263,16 +257,16 @@ export const Sidebar = ({
             {!isCollapsed && (
               <div className="flex-1 min-w-0 text-left">
                 <p className={`text-[12px] font-black uppercase truncate transition-colors leading-tight ${activeTab === 'group_chat' ? (isDark ? 'text-white' : 'text-rose-600') : (isDark ? 'text-white/80 group-hover:text-white' : 'text-gray-700 group-hover:text-rose-600')}`}>
-                  <span translate="no" className="notranslate uppercase">ROOM THẢO LUẬN</span>
+                  <span translate="no" className="notranslate">ROOM THẢO LUẬN</span>
                 </p>
                 <p className={`text-[8.5px] font-black uppercase tracking-[0.1em] truncate mt-0.5 ${isDark ? 'text-white/40' : 'text-gray-400'}`}>
-                  <span translate="no" className="notranslate uppercase">CỘNG ĐỒNG QLCL</span>
+                  <span translate="no" className="notranslate">CỘNG ĐỒNG QLCL</span>
                 </p>
               </div>
             )}
             {groupUnreadCount > 0 && !isCollapsed && (
               <div className="bg-blue-600 text-white min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center shadow-md border border-white">
-                <span translate="no" className="notranslate text-white text-[10px] font-black leading-none">
+                <span translate="no" className="notranslate text-white text-[10px] font-black">
                   {groupUnreadCount}
                 </span>
               </div>
@@ -313,10 +307,10 @@ export const Sidebar = ({
               {!isCollapsed ? (
                 <div className="flex-1 min-w-0">
                   <div className={`text-[12px] font-black whitespace-nowrap notranslate leading-snug truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                    <span translate="no" className="notranslate uppercase">{user.name}</span>
+                    <span translate="no" className="notranslate">{user.name}</span>
                   </div>
                   <p className={`text-[9px] font-black uppercase tracking-wider mt-0.5 ${isDark ? 'text-white/60' : (hasDelegatedPermissions(user) ? 'text-amber-600' : 'text-slate-500')}`}>
-                    <span translate="no" className="notranslate uppercase">{user.role === 'Admin' ? 'ADMIN' : (user.role === 'Staff' ? 'NHÂN VIÊN' : user.role)}</span>
+                    {user.role === 'Admin' ? <span translate="no" className="notranslate">ADMIN</span> : (user.role === 'Staff' ? 'NHÂN VIÊN' : user.role)}
                   </p>
                 </div>
               ) : null}

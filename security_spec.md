@@ -1,25 +1,26 @@
-# Security Specification
+# Security Specification: QLCL Hub
 
-## 1. Data Invariants
-- A User must have a unique ID matching their Firebase Auth UID (if applicable, but here we use manual IDs for the staff list, so we map them).
-- A Message must have an `authorId` that matches the `request.auth.uid`.
-- A Message `timestamp` must be the server time.
-- Tasks can only be created or modified by users with 'Admin' or 'Leader' roles.
+## Data Invariants
+1. A Task cannot exist without a valid code (e.g., C0001).
+2. Only Admins can set a Task status to 'APPROVED' directly during creation.
+3. Users can only see tasks they are assigned to (if viewScope is 'mine') or all tasks (if public). *Note: The rules will allow reading all tasks for authenticated users to support the current app logic, but writes will be strictly controlled.*
+4. User profiles contain PII (emails, phone) and must be protected.
 
-## 2. The "Dirty Dozen" Payloads
+## The Dirty Dozen (Payloads to Block)
 
-1. **Identity Spoofing (Create User)**: Attempt to create a user document with an ID that doesn't match the authenticated user (if users can self-register).
-2. **Identity Spoofing (Message)**: Attempt to send a message with `authorId` pointing to someone else.
-3. **Resource Poisoning (User)**: Attempt to inject a 1MB string into the `name` field of a User.
-4. **State Shortcutting (Task)**: Attempt to set a task status to 'COMPLETED' without being the assignee or manager.
-5. **Privilege Escalation (User)**: A regular 'Staff' attempting to update their own `role` to 'Admin'.
-6. **Orphaned Message**: Creating a message with an `authorId` that does not exist in the `users` collection.
-7. **Timestamp Fraud**: Sending a message with a manually specified `timestamp` far in the past/future.
-8. **Shadow Field (Task)**: Adding a `isVerified: true` field to a Task document that isn't in the schema.
-9. **Blanket Query Scraping**: Attempting to list all users without being authenticated.
-10. **ID Poisoning**: Attempting to access a document with a 2KB junk string as the ID.
-11. **PII Leak**: An unauthenticated user attempting to get a user document to read their `personalEmail`.
-12. **De-indexing Attack**: Rapidly creating 10,000 empty nodes in any collection.
+1. **Identity Spoofing**: A user tries to create a profile for another user's UID.
+2. **Privilege Escalation**: A non-admin user tries to update their own role to 'Admin'.
+3. **ID Poisoning**: A user tries to create a task with a 1MB string as the document ID.
+4. **Shadow Field Injection**: A user tries to add a `isVerified: true` field to their profile.
+5. **PII Blanket Leak**: An unauthenticated user tries to list all user profiles.
+6. **Task Hijacking**: A user tries to update a task they are not assigned to (and isn't the author).
+7. **Resource Exhaustion**: A user tries to upload a 5MB text block into a chat message.
+8. **Status Shortcutting**: A user tries to mark a task as 'COMPLETED' without going through the approval process (waitingApproval).
+9. **Orphaned Writes**: Creating a task with a non-existent category code.
+10. **Timestamp Spoofing**: Sending a client-side `updatedAt` value from 2020.
+11. **Admin Key Injection**: Trying to update the `waitingApproval` field when they are the assignee (only admins should approve).
+12. **Deleted Task Recovery**: A non-admin user trying to set `deletedAt: null` on a task they don't own.
 
-## 3. Test Runner (Mock)
-(See `firestore.rules.test.ts` for implementation details).
+## Test Strategy
+- Use Firebase Emulator (if available) or rely on high-fidelity dry-runs.
+- Each payload above must result in `PERMISSION_DENIED`.

@@ -18,9 +18,10 @@ export const useExcelHandlers = ({
   setConfirmModal
 }: ExcelHandlersProps) => {
 
-  const handleExportExcel = useCallback(() => {
+  const handleExportExcel = useCallback((tasksToExport?: Task[]) => {
     if (currentUser?.role !== "Admin" && !currentUser?.delegatedPermissions?.canExportExcel) return;
-    exportTasksToExcel(tasks, allUsers);
+    // Context-Aware: use provided tasks or fall back to current hook tasks
+    exportTasksToExcel(tasksToExport || tasks, allUsers);
   }, [currentUser, tasks, allUsers]);
 
   const handleImportExcel = useCallback(async (e: ChangeEvent<HTMLInputElement>) => {
@@ -75,12 +76,14 @@ export const useExcelHandlers = ({
                 issueDate: new Date().toISOString().split("T")[0],
                 title: tData.title || "Không có tiêu đề",
                 objective: tData.objective || "",
+                category: tData.category || "",
                 assigneeId: assigneeId,
                 assigneeName: assigneeName,
-                startDate: new Date().toISOString().split("T")[0],
+                startDate: tData.startDate || new Date().toISOString().split("T")[0],
                 expectedEndDate: tData.expectedEndDate || "",
-                prevProgress: tData.prevProgress || "",
-                currentUpdate: tData.currentUpdate || "",
+                recurrence: tData.recurrence || "NONE",
+                prevProgress: "",
+                currentUpdate: "",
                 history: [{
                   version: 1,
                   content: "Nhập từ file Excel.",

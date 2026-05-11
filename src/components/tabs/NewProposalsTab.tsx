@@ -15,6 +15,7 @@ interface NewProposalsTabProps {
   selectedTaskIds: string[];
   handleBulkDelete: () => void;
   tasks: Task[];
+  handleExportExcel: (tasks: Task[]) => void;
   allUsers: User[];
   updateTask: any;
   deleteTask: any;
@@ -34,7 +35,7 @@ interface NewProposalsTabProps {
 
 export const NewProposalsTab: React.FC<NewProposalsTabProps> = ({
   effectiveUser, presence, setShowTaskModal, adminUnreadCount, onOpenNotifications,
-  selectedTaskIds, handleBulkDelete, tasks, allUsers, updateTask, deleteTask,
+  selectedTaskIds, handleBulkDelete, tasks, handleExportExcel, allUsers, updateTask, deleteTask,
   setShowHistoryModal, setShowChatModal, showChatModal, addTaskComment,
   updateTaskCommentReactions, setEditingTask, setConfirmModal, createNotification,
   toggleTaskSelection, setBulkSelection, approveTasksBulk, setActiveTab
@@ -83,6 +84,7 @@ export const NewProposalsTab: React.FC<NewProposalsTabProps> = ({
           approveTasksBulk={approveTasksBulk}
           onBulkDelete={handleBulkDelete}
           onOpenCategoryManagement={() => setActiveTab('category_management')}
+          handleExportExcel={handleExportExcel}
         />
       </div>
     </motion.div>

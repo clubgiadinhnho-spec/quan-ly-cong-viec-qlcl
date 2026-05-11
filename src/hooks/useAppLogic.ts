@@ -38,8 +38,8 @@ export const useAppLogic = ({
       return list.filter(t => viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
     };
 
+    const pendingList = basePending; // Nhân viên được xem tất cả đề xuất mới
     const activeList = filterByScope(baseActive);
-    const pendingList = filterByScope(basePending);
     const approvalList = filterByScope(baseApproval);
     const completedList = filterByScope(baseCompleted);
     const trashList = filterByScope(baseTrash);
@@ -73,7 +73,7 @@ export const useAppLogic = ({
       if (!matchesSearch) return false;
 
       if (activeTab === "pending_confirmation") {
-        return t.status === "PENDING" && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
+        return t.status === "PENDING"; // Nhân viên được xem tất cả đề xuất mới
       }
       
       if (activeTab === "pending_approval") {

@@ -194,6 +194,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
           {...commonProps}
           tasks={tasks}
           approveTasksBulk={approveTasksBulk}
+          handleExportExcel={handleExportExcel}
         />
       )}
 
@@ -219,6 +220,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
           {...commonProps}
           sortedTasks={sortedTasks}
           approveTaskCompletion={approveTaskCompletion}
+          handleExportExcel={handleExportExcel}
         />
       )}
 
@@ -230,6 +232,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
           tasks={tasks}
           filteredTasks={filteredTasks}
           approveTaskCompletion={approveTaskCompletion}
+          handleExportExcel={handleExportExcel}
         />
       )}
 
@@ -287,6 +290,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
           sortedTasks={sortedTasks}
           permanentDeleteTask={permanentDeleteTask}
           restoreTask={restoreTask}
+          handleExportExcel={handleExportExcel}
         />
       )}
 

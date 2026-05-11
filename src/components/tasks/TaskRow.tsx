@@ -676,7 +676,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                     className={`w-7 h-7 flex items-center justify-center bg-blue-600 text-white border-2 border-blue-400 rounded-md hover:bg-blue-700 transition-all group/btn shadow-sm ${isRecurringTask ? 'opacity-30' : ''}`}
                   >
                     <RotateCcw size={16} strokeWidth={3} className="group-hover:-rotate-45 transition-transform" />
-                    <span className="sr-only notranslate" translate="no">HOÀN TÁC</span>
+                    <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">HOÀN TÁC</span></span>
                   </button>
                 )}
 
@@ -706,7 +706,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                            className={`w-7 h-7 flex items-center justify-center bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-all group/btn border-2 border-emerald-400 ${isRecurringTask ? 'opacity-30' : ''}`}
                          >
                            <RotateCcw size={16} strokeWidth={3} className="group-hover:rotate-45 transition-transform" />
-                           <span className="sr-only notranslate" translate="no">PHỤC HỒI</span>
+                                                      <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">PHỤC HỒI</span></span>
                          </button>
                         
                         {isAdmin && (
@@ -716,7 +716,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                             className="w-7 h-7 flex items-center justify-center bg-red-600 text-white rounded-md hover:bg-red-700 transition-all border-2 border-red-400 group/btn"
                           >
                             <Trash2 size={18} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
-                            <span className="sr-only notranslate" translate="no">XÓA VĨNH VIỄN</span>
+                                                         <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">XÓA VĨNH VIỄN</span></span>
                           </button>
                         )}
                       </div>
@@ -732,7 +732,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                                 title="SỬA"
                               >
                                 <Pencil size={16} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
-                                <span className="sr-only notranslate" translate="no">SỬA</span>
+                                                                <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">SỬA</span></span>
                               </button>
                             )}
                           </div>
@@ -752,7 +752,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                                 }`}
                               >
                                 <Tag size={16} strokeWidth={2.5} className="group-hover:rotate-12 transition-transform" />
-                                <span className="sr-only notranslate" translate="no">LƯU Ý</span>
+                                                                <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">LƯU Ý</span></span>
                               </button>
                               
                               <AnimatePresence>
@@ -797,7 +797,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                             title="XÓA"
                           >
                             <Trash2 size={18} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
-                            <span className="sr-only notranslate" translate="no">XÓA</span>
+                                                        <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">XÓA</span></span>
                           </button>
                         )}
 

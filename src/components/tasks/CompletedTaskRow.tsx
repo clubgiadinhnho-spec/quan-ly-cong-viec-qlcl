@@ -3,7 +3,9 @@ import { MessageSquare, Paperclip, Highlighter, Check, X, RotateCcw, ThumbsUp, I
 import { Task, User } from '../../types';
 import { formatDate } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
+import { AuditModal } from './AuditModal';
 import { AnimatePresence, motion } from 'motion/react';
+import { calculateKPI } from '../../utils/taskUtils';
 
 import { getUserById, getSafeNameProps, getTaskAssigneeName, isUserTask } from '../../utils/userUtils';
 
@@ -50,6 +52,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
   const [lastReadCount, setLastReadCount] = React.useState(task.comments?.length || 0);
   const [showColorPicker, setShowColorPicker] = React.useState(false);
   const [isProcessing, setIsProcessing] = React.useState(false);
+  const [showAuditModal, setShowAuditModal] = React.useState(false);
 
   // When chat opens, update last read count to current number of comments
   React.useEffect(() => {
@@ -274,6 +277,34 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
             }}
             placeholder={(!isAdmin && !isOwner) ? "Chỉ xem..." : "Nhập ghi chú cuối cùng..."}
           />
+
+          {/* Result Line (Leader's Result) */}
+          {task.leaderQCD && (
+            <div className="mt-auto pt-2" onClick={(e) => e.stopPropagation()}>
+              <hr className="my-2 border-gray-100" />
+              <button 
+                onClick={() => setShowAuditModal(true)}
+                className={`w-full text-left p-1.5 rounded hover:bg-gray-100/50 transition-all group/result`}
+              >
+                {(() => {
+                  const { percentage, label, colorClass } = calculateKPI(task.leaderQCD!.q, task.leaderQCD!.c, task.leaderQCD!.d);
+                  return (
+                    <>
+                      <span translate="no" className={`notranslate font-bold text-[14px] ${colorClass}`}>
+                        KẾT QUẢ: {percentage}% - {label}
+                      </span>
+                      <div className="flex items-center gap-1 mt-0.5 opacity-0 group-hover/result:opacity-100 transition-opacity">
+                         <Info size={10} className="text-gray-400" />
+                         <span translate="no" className="notranslate text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none">
+                           Bấm để xem chi tiết đối soát Q-C-D
+                         </span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </button>
+            </div>
+          )}
         </div>
       </td>
       <td className="p-1 text-center border-b border-r border-gray-300 align-top pt-1">
@@ -469,6 +500,14 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           )}
         </div>
       </td>
+      <AnimatePresence>
+        {showAuditModal && (
+          <AuditModal 
+            task={task} 
+            onClose={() => setShowAuditModal(false)} 
+          />
+        )}
+      </AnimatePresence>
     </tr>
   );
 };

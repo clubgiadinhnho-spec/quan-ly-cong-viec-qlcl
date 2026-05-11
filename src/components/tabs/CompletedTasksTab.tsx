@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Plus, User as UserIcon, Users as UsersIcon, Trash2 } from 'lucide-react';
+import { Plus, User as UserIcon, Users as UsersIcon, Trash2, FileDown } from 'lucide-react';
 import { User, Task } from '../../types';
 import { Header } from '../layout/Header';
 import { HolidayBanner } from '../layout/HolidayBanner';
@@ -18,6 +18,7 @@ interface CompletedTasksTabProps {
   setViewScope: (scope: 'mine' | 'all') => void;
   tasks: Task[];
   filteredTasks: Task[];
+  handleExportExcel: (tasks: Task[]) => void;
   selectedTaskIds: string[];
   handleBulkDelete: () => void;
   handlePermanentBulkDelete: () => void;
@@ -39,7 +40,7 @@ interface CompletedTasksTabProps {
 
 export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
   effectiveUser, presence, setShowTaskModal, adminUnreadCount, onOpenNotifications,
-  viewScope, setViewScope, tasks, filteredTasks, selectedTaskIds,
+  viewScope, setViewScope, tasks, filteredTasks, handleExportExcel, selectedTaskIds,
   handleBulkDelete, handlePermanentBulkDelete, allUsers, updateTask, deleteTask,
   setShowHistoryModal, setShowChatModal, showChatModal, addTaskComment,
   updateTaskCommentReactions, setEditingTask, setConfirmModal, approveTaskCompletion,
@@ -147,6 +148,15 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
             <div className="w-1.5 h-6 bg-green-600 rounded-full" />
             <span translate="no" className="notranslate">KẾT QUẢ CÔNG VIỆC HOÀN THÀNH</span>
           </h3>
+          {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canExportExcel) && (
+            <button
+              onClick={() => handleExportExcel(tasksToDisplay)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-all uppercase"
+            >
+              <FileDown size={12} />
+              <span translate="no" className="notranslate">Xuất Excel</span>
+            </button>
+          )}
         </div>
         {effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
           <motion.div

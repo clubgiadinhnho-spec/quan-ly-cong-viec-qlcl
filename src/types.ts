@@ -201,6 +201,11 @@ export interface Task {
   waitingApproval?: boolean;
   staffQCD?: QCDEvaluation;
   leaderQCD?: QCDEvaluation;
+  leader_Q?: number;
+  leader_C?: number;
+  leader_D?: number;
+  managerRemarks?: string;
+  kpiEfficiency?: string | number;
   isNewInBoard?: boolean;
   lastActionAt?: string;
 }

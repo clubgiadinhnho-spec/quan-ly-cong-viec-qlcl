@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Task, User } from '../types';
 import { TaskList } from '../components/tasks/TaskList';
-import { Search, Sparkles, CheckCircle2, Trash2 } from 'lucide-react';
+import { Search, Sparkles, CheckCircle2, Trash2, FileDown } from 'lucide-react';
 import { isUserTask } from '../utils/userUtils';
 
 interface NewProposalsPageProps {
@@ -24,6 +24,7 @@ interface NewProposalsPageProps {
   approveTasksBulk?: (ids: string[], modifierName: string) => Promise<boolean>;
   onBulkDelete?: () => void;
   onOpenCategoryManagement?: () => void;
+  handleExportExcel: (tasks: Task[]) => void;
 }
 
 export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
@@ -36,7 +37,8 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
   onBulkSelect,
   approveTasksBulk,
   onBulkDelete,
-  onOpenCategoryManagement
+  onOpenCategoryManagement,
+  handleExportExcel
 }) => {
   const [search, setSearch] = useState('');
   const isManager = currentUser.role === 'Admin' || !!currentUser.delegatedPermissions?.canApproveTask;
@@ -46,11 +48,6 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
     return tasks
       .filter(t => !t.deletedAt && t.status === 'PENDING')
       .filter(t => {
-        // Staff only see their own pending proposals or tasks assigned to them
-        if (!isManager && t.authorId !== currentUser.id && t.authorId !== currentUser.uniqueKey && !isUserTask(t, currentUser)) {
-          return false;
-        }
-        
         const matchesSearch = (t.title || '').toLowerCase().includes(search.toLowerCase()) || 
                             (t.code || '').toLowerCase().includes(search.toLowerCase());
         return matchesSearch;
@@ -127,7 +124,7 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
             <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">
               {isManager 
                 ? <span translate="no" className="notranslate">Vui lòng kiểm duyệt các nội dung công việc mới</span>
-                : <span translate="no" className="notranslate">Công việc của bạn đang chờ Admin/Leader phê duyệt</span>
+                : <span translate="no" className="notranslate">Danh sách đề xuất đang chờ Admin/Leader phê duyệt</span>
               }
             </p>
           </div>
@@ -163,26 +160,37 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
              <CheckCircle2 size={14} />
              <span translate="no" className="notranslate">DANH SÁCH {pendingTasks.length} ĐỀ XUẤT</span>
            </h3>
-           {isManager && selectedIds.length > 0 && (
-             <div className="flex items-center gap-2">
+           <div className="flex items-center gap-2">
+             {(currentUser.role === "Admin" || currentUser.delegatedPermissions?.canExportExcel) && (
                <button
-                 onClick={handleBulkApprove}
-                 className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95 border-b-4 border-blue-800"
+                 onClick={() => handleExportExcel(pendingTasks)}
+                 className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-all uppercase"
                >
-                 <CheckCircle2 size={16} strokeWidth={2.5} />
-                 <span translate="no" className="notranslate">DUYỆT ĐÃ CHỌN ({selectedIds.length})</span>
+                 <FileDown size={12} />
+                 <span translate="no" className="notranslate">Xuất Excel</span>
                </button>
-               {onBulkDelete && (
+             )}
+             {isManager && selectedIds.length > 0 && (
+               <div className="flex items-center gap-2">
                  <button
-                   onClick={onBulkDelete}
-                   className="flex items-center gap-2 px-6 py-2.5 bg-red-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-200 active:scale-95 border-b-4 border-red-800"
+                   onClick={handleBulkApprove}
+                   className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95 border-b-4 border-blue-800"
                  >
-                   <Trash2 size={16} strokeWidth={2.5} />
-                   <span translate="no" className="notranslate">XÓA ĐÃ CHỌN</span>
+                   <CheckCircle2 size={16} strokeWidth={2.5} />
+                   <span translate="no" className="notranslate">DUYỆT ĐÃ CHỌN ({selectedIds.length})</span>
                  </button>
-               )}
-             </div>
-           )}
+                 {onBulkDelete && (
+                   <button
+                     onClick={onBulkDelete}
+                     className="flex items-center gap-2 px-6 py-2.5 bg-red-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg shadow-red-200 active:scale-95 border-b-4 border-red-800"
+                   >
+                     <Trash2 size={16} strokeWidth={2.5} />
+                     <span translate="no" className="notranslate">XÓA ĐÃ CHỌN</span>
+                   </button>
+                 )}
+               </div>
+             )}
+           </div>
         </div>
         
         <TaskList

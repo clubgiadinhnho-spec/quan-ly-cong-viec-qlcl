@@ -38,13 +38,13 @@ export const ConfirmModal = ({ show, title, message, onConfirm, onClose }: Confi
                 onClick={onClose} 
                 className="px-4 py-3 bg-gray-50 text-gray-500 rounded-xl font-bold text-xs hover:bg-gray-100 transition-all uppercase"
               >
-                Hủy bỏ
+                <span translate="no" className="notranslate">Hủy bỏ</span>
               </button>
               <button 
                 onClick={onConfirm} 
                 className="px-4 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-700 transition-all uppercase shadow-lg shadow-blue-100 text-center"
               >
-                Xác nhận
+                <span translate="no" className="notranslate">Xác nhận</span>
               </button>
             </div>
           </div>

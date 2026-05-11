@@ -127,7 +127,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           <div className="flex items-center gap-4">
             <h3 className="text-[14px] font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
               <div className="w-1.5 h-6 bg-blue-600 rounded-full" />
-              <span translate="no" className="notranslate">DANH SÁCH BẢNG CÔNG VIỆC</span>
+              <span translate="no" className="notranslate uppercase tracking-tighter">DANH SÁCH BẢNG CÔNG VIỆC</span>
             </h3>
             {(effectiveUser.role !== "Staff" || effectiveUser.delegatedPermissions?.canExportExcel || effectiveUser.delegatedPermissions?.canImportExcel) && (
               <div className="flex items-center gap-2">
@@ -141,7 +141,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
                 </button>
                 {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canExportExcel) && (
                   <button
-                    onClick={handleExportExcel}
+                    onClick={() => handleExportExcel(sortedTasks)}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-all uppercase"
                   >
                     <FileDown size={12} />

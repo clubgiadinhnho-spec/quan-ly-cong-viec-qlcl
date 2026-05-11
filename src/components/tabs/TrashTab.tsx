@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, FileDown } from 'lucide-react';
 import { User, Task } from '../../types';
 import { Header } from '../layout/Header';
 import { HolidayBanner } from '../layout/HolidayBanner';
@@ -14,6 +14,7 @@ interface TrashTabProps {
   selectedTaskIds: string[];
   handlePermanentBulkDelete: () => void;
   sortedTasks: Task[];
+  handleExportExcel: (tasks: Task[]) => void;
   allUsers: User[];
   updateTask: any;
   permanentDeleteTask: any;
@@ -32,7 +33,7 @@ interface TrashTabProps {
 
 export const TrashTab: React.FC<TrashTabProps> = ({
   effectiveUser, presence, adminUnreadCount, onOpenNotifications,
-  selectedTaskIds, handlePermanentBulkDelete, sortedTasks, allUsers,
+  selectedTaskIds, handlePermanentBulkDelete, sortedTasks, handleExportExcel, allUsers,
   updateTask, permanentDeleteTask, setShowHistoryModal, setShowChatModal,
   showChatModal, addTaskComment, updateTaskCommentReactions, setEditingTask,
   setConfirmModal, restoreTask, highlightedTaskId, toggleTaskSelection, setBulkSelection
@@ -59,6 +60,15 @@ export const TrashTab: React.FC<TrashTabProps> = ({
           <h4 className="text-sm font-black text-red-800 uppercase">
             <span translate="no" className="notranslate">Danh sách lưu trữ</span>
           </h4>
+          {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canExportExcel) && (
+            <button
+              onClick={() => handleExportExcel(sortedTasks)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-lg text-[10px] font-bold hover:bg-red-100 transition-all uppercase"
+            >
+              <FileDown size={12} />
+              <span translate="no" className="notranslate">Xuất Excel</span>
+            </button>
+          )}
         </div>
         {effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
           <motion.div

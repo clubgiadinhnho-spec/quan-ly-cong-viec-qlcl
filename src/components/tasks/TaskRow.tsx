@@ -352,9 +352,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           <div className="flex items-center gap-2">
             <Avatar src={assignee?.avatar} name={assigneeName} size="md" className="ring-[0.5px] ring-black border-none" />
             <div className="min-w-0 flex-1">
-              <p {...getSafeNameProps()} className="text-[14px] font-bold text-gray-900 leading-none truncate notranslate" title={assigneeName}>
+              <div {...getSafeNameProps()} className="text-[14px] font-bold text-gray-900 leading-none truncate notranslate" title={assigneeName}>
                 <span translate="no" className="notranslate">{assigneeName}</span>
-              </p>
+              </div>
               <div className="mt-1.5">
                 <span translate="no" className="notranslate text-[11px] font-medium text-gray-400 uppercase tracking-tighter bg-gray-50 px-1 py-0.5 rounded-sm border border-gray-100">
                   {assignee ? <span translate="no" className="notranslate">{assignee.title || assignee.role}</span> : <span translate="no" className="notranslate">NHÂN SỰ</span>}
@@ -370,9 +370,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               <div className="w-5 flex justify-center text-gray-400">
                 <Highlighter size={13} />
               </div>
-              <p className="text-[11px] text-gray-500 font-medium tracking-tight whitespace-nowrap">
+              <div className="text-[11px] text-gray-500 font-medium tracking-tight whitespace-nowrap">
                 <span translate="no" className="notranslate uppercase">KHỞI TẠO: {formatDate(task.issueDate)}</span>
-              </p>
+              </div>
             </div>
             
             {/* Hàng 2: Bắt đầu */}
@@ -380,9 +380,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               <div className="w-5 flex justify-center text-blue-500">
                 <Zap size={13} fill="currentColor" />
               </div>
-              <p className="text-[11px] text-blue-600 font-medium tracking-tight whitespace-nowrap">
+              <div className="text-[11px] text-blue-600 font-medium tracking-tight whitespace-nowrap">
                 <span translate="no" className="notranslate">BẮT ĐẦU: {formatDate(task.startDate || task.issueDate)}</span>
-              </p>
+              </div>
             </div>
             
             {/* Hàng 3: Hạn */}
@@ -390,11 +390,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               <div className="w-5 flex justify-center text-gray-700">
                 <Tag size={13} fill={deadlineInfo.status !== 'NORMAL' ? "currentColor" : "none"} className={deadlineInfo.status === 'CRITICAL' ? 'text-red-600' : deadlineInfo.status === 'URGENT' ? 'text-orange-500' : ''} />
               </div>
-              <p className={`text-[11px] ${deadlineInfo.status === 'CRITICAL' ? 'text-red-700 font-black' : deadlineInfo.status === 'URGENT' ? 'text-orange-600 font-black' : deadlineInfo.status === 'WARNING' ? 'text-yellow-700 font-bold' : 'text-gray-900 font-bold'} tracking-tight whitespace-nowrap`}>
+              <div className={`text-[11px] ${deadlineInfo.status === 'CRITICAL' ? 'text-red-700 font-black' : deadlineInfo.status === 'URGENT' ? 'text-orange-600 font-black' : deadlineInfo.status === 'WARNING' ? 'text-yellow-700 font-bold' : 'text-gray-900 font-bold'} tracking-tight whitespace-nowrap`}>
                 <span translate="no" className="notranslate uppercase">
                   {deadlineInfo.displayText}
                 </span>
-              </p>
+              </div>
             </div>
 
             {/* Hàng 4: Gia hạn (Nếu có) */}
@@ -403,9 +403,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 <div className="w-5 flex justify-center text-orange-500">
                   <RotateCcw size={13} strokeWidth={3} />
                 </div>
-                <p className="text-[11px] text-orange-600 font-medium tracking-tight whitespace-nowrap">
+                <div className="text-[11px] text-orange-600 font-medium tracking-tight whitespace-nowrap">
                   <span translate="no" className="notranslate uppercase font-medium">GIA HẠN: {formatDate(task.extensionDate)}</span>
-                </p>
+                </div>
               </div>
             )}
           </div>
@@ -470,7 +470,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         )}
 
         <div className="flex flex-col h-full font-sans">
-          <p className="text-[15px] text-blue-800 font-bold leading-tight pr-5 break-words whitespace-normal font-sans">
+          <div className="text-[15px] text-blue-800 font-bold leading-tight pr-5 break-words whitespace-normal font-sans">
             {isTrulyNew && (
               <span 
                 translate="no" 
@@ -488,7 +488,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             <span translate="no" className="notranslate uppercase">
               [{task.category?.toUpperCase() || 'KHÁC'}] - {task.title}
             </span>
-          </p>
+          </div>
           
           <div className="text-[15px] text-gray-900 leading-tight mt-2 break-words whitespace-normal flex-1 font-sans pr-5">
             <span translate="no" className="notranslate font-bold">MỤC TIÊU: </span>

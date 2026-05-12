@@ -1,7 +1,15 @@
 import { GoogleGenAI } from "@google/genai";
 import { Task, TaskComment } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let aiInstance: GoogleGenAI | null = null;
+
+const getAi = () => {
+  if (!aiInstance) {
+    const apiKey = process.env.GEMINI_API_KEY || '';
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+};
 
 export const generateQCDExplanation = async (
   role: 'Staff' | 'Admin',
@@ -32,6 +40,11 @@ YÊU CẦU:
 3. Luôn giữ thái độ chuyên nghiệp.`;
 
   try {
+    if (!process.env.GEMINI_API_KEY) {
+      return role === 'Admin' ? 'Ghi nhận kết quả tốt.' : 'Đã hoàn thành theo mục tiêu đề ra.';
+    }
+
+    const ai = getAi();
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [{ parts: [{ text: prompt }] }],

@@ -1,7 +1,15 @@
 import { GoogleGenAI } from '@google/genai';
 import { Task, User } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+let aiInstance: GoogleGenAI | null = null;
+
+const getAi = () => {
+  if (!aiInstance) {
+    const apiKey = process.env.GEMINI_API_KEY || '';
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+};
 
 export async function getPerformanceAdvice(user: User, tasks: Task[]) {
   if (!process.env.GEMINI_API_KEY) return "Vui lòng cấu hình API Key để nhận lời khuyên từ AI.";
@@ -22,6 +30,7 @@ export async function getPerformanceAdvice(user: User, tasks: Task[]) {
   `;
 
   try {
+    const ai = getAi();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,

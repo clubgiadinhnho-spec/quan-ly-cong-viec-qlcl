@@ -123,7 +123,7 @@ export const PermissionMatrixModal: React.FC<PermissionMatrixModalProps> = ({ us
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pb-6 border-b border-slate-200">
             <div className="space-y-1">
               <h4 className="text-[14px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Cài đặt nhanh</h4>
-              <p className="text-lg font-bold text-slate-700">Chọn mẫu quyền phù hợp cho vị trí <span className="text-blue-600">{user.role}</span></p>
+              <div className="text-lg font-bold text-slate-700">Chọn mẫu quyền phù hợp cho vị trí <span className="text-blue-600">{user.role}</span></div>
             </div>
             <div className="flex gap-4 w-full sm:w-auto">
               <button 

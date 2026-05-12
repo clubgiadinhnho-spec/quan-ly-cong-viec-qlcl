@@ -335,6 +335,42 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                 </div>
               </div>
 
+              {isEdit && (
+                <div className="col-span-2">
+                  <label className="block text-[10px] font-black text-orange-600 mb-1 uppercase tracking-wider">
+                    <span translate="no" className="notranslate">GIA HẠN CÔNG VIỆC (NẾU CÓ)</span>
+                  </label>
+                  <div className="relative group">
+                    <input 
+                      type="text"
+                      placeholder="dd/mm/yy"
+                      className="w-full px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-sm font-bold text-orange-700 pr-10 transition-all placeholder:text-orange-300"
+                      value={formatToDisplayDate(extensionDate)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val.length === 8 && val.includes('/')) {
+                          const iso = parseFromDisplayToISO(val);
+                          if (iso) setExtensionDate(iso);
+                        }
+                      }}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+                      <Calendar size={16} className="text-orange-400 group-focus-within:text-orange-500 pointer-events-none" />
+                      <input 
+                        type="date"
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                        value={extensionDate}
+                        onChange={(e) => setExtensionDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-1 flex items-center gap-1.5 text-[9px] text-orange-600 font-medium italic">
+                    <Info size={10} />
+                    <span translate="no" className="notranslate">Hệ thống sẽ tự động ưu tiên ngày GIA HẠN này làm HẠN CUỐI mới.</span>
+                  </div>
+                </div>
+              )}
+
               {/* Row 4: Classification */}
               <div className="col-span-2">
                 <label className="block text-[10px] font-black text-gray-500 mb-1 uppercase tracking-wider">

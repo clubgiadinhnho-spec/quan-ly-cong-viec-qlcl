@@ -9,6 +9,7 @@ import { Portal } from '../common/Portal';
 import { CycleHistoryEntry } from '../../types';
 
 import { getUserById, getSafeNameProps, getTaskAssigneeName, isUserTask } from '../../utils/userUtils';
+import { generateQCDExplanation } from '../../services/geminiService';
 
 const HIGHLIGHT_COLORS: Record<string, string> = {
   'amber': '!bg-amber-50/50 hover:!bg-amber-100/60 ring-inset ring-1 ring-amber-200/30 text-amber-950',
@@ -74,6 +75,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const isManager = isAdmin || !!user.delegatedPermissions?.canCreateTask;
   const isEmployee = user.role === 'Staff';
   
+  const canSeeAI = isAdmin || user.role === 'Trưởng Phòng';
+
   const canEditPriority = isAdmin;
   const [lastReadCount, setLastReadCount] = React.useState(task.comments?.length || 0);
   const [showColorPicker, setShowColorPicker] = React.useState(false);
@@ -158,6 +161,18 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [stopRecurrence, setStopRecurrence] = React.useState(false);
+  const [loadingAI, setLoadingAI] = React.useState<string | null>(null);
+
+  const handleSuggestAI = async (role: 'Staff' | 'Admin', field: 'QUALITY' | 'COST' | 'DELIVERY', score: number, setter: (val: string) => void) => {
+    const fieldKey = `${role.toLowerCase()}-${field}`;
+    setLoadingAI(fieldKey);
+    try {
+      const suggestion = await generateQCDExplanation(role, task, field, score);
+      setter(suggestion);
+    } finally {
+      setLoadingAI(null);
+    }
+  };
 
   const handleStatusAction = async () => {
     if (isProcessing) return;
@@ -968,7 +983,26 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                                     <span translate="no" className="notranslate text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 text-slate-800">
                                       {item.icon} <span translate="no" className="notranslate">{item.label}</span>
                                     </span>
-                                    <div className="flex gap-1">
+                                    <div className="flex gap-1 items-center">
+                                      {canSeeAI && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSuggestAI('Staff', item.label as any, item.val, item.setExp)}
+                                          disabled={loadingAI === `staff-${item.label}`}
+                                          className="mr-2 flex items-center gap-1.5 px-2 py-1 bg-white border border-blue-200 rounded text-[9px] font-black text-blue-600 hover:bg-blue-50 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                                        >
+                                          {loadingAI === `staff-${item.label}` ? (
+                                            <>
+                                              <RefreshCw size={10} className="animate-spin" />
+                                              <span translate="no" className="notranslate uppercase tracking-tighter">ĐANG PHÂN TÍCH CHAT...</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <span translate="no" className="notranslate">🪄 GỢI Ý AI</span>
+                                            </>
+                                          )}
+                                        </button>
+                                      )}
                                       {[1, 2, 3, 4, 5].map(v => (
                                         <button
                                           key={v}
@@ -1022,7 +1056,26 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                                         <span translate="no" className="notranslate">PHÊ DUYỆT</span>
                                       </span>
                                     </div>
-                                    <div className="flex gap-1">
+                                    <div className="flex gap-1 items-center">
+                                      {canSeeAI && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSuggestAI('Admin', item.label as any, item.val, item.setComment)}
+                                          disabled={loadingAI === `admin-${item.label}`}
+                                          className="mr-2 flex items-center gap-1.5 px-2 py-1 bg-white border border-blue-200 rounded text-[9px] font-black text-blue-600 hover:bg-blue-50 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                                        >
+                                          {loadingAI === `admin-${item.label}` ? (
+                                            <>
+                                              <RefreshCw size={10} className="animate-spin" />
+                                              <span translate="no" className="notranslate uppercase tracking-tighter">ĐANG PHÂN TÍCH CHAT...</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <span translate="no" className="notranslate">🪄 GỢI Ý AI</span>
+                                            </>
+                                          )}
+                                        </button>
+                                      )}
                                       {[1, 2, 3, 4, 5].map(v => (
                                         <button
                                           key={v}

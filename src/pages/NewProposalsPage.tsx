@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Task, User } from '../types';
 import { TaskList } from '../components/tasks/TaskList';
 import { Search, Sparkles, CheckCircle2, Trash2, FileDown } from 'lucide-react';
-import { isUserTask } from '../utils/userUtils';
+import { normalizeString, getTaskAssigneeName } from '../utils/userUtils';
 
 interface NewProposalsPageProps {
   tasks: Task[];
@@ -25,6 +25,8 @@ interface NewProposalsPageProps {
   onBulkDelete?: () => void;
   onOpenCategoryManagement?: () => void;
   handleExportExcel: (tasks: Task[]) => void;
+  search: string;
+  setSearch: (s: string) => void;
 }
 
 export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
@@ -38,9 +40,10 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
   approveTasksBulk,
   onBulkDelete,
   onOpenCategoryManagement,
-  handleExportExcel
+  handleExportExcel,
+  search,
+  setSearch
 }) => {
-  const [search, setSearch] = useState('');
   const isManager = currentUser.role === 'Admin' || !!currentUser.delegatedPermissions?.canApproveTask;
   const isAdmin = currentUser.role === 'Admin';
 
@@ -48,12 +51,22 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
     return tasks
       .filter(t => !t.deletedAt && t.status === 'PENDING')
       .filter(t => {
-        const matchesSearch = (t.title || '').toLowerCase().includes(search.toLowerCase()) || 
-                            (t.code || '').toLowerCase().includes(search.toLowerCase());
-        return matchesSearch;
+        if (!search) return true;
+        const term = normalizeString(search);
+        const assigneeName = getTaskAssigneeName(t, allUsers);
+        const fields = [
+          t.code,
+          assigneeName,
+          t.category,
+          t.title,
+          t.objective,
+          t.currentUpdate,
+          typeof t.kpiEfficiency === 'number' ? t.kpiEfficiency.toString() : t.kpiEfficiency
+        ];
+        return fields.some(f => normalizeString(f || '').includes(term));
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [tasks, search, isManager, currentUser]);
+  }, [tasks, search, isManager, currentUser, allUsers]);
 
   const handleBulkApprove = () => {
     if (selectedIds.length === 0 || !approveTasksBulk) return;
@@ -131,26 +144,7 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
         </div>
         
         <div className="flex items-center gap-4">
-          <div className="relative group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400 font-bold" size={14} />
-            <input
-              type="text"
-              placeholder="Tìm mã hoặc tên..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-white border border-emerald-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 text-xs w-64 font-bold shadow-sm"
-            />
-          </div>
-
-          {isAdmin && onOpenCategoryManagement && (
-            <button
-              onClick={onOpenCategoryManagement}
-              className="flex items-center gap-2 px-4 py-2 bg-white text-emerald-700 border-2 border-emerald-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-50 hover:border-emerald-300 transition-all shadow-sm active:scale-95"
-            >
-              <Sparkles size={14} className="text-emerald-500" />
-              <span translate="no" className="notranslate">MÃ HÓA CÔNG VIỆC</span>
-            </button>
-          )}
+          {/* Top buttons removed per user request */}
         </div>
       </div>
 
@@ -161,10 +155,21 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
              <span translate="no" className="notranslate">DANH SÁCH {pendingTasks.length} ĐỀ XUẤT</span>
            </h3>
            <div className="flex items-center gap-2">
+             <div className="relative group mr-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+              <input
+                type="text"
+                placeholder="Tìm kiếm mã, tên, nội dung, nhân sự..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500 text-xs w-64 placeholder:notranslate transition-all group-focus-within:border-emerald-400 group-focus-within:shadow-sm shadow-sm"
+              />
+            </div>
+
              {(currentUser.role === "Admin" || currentUser.delegatedPermissions?.canExportExcel) && (
                <button
                  onClick={() => handleExportExcel(pendingTasks)}
-                 className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-all uppercase"
+                 className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-50 transition-all uppercase shadow-sm"
                >
                  <FileDown size={12} />
                  <span translate="no" className="notranslate">Xuất Excel</span>

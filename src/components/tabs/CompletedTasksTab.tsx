@@ -1,12 +1,12 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Plus, User as UserIcon, Users as UsersIcon, Trash2, FileDown } from 'lucide-react';
+import { Plus, User as UserIcon, Users as UsersIcon, Trash2, FileDown, Search } from 'lucide-react';
 import { User, Task } from '../../types';
 import { Header } from '../layout/Header';
 import { HolidayBanner } from '../layout/HolidayBanner';
 import { StatsSummary } from '../dashboard/StatsSummary';
 import { TaskList } from '../tasks/TaskList';
-import { isUserTask } from '../../utils/userUtils';
+import { isUserTask, normalizeString, getTaskAssigneeName } from '../../utils/userUtils';
 
 interface CompletedTasksTabProps {
   effectiveUser: User;
@@ -36,6 +36,8 @@ interface CompletedTasksTabProps {
   highlightedTaskId: string | null;
   toggleTaskSelection: (taskId: string) => void;
   setBulkSelection: (ids: string[], select: boolean) => void;
+  search: string;
+  setSearch: (s: string) => void;
 }
 
 export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
@@ -44,7 +46,8 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
   handleBulkDelete, handlePermanentBulkDelete, allUsers, updateTask, deleteTask,
   setShowHistoryModal, setShowChatModal, showChatModal, addTaskComment,
   updateTaskCommentReactions, setEditingTask, setConfirmModal, approveTaskCompletion,
-  highlightedTaskId, toggleTaskSelection, setBulkSelection
+  highlightedTaskId, toggleTaskSelection, setBulkSelection,
+  search, setSearch
 }) => {
   const getTasksToDisplay = () => {
     const directCompleted = tasks.filter(t => (t.status === "COMPLETED" || t.status === "Hoàn thành") && !t.deletedAt);
@@ -61,7 +64,8 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
              currentUpdate: entry.reportContent,
              objective: entry.objective || t.objective,
              version: entry.version,
-             isCycleRecord: true
+             isCycleRecord: true,
+             kpiEfficiency: entry.kpiResult // Ensure kpiEfficiency is available for search
           });
         });
       }
@@ -89,6 +93,24 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
       }
     });
     combined = Array.from(uniqueMap.values());
+
+    // Search Filtering
+    if (search) {
+      const term = normalizeString(search);
+      combined = combined.filter(t => {
+        const assigneeName = getTaskAssigneeName(t, allUsers);
+        const searchableFields = [
+          t.code,
+          assigneeName,
+          t.category,
+          t.title,
+          t.objective,
+          t.currentUpdate,
+          typeof t.kpiEfficiency === 'number' ? t.kpiEfficiency.toString() : t.kpiEfficiency
+        ];
+        return searchableFields.some(f => normalizeString(f || '').includes(term));
+      });
+    }
 
     if (viewScope === 'mine') {
       combined = combined.filter(t => isUserTask(t, effectiveUser));
@@ -123,7 +145,7 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
               }`}
             >
               <UserIcon size={14} />
-              <span translate="no" className="notranslate">Cá nhân (<span translate="no" className="notranslate">{tasks.filter(t => !t.deletedAt && ((t.status === "COMPLETED" || t.status === "Hoàn thành") || (t.cycleHistory && t.cycleHistory.length > 0)) && isUserTask(t, effectiveUser)).length}</span>)</span>
+              <span translate="no" className="notranslate">Cá nhân (<span translate="no" className="notranslate">{tasksToDisplay.filter(t => isUserTask(t, effectiveUser)).length}</span>)</span>
             </button>
             <button
               onClick={() => setViewScope("all")}
@@ -132,9 +154,10 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
               }`}
             >
               <UsersIcon size={14} />
-              <span translate="no" className="notranslate">Phòng QLCL (<span translate="no" className="notranslate">{tasks.filter(t => !t.deletedAt && ((t.status === "COMPLETED" || t.status === "Hoàn thành") || (t.cycleHistory && t.cycleHistory.length > 0))).length}</span>)</span>
+              <span translate="no" className="notranslate">Phòng QLCL (<span translate="no" className="notranslate">{tasksToDisplay.length}</span>)</span>
             </button>
           </div>
+
           <div className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full border border-green-100">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             <span translate="no" className="notranslate text-[10px] text-green-700 font-black uppercase tracking-widest">
@@ -143,20 +166,32 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
           </div>
         </div>
         <StatsSummary tasks={filteredTasks} />
-        <div className="flex items-center justify-between">
-          <h3 className="text-[14px] font-black text-gray-800 uppercase tracking-widest flex items-center gap-2 px-1">
+        <div className="flex items-center justify-between mb-4 mt-6">
+          <h3 className="text-[14px] font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
             <div className="w-1.5 h-6 bg-green-600 rounded-full" />
             <span translate="no" className="notranslate">KẾT QUẢ CÔNG VIỆC HOÀN THÀNH</span>
           </h3>
-          {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canExportExcel) && (
-            <button
-              onClick={() => handleExportExcel(tasksToDisplay)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-all uppercase"
-            >
-              <FileDown size={12} />
-              <span translate="no" className="notranslate">Xuất Excel</span>
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            <div className="relative group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+              <input
+                type="text"
+                placeholder="Tìm kiếm mã, tên, nội dung, nhân sự..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-green-500 text-xs w-72 placeholder:notranslate transition-all group-focus-within:border-green-400 group-focus-within:shadow-sm shadow-sm"
+              />
+            </div>
+            {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canExportExcel) && (
+              <button
+                onClick={() => handleExportExcel(tasksToDisplay)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-50 transition-all uppercase shadow-sm"
+              >
+                <FileDown size={12} />
+                <span translate="no" className="notranslate">Xuất Excel</span>
+              </button>
+            )}
+          </div>
         </div>
         {effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
           <motion.div

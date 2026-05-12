@@ -184,7 +184,7 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
     updateTask, deleteTask, setShowHistoryModal, setShowChatModal, showChatModal,
     addTaskComment, updateTaskCommentReactions, setEditingTask, setConfirmModal,
     createNotification, toggleTaskSelection, setBulkSelection, setActiveTab,
-    highlightedTaskId
+    highlightedTaskId, search, setSearch
   };
 
   return (

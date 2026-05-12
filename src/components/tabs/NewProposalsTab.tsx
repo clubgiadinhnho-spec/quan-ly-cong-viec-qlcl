@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Search, FileDown, Sparkles } from 'lucide-react';
 import { User, Task } from '../../types';
 import { Header } from '../layout/Header';
 import { HolidayBanner } from '../layout/HolidayBanner';
@@ -31,6 +31,8 @@ interface NewProposalsTabProps {
   setBulkSelection: (ids: string[], select: boolean) => void;
   approveTasksBulk: any;
   setActiveTab: (tab: string) => void;
+  search: string;
+  setSearch: (s: string) => void;
 }
 
 export const NewProposalsTab: React.FC<NewProposalsTabProps> = ({
@@ -38,7 +40,8 @@ export const NewProposalsTab: React.FC<NewProposalsTabProps> = ({
   selectedTaskIds, handleBulkDelete, tasks, handleExportExcel, allUsers, updateTask, deleteTask,
   setShowHistoryModal, setShowChatModal, showChatModal, addTaskComment,
   updateTaskCommentReactions, setEditingTask, setConfirmModal, createNotification,
-  toggleTaskSelection, setBulkSelection, approveTasksBulk, setActiveTab
+  toggleTaskSelection, setBulkSelection, approveTasksBulk, setActiveTab,
+  search, setSearch
 }) => {
   return (
     <motion.div key="pending_confirmation" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col">
@@ -56,21 +59,25 @@ export const NewProposalsTab: React.FC<NewProposalsTabProps> = ({
         />
       </div>
       <div className="p-4">
-        {effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-2 mb-4 px-1"
-          >
-             <button
-              onClick={handleBulkDelete}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg active:scale-95 border-b-4 border-red-800"
-            >
-              <Trash2 size={16} strokeWidth={2.5} />
-              <span translate="no" className="notranslate">XÓA {selectedTaskIds.length} ĐỀ XUẤT</span>
-            </button>
-          </motion.div>
-        )}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            {effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-2 px-1"
+              >
+                <button
+                  onClick={handleBulkDelete}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg active:scale-95 border-b-4 border-red-800"
+                >
+                  <Trash2 size={16} strokeWidth={2.5} />
+                  <span translate="no" className="notranslate">XÓA {selectedTaskIds.length} ĐỀ XUẤT</span>
+                </button>
+              </motion.div>
+            )}
+          </div>
+        </div>
 
         <NewProposalsPage
           tasks={tasks} currentUser={effectiveUser} allUsers={allUsers} updateTask={updateTask} deleteTask={deleteTask}
@@ -85,6 +92,7 @@ export const NewProposalsTab: React.FC<NewProposalsTabProps> = ({
           onBulkDelete={handleBulkDelete}
           onOpenCategoryManagement={() => setActiveTab('category_management')}
           handleExportExcel={handleExportExcel}
+          search={search}
         />
       </div>
     </motion.div>

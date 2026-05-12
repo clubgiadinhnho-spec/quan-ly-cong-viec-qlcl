@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Task, User } from '../types';
-import { isUserTask } from '../utils/userUtils';
+import { isUserTask, normalizeString, getTaskAssigneeName } from '../utils/userUtils';
 import { getTaskDeadlineStatus } from '../lib/dateUtils';
 
 interface UseAppLogicProps {
@@ -20,11 +20,26 @@ export const useAppLogic = ({
   activeTab,
   allUsers
 }: UseAppLogicProps) => {
+  const matchesSearch = useMemo(() => (t: Task) => {
+    if (!search) return true;
+    const term = normalizeString(search);
+    const assigneeName = getTaskAssigneeName(t, allUsers);
+    
+    const searchableFields = [
+      t.code,
+      assigneeName,
+      t.category,
+      t.title,
+      t.objective,
+      t.currentUpdate,
+      typeof t.kpiEfficiency === 'number' ? t.kpiEfficiency.toString() : t.kpiEfficiency
+    ];
+    
+    return searchableFields.some(f => normalizeString(f || '').includes(term));
+  }, [search, allUsers]);
+
   // 1. Badge & Statistics Logic - THIẾT QUÂN LUẬT ĐỒNG NHẤT
   const counts = useMemo(() => {
-    const matchesSearch = (t: Task) => 
-      (t.title || "").toLowerCase().includes(search.toLowerCase()) || 
-      (t.code || "").toLowerCase().includes(search.toLowerCase());
     
     // Base collections based on status
     const basePending = tasks.filter(t => t.status === 'PENDING' && !t.deletedAt);
@@ -68,9 +83,7 @@ export const useAppLogic = ({
       if (activeTab === "trash") return !!t.deletedAt && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
       if (t.deletedAt) return false;
       
-      const matchesSearch = (t.title || "").toLowerCase().includes(search.toLowerCase()) || 
-                           (t.code || "").toLowerCase().includes(search.toLowerCase());
-      if (!matchesSearch) return false;
+      if (!matchesSearch(t)) return false;
 
       if (activeTab === "pending_confirmation") {
         return t.status === "PENDING"; // Nhân viên được xem tất cả đề xuất mới

@@ -168,10 +168,10 @@ export const TasksTab: React.FC<TasksTabProps> = ({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input
                 type="text"
-                placeholder="Tìm kiếm..."
+                placeholder="Tìm kiếm mã, tên, nội dung, nhân sự..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 text-xs w-64 placeholder:notranslate"
+                className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 text-xs w-72 placeholder:notranslate transition-all group-focus-within:border-blue-400 group-focus-within:shadow-sm shadow-sm"
               />
             </div>
           </div>

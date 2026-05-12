@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Plus, Lock, Trash2, FileDown } from 'lucide-react';
+import { Plus, Lock, Trash2, FileDown, Search } from 'lucide-react';
 import { User, Task } from '../../types';
 import { Header } from '../layout/Header';
 import { HolidayBanner } from '../layout/HolidayBanner';
@@ -32,6 +32,8 @@ interface PendingApprovalTabProps {
   toggleTaskSelection: (taskId: string) => void;
   setBulkSelection: (ids: string[], select: boolean) => void;
   createNotification: any;
+  search: string;
+  setSearch: (s: string) => void;
 }
 
 export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
@@ -39,7 +41,8 @@ export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
   selectedTaskIds, handleBulkDelete, sortedTasks, handleExportExcel, allUsers, updateTask, deleteTask,
   setShowHistoryModal, setShowChatModal, showChatModal, addTaskComment,
   updateTaskCommentReactions, setEditingTask, setConfirmModal, approveTaskCompletion,
-  setActiveTab, highlightedTaskId, toggleTaskSelection, setBulkSelection, createNotification
+  setActiveTab, highlightedTaskId, toggleTaskSelection, setBulkSelection, createNotification,
+  search, setSearch
 }) => {
   return (
     <motion.div key="pending_approval" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col">
@@ -67,17 +70,35 @@ export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
               <span translate="no" className="notranslate">Sau khi được duyệt, công việc sẽ tự động chuyển sang mục HOÀN THÀNH.</span>
             </p>
           </div>
-          {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canExportExcel) && (
-            <div className="ml-auto">
+          
+          <div className="ml-auto" />
+        </div>
+        
+        <div className="flex items-center justify-between gap-4 py-1 px-1">
+          <div />
+
+          <div className="flex items-center gap-3">
+             <div className="relative group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+              <input
+                type="text"
+                placeholder="Tìm kiếm mã, tên, nội dung, nhân sự..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-amber-500 text-xs w-72 placeholder:notranslate transition-all group-focus-within:border-amber-400 group-focus-within:shadow-sm shadow-sm"
+              />
+            </div>
+
+            {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canExportExcel) && (
               <button
                 onClick={() => handleExportExcel(sortedTasks.filter(t => t.waitingApproval))}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-[10px] font-bold hover:bg-amber-100 transition-all uppercase"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-amber-700 border border-amber-200 rounded-lg text-[10px] font-bold hover:bg-amber-50 transition-all uppercase shadow-sm"
               >
                 <FileDown size={12} />
                 <span translate="no" className="notranslate">Xuất Excel</span>
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
         
         {effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (

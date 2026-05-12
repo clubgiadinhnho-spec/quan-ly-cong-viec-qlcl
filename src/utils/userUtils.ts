@@ -64,6 +64,18 @@ export const isUserTask = (task: Task, user: User | null): boolean => {
 };
 
 /**
+ * Chuẩn hóa chuỗi: chuyển thành chữ thường, loại bỏ dấu tiếng Việt.
+ */
+export const normalizeString = (str: string): string => {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd');
+};
+
+/**
  * Trả về class và thuộc tính để chống trình duyệt tự dịch tên nhân sự.
  */
 export const getSafeNameProps = () => ({

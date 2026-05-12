@@ -144,7 +144,17 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
         </div>
         
         <div className="flex items-center gap-4">
-          {/* Top buttons removed per user request */}
+          {isAdmin && onOpenCategoryManagement && (
+            <button
+              onClick={onOpenCategoryManagement}
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95 border-b-4 border-blue-800"
+            >
+              <div className="bg-white/20 p-1 rounded-lg">
+                <Sparkles size={14} className="text-white" />
+              </div>
+              <span translate="no" className="notranslate">Mã hóa công việc</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -125,7 +125,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
         <div className="flex flex-col h-full gap-1.5 px-0.5 pt-0.5 pb-4">
           {/* Identity Section */}
           <div className="flex items-center gap-2">
-            <Avatar src={assignee?.avatar} name={assigneeName} size="xs" />
+            <Avatar src={assignee?.avatar} name={assigneeName} size="md" />
             <div className="min-w-0 flex-1">
               <p {...getSafeNameProps()} className="text-[14px] font-bold text-gray-900 leading-none truncate notranslate" title={assigneeName}>
                 <span translate="no" className="notranslate">{assigneeName}</span>

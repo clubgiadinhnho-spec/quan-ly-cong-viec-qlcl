@@ -41,12 +41,12 @@ export const useAppLogic = ({
   // 1. Badge & Statistics Logic - THIẾT QUÂN LUẬT ĐỒNG NHẤT
   const counts = useMemo(() => {
     
-    // Base collections based on status
+    // Base collections based on status - THIẾT QUÂN LUẬT
     const basePending = tasks.filter(t => t.status === 'PENDING' && !t.deletedAt);
     const baseActive = tasks.filter(t => t.status === 'APPROVED' && !t.waitingApproval && !t.deletedAt);
     const baseApproval = tasks.filter(t => t.waitingApproval === true && !t.deletedAt);
-    const baseCompleted = tasks.filter(t => t.status === 'COMPLETED' && !t.deletedAt);
-    const baseTrash = tasks.filter(t => (t.deletedAt || t.status === 'DELETED') && matchesSearch(t));
+    const baseCompleted = tasks.filter(t => (t.status === 'COMPLETED' || t.status === 'Hoàn thành' || (t.cycleHistory && t.cycleHistory.length > 0)) && !t.waitingApproval && !t.deletedAt);
+    const baseTrash = tasks.filter(t => (t.deletedAt || t.status === 'DELETED'));
 
     // Scope filtering
     const filterByScope = (list: Task[]) => {
@@ -86,20 +86,20 @@ export const useAppLogic = ({
       if (!matchesSearch(t)) return false;
 
       if (activeTab === "pending_confirmation") {
-        return t.status === "PENDING"; // Nhân viên được xem tất cả đề xuất mới
+        return t.status === "PENDING" && !t.deletedAt; // Nhân viên được xem tất cả đề xuất mới
       }
       
       if (activeTab === "pending_approval") {
-        return !!t.waitingApproval && t.status !== "PENDING" && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
+        return !!t.waitingApproval && !t.deletedAt && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
       }
 
       if (activeTab === "completed_tasks") {
-        const isCompleted = t.status === "COMPLETED" || t.status === "Hoàn thành" || (t.cycleHistory && t.cycleHistory.length > 0);
+        const isCompleted = (t.status === 'COMPLETED' || t.status === 'Hoàn thành' || (t.cycleHistory && t.cycleHistory.length > 0)) && !t.waitingApproval && !t.deletedAt;
         return isCompleted && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
       }
       
       if (activeTab === "tasks") {
-        return t.status === "APPROVED" && !t.waitingApproval && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
+        return t.status === "APPROVED" && !t.waitingApproval && !t.deletedAt && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
       }
 
       return viewScope === "mine" ? isUserTask(t, effectiveUser) : true;

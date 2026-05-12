@@ -285,11 +285,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [effectiveUser?.id, effectiveUser?.avatar, effectiveUser?.name, authReady, updatePresence]);
 
-  const addTask = useCallback(async (taskData: any) => {
-    if (editingTask) { await firebaseUpdateTask(editingTask.id, taskData, effectiveUser?.name); setEditingTask(null); }
-    else { await firebaseAddTask(taskData, effectiveUser?.name); }
-  }, [firebaseAddTask, firebaseUpdateTask, editingTask, effectiveUser]);
-
   const deleteTaskLocal = useCallback((id: string) => {
     const task = tasks.find(t => t.id === id);
     setConfirmModal({ show: true, title: "XÁC NHẬN XÓA", message: "Công việc này sẽ được chuyển vào THÙNG RÁC.", onConfirm: async () => {

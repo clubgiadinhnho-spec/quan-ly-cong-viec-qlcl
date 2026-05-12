@@ -71,7 +71,7 @@ export const TaskList: React.FC<TaskListProps> = ({
 
     // Lớp cuối: Mã công việc (Mới nhất lên trên)
     return b.code.localeCompare(a.code);
-  }).slice(0, 100);
+  });
 
   const handleUpdateTask = (id: string, updates: Partial<Task>) => {
     const taskData = tasks.find(t => t.id === id);

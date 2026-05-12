@@ -212,10 +212,10 @@ export const Sidebar = ({
                     
                     {/* Collapsed Badge (Over icon) */}
                     {item.count !== undefined && isCollapsed && (
-                      <span className={`absolute -top-2 -right-2 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center border border-white shadow-xl z-[30] ${
+                      <span className={`absolute -top-2.5 -right-2.5 min-w-[17px] h-4.5 px-1 rounded-full flex items-center justify-center border border-white shadow-xl z-[150] ${
                         item.color || 'bg-gray-500'
                       } text-white ${item.isAlert ? 'animate-bounce' : ''}`}>
-                        <span translate="no" className="notranslate font-normal text-[11px] leading-tight filter drop-shadow-sm">
+                        <span translate="no" className="notranslate font-black text-[10px] leading-tight filter drop-shadow-sm">
                           {item.count}
                         </span>
                       </span>
@@ -228,10 +228,10 @@ export const Sidebar = ({
                     </div>
                   )}
                   {item.count !== undefined && !isCollapsed && (
-                    <span className={`ml-auto min-w-[22px] h-5.5 px-1.5 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-lg shrink-0 ${
+                    <span className={`ml-auto min-w-[22px] h-5.5 px-1.5 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-lg shrink-0 z-[150] ${
                       item.color || 'bg-gray-500'
                     } text-white ${item.isAlert ? 'animate-bounce' : ''}`}>
-                      <span translate="no" className="notranslate font-normal text-[13px] leading-none">
+                      <span translate="no" className="notranslate font-black text-[12px] leading-none">
                         {item.count}
                       </span>
                     </span>
@@ -255,8 +255,8 @@ export const Sidebar = ({
                 <GroupChatIcon className="w-5 h-5 text-white" />
               </div>
               {groupUnreadCount > 0 && isCollapsed && (
-                <div className="absolute -top-2 -right-2 bg-blue-600 text-white min-w-[14px] h-3.5 px-0.5 rounded-full flex items-center justify-center border border-white shadow-xl z-[30]">
-                  <span translate="no" className="notranslate text-[10px] font-normal leading-tight filter drop-shadow-sm">{groupUnreadCount}</span>
+                <div className="absolute -top-2.5 -right-2.5 bg-blue-600 text-white min-w-[15px] h-4 px-0.5 rounded-full flex items-center justify-center border border-white shadow-xl z-[150]">
+                  <span translate="no" className="notranslate text-[10px] font-black leading-tight filter drop-shadow-sm">{groupUnreadCount}</span>
                 </div>
               )}
             </div>
@@ -271,8 +271,8 @@ export const Sidebar = ({
               </div>
             )}
             {groupUnreadCount > 0 && !isCollapsed && (
-              <div className="bg-blue-600 text-white min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center shadow-md border border-white">
-                <span translate="no" className="notranslate text-white text-[12px] font-normal leading-none">
+              <div className="bg-blue-600 text-white min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center shadow-md border border-white z-[150]">
+                <span translate="no" className="notranslate text-white text-[12px] font-black leading-none">
                   {groupUnreadCount}
                 </span>
               </div>

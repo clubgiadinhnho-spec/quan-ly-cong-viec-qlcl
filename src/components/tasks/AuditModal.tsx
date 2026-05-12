@@ -4,6 +4,8 @@ import { X, ShieldCheck, DollarSign, Clock, AlertTriangle, CheckCircle2, Trophy,
 import { Task } from '../../types';
 import { calculateKPI } from '../../utils/taskUtils';
 
+import { Portal } from '../common/Portal';
+
 interface AuditModalProps {
   task: Task;
   onClose: () => void;
@@ -49,20 +51,21 @@ export const AuditModal: React.FC<AuditModalProps> = ({ task, onClose }) => {
   ];
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-black/70 backdrop-blur-md"
-      />
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9, y: 30 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 30 }}
-        className="relative bg-[#FCFCFD] w-full max-w-lg rounded-[24px] overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.5)] border-[4px] border-double border-amber-500"
-      >
+    <Portal>
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="absolute inset-0 bg-black/70 backdrop-blur-md"
+        />
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9, y: 30 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.9, y: 30 }}
+          className="relative bg-[#FCFCFD] w-full max-w-lg rounded-[24px] overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.5)] border-[4px] border-double border-amber-500"
+        >
         {/* Header - Royal Style Ultra Compact */}
         <div className="bg-white px-5 py-3 border-b border-amber-100 flex flex-col items-center relative gap-0.5">
           <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-amber-200 via-amber-500 to-amber-200" />
@@ -205,6 +208,7 @@ export const AuditModal: React.FC<AuditModalProps> = ({ task, onClose }) => {
         </div>
       </motion.div>
     </div>
-  );
+  </Portal>
+);
 };
 

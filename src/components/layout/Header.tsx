@@ -111,7 +111,7 @@ export const Header = ({
           >
             <Bell size={20} className="group-hover:text-blue-600 transition-colors" />
             {adminUnreadCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-600 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white animate-pulse shadow-md">
+              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-600 text-white text-[11px] font-medium rounded-full flex items-center justify-center border-2 border-white animate-pulse shadow-md">
                 {adminUnreadCount}
               </span>
             )}

@@ -223,6 +223,7 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
           setConfirmModal={setConfirmModal}
           type="active"
           isReadOnly={false}
+          isUpdateReadOnly={true}
           onApprove={isManager ? handleApprove : undefined}
           createNotification={createNotification}
           selectedIds={selectedIds}

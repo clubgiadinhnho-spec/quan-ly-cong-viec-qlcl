@@ -22,12 +22,21 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
   const task = tasks.find((t) => t.id === taskId);
   if (!task) return null;
 
-  // Group history by week
-  const groupedHistory = task.history.reduce((acc: any, h) => {
-    const date = typeof h.timestamp === 'string' ? parseISO(h.timestamp) : (h.timestamp as any).toDate();
+  // Merge history and comments into a single timeline
+  const combinedTimeline = [
+    ...(task.history || []).map(h => ({ ...h, type: 'history' })),
+    ...(task.comments || []).map(c => ({ ...c, type: 'chat', version: undefined }))
+  ];
+
+  // Group combined timeline by week
+  const groupedHistory = combinedTimeline.reduce((acc: any, h) => {
+    const timestamp = h.timestamp;
+    if (!timestamp) return acc;
+
+    const date = typeof timestamp === 'string' ? parseISO(timestamp) : (timestamp as any).toDate();
     const weekNumber = getWeek(date, { weekStartsOn: 1 });
-    const weekStart = startOfWeek(date, { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
+    const weekStart = startOfWeek(date, { weekStartsOn: 1, locale: vi });
+    const weekEnd = endOfWeek(date, { weekStartsOn: 1, locale: vi });
     
     const weekKey = `week-${weekNumber}-${weekStart.getFullYear()}`;
     
@@ -45,10 +54,12 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
   // Sort weeks and items within weeks
   const sortedWeeks = Object.values(groupedHistory).sort((a: any, b: any) => b.weekNumber - a.weekNumber);
   
-  const getEntryColor = (content: string) => {
+  const getEntryColor = (item: any) => {
+    if (item.type === 'chat') return 'bg-purple-500';
+    const content = item.content || '';
     if (content.includes('Cập nhật tiến độ')) return 'bg-blue-500';
-    if (content.includes('Thay đổi trạng thái') || content.includes('HOÀN THÀNH')) return 'bg-emerald-500';
-    if (content.includes('Gia hạn') || content.includes('chỉnh sửa')) return 'bg-amber-500';
+    if (content.includes('Thay đổi trạng thái') || content.includes('HOÀN THÀNH') || content.includes('PHÊ DUYỆT')) return 'bg-emerald-500';
+    if (content.includes('Gia hạn') || content.includes('chỉnh sửa') || content.includes('KẾ THỪA')) return 'bg-amber-500';
     if (content.includes('Xóa') || content.includes('Hủy')) return 'bg-red-500';
     return 'bg-gray-400';
   };
@@ -130,10 +141,15 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
                                     <span translate="no" className="notranslate">{author?.name || 'HỆ THỐNG'}</span>
                                   </span>
                                 </div>
+                                <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest text-white ${item.type === 'chat' ? 'bg-purple-600' : 'bg-slate-400'}`}>
+                                  <span translate="no" className="notranslate">{item.type === 'chat' ? 'CHAT' : 'HỆ THỐNG'}</span>
+                                </div>
                               </div>
-                              <span translate="no" className="notranslate text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-sm border border-blue-100">
-                                <span translate="no" className="notranslate">V{item.version || (week.items.length - itemIdx)}</span>
-                              </span>
+                              {item.type === 'history' && (
+                                <span translate="no" className="notranslate text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-sm border border-blue-100">
+                                  <span translate="no" className="notranslate">V{item.version || (week.items.length - itemIdx)}</span>
+                                </span>
+                              )}
                             </div>
 
                             {/* Content */}

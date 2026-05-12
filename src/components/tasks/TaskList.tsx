@@ -22,6 +22,7 @@ interface TaskListProps {
   onNavigate?: (tab: string) => void;
   type: 'active' | 'completed' | 'trash';
   isReadOnly?: boolean;
+  isUpdateReadOnly?: boolean;
   highlightedTaskId?: string | null;
   selectedIds?: string[];
   onToggleSelect?: (id: string) => void;
@@ -47,6 +48,7 @@ export const TaskList: React.FC<TaskListProps> = ({
   onNavigate,
   type,
   isReadOnly = false,
+  isUpdateReadOnly = false,
   onRestore,
   highlightedTaskId,
   selectedIds = [],
@@ -198,6 +200,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                 setConfirmModal={setConfirmModal}
                 onTogglePriority={handleTogglePriority}
                 isReadOnly={isReadOnly}
+                isUpdateReadOnly={isUpdateReadOnly}
                 onRestore={onRestore}
                 onApprove={onApprove}
                 approveTaskCompletion={approveTaskCompletion}
@@ -229,6 +232,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                 approveTaskCompletion={approveTaskCompletion}
                 onNavigate={onNavigate}
                 isReadOnly={isReadOnly}
+                isUpdateReadOnly={isUpdateReadOnly}
                 highlightedTaskId={highlightedTaskId}
                 isSelected={selectedIds.includes(task.id)}
                 onToggleSelect={onToggleSelect}

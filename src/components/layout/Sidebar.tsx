@@ -215,7 +215,7 @@ export const Sidebar = ({
                       <span className={`absolute -top-2.5 -right-2.5 min-w-[17px] h-4.5 px-1 rounded-full flex items-center justify-center border border-white shadow-xl z-[150] ${
                         item.color || 'bg-gray-500'
                       } text-white ${item.isAlert ? 'animate-bounce' : ''}`}>
-                        <span translate="no" className="notranslate font-black text-[10px] leading-tight filter drop-shadow-sm">
+                        <span translate="no" className="notranslate font-medium text-[11px] leading-tight filter drop-shadow-sm">
                           {item.count}
                         </span>
                       </span>
@@ -231,7 +231,7 @@ export const Sidebar = ({
                     <span className={`ml-auto min-w-[22px] h-5.5 px-1.5 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-lg shrink-0 z-[150] ${
                       item.color || 'bg-gray-500'
                     } text-white ${item.isAlert ? 'animate-bounce' : ''}`}>
-                      <span translate="no" className="notranslate font-black text-[12px] leading-none">
+                      <span translate="no" className="notranslate font-medium text-[13px] leading-none">
                         {item.count}
                       </span>
                     </span>
@@ -256,7 +256,7 @@ export const Sidebar = ({
               </div>
               {groupUnreadCount > 0 && isCollapsed && (
                 <div className="absolute -top-2.5 -right-2.5 bg-blue-600 text-white min-w-[15px] h-4 px-0.5 rounded-full flex items-center justify-center border border-white shadow-xl z-[150]">
-                  <span translate="no" className="notranslate text-[10px] font-black leading-tight filter drop-shadow-sm">{groupUnreadCount}</span>
+                  <span translate="no" className="notranslate text-[11px] font-medium leading-tight filter drop-shadow-sm">{groupUnreadCount}</span>
                 </div>
               )}
             </div>
@@ -272,7 +272,7 @@ export const Sidebar = ({
             )}
             {groupUnreadCount > 0 && !isCollapsed && (
               <div className="bg-blue-600 text-white min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center shadow-md border border-white z-[150]">
-                <span translate="no" className="notranslate text-white text-[12px] font-black leading-none">
+                <span translate="no" className="notranslate text-white text-[13px] font-medium leading-none">
                   {groupUnreadCount}
                 </span>
               </div>

@@ -36,6 +36,7 @@ interface TaskRowProps {
   idx: number;
   setConfirmModal: (modal: any) => void;
   isReadOnly?: boolean;
+  isUpdateReadOnly?: boolean;
   onRestore?: (id: string) => void;
   onApprove?: (id: string) => void;
   approveTaskCompletion?: (id: string, modifierName?: string, leaderQCD?: any, stopRecurrence?: boolean) => Promise<void>;
@@ -49,7 +50,7 @@ interface TaskRowProps {
 export const TaskRow: React.FC<TaskRowProps> = ({ 
   task, user, users, onUpdate, onDelete, onViewHistory, onOpenChat, 
   isChatOpen, onSendMessage, onReact, onTogglePriority, onSetPriority, onEdit, idx, setConfirmModal,
-  isReadOnly = false, onRestore, onApprove, approveTaskCompletion, onNavigate, highlightedTaskId, isSelected, onToggleSelect,
+  isReadOnly = false, isUpdateReadOnly = false, onRestore, onApprove, approveTaskCompletion, onNavigate, highlightedTaskId, isSelected, onToggleSelect,
   createNotification
 }) => {
   const chatButtonRef = React.useRef<HTMLButtonElement>(null);
@@ -518,9 +519,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         <div className="flex flex-col gap-1 h-full min-h-[60px]">
               <textarea 
                 translate="no"
-                readOnly={!isAdmin && !isOwner}
+                readOnly={isReadOnly || isUpdateReadOnly || (!isAdmin && !isOwner)}
                 className={`notranslate flex-1 w-full text-[15px] font-medium p-1.5 rounded-sm outline-none transition-all resize-none leading-tight min-h-[60px] placeholder:font-normal text-blue-950 font-sans ${
-                  (!isAdmin && !isOwner) ? 'bg-gray-50/50 cursor-not-allowed italic text-gray-400' : 'bg-transparent cursor-text'
+                  (isReadOnly || isUpdateReadOnly || (!isAdmin && !isOwner)) ? 'bg-gray-50/50 cursor-not-allowed italic text-gray-400' : 'bg-transparent cursor-text'
                 } ${
                   task.isNewUpdate 
                     ? 'border-2 border-blue-700 shadow-none' 

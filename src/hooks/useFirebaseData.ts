@@ -20,6 +20,8 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { calculateNextDeadline } from '../lib/dateUtils';
+import { format } from 'date-fns';
+import { vi } from 'date-fns/locale';
 import { User, UserPresence, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport, LogEntry, DiscussionTopic, DiscussionMessage, TaskCategory, CycleHistoryEntry } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
@@ -751,30 +753,34 @@ export const useFirebaseData = (currentUserId?: string) => {
         delete (cleanBaseData as any).undoRequestAt;
         delete (cleanBaseData as any).undoRequestBy;
 
+        // Cấu trúc mảng lịch sử kế thừa (History Inheritance)
+        const inheritedHistory = [...(existingTask.history || [])];
+        const inheritanceLog = {
+          version: inheritedHistory.length + 1,
+          content: `[HỆ THỐNG] KẾ THỪA LỊCH SỬ từ mã ${existingTask.code}. BẮT ĐẦU CHU KỲ MỚI ngày ${format(new Date(), 'dd/MM/yy', { locale: vi })}.`,
+          timestamp: now,
+          authorId: 'system'
+        };
+
         const nextTaskData: any = {
           ...cleanBaseData,
           status: 'APPROVED', 
           code: nextCode,
+          previousTaskId: id, // Đấu nối chuỗi quan hệ (Task Linking)
           issueDate: dateOnly,
-          startDate: currentDeadline || dateOnly, // Ngày bắt đầu kỳ mới = Hạn cũ
+          startDate: currentDeadline || dateOnly, 
           expectedEndDate: nextDeadline,
           extensionDate: null,
           actualEndDate: null,
           waitingApproval: false,
           isLocked: false,
           isNewInBoard: true,
-          currentUpdate: '', // LÀM SẠCH GIẢI TRÌNH
+          currentUpdate: '', 
           prevProgress: existingTask.currentUpdate || '',
           cycleHistory: [], 
-          leaderQCD: null, // RESET ĐIỂM QCD
-          history: [
-            {
-              version: 1,
-              content: `[LUÂN HỒI CÔNG VIỆC] KỲ TIẾP THEO TỰ ĐỘNG. MÃ MỚI: ${nextCode}. HẠN: ${nextDeadline}`,
-              timestamp: now,
-              authorId: 'system'
-            }
-          ],
+          leaderQCD: null, 
+          history: [...inheritedHistory, inheritanceLog],
+          comments: [...(existingTask.comments || [])], // Kế thừa toàn bộ Chat (Inherit all Chats)
           createdAt: serverTimestamp(),
           systemCreatedAt: serverTimestamp(),
           updatedAt: serverTimestamp(),

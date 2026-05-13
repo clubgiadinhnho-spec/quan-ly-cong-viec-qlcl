@@ -1,12 +1,15 @@
 import React from 'react';
-import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw, Trash2, Bell, RefreshCw, Highlighter, Check, ThumbsUp, CheckCircle2, Tag, Pencil, Eye, History, UserCircle, ChevronDown, Zap, Banknote } from 'lucide-react';
+import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw, Trash2, Bell, RefreshCw, Highlighter, Check, ThumbsUp, CheckCircle2, Tag, Pencil, Eye, History, UserCircle, ChevronDown, Zap, Banknote, Bold, Underline, Palette, Eraser, Edit3 } from 'lucide-react';
 import { Task, User } from '../../types';
 import { formatDate, calculateNextDeadline, getTaskDeadlineStatus } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
 import { AnimatePresence, motion } from 'motion/react';
 import { Avatar } from '../common/Avatar';
 import { Portal } from '../common/Portal';
+import { UpdateModal } from './UpdateModal';
 import { CycleHistoryEntry } from '../../types';
+import { format, isSameDay, parseISO } from 'date-fns';
+import { vi } from 'date-fns/locale';
 
 import { getUserById, getSafeNameProps, getTaskAssigneeName, isUserTask } from '../../utils/userUtils';
 import { generateQCDExplanation } from '../../services/geminiService';
@@ -82,6 +85,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const [lastReadCount, setLastReadCount] = React.useState(task.comments?.length || 0);
   const [showColorPicker, setShowColorPicker] = React.useState(false);
   const [showQCDModal, setShowQCDModal] = React.useState(false);
+  const [showUpdateModal, setShowUpdateModal] = React.useState(false);
   const [openGuide, setOpenGuide] = React.useState<string | null>(null);
 
   // QCD Local State for Staff
@@ -147,6 +151,43 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const isTrulyNew = task.isNewInBoard && task.lastUpdatedByRole !== user.role && isOwner;
 
   const isNewInBoard = task.isNewInBoard && isAdmin;
+
+  // Helper to convert our custom tags to HTML and vice versa if needed
+  const toHTML = (content: string) => {
+    if (!content) return '';
+    let processed = content;
+    // Support legacy tags
+    processed = processed.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+    processed = processed.replace(/__(.*?)__/g, '<u>$1</u>');
+    processed = processed.replace(/<hl>(.*?)<\/hl>/g, '<mark>$1</mark>');
+    return processed;
+  };
+
+  const handleUpdateProgress = (taskId: string, htmlContent: string) => {
+    onUpdate(taskId, { 
+      currentUpdate: htmlContent,
+      isNewUpdate: true,
+      lastActionAt: new Date().toISOString(),
+      version: (task.version || 0) + 1
+    });
+  };
+
+  const [dailyVersion, setDailyVersion] = React.useState(1);
+
+  React.useEffect(() => {
+    // Tính toán số phiên bản cập nhật trong ngày hôm nay
+    if (!task.history) {
+      setDailyVersion(1);
+      return;
+    }
+    const today = new Date();
+    const todayUpdates = task.history.filter(h => {
+      if (!h.timestamp) return false;
+      const hDate = typeof h.timestamp === 'string' ? parseISO(h.timestamp) : (h.timestamp as any).toDate();
+      return isSameDay(hDate, today) && h.content?.startsWith('Cập nhật tiến độ:');
+    });
+    setDailyVersion(todayUpdates.length);
+  }, [task.history]);
 
   const handleConfirmTask = (approve: boolean) => {
     if (approve) {
@@ -447,7 +488,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           </div>
         </div>
       </td>
-      <td className={`p-1.5 border-b border-r border-gray-300 relative group align-top h-px ${(!isAdmin && !isOwner) ? 'bg-gray-50' : ''}`}>
+      <td className={`p-1.5 border border-gray-300 relative group align-top h-px ${(!isAdmin && !isOwner) ? 'bg-gray-50' : ''}`}>
         {task.attachmentUrl && (
           <a 
             href={task.attachmentUrl} 
@@ -471,7 +512,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         )}
 
         <div className="flex flex-col h-full font-sans">
-          <div className="text-[15px] text-blue-800 font-bold leading-tight pr-5 break-words whitespace-normal font-sans">
+          <div className="text-[15px] text-blue-800 font-bold leading-tight pr-5 break-words whitespace-normal font-sans text-justify">
             {isTrulyNew && (
               <span 
                 translate="no" 
@@ -491,7 +532,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             </span>
           </div>
           
-          <div className="text-[15px] text-gray-900 leading-tight mt-2 break-words whitespace-normal flex-1 font-sans pr-5">
+          <div className="text-[15px] text-gray-900 leading-tight mt-2 break-words whitespace-normal flex-1 font-sans pr-5 text-justify">
             <span translate="no" className="notranslate font-bold">MỤC TIÊU: </span>
             <span translate="no" className="notranslate">{task.objective}</span>
           </div>
@@ -507,50 +548,61 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       </td>
 
       <td 
-        className={`p-0.5 border border-gray-300 align-top h-px ${(!isAdmin && !isOwner) ? 'bg-gray-50' : 'bg-gray-50/10'}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          // Logic for Admin to mark as seen
-          if (isAdmin && task.isNewUpdate) {
-            onUpdate(task.id, { isNewUpdate: false });
-          }
-        }}
+        className={`p-0 border border-gray-300 align-top h-full ${(!isAdmin && !isOwner) ? 'bg-gray-50/30' : 'bg-white'}`}
       >
-        <div className="flex flex-col gap-1 h-full min-h-[60px]">
-              <textarea 
-                translate="no"
-                readOnly={isReadOnly || isUpdateReadOnly || (!isAdmin && !isOwner)}
-                className={`notranslate flex-1 w-full text-[15px] font-medium p-1.5 rounded-sm outline-none transition-all resize-none leading-tight min-h-[60px] placeholder:font-normal text-blue-950 font-sans ${
-                  (isReadOnly || isUpdateReadOnly || (!isAdmin && !isOwner)) ? 'bg-gray-50/50 cursor-not-allowed italic text-gray-400' : 'bg-transparent cursor-text'
-                } ${
-                  task.isNewUpdate 
-                    ? 'border-2 border-blue-700 shadow-none' 
-                    : 'border border-gray-100 shadow-none'
-                }`}
-                placeholder={(!isAdmin && !isOwner) ? "Chưa có cập nhật mới..." : "Nhập báo cáo tiến độ tại đây..."}
-                defaultValue={task.currentUpdate}
-              onBlur={(e) => {
-                const newValue = e.target.value;
-                if (newValue !== task.currentUpdate) {
-                  onUpdate(task.id, { 
-                    currentUpdate: newValue,
-                    isNewUpdate: true,
-                    version: (task.version || 0) + 1
-                  });
-                }
-              }}
-              onMouseLeave={() => {
-                if (isAdmin && task.isNewUpdate) {
-                  onUpdate(task.id, { isNewUpdate: false });
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.currentTarget.blur();
-                }
-              }}
-              title="GÕ TRỰC TIẾP ĐỂ CẬP NHẬT TIẾN ĐỘ"
-            />
+        <div className="flex flex-col h-full min-h-[100px] relative">
+              {/* Header area for Vn and Toolbar - NO LONGER DIRECT EDIT */}
+              <div className="flex items-center justify-between px-2 py-1 border-b border-gray-100/30 bg-gray-50/30 shrink-0">
+                <div translate="no" className="notranslate flex items-center gap-1.5">
+                  {dailyVersion > 0 && (
+                    <span translate="no" className="notranslate text-[9px] font-black text-blue-600 bg-blue-50 px-1 py-0.5 rounded-sm border border-blue-100">
+                      V{dailyVersion}
+                    </span>
+                  )}
+                </div>
+
+                {(!isReadOnly && !isUpdateReadOnly && (isAdmin || isOwner)) && (
+                  <button 
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      setShowUpdateModal(true);
+                      if (isAdmin && task.isNewUpdate) {
+                        onUpdate(task.id, { isNewUpdate: false });
+                      }
+                    }}
+                    className="w-7 h-7 flex items-center justify-center rounded-md bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-blue-100 group/edit"
+                    title="CẬP NHẬT TIẾN ĐỘ"
+                  >
+                    <Edit3 size={16} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
+                  </button>
+                )}
+              </div>
+
+              <div className="relative flex-1 flex flex-col p-2 pt-1 overflow-hidden">
+                <style dangerouslySetInnerHTML={{ __html: `
+                  .notranslate.rich-text-content, 
+                  .notranslate.rich-text-content *,
+                  .notranslate.rich-text-content i,
+                  .notranslate.rich-text-content em {
+                    font-style: normal !important;
+                  }
+                ` }} />
+                <div 
+                  translate="no"
+                  className="notranslate rich-text-content flex-1 w-full text-[14px] font-medium outline-none transition-all leading-relaxed max-h-[160px] text-blue-950 font-sans overflow-y-auto custom-scrollbar"
+                  style={{ fontStyle: 'normal' }}
+                  dangerouslySetInnerHTML={{ __html: toHTML(task.currentUpdate || '') }}
+                  title="NỘI DUNG CẬP NHẬT TIẾN ĐỘ"
+                />
+              </div>
+
+              {/* Progress Update Modal */}
+              <UpdateModal 
+                isOpen={showUpdateModal}
+                onClose={() => setShowUpdateModal(false)}
+                task={task}
+                onSave={handleUpdateProgress}
+              />
         </div>
       </td>
       <td className="p-0 text-center border border-gray-300 align-middle">

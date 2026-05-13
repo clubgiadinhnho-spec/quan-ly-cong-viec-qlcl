@@ -7,7 +7,8 @@ import {
   startOfWeek, 
   endOfWeek, 
   getWeek, 
-  parseISO 
+  parseISO,
+  isSameDay
 } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
@@ -22,9 +23,30 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
   const task = tasks.find((t) => t.id === taskId);
   if (!task) return null;
 
+  // Process history to include daily versioning
+  const processedHistory = (task.history || []).sort((a: any, b: any) => {
+    const aTime = typeof a.timestamp === 'string' ? parseISO(a.timestamp).getTime() : (a.timestamp as any).toDate().getTime();
+    const bTime = typeof b.timestamp === 'string' ? parseISO(b.timestamp).getTime() : (b.timestamp as any).toDate().getTime();
+    return aTime - bTime;
+  }).reduce((acc: any[], h: any) => {
+    const hDate = typeof h.timestamp === 'string' ? parseISO(h.timestamp) : (h.timestamp as any).toDate();
+    let dailyV = undefined;
+    
+    if (h.content?.startsWith('Cập nhật tiến độ:')) {
+      const updatesToday = acc.filter(prev => {
+        const prevDate = typeof prev.timestamp === 'string' ? parseISO(prev.timestamp) : (prev.timestamp as any).toDate();
+        return isSameDay(prevDate, hDate) && prev.content?.startsWith('Cập nhật tiến độ:');
+      });
+      dailyV = updatesToday.length + 1;
+    }
+    
+    acc.push({ ...h, dailyVersion: dailyV, type: 'history' });
+    return acc;
+  }, []);
+
   // Merge history and comments into a single timeline
   const combinedTimeline = [
-    ...(task.history || []).map(h => ({ ...h, type: 'history' })),
+    ...processedHistory,
     ...(task.comments || []).map(c => ({ ...c, type: 'chat', version: undefined }))
   ];
 
@@ -62,6 +84,23 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
     if (content.includes('Gia hạn') || content.includes('chỉnh sửa') || content.includes('KẾ THỪA')) return 'bg-amber-500';
     if (content.includes('Xóa') || content.includes('Hủy')) return 'bg-red-500';
     return 'bg-gray-400';
+  };
+
+  const renderFormattedContent = (content: string) => {
+    if (!content) return null;
+    
+    // Convert old tags to HTML classes for consistent rendering
+    let processed = content;
+    processed = processed.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+    processed = processed.replace(/__(.*?)__/g, '<u>$1</u>');
+    processed = processed.replace(/<hl>(.*?)<\/hl>/g, '<mark>$1</mark>');
+    
+    return (
+      <div 
+        className="rich-text-content"
+        dangerouslySetInnerHTML={{ __html: processed }} 
+      />
+    );
   };
 
   return (
@@ -118,7 +157,7 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
                     
                     {week.items.sort((a: any, b: any) => b.date.getTime() - a.date.getTime()).map((item: any, itemIdx: number) => {
                       const author = users.find(u => u.id === item.authorId);
-                      const colorClass = getEntryColor(item.content);
+                      const colorClass = getEntryColor(item);
                       
                       return (
                         <div key={itemIdx} className="relative pl-8 group">
@@ -145,17 +184,17 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
                                   <span translate="no" className="notranslate">{item.type === 'chat' ? 'CHAT' : 'HỆ THỐNG'}</span>
                                 </div>
                               </div>
-                              {item.type === 'history' && (
+                              {item.type === 'history' && item.dailyVersion && (
                                 <span translate="no" className="notranslate text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-sm border border-blue-100">
-                                  <span translate="no" className="notranslate">V{item.version || (week.items.length - itemIdx)}</span>
+                                  <span translate="no" className="notranslate">V{item.dailyVersion}</span>
                                 </span>
                               )}
                             </div>
 
                             {/* Content */}
-                            <div className="text-sm text-gray-800 leading-relaxed font-sans">
+                            <div className="text-sm text-gray-800 leading-relaxed font-sans whitespace-pre-wrap">
                               <span translate="no" className="notranslate font-medium">
-                                {item.content}
+                                {renderFormattedContent(item.content)}
                               </span>
                             </div>
                           </div>

@@ -95,7 +95,7 @@ export const TaskAIChat: React.FC<TaskAIChatProps> = ({
       });
 
       // 2. Call Gemini
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const googleAi = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const systemPrompt = `Bạn là Robot trợ lý AI chuyên nghiệp. 
 Nhiệm vụ của bạn: Nhắc nhở và hỗ trợ người dùng hoàn thành công việc.
 Công việc hiện tại: "${task.title}"
@@ -119,20 +119,22 @@ Yêu cầu:
       // Add current user message to local context
       history.push({ role: 'user', parts: [{ text: userMsg }] });
 
-      const response = await ai.models.generateContent({
+      const result = await googleAi.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: history.length > 0 ? history : [{ role: 'user', parts: [{ text: userMsg }] }],
+        contents: history,
         config: {
           systemInstruction: systemPrompt,
+          maxOutputTokens: 1024,
+          temperature: 0.7,
         }
       });
 
-      const aiText = response.text || "Xin lỗi, tôi gặp chút trục trặc. Bạn cần hỗ trợ gì thêm không?";
+      const aiText = result.text || "Xin lỗi, tôi gặp chút trục trặc. Bạn cần hỗ trợ gì thêm không?";
 
       // 3. Save AI message to Firebase
       await onSendMessage({
         taskId: task.id,
-        userId: currentUser.id,
+        userId: currentUser.uniqueKey || currentUser.id,
         role: 'assistant',
         content: aiText,
         timestamp: new Date().toISOString()
@@ -140,6 +142,13 @@ Yêu cầu:
 
     } catch (error) {
       console.error("AI Error:", error);
+      await onSendMessage({
+        taskId: task.id,
+        userId: currentUser.uniqueKey || currentUser.id,
+        role: 'assistant',
+        content: `Đã xảy ra lỗi khi giao tiếp với AI: ${error instanceof Error ? error.message : 'Lỗi không xác định'}. Vui lòng thử lại sau.`,
+        timestamp: new Date().toISOString()
+      });
     } finally {
       setLoading(false);
     }
@@ -200,14 +209,24 @@ Yêu cầu:
         initial={{ opacity: 0, scale: 0.9, x: -10 }}
         animate={{ opacity: 1, scale: 1, x: 0 }}
         exit={{ opacity: 0, scale: 0.9, x: -10 }}
-        className="relative bg-white rounded-xl shadow-2xl border border-blue-600 pointer-events-auto overflow-hidden flex flex-col"
+        className="relative bg-white rounded-xl shadow-2xl border border-blue-600 pointer-events-auto overflow-visible flex flex-col"
         style={{ width: dimensions.width, height: dimensions.height, maxHeight: '80vh' }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Minimalist Comic Tail SVG */}
+        <svg className="absolute inset-0 overflow-visible pointer-events-none z-[-1]">
+          <path 
+            d="M -10 24 L 0 16 L 0 32 Z" 
+            fill="white" 
+            stroke="#2563eb" 
+            strokeWidth="1.5"
+          />
+        </svg>
+
         {/* Header Compact - Drag handle */}
-        <div className="bg-blue-600 px-2 py-1 flex items-center justify-between shadow-sm cursor-grab active:cursor-grabbing">
+        <div className="bg-blue-600 px-2 py-1 flex items-center justify-between shadow-sm cursor-grab active:cursor-grabbing rounded-t-xl shrink-0">
           <div className="flex items-center gap-1">
-            <RobotAvatar size={20} animate />
+            <RobotAvatar size={14} animate />
             <div>
               <h3 className="text-white text-[9.5px] font-black uppercase tracking-wider leading-none">AI BOT</h3>
               <p className="text-blue-100 text-[7.5px] font-bold uppercase tracking-tight mt-0.5 opacity-80">{task.code}</p>
@@ -218,9 +237,6 @@ Yêu cầu:
           </button>
         </div>
 
-        {/* Triangle Arrow - Hide when dragged? Or keep for initial tip */}
-        <div className="absolute left-[-6px] top-[20px] w-0 h-0 border-t-[5px] border-t-transparent border-r-[6px] border-r-blue-600 border-b-[5px] border-b-transparent pointer-events-none"></div>
-
         {/* Chat Area Compact */}
         <div 
           ref={scrollRef}
@@ -229,7 +245,7 @@ Yêu cầu:
         >
           {taskMessages.length === 0 && (
             <div className="text-center py-2">
-              <RobotAvatar size={32} className="mx-auto mb-1 opacity-50" />
+              <RobotAvatar size={22} className="mx-auto mb-1 opacity-50" />
               <p className="text-[8.5px] text-gray-400 font-bold uppercase tracking-widest leading-none">Lệnh?</p>
             </div>
           )}
@@ -239,7 +255,7 @@ Yêu cầu:
               key={msg.id}
               className={`flex w-full ${msg.role === 'assistant' ? 'justify-start' : 'justify-end'}`}
             >
-              <div className={`max-w-[90%] p-1.5 rounded-lg text-[11px] leading-tight shadow-sm font-medium ${
+              <div className={`max-w-[90%] p-1.5 rounded-lg text-[13px] leading-tight shadow-sm font-medium ${
                 msg.role === 'user' 
                   ? 'bg-blue-600 text-white rounded-br-none text-right' 
                   : 'bg-white text-gray-800 border border-blue-100 rounded-bl-none text-left'
@@ -278,7 +294,7 @@ Yêu cầu:
                   handleSend();
                 }
               }}
-              className="flex-1 bg-transparent border-none outline-none text-[11px] font-medium placeholder:text-gray-400"
+              className="flex-1 bg-transparent border-none outline-none text-[13px] font-medium placeholder:text-gray-400"
             />
             <button 
               onClick={(e) => {

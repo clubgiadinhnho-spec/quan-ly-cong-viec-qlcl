@@ -420,7 +420,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 }`}
                 title={isAdmin ? (task.aiReminderResponded ? "Nhân viên đã phản hồi AI - Nhấn để xem" : "Robot đang nhắc việc nhân viên (Màu Vàng)") : "Nhấn để trò chuyện với Robot Trợ Lý AI"}
               >
-                <RobotAvatar size={25} animate={isAiReminding && task.assigneeId === user.uniqueKey} />
+                <RobotAvatar size={18} animate={isAiReminding && task.assigneeId === user.uniqueKey} />
               </button>
 
               <AnimatePresence>

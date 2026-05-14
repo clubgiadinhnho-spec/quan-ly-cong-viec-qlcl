@@ -257,7 +257,7 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
                       </div>
                     )}
                     <div className="group/msg relative">
-                      <div className={`px-2 py-1.5 rounded-lg text-[11.5px] font-medium leading-snug shadow-sm border ${
+                      <div className={`px-2 py-1.5 rounded-lg text-[13px] font-medium leading-snug shadow-sm border ${
                         isMe 
                           ? 'bg-blue-600 text-white border-blue-500 rounded-br-none text-right' 
                           : 'bg-white text-gray-800 border-gray-100 rounded-bl-none text-left'
@@ -336,7 +336,7 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
           <div className="relative flex gap-1.5 items-center bg-gray-50/80 rounded-lg p-1.5 border border-gray-100 focus-within:border-blue-300 focus-within:bg-white transition-all">
             <textarea
               ref={inputRef}
-              className="flex-1 bg-transparent py-0.5 px-1.5 text-[11.5px] outline-none transition-all resize-none h-[30px] leading-tight text-gray-800 font-medium placeholder:text-gray-400 notranslate"
+              className="flex-1 bg-transparent py-0.5 px-1.5 text-[13px] outline-none transition-all resize-none h-[30px] leading-tight text-gray-800 font-medium placeholder:text-gray-400 notranslate"
               placeholder="Nhập..."
               value={newMessage}
               translate="no"

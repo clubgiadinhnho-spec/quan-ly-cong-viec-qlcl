@@ -96,16 +96,20 @@ export const useAIRobot = ({
           const assignee = users.find(u => u.uniqueKey === topTask.assigneeId || u.id === topTask.assigneeId);
           const name = assignee?.name || 'bạn';
 
-          const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+          const googleAi = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
           const prompt = `YÊU CẦU THIẾT QUÂN LUẬT: Bạn là AMORI, trợ lý AI cá nhân. Hãy nhắc nhở nhân viên "${name}" về việc "${topTask.title}". 
           QUY TẮC: Tối đa 10 từ. Hỏi tiến độ. Xưng hô "${name} ơi". Không rườm rà.`;
 
-          const response = await ai.models.generateContent({
+          const result = await googleAi.models.generateContent({
             model: "gemini-3-flash-preview",
-            contents: [{ role: "user", parts: [{ text: prompt }] }]
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            config: {
+              maxOutputTokens: 512,
+              temperature: 0.8,
+            }
           });
 
-          const text = response.text?.trim() || `${name} ơi, tiến độ ${topTask.code} sao rồi?`;
+          const text = result.text?.trim() || `${name} ơi, tiến độ ${topTask.code} sao rồi?`;
 
           await sendAiMessage({
             taskId: topTask.id,

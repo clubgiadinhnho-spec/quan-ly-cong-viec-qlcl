@@ -14,17 +14,16 @@ interface UpdateModalProps {
 export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, task, onSave }) => {
   const editorRef = React.useRef<HTMLDivElement>(null);
 
-  // Diagnostic Log as requested
-  React.useEffect(() => {
-    if (isOpen) {
-      console.log("TASK DATA:", task);
-    }
-  }, [isOpen, task]);
-
-  // Helper to convert our custom tags to HTML and vice versa if needed
   const toHTML = (content: string) => {
     if (!content) return '';
+    
+    // Hide content completely if it's from any Robot/AI source
+    if (/(?:🤖|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content)) {
+      return '';
+    }
+
     let processed = content;
+
     // Support legacy tags
     processed = processed.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
     processed = processed.replace(/__(.*?)__/g, '<u>$1</u>');

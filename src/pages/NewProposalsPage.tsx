@@ -27,6 +27,9 @@ interface NewProposalsPageProps {
   handleExportExcel: (tasks: Task[]) => void;
   search: string;
   setSearch: (s: string) => void;
+  markAsRead: (id: string) => void;
+  lastReadChatTimestamps: Record<string, number>;
+  presence: any[];
 }
 
 export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
@@ -42,7 +45,10 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
   onOpenCategoryManagement,
   handleExportExcel,
   search,
-  setSearch
+  setSearch,
+  markAsRead,
+  lastReadChatTimestamps,
+  presence
 }) => {
   const isManager = currentUser.role === 'Admin' || !!currentUser.delegatedPermissions?.canApproveTask;
   const isAdmin = currentUser.role === 'Admin';
@@ -54,6 +60,26 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
         if (!search) return true;
         const term = normalizeString(search);
         const assigneeName = getTaskAssigneeName(t, allUsers);
+
+        const recurrenceVN = t.recurrence === 'DAILY' ? 'Hàng ngày' 
+          : t.recurrence === 'WEEKLY' ? 'Hàng tuần'
+          : t.recurrence === 'BI_WEEKLY' ? 'Hàng 2 tuần'
+          : t.recurrence === 'TRI_WEEKLY' ? 'Hàng 3 tuần'
+          : t.recurrence === 'TRI_DAILY' ? 'Hàng 3 ngày'
+          : t.recurrence === 'MONTHLY' ? 'Hàng tháng'
+          : 'Không lặp';
+
+        const formatDate = (dateStr: any) => {
+          if (!dateStr) return '';
+          const s = typeof dateStr === 'string' ? dateStr : (dateStr as any).toISOString?.() || '';
+          const match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+          if (match) {
+            const [_, y, m, d] = match;
+            return `${d}/${m}/${y.substring(2)} ${d}/${m}/${y}`;
+          }
+          return s;
+        };
+
         const fields = [
           t.code,
           assigneeName,
@@ -61,6 +87,13 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
           t.title,
           t.objective,
           t.currentUpdate,
+          formatDate(t.issueDate),
+          formatDate(t.startDate),
+          formatDate(t.expectedEndDate),
+          formatDate(t.dueDate),
+          formatDate(t.extensionDate),
+          formatDate(t.actualEndDate),
+          recurrenceVN,
           typeof t.kpiEfficiency === 'number' ? t.kpiEfficiency.toString() : t.kpiEfficiency
         ];
         return fields.some(f => normalizeString(f || '').includes(term));
@@ -165,11 +198,16 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
              <span translate="no" className="notranslate">DANH SÁCH {pendingTasks.length} ĐỀ XUẤT</span>
            </h3>
            <div className="flex items-center gap-2">
+             {search && (
+               <span translate="no" className="notranslate text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100 animate-in fade-in slide-in-from-right-1">
+                 TÌM THẤY: {pendingTasks.length}
+               </span>
+             )}
              <div className="relative group mr-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input
                 type="text"
-                placeholder="Tìm kiếm mã, tên, nội dung, nhân sự..."
+                placeholder="Tìm kiếm mã, nội dung, nhân sự, ngày khởi tạo, ngày bắt đầu, hạn hoàn thành, Gia hạn, chu kỳ lặp lại..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500 text-xs w-64 placeholder:notranslate transition-all group-focus-within:border-emerald-400 group-focus-within:shadow-sm shadow-sm"
@@ -229,6 +267,9 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
           selectedIds={selectedIds}
           onToggleSelect={onToggleSelect}
           onBulkSelect={onBulkSelect}
+          markAsRead={markAsRead}
+          lastReadChatTimestamps={lastReadChatTimestamps}
+          presence={presence}
         />
       </div>
 

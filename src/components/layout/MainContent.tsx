@@ -29,7 +29,7 @@ interface MainContentProps {
   myActiveCount: number;
   allActiveCount: number;
   setShowTaskModal: (show: boolean) => void;
-  handleExportExcel: () => void;
+  handleExportExcel: (tasks: Task[]) => void;
   handleImportExcel: (e: React.ChangeEvent<HTMLInputElement>) => void;
   updateTask: any;
   deleteTask: any;
@@ -75,6 +75,12 @@ interface MainContentProps {
   adminUnreadCount: number;
   onOpenNotifications: () => void;
   createNotification: any;
+  selectedMonth: string;
+  onMonthChange: (m: string) => void;
+  sendAiMessage: any;
+  triggerAiNudge: any;
+  resetTaskAIStatus: any;
+  aiMessages: any[];
 }
 
 export const MainContent: React.FC<MainContentProps> = (props) => {
@@ -89,7 +95,9 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
     permanentDeleteTask, restoreTask, setActiveTab, setShowDirectChat, unreadCounts, groupUnreadCount,
     setSimulatedUser, firebaseSendPrivateMsg, deleteProfile, deleteTasksBulk, trashTasksBulk, approveTasksBulk, logs, resetSystem,
     deleteLogsBulk, markAsRead, lastReadChatTimestamps,
-    adminUnreadCount, onOpenNotifications, createNotification
+    adminUnreadCount, onOpenNotifications, createNotification,
+    selectedMonth, onMonthChange,
+    sendAiMessage, triggerAiNudge, resetTaskAIStatus, aiMessages
   } = props;
 
   const [selectedTaskIds, setSelectedTaskIds] = React.useState<string[]>([]);
@@ -184,7 +192,10 @@ export const MainContent: React.FC<MainContentProps> = (props) => {
     updateTask, deleteTask, setShowHistoryModal, setShowChatModal, showChatModal,
     addTaskComment, updateTaskCommentReactions, setEditingTask, setConfirmModal,
     createNotification, toggleTaskSelection, setBulkSelection, setActiveTab,
-    highlightedTaskId, search, setSearch
+    highlightedTaskId, search, setSearch,
+    markAsRead, lastReadChatTimestamps,
+    selectedMonth, onMonthChange, tasks,
+    sendAiMessage, triggerAiNudge, resetTaskAIStatus, aiMessages
   };
 
   return (

@@ -208,6 +208,8 @@ export interface Task {
   kpiEfficiency?: string | number;
   isNewInBoard?: boolean;
   lastActionAt?: string;
+  aiReminderResponded?: boolean;
+  aiReminderLastDate?: string;
 }
 
 export interface ReportDraft {
@@ -274,4 +276,13 @@ export interface UserPresence {
 export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
+}
+
+export interface AIChatMessage {
+  id: string;
+  taskId: string;
+  userId: string;
+  role: 'assistant' | 'user';
+  content: string;
+  timestamp: string;
 }

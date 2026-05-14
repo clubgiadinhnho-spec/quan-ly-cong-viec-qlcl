@@ -16,6 +16,7 @@ interface PendingConfirmationPageProps {
   updateTaskCommentReactions: (taskId: string, commentId: string, emoji: string) => void;
   setEditingTask: (task: Task) => void;
   setConfirmModal: (modal: any) => void;
+  presence: any[];
 }
 
 export const PendingConfirmationPage = ({
@@ -30,7 +31,8 @@ export const PendingConfirmationPage = ({
   addTaskComment,
   updateTaskCommentReactions,
   setEditingTask,
-  setConfirmModal
+  setConfirmModal,
+  presence
 }: PendingConfirmationPageProps) => {
   const pendingTasks = tasks.filter(t => t.status === 'AWAITING_CONFIRMATION');
   const isManager = currentUser.role === 'Admin' || !!currentUser.delegatedPermissions?.canApproveTask;
@@ -83,6 +85,7 @@ export const PendingConfirmationPage = ({
                 onEdit={setEditingTask}
                 setConfirmModal={setConfirmModal}
                 type="active"
+                presence={presence}
               />
           </div>
           

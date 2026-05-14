@@ -33,6 +33,8 @@ interface NewProposalsTabProps {
   setActiveTab: (tab: string) => void;
   search: string;
   setSearch: (s: string) => void;
+  markAsRead: (id: string) => void;
+  lastReadChatTimestamps: Record<string, number>;
 }
 
 export const NewProposalsTab: React.FC<NewProposalsTabProps> = ({
@@ -41,7 +43,7 @@ export const NewProposalsTab: React.FC<NewProposalsTabProps> = ({
   setShowHistoryModal, setShowChatModal, showChatModal, addTaskComment,
   updateTaskCommentReactions, setEditingTask, setConfirmModal, createNotification,
   toggleTaskSelection, setBulkSelection, approveTasksBulk, setActiveTab,
-  search, setSearch
+  search, setSearch, markAsRead, lastReadChatTimestamps
 }) => {
   return (
     <motion.div key="pending_confirmation" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col">
@@ -93,6 +95,9 @@ export const NewProposalsTab: React.FC<NewProposalsTabProps> = ({
           onOpenCategoryManagement={() => setActiveTab('category_management')}
           handleExportExcel={handleExportExcel}
           search={search}
+          markAsRead={markAsRead}
+          lastReadChatTimestamps={lastReadChatTimestamps}
+          presence={presence}
         />
       </div>
     </motion.div>

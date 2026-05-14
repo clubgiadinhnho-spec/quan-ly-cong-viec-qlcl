@@ -946,8 +946,13 @@ const handleCreateTopic = () => {
               <div 
                 className="flex-1 overflow-y-auto p-4 space-y-6 bg-[#f4f7f9] custom-scrollbar"
               >
-                {filteredMessages.map((msg, idx) => {
-                  const author = getAuthor(msg.authorId);
+                {filteredMessages
+                  .filter(msg => {
+                    const content = msg.content || '';
+                    return !/(?:🤖|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content);
+                  })
+                  .map((msg, idx) => {
+                    const author = getAuthor(msg.authorId);
                   
                   // "Thiết quân luật" logic nhận diện: Sử dụng uniqueKey
                   const isMe = msg.authorId === (currentUser?.uniqueKey || '');

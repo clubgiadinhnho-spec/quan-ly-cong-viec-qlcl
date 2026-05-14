@@ -31,6 +31,8 @@ interface TrashTabProps {
   setBulkSelection: (ids: string[], select: boolean) => void;
   search: string;
   setSearch: (s: string) => void;
+  markAsRead: (id: string) => void;
+  lastReadChatTimestamps: Record<string, number>;
 }
 
 export const TrashTab: React.FC<TrashTabProps> = ({
@@ -39,7 +41,7 @@ export const TrashTab: React.FC<TrashTabProps> = ({
   updateTask, permanentDeleteTask, setShowHistoryModal, setShowChatModal,
   showChatModal, addTaskComment, updateTaskCommentReactions, setEditingTask,
   setConfirmModal, restoreTask, highlightedTaskId, toggleTaskSelection, setBulkSelection,
-  search, setSearch
+  search, setSearch, markAsRead, lastReadChatTimestamps
 }) => {
   return (
     <motion.div key="trash" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -67,11 +69,16 @@ export const TrashTab: React.FC<TrashTabProps> = ({
             <span translate="no" className="notranslate">Danh sách lưu trữ</span>
           </h4>
           <div className="flex items-center gap-3">
+            {search && (
+              <span translate="no" className="notranslate text-[11px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-md border border-red-100 animate-in fade-in slide-in-from-right-1">
+                TÌM THẤY: {sortedTasks.length}
+              </span>
+            )}
             <div className="relative group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input
                 type="text"
-                placeholder="Tìm kiếm mã, tên, nội dung, nhân sự..."
+                placeholder="Tìm kiếm mã, nội dung, nhân sự, ngày khởi tạo, ngày bắt đầu, hạn hoàn thành, Gia hạn, chu kỳ lặp lại..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-red-500 text-xs w-72 placeholder:notranslate transition-all group-focus-within:border-red-400 group-focus-within:shadow-sm shadow-sm"
@@ -112,6 +119,9 @@ export const TrashTab: React.FC<TrashTabProps> = ({
           onToggleSelect={toggleTaskSelection}
           onBulkSelect={setBulkSelection}
           isReadOnly={effectiveUser.role !== 'Admin'}
+          markAsRead={markAsRead}
+          lastReadChatTimestamps={lastReadChatTimestamps}
+          presence={presence}
         />
       </div>
     </motion.div>

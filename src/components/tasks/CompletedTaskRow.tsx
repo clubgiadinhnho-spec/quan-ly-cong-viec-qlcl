@@ -35,11 +35,13 @@ interface CompletedTaskRowProps {
   isSelected?: boolean;
   onToggleSelect?: (id: string) => void;
   setConfirmModal: (modal: any) => void;
+  markAsRead: (id: string) => void;
+  lastReadChatTimestamps: Record<string, number>;
 }
 
 export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ 
   task, user, users, idx, onViewHistory, onOpenChat, isChatOpen, onSendMessage, onReact, onUndo, onUpdate, onDelete,
-  isSelected, onToggleSelect, setConfirmModal
+  isSelected, onToggleSelect, setConfirmModal, markAsRead, lastReadChatTimestamps
 }) => {
   const chatButtonRef = React.useRef<HTMLButtonElement>(null);
 
@@ -49,19 +51,24 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
   const isAdmin = user.role?.toUpperCase() === 'ADMIN' || user.uniqueKey === 'LeNhatTruong09xxxxxxxx' || user.name === 'Lê Nhật Trường' || user.id === 'lenhattruong.caphef1@gmail.com';
   const isManager = isAdmin;
 
-  const [lastReadCount, setLastReadCount] = React.useState(task.comments?.length || 0);
   const [showColorPicker, setShowColorPicker] = React.useState(false);
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [showAuditModal, setShowAuditModal] = React.useState(false);
 
-  // When chat opens, update last read count to current number of comments
+  // When chat opens or new comments arrive while open, update last read timestamp
   React.useEffect(() => {
     if (isChatOpen) {
-      setLastReadCount(task.comments?.length || 0);
+      markAsRead(task.id);
     }
-  }, [isChatOpen, task.comments?.length]);
+  }, [isChatOpen, task.id, markAsRead, task.comments?.length]);
 
-  const unreadCount = (task.comments?.length || 0) - lastReadCount;
+  const lastReadTime = (lastReadChatTimestamps || {})[task.id] || 0;
+  const unreadCount = (task.comments || []).filter(c => {
+    const cTime = c.timestamp 
+      ? (typeof c.timestamp === 'string' ? new Date(c.timestamp).getTime() : (c.timestamp as any).toDate?.().getTime() || Date.now()) 
+      : Date.now();
+    return cTime > lastReadTime && c.authorId !== user.id;
+  }).length;
   const showBadge = unreadCount > 0 && !isChatOpen;
 
   const isRecurringTask = task.recurrence && task.recurrence !== 'NONE' && task.recurrence !== 'KHÔNG LẶP';
@@ -100,11 +107,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           <span translate="no" className="notranslate leading-none">
             {task.code}
           </span>
-          {task.category && (
-            <span translate="no" className="notranslate text-[9px] font-black text-white bg-indigo-400 px-1 py-0.5 rounded leading-none" title="PHÂN LOẠI">
-              <span translate="no" className="notranslate text-[11px]">{task.category}</span>
-            </span>
-          )}
+          {/* Category labels removed per user request */}
           {/* Recurrence Badge for Completed Tasks */}
           {task.recurrence && task.recurrence !== 'NONE' && (
             <div className="flex flex-col items-center gap-0.5 mt-2 opacity-90" title="CÔNG VIỆC ĐỊNH KỲ">
@@ -179,14 +182,14 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
               ref={chatButtonRef}
               onClick={() => onOpenChat(isChatOpen ? '' : task.id)}
               className={`flex items-center gap-1.5 py-1 px-1 transition-all rounded ${
-                showBadge && isAdmin ? 'animate-bounce text-red-700 font-bold' : (task.comments?.length || 0) > 0 ? 'text-red-800 font-bold' : 'text-gray-400'
+                showBadge ? 'animate-bounce text-red-700 font-bold' : (task.comments?.length || 0) > 0 ? 'text-red-800 font-bold' : 'text-gray-400'
               }`}
             >
               <div className="relative">
                 <MessageSquare size={16} fill={(task.comments?.length || 0) > 0 ? "currentColor" : "none"} className="opacity-90" />
-                {showBadge && isAdmin && (
+                {showBadge && (
                   <span translate="no" className="notranslate absolute -top-2 -right-2 flex items-center justify-center min-w-[17px] h-[17px] px-1 bg-red-600 text-white text-[10px] font-black rounded-full border border-white shadow-sm">
-                    <span translate="no" className="notranslate">{unreadCount}</span>
+                    <span translate="no" className="notranslate font-black">{unreadCount}</span>
                    </span>
                 )}
               </div>

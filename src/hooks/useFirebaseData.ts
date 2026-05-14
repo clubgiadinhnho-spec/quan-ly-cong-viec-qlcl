@@ -22,7 +22,7 @@ import { db, auth } from '../lib/firebase';
 import { calculateNextDeadline } from '../lib/dateUtils';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { User, UserPresence, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport, LogEntry, DiscussionTopic, DiscussionMessage, TaskCategory, CycleHistoryEntry } from '../types';
+import { User, UserPresence, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport, LogEntry, DiscussionTopic, DiscussionMessage, TaskCategory, CycleHistoryEntry, AIChatMessage } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
 export const useFirebaseData = (currentUserId?: string) => {
@@ -32,6 +32,7 @@ export const useFirebaseData = (currentUserId?: string) => {
   const [discussionMessages, setDiscussionMessages] = useState<DiscussionMessage[]>([]);
   const [privateMessages, setPrivateMessages] = useState<PrivateMessage[]>([]);
   const [officialReports, setOfficialReports] = useState<OfficialReport[]>([]);
+  const [aiMessages, setAiMessages] = useState<AIChatMessage[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [extraUsers, setExtraUsers] = useState<User[]>([]);
   const [userProfiles, setUserProfiles] = useState<User[]>([]);
@@ -252,6 +253,23 @@ export const useFirebaseData = (currentUserId?: string) => {
       }
     );
 
+    // Listen to AI Messages
+    const aiMessagesUnsubscribe = onSnapshot(
+      collection(db, 'ai_messages'),
+      (snapshot) => {
+        const data = snapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id
+        } as AIChatMessage));
+        setAiMessages(data);
+      },
+      (error) => {
+        if (error.code !== 'permission-denied') {
+          console.warn("AI Messages listener error:", error.message);
+        }
+      }
+    );
+
     // Listen to System Logs
     const logsUnsubscribe = onSnapshot(
       query(collection(db, 'system_logs'), orderBy('timestamp', 'desc'), limit(50)),
@@ -365,6 +383,7 @@ export const useFirebaseData = (currentUserId?: string) => {
       topicsUnsubscribe();
       discMessagesUnsubscribe();
       reportsUnsubscribe();
+      aiMessagesUnsubscribe();
       logsUnsubscribe();
       unsubPrivateSent();
       unsubPrivateReceived();
@@ -1350,6 +1369,52 @@ export const useFirebaseData = (currentUserId?: string) => {
     }
   }, []);
 
+  const sendAiMessage = useCallback(async (msg: Omit<AIChatMessage, 'id'>) => {
+    try {
+      await addDoc(collection(db, 'ai_messages'), {
+        ...msg,
+        timestamp: new Date().toISOString()
+      });
+      // Mark reminder as responded for today if user is target assignee
+      if (msg.role === 'user') {
+        await updateDoc(doc(db, 'tasks', msg.taskId), {
+          aiReminderResponded: true,
+          aiReminderLastDate: new Date().toISOString().split('T')[0]
+        });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'ai_messages');
+    }
+  }, []);
+
+  const triggerAiNudge = useCallback(async (taskId: string, targetUserId: string, content: string) => {
+    try {
+      await addDoc(collection(db, 'ai_messages'), {
+        taskId,
+        userId: targetUserId,
+        role: 'assistant',
+        content,
+        timestamp: new Date().toISOString()
+      });
+      // Reset status so user sees fresh alert
+      await updateDoc(doc(db, 'tasks', taskId), {
+        aiReminderResponded: false
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'ai_messages');
+    }
+  }, []);
+
+  const resetTaskAIStatus = useCallback(async (taskId: string) => {
+    try {
+      await updateDoc(doc(db, 'tasks', taskId), {
+        aiReminderResponded: null
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `tasks/${taskId}`);
+    }
+  }, []);
+
   return {
     tasks,
     messages,
@@ -1357,6 +1422,7 @@ export const useFirebaseData = (currentUserId?: string) => {
     discussionMessages,
     privateMessages,
     officialReports,
+    aiMessages,
     logs,
     extraUsers,
     userProfiles,
@@ -1369,6 +1435,9 @@ export const useFirebaseData = (currentUserId?: string) => {
     approveTasksBulk,
     sendMessage,
     sendDiscussionMessage,
+    sendAiMessage,
+    triggerAiNudge,
+    resetTaskAIStatus,
     createTopic,
     updateTopic,
     deleteTopic,

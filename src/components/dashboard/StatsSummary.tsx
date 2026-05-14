@@ -5,9 +5,11 @@ import { getTaskDeadlineStatus } from '../../lib/dateUtils';
 
 interface StatsSummaryProps {
   tasks: Task[];
+  selectedMonth?: string;
+  onMonthChange?: (month: string) => void;
 }
 
-export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
+export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks, selectedMonth = 'all', onMonthChange }) => {
   const nonDeleted = tasks.filter(t => !t.deletedAt);
   // YÊU CẦU BẮT BUỘC: Dashboard chỉ tính các việc APPROVED và KHÔNG đang chờ duyệt
   const approvedTasks = nonDeleted.filter(t => t.status === 'APPROVED' && !t.waitingApproval);
@@ -17,7 +19,97 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
   
   const priorityTasks = activeTasks.filter(t => !!t.priorityOrder);
   const normalTasks = activeTasks.filter(t => !priorityTasks.includes(t));
-  const completedCount = nonDeleted.filter(t => t.status === 'COMPLETED' || t.status === 'Hoàn thành').length;
+  
+  // LOGIC HOÀN THÀNH CHUẨN: Bao gồm cả việc đã xong kỳ cũ
+  const completedTasks = React.useMemo(() => {
+    const directCompleted = nonDeleted.filter(t => (t.status === 'COMPLETED' || t.status === 'Hoàn thành') && !t.waitingApproval);
+    const cycleItems: any[] = [];
+    nonDeleted.forEach(t => {
+      if (t.cycleHistory && t.cycleHistory.length > 0) {
+        t.cycleHistory.forEach(entry => {
+          cycleItems.push({
+            ...t,
+            actualEndDate: entry.completedAt
+          });
+        });
+      }
+    });
+    const combined = [...directCompleted, ...cycleItems];
+    
+    // THIẾT QUÂN LUẬT: Deduplicate fingerprint để khớp bảng
+    const uniqueMap = new Map();
+    combined.forEach(item => {
+      if (!item.id || !item.code) return;
+      const rawDate = item.actualEndDate || '';
+      const dateStr = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate.substring(0, 10);
+      const contentStr = (item.currentUpdate || '').trim();
+      const fingerprint = `${item.code}_${dateStr}_${contentStr}`;
+      if (!uniqueMap.has(fingerprint)) {
+        uniqueMap.set(fingerprint, item);
+      } else if (item.isCycleRecord && !uniqueMap.get(fingerprint).isCycleRecord) {
+        uniqueMap.set(fingerprint, item);
+      }
+    });
+    return Array.from(uniqueMap.values());
+  }, [nonDeleted]);
+  
+  // Extract unique MM/YY from completed tasks
+  const availableMonths = React.useMemo(() => {
+    const months = new Set<string>();
+    completedTasks.forEach(t => {
+      const date = t.actualEndDate;
+      if (date) {
+        // HỖ TRỢ CẢ 2 ĐỊNH DẠNG: ISO (2026-05-...) hoặc DD/MM/YY (13/05/26)
+        const dateStr = typeof date === 'string' ? date : (date as any).toISOString?.() || '';
+        
+        let m = '', y = '';
+        const isoMatch = dateStr.match(/^(\d{4})-(\d{2})/);
+        const vnMatch = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{2})/);
+
+        if (isoMatch) {
+          y = isoMatch[1].substring(2);
+          m = isoMatch[2];
+        } else if (vnMatch) {
+          y = vnMatch[3];
+          m = vnMatch[2];
+        }
+
+        if (m && y) {
+          months.add(`${m}/${y}`);
+        }
+      }
+    });
+    return Array.from(months).sort((a, b) => {
+      const [mA, yA] = a.split('/').map(Number);
+      const [mB, yB] = b.split('/').map(Number);
+      if (yA !== yB) return yB - yA;
+      return mB - mA;
+    });
+  }, [completedTasks]);
+
+  const filteredCompleted = selectedMonth === 'all' 
+    ? completedTasks 
+    : completedTasks.filter(t => {
+        const date = t.actualEndDate;
+        if (!date) return false;
+        const dateStr = typeof date === 'string' ? date : (date as any).toISOString?.() || '';
+        
+        let m = '', y = '';
+        const isoMatch = dateStr.match(/^(\d{4})-(\d{2})/);
+        const vnMatch = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{2})/);
+
+        if (isoMatch) {
+          y = isoMatch[1].substring(2);
+          m = isoMatch[2];
+        } else if (vnMatch) {
+          y = vnMatch[3];
+          m = vnMatch[2];
+        }
+        
+        return `${m}/${y}` === selectedMonth;
+      });
+
+  const completedCount = filteredCompleted.length;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
@@ -86,7 +178,20 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks }) => {
             </div>
             <div className="min-w-0">
               <p className="text-[10px] text-white font-black uppercase tracking-widest whitespace-nowrap">HOÀN THÀNH</p>
-              <p className="text-[9px] text-blue-100 font-bold uppercase opacity-80 leading-none mt-0.5 whitespace-nowrap">Kết quả</p>
+              <div className="flex items-center gap-1 mt-0.5">
+                <p className="text-[9px] text-blue-100 font-bold uppercase opacity-80 leading-none whitespace-nowrap">Kết quả</p>
+                <select 
+                  value={selectedMonth}
+                  onChange={(e) => onMonthChange && onMonthChange(e.target.value)}
+                  className="bg-blue-700/50 text-[9px] font-bold text-white border-none rounded px-1 py-0.5 outline-none cursor-pointer hover:bg-blue-800 transition-colors"
+                  translate="no"
+                >
+                  <option value="all">ALL</option>
+                  {availableMonths.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
           <div className="text-[33px] font-medium text-white leading-none shrink-0"><span translate="no" className="notranslate">{completedCount}</span></div>

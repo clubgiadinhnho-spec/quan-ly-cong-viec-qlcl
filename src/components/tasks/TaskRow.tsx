@@ -1,8 +1,10 @@
 import React from 'react';
 import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw, Trash2, Bell, RefreshCw, Highlighter, Check, ThumbsUp, CheckCircle2, Tag, Pencil, Eye, History, UserCircle, ChevronDown, Zap, Banknote, Bold, Underline, Palette, Eraser, Edit3 } from 'lucide-react';
-import { Task, User } from '../../types';
+import { Task, User, AIChatMessage } from '../../types';
+import { GoogleGenAI } from "@google/genai";
 import { formatDate, calculateNextDeadline, getTaskDeadlineStatus } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
+import { TaskAIChat } from './TaskAIChat';
 import { AnimatePresence, motion } from 'motion/react';
 import { Avatar } from '../common/Avatar';
 import { Portal } from '../common/Portal';
@@ -10,6 +12,8 @@ import { UpdateModal } from './UpdateModal';
 import { CycleHistoryEntry } from '../../types';
 import { format, isSameDay, parseISO } from 'date-fns';
 import { vi } from 'date-fns/locale';
+import { RobotAvatar } from '../common/RobotAvatar';
+import { ChatIconSVG } from '../common/ChatIconSVG';
 
 import { getUserById, getSafeNameProps, getTaskAssigneeName, isUserTask } from '../../utils/userUtils';
 import { generateQCDExplanation } from '../../services/geminiService';
@@ -48,13 +52,22 @@ interface TaskRowProps {
   isSelected?: boolean;
   onToggleSelect?: (id: string) => void;
   createNotification?: (senderName: string, taskCode: string, taskId: string, type: any) => Promise<void>;
+  markAsRead: (id: string) => void;
+  lastReadChatTimestamps: Record<string, number>;
+  sendAiMessage?: any;
+  triggerAiNudge?: any;
+  resetTaskAIStatus?: any;
+  aiMessages?: any[];
+  presence?: any[];
 }
 
 export const TaskRow: React.FC<TaskRowProps> = ({ 
   task, user, users, onUpdate, onDelete, onViewHistory, onOpenChat, 
   isChatOpen, onSendMessage, onReact, onTogglePriority, onSetPriority, onEdit, idx, setConfirmModal,
   isReadOnly = false, isUpdateReadOnly = false, onRestore, onApprove, approveTaskCompletion, onNavigate, highlightedTaskId, isSelected, onToggleSelect,
-  createNotification
+  createNotification, markAsRead, lastReadChatTimestamps,
+  sendAiMessage, triggerAiNudge, resetTaskAIStatus, aiMessages,
+  presence
 }) => {
   const chatButtonRef = React.useRef<HTMLButtonElement>(null);
 
@@ -82,11 +95,53 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const canSeeAI = isAdmin || user.role === 'Trưởng Phòng';
 
   const canEditPriority = isAdmin;
-  const [lastReadCount, setLastReadCount] = React.useState(task.comments?.length || 0);
   const [showColorPicker, setShowColorPicker] = React.useState(false);
   const [showQCDModal, setShowQCDModal] = React.useState(false);
   const [showUpdateModal, setShowUpdateModal] = React.useState(false);
+  const [showAIChat, setShowAIChat] = React.useState(false);
   const [openGuide, setOpenGuide] = React.useState<string | null>(null);
+
+  const lastSeenMsgId = React.useRef<string | null>(null);
+  const [sessionStartTime] = React.useState(() => {
+    const stored = sessionStorage.getItem('session_start_time');
+    if (stored) return parseInt(stored, 10);
+    const now = Date.now();
+    sessionStorage.setItem('session_start_time', now.toString());
+    return now;
+  });
+
+  // Auto-open AI Chat if there's a new reminder or task is in reminding state (yellow)
+  // New logic: Only open if user is online, 1 minute passed since login, and it's the first reminder auto-open
+  React.useEffect(() => {
+    if (!isOwner || task.aiReminderResponded !== false) return;
+
+    const checkAutoOpen = () => {
+      // 1. Check if user is online
+      const isOnline = presence?.some(p => p.uniqueKey === user.uniqueKey || p.id === user.id);
+      if (!isOnline) return;
+
+      // 2. Check if 1 minute has passed since login (session start)
+      const now = Date.now();
+      if (now - sessionStartTime < 60000) return;
+
+      // 3. Check if we already auto-opened one in this session
+      const alreadyOpened = sessionStorage.getItem('ai_chat_auto_opened');
+      if (!alreadyOpened) {
+        setShowAIChat(true);
+        sessionStorage.setItem('ai_chat_auto_opened', 'true');
+      }
+    };
+
+    const now = Date.now();
+    const timeToWait = 60000 - (now - sessionStartTime);
+
+    if (timeToWait <= 0) {
+      checkAutoOpen();
+    } else {
+      const timer = setTimeout(checkAutoOpen, timeToWait);
+      return () => clearTimeout(timer);
+    }
+  }, [task.id, task.aiReminderResponded, isOwner, presence, sessionStartTime, user.id, user.uniqueKey]);
 
   // QCD Local State for Staff
   const [staffQ, setStaffQ] = React.useState(task.staffQCD?.q || 3);
@@ -104,20 +159,27 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const [leaderCComment, setLeaderCComment] = React.useState('');
   const [leaderDComment, setLeaderDComment] = React.useState('');
 
-  // When chat opens, update last read count to current number of comments
+  // When chat opens or new comments arrive while open, update last read timestamp
   React.useEffect(() => {
     if (isChatOpen) {
-      setLastReadCount(task.comments?.length || 0);
+      markAsRead(task.id);
     }
-  }, [isChatOpen, task.comments?.length]);
+  }, [isChatOpen, task.id, markAsRead, task.comments?.length]);
 
-  const unreadCount = (task.comments?.length || 0) - lastReadCount;
+  const lastReadTime = (lastReadChatTimestamps || {})[task.id] || 0;
+  const unreadCount = (task.comments || []).filter(c => {
+    const cTime = c.timestamp 
+      ? (typeof c.timestamp === 'string' ? new Date(c.timestamp).getTime() : (c.timestamp as any).toDate?.().getTime() || Date.now()) 
+      : Date.now();
+    return cTime > lastReadTime && c.authorId !== user.id;
+  }).length;
   const showBadge = unreadCount > 0 && !isChatOpen;
 
   const getPriorityRowClass = (priority: number | undefined) => {
     return '';
   };
 
+  const isAiReminding = task.aiReminderResponded === false;
   const priorityRowClass = getPriorityRowClass(task.priorityOrder);
   const highlightClass = task.highlightColor ? HIGHLIGHT_COLORS[task.highlightColor] : (task.isHighlighted ? HIGHLIGHT_COLORS['amber'] : '');
   const finalRowClass = highlightClass || priorityRowClass || 'hover:bg-gray-50/50';
@@ -155,7 +217,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   // Helper to convert our custom tags to HTML and vice versa if needed
   const toHTML = (content: string) => {
     if (!content) return '';
+    
+    // Hide content completely if it's from any Robot/AI source
+    if (/(?:🤖|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content)) {
+      return '';
+    }
+
     let processed = content;
+
     // Support legacy tags
     processed = processed.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
     processed = processed.replace(/__(.*?)__/g, '<u>$1</u>');
@@ -168,26 +237,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       currentUpdate: htmlContent,
       isNewUpdate: true,
       lastActionAt: new Date().toISOString(),
+      lastUpdatedByRole: user.role,
       version: (task.version || 0) + 1
     });
   };
-
-  const [dailyVersion, setDailyVersion] = React.useState(1);
-
-  React.useEffect(() => {
-    // Tính toán số phiên bản cập nhật trong ngày hôm nay
-    if (!task.history) {
-      setDailyVersion(1);
-      return;
-    }
-    const today = new Date();
-    const todayUpdates = task.history.filter(h => {
-      if (!h.timestamp) return false;
-      const hDate = typeof h.timestamp === 'string' ? parseISO(h.timestamp) : (h.timestamp as any).toDate();
-      return isSameDay(hDate, today) && h.content?.startsWith('Cập nhật tiến độ:');
-    });
-    setDailyVersion(todayUpdates.length);
-  }, [task.history]);
 
   const handleConfirmTask = (approve: boolean) => {
     if (approve) {
@@ -327,7 +380,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
            className="w-3 h-3 rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all"
          />
       </td>
-      <td className={`p-1.5 text-center text-[10px] border border-gray-300 align-top relative h-px ${task.isHighlighted || task.priorityOrder ? 'text-gray-600' : 'text-gray-400'}`}>
+      <td className={`p-1.5 text-center text-[10px] border border-gray-300 align-top relative h-px min-w-[70px] ${task.isHighlighted || task.priorityOrder ? 'text-gray-600' : 'text-gray-400'}`}>
         <div className="flex flex-col items-center pt-0.5 h-full justify-between">
           <div className="flex flex-col items-center gap-1 mb-2">
             <div translate="no" className="notranslate leading-none text-[12px] font-mono font-black text-blue-600 bg-blue-50/50 px-1 py-0.5 rounded-sm border border-blue-100/50">
@@ -335,11 +388,58 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                  {task.code}
                </span>
             </div>
-            {task.category && (
-              <div translate="no" className="notranslate leading-none text-[9px] font-mono font-black text-white bg-indigo-500 px-1 py-0.5 rounded-sm border border-indigo-400" title="PHÂN LOẠI">
-                <span translate="no" className="notranslate font-bold text-[11px]">{task.category}</span>
-              </div>
-            )}
+
+            {/* Robot Icon below Code */}
+            <div className="relative">
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const nextShow = !showAIChat;
+                  
+                  // Ưu tiên hiện UI ngay lập tức
+                  setShowAIChat(nextShow);
+
+                  if (nextShow) {
+                    // Xử lý logic trạng thái sau khi đã mở UI
+                    if (isOwner && task.aiReminderResponded === false) {
+                      onUpdate(task.id, { aiReminderResponded: true });
+                    }
+                    else if (isAdmin && task.aiReminderResponded === true && resetTaskAIStatus) {
+                      resetTaskAIStatus(task.id);
+                    }
+                  }
+                }}
+                className={`p-1.5 rounded-full transition-all hover:scale-110 active:scale-95 ${
+                  task.aiReminderResponded === false
+                    ? 'bg-yellow-400 text-black shadow-[0_0_20px_rgba(253,224,71,0.8)] ring-2 ring-yellow-200 animate-pulse'
+                    : task.aiReminderResponded === true
+                      ? 'bg-emerald-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.5)] ring-1 ring-emerald-200'
+                      : showAIChat 
+                        ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-100' 
+                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                }`}
+                title={isAdmin ? (task.aiReminderResponded ? "Nhân viên đã phản hồi AI - Nhấn để xem" : "Robot đang nhắc việc nhân viên (Màu Vàng)") : "Nhấn để trò chuyện với Robot Trợ Lý AI"}
+              >
+                <RobotAvatar size={25} animate={isAiReminding && task.assigneeId === user.uniqueKey} />
+              </button>
+
+              <AnimatePresence>
+                {showAIChat && (
+                  <TaskAIChat 
+                    task={task}
+                    assigneeName={assigneeName}
+                    currentUser={user}
+                    messages={aiMessages || []}
+                    onSendMessage={sendAiMessage}
+                    onClose={() => {
+                      setShowAIChat(false);
+                    }}
+                  />
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Category labels removed per user request */}
             {task.recurrence && task.recurrence !== 'NONE' && (
               <div className="flex flex-col items-center gap-1">
                 <RefreshCw size={14} className="text-emerald-500 animate-[spin_4s_linear_infinite]" strokeWidth={3} />
@@ -387,12 +487,17 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         </div>
       </td>
       <td 
-        className={`p-1 border border-gray-300 align-top h-px transition-colors ${task.highlightColor || task.isHighlighted ? 'border-l-4 border-amber-500' : isNewInBoard ? 'border-l-4 border-emerald-500 bg-emerald-50/10' : ''}`}
+        className={`p-1 border border-gray-300 align-top h-px relative transition-colors ${task.highlightColor || task.isHighlighted ? 'border-l-4 border-amber-500' : isNewInBoard ? 'border-l-4 border-emerald-500 bg-emerald-50/10' : ''}`}
       >
         <div className="flex flex-col h-full gap-1.5 px-0.5 pt-0.5 pb-4">
           {/* 1. Identity Section - Avatar & Name on same row */}
           <div className="flex items-center gap-2">
-            <Avatar src={assignee?.avatar} name={assigneeName} size="md" className="ring-[0.5px] ring-black border-none" />
+            <div className="relative">
+              <Avatar src={assignee?.avatar} name={assigneeName} size="md" className="ring-[0.5px] ring-black border-none" />
+              {isAdmin && task.aiReminderResponded && (
+                <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white shadow-[0_0_5px_rgba(16,185,129,0.8)] animate-pulse" title="Đã tương tác với AI" />
+              )}
+            </div>
             <div className="min-w-0 flex-1">
               <div {...getSafeNameProps()} className="text-[14px] font-bold text-gray-900 leading-none truncate notranslate" title={assigneeName}>
                 <span translate="no" className="notranslate">{assigneeName}</span>
@@ -452,26 +557,28 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             )}
           </div>
 
-          {/* 3. Chat Button - Ultra Minimal */}
-          <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+          {/* 3. Chat Button - Floating at the bottom-right of the cell */}
+          <div className="absolute bottom-1.5 right-1.5" onClick={(e) => e.stopPropagation()}>
             <button 
               ref={chatButtonRef}
               onClick={() => onOpenChat(isChatOpen ? '' : task.id)}
-              className={`flex items-center gap-2 py-1.5 px-1.5 transition-all rounded-lg ${
-                showBadge && isAdmin ? 'bg-red-50 text-red-700 font-bold' : (task.comments?.length || 0) > 0 ? 'bg-transparent text-red-800 font-bold' : 'text-gray-400 hover:bg-gray-50'
+              className={`flex items-center gap-1.5 py-0.5 px-2 transition-all rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:scale-105 active:scale-95 group/chat ${
+                showBadge && isAdmin ? 'bg-red-50 text-red-700 font-bold' : (task.comments?.length || 0) > 0 ? 'bg-red-50 text-red-800 font-bold' : 'bg-white text-gray-500 hover:text-blue-600'
               }`}
             >
-              <div className="w-5 flex justify-center items-center relative">
-                <MessageSquare size={16} fill={(task.comments?.length || 0) > 0 ? "currentColor" : "none"} className="opacity-90" />
-                {showBadge && isAdmin && (
-                  <span translate="no" className="notranslate absolute -top-2.5 -right-2.5 flex items-center justify-center min-w-[17px] h-[17px] px-1 bg-red-600 text-white text-[10px] font-black rounded-full border border-white shadow-sm">
-                    <span translate="no" className="notranslate">{unreadCount}</span>
-                  </span>
-                )}
+              <div className="flex items-center gap-1.5 relative">
+                <div className="relative">
+                  <ChatIconSVG size={22} className="opacity-100" />
+                  {showBadge && (
+                    <span translate="no" className="notranslate absolute -top-2 -right-2 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 bg-red-600 text-white text-[8px] font-black rounded-full border border-white shadow-sm z-10 animate-bounce">
+                      <span translate="no" className="notranslate font-black">{unreadCount}</span>
+                    </span>
+                  )}
+                </div>
+                <span translate="no" className="notranslate text-[8px] font-black tracking-tight uppercase">
+                  <span translate="no" className="notranslate">CHAT</span>
+                </span>
               </div>
-              <span translate="no" className="notranslate text-[12px] font-black tracking-[0.1em] uppercase">
-                <span translate="no" className="notranslate">CHAT</span>
-              </span>
             </button>
 
             {isChatOpen && (
@@ -554,10 +661,45 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               {/* Header area for Vn and Toolbar - NO LONGER DIRECT EDIT */}
               <div className="flex items-center justify-between px-2 py-1 border-b border-gray-100/30 bg-gray-50/30 shrink-0">
                 <div translate="no" className="notranslate flex items-center gap-1.5">
-                  {dailyVersion > 0 && (
-                    <span translate="no" className="notranslate text-[9px] font-black text-blue-600 bg-blue-50 px-1 py-0.5 rounded-sm border border-blue-100">
-                      V{dailyVersion}
-                    </span>
+                  {((task.version || 0) > 0 || task.currentUpdate) && (() => {
+                    const lastUpdate = task.lastActionAt ? new Date(task.lastActionAt) : new Date();
+                    const now = new Date();
+                    
+                    // Reset time components for accurate day comparison
+                    const d1 = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
+                    const d2 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    
+                    const diffTime = d2.getTime() - d1.getTime();
+                    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    let bgClass = "bg-gray-100 text-gray-500 border-gray-200";
+                    const tooltipText = "QUY ĐỊNH MÀU SẮC Vn:\n- Xanh lá: Cập nhật hôm nay & hôm qua\n- Xanh dương: Trễ 2-3 ngày\n- Tím: Trễ 4-5 ngày\n- Đỏ: Trễ từ 6 ngày trở lên";
+
+                    if (diffDays <= 1) bgClass = "bg-green-500 text-white border-green-600";
+                    else if (diffDays >= 2 && diffDays <= 3) bgClass = "bg-blue-600 text-white border-blue-700";
+                    else if (diffDays >= 4 && diffDays <= 5) bgClass = "bg-purple-600 text-white border-purple-700";
+                    else if (diffDays >= 6) bgClass = "bg-red-600 text-white border-red-700";
+
+                    return (
+                      <span 
+                        translate="no" 
+                        className={`notranslate text-[9px] font-black px-1 py-0.5 rounded-sm border shadow-sm transition-colors ${bgClass}`}
+                        title={tooltipText}
+                      >
+                        V{task.version || 1}
+                      </span>
+                    );
+                  })()}
+                  {canApprove && isFreshUpdate && (
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpdate(task.id, { isNewUpdate: false });
+                      }}
+                      className="text-[9px] font-black px-1.5 py-0.5 bg-amber-500 text-white rounded-sm animate-pulse border border-amber-400 hover:bg-amber-600 transition-colors shadow-sm"
+                    >
+                      XEM
+                    </button>
                   )}
                 </div>
 
@@ -570,10 +712,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                         onUpdate(task.id, { isNewUpdate: false });
                       }
                     }}
-                    className="w-7 h-7 flex items-center justify-center rounded-md bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-blue-100 group/edit"
+                    className="w-5 h-5 flex items-center justify-center rounded-md bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-blue-100 group/edit"
                     title="CẬP NHẬT TIẾN ĐỘ"
                   >
-                    <Edit3 size={16} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
+                    <Edit3 size={11} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
                   </button>
                 )}
               </div>
@@ -589,7 +731,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 ` }} />
                 <div 
                   translate="no"
-                  className="notranslate rich-text-content flex-1 w-full text-[14px] font-medium outline-none transition-all leading-relaxed max-h-[160px] text-blue-950 font-sans overflow-y-auto custom-scrollbar"
+                  className={`notranslate rich-text-content flex-1 w-full text-[14px] font-medium outline-none transition-all leading-relaxed max-h-[160px] text-blue-950 font-sans overflow-y-auto custom-scrollbar ${canApprove && isFreshUpdate ? 'bg-amber-50/40 ring-1 ring-inset ring-amber-200/50' : ''}`}
                   style={{ fontStyle: 'normal' }}
                   dangerouslySetInnerHTML={{ __html: toHTML(task.currentUpdate || '') }}
                   title="NỘI DUNG CẬP NHẬT TIẾN ĐỘ"

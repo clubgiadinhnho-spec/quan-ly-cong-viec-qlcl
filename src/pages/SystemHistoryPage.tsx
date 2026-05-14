@@ -296,9 +296,14 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
                   </td>
                 </tr>
               ) : (
-                logs.map((log, index) => (
-                  <tr 
-                    key={log.id} 
+                logs
+                  .filter(log => {
+                    const details = log.details || '';
+                    return !/(?:🤖|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(details);
+                  })
+                  .map((log, index) => (
+                    <tr 
+                      key={log.id} 
                     className={`hover:bg-blue-50/20 transition-colors group ${selectedIds.includes(log.id) ? 'bg-blue-50/40' : ''}`}
                     onClick={() => toggleSelection(log.id)}
                   >

@@ -34,6 +34,8 @@ interface PendingApprovalTabProps {
   createNotification: any;
   search: string;
   setSearch: (s: string) => void;
+  markAsRead: (id: string) => void;
+  lastReadChatTimestamps: Record<string, number>;
 }
 
 export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
@@ -42,7 +44,7 @@ export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
   setShowHistoryModal, setShowChatModal, showChatModal, addTaskComment,
   updateTaskCommentReactions, setEditingTask, setConfirmModal, approveTaskCompletion,
   setActiveTab, highlightedTaskId, toggleTaskSelection, setBulkSelection, createNotification,
-  search, setSearch
+  search, setSearch, markAsRead, lastReadChatTimestamps
 }) => {
   return (
     <motion.div key="pending_approval" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col">
@@ -78,11 +80,16 @@ export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
           <div />
 
           <div className="flex items-center gap-3">
+            {search && (
+              <span translate="no" className="notranslate text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-100 animate-in fade-in slide-in-from-right-1">
+                TÌM THẤY: {sortedTasks.filter(t => t.waitingApproval).length}
+              </span>
+            )}
              <div className="relative group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input
                 type="text"
-                placeholder="Tìm kiếm mã, tên, nội dung, nhân sự..."
+                placeholder="Tìm kiếm mã, nội dung, nhân sự, ngày khởi tạo, ngày bắt đầu, hạn hoàn thành, Gia hạn, chu kỳ lặp lại..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-amber-500 text-xs w-72 placeholder:notranslate transition-all group-focus-within:border-amber-400 group-focus-within:shadow-sm shadow-sm"
@@ -135,6 +142,9 @@ export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
           onToggleSelect={toggleTaskSelection}
           onBulkSelect={setBulkSelection}
           createNotification={createNotification}
+          markAsRead={markAsRead}
+          lastReadChatTimestamps={lastReadChatTimestamps}
+          presence={presence}
         />
       </div>
     </motion.div>

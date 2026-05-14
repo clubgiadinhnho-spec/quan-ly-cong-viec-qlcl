@@ -28,6 +28,13 @@ interface TaskListProps {
   onToggleSelect?: (id: string) => void;
   onBulkSelect?: (ids: string[], select: boolean) => void;
   createNotification?: any;
+  markAsRead: (id: string) => void;
+  lastReadChatTimestamps: Record<string, number>;
+  sendAiMessage?: any;
+  triggerAiNudge?: any;
+  resetTaskAIStatus?: any;
+  aiMessages?: any[];
+  presence?: any[];
 }
 
 export const TaskList: React.FC<TaskListProps> = ({ 
@@ -54,7 +61,14 @@ export const TaskList: React.FC<TaskListProps> = ({
   selectedIds = [],
   onToggleSelect,
   onBulkSelect,
-  createNotification
+  createNotification,
+  markAsRead,
+  lastReadChatTimestamps,
+  sendAiMessage,
+  triggerAiNudge,
+  resetTaskAIStatus,
+  aiMessages,
+  presence
 }) => {
   const sortedTasks = [...tasks].sort((a, b) => {
     // Lớp 1 (Ưu tiên tuyệt đối): Priority Order (1 -> 2 -> 3...)
@@ -209,6 +223,9 @@ export const TaskList: React.FC<TaskListProps> = ({
                 isSelected={selectedIds.includes(task.id)}
                 onToggleSelect={onToggleSelect}
                 createNotification={createNotification}
+                markAsRead={markAsRead}
+                lastReadChatTimestamps={lastReadChatTimestamps}
+                presence={presence}
               />
             ) : type === 'active' ? (
               <TaskRow 
@@ -230,6 +247,10 @@ export const TaskList: React.FC<TaskListProps> = ({
                 onTogglePriority={handleTogglePriority}
                 onApprove={onApprove}
                 approveTaskCompletion={approveTaskCompletion}
+                sendAiMessage={sendAiMessage}
+                triggerAiNudge={triggerAiNudge}
+                resetTaskAIStatus={resetTaskAIStatus}
+                aiMessages={aiMessages}
                 onNavigate={onNavigate}
                 isReadOnly={isReadOnly}
                 isUpdateReadOnly={isUpdateReadOnly}
@@ -237,6 +258,9 @@ export const TaskList: React.FC<TaskListProps> = ({
                 isSelected={selectedIds.includes(task.id)}
                 onToggleSelect={onToggleSelect}
                 createNotification={createNotification}
+                markAsRead={markAsRead}
+                lastReadChatTimestamps={lastReadChatTimestamps}
+                presence={presence}
               />
             ) : (
               <CompletedTaskRow 
@@ -290,7 +314,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                     ),
                     onConfirm: () => {
                       const updates: Partial<Task> = { 
-                        status: 'APPROVED', 
+                         status: 'APPROVED', 
                         waitingApproval: true,
                         actualEndDate: null as any, 
                         isLocked: false, 
@@ -332,6 +356,8 @@ export const TaskList: React.FC<TaskListProps> = ({
                 isSelected={selectedIds.includes(task.id)}
                 onToggleSelect={onToggleSelect}
                 setConfirmModal={setConfirmModal}
+                markAsRead={markAsRead}
+                lastReadChatTimestamps={lastReadChatTimestamps}
               />
             )
           ))}

@@ -38,6 +38,10 @@ interface CompletedTasksTabProps {
   setBulkSelection: (ids: string[], select: boolean) => void;
   search: string;
   setSearch: (s: string) => void;
+  markAsRead: (id: string) => void;
+  lastReadChatTimestamps: Record<string, number>;
+  selectedMonth?: string;
+  onMonthChange?: (m: string) => void;
 }
 
 export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
@@ -47,58 +51,37 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
   setShowHistoryModal, setShowChatModal, showChatModal, addTaskComment,
   updateTaskCommentReactions, setEditingTask, setConfirmModal, approveTaskCompletion,
   highlightedTaskId, toggleTaskSelection, setBulkSelection,
-  search, setSearch
+  search, setSearch, markAsRead, lastReadChatTimestamps,
+  selectedMonth, onMonthChange
 }) => {
   const getTasksToDisplay = () => {
-    const directCompleted = tasks.filter(t => (t.status === "COMPLETED" || t.status === "Hoàn thành") && !t.deletedAt);
-    const cycleItems: any[] = [];
-    tasks.forEach(t => {
-      if (t.cycleHistory && t.cycleHistory.length > 0) {
-        t.cycleHistory.forEach(entry => {
-          cycleItems.push({
-             ...t,
-             id: `${t.id}_cycle_${entry.version}`,
-             code: entry.code || t.code,
-             originalTaskId: t.id,
-             actualEndDate: entry.completedAt,
-             currentUpdate: entry.reportContent,
-             objective: entry.objective || t.objective,
-             version: entry.version,
-             isCycleRecord: true,
-             kpiEfficiency: entry.kpiResult // Ensure kpiEfficiency is available for search
-          });
-        });
-      }
-    });
+    let combined = tasks.filter(t => (t.status === "COMPLETED" || t.status === "Hoàn thành") && !t.waitingApproval && !t.deletedAt);
     
-    let combined = [...directCompleted, ...cycleItems];
-    
-    // Deduplicate
-    const uniqueMap = new Map();
-    combined.forEach(item => {
-      if (!item.id || !item.code) return;
-      
-      const rawDate = item.actualEndDate || '';
-      const dateStr = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate.substring(0, 10);
-      const contentStr = (item.currentUpdate || '').trim();
-      const fingerprint = `${item.code}_${dateStr}_${contentStr}`;
-      
-      if (!uniqueMap.has(fingerprint)) {
-        uniqueMap.set(fingerprint, item);
-      } else {
-        const existing = uniqueMap.get(fingerprint);
-        if (item.isCycleRecord && !existing.isCycleRecord) {
-          uniqueMap.set(fingerprint, item);
-        }
-      }
-    });
-    combined = Array.from(uniqueMap.values());
-
     // Search Filtering
     if (search) {
       const term = normalizeString(search);
       combined = combined.filter(t => {
         const assigneeName = getTaskAssigneeName(t, allUsers);
+        
+        const recurrenceVN = t.recurrence === 'DAILY' ? 'Hàng ngày' 
+          : t.recurrence === 'WEEKLY' ? 'Hàng tuần'
+          : t.recurrence === 'BI_WEEKLY' ? 'Hàng 2 tuần'
+          : t.recurrence === 'TRI_WEEKLY' ? 'Hàng 3 tuần'
+          : t.recurrence === 'TRI_DAILY' ? 'Hàng 3 ngày'
+          : t.recurrence === 'MONTHLY' ? 'Hàng tháng'
+          : 'Không lặp';
+
+        const formatDate = (dateStr: any) => {
+          if (!dateStr) return '';
+          const s = typeof dateStr === 'string' ? dateStr : (dateStr as any).toISOString?.() || '';
+          const match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+          if (match) {
+            const [_, y, m, d] = match;
+            return `${d}/${m}/${y.substring(2)} ${d}/${m}/${y}`;
+          }
+          return s;
+        };
+
         const searchableFields = [
           t.code,
           assigneeName,
@@ -106,6 +89,14 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
           t.title,
           t.objective,
           t.currentUpdate,
+          formatDate(t.issueDate),
+          formatDate(t.startDate),
+          formatDate(t.expectedEndDate),
+          formatDate(t.dueDate),
+          formatDate(t.extensionDate),
+          formatDate(t.actualEndDate),
+          recurrenceVN,
+          //@ts-ignore
           typeof t.kpiEfficiency === 'number' ? t.kpiEfficiency.toString() : t.kpiEfficiency
         ];
         return searchableFields.some(f => normalizeString(f || '').includes(term));
@@ -115,6 +106,30 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
     if (viewScope === 'mine') {
       combined = combined.filter(t => isUserTask(t, effectiveUser));
     }
+
+    // Month Filtering
+    if (selectedMonth && selectedMonth !== 'all') {
+      combined = combined.filter(t => {
+        const date = t.actualEndDate;
+        if (!date) return false;
+        const dateStr = typeof date === 'string' ? date : (date as any).toISOString?.() || '';
+        
+        let m = '', y = '';
+        const isoMatch = dateStr.match(/^(\d{4})-(\d{2})/);
+        const vnMatch = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{2})/);
+
+        if (isoMatch) {
+          y = isoMatch[1].substring(2);
+          m = isoMatch[2];
+        } else if (vnMatch) {
+          y = vnMatch[3];
+          m = vnMatch[2];
+        }
+        
+        return `${m}/${y}` === selectedMonth;
+      });
+    }
+
     return combined.sort((a, b) => new Date(b.actualEndDate || 0).getTime() - new Date(a.actualEndDate || 0).getTime());
   };
 
@@ -165,18 +180,27 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
             </span>
           </div>
         </div>
-        <StatsSummary tasks={filteredTasks} />
+        <StatsSummary 
+          tasks={tasks} 
+          selectedMonth={selectedMonth}
+          onMonthChange={onMonthChange}
+        />
         <div className="flex items-center justify-between mb-4 mt-6">
           <h3 className="text-[14px] font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
             <div className="w-1.5 h-6 bg-green-600 rounded-full" />
             <span translate="no" className="notranslate">KẾT QUẢ CÔNG VIỆC HOÀN THÀNH</span>
           </h3>
           <div className="flex items-center gap-3">
+            {search && (
+              <span translate="no" className="notranslate text-[11px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded-md border border-green-100 animate-in fade-in slide-in-from-right-1">
+                TÌM THẤY: {tasksToDisplay.length}
+              </span>
+            )}
             <div className="relative group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input
                 type="text"
-                placeholder="Tìm kiếm mã, tên, nội dung, nhân sự..."
+                placeholder="Tìm kiếm mã, nội dung, nhân sự, ngày khởi tạo, ngày bắt đầu, hạn hoàn thành, Gia hạn, chu kỳ lặp lại..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-green-500 text-xs w-72 placeholder:notranslate transition-all group-focus-within:border-green-400 group-focus-within:shadow-sm shadow-sm"
@@ -227,6 +251,8 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
           selectedIds={selectedTaskIds}
           onToggleSelect={toggleTaskSelection}
           onBulkSelect={setBulkSelection}
+          markAsRead={markAsRead}
+          lastReadChatTimestamps={lastReadChatTimestamps}
         />
       </div>
     </motion.div>

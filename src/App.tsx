@@ -12,6 +12,7 @@ import { useAppNotifications } from "./hooks/useAppNotifications";
 import { useNotifications } from "./hooks/useNotifications";
 import { useExcelHandlers } from "./hooks/useExcelHandlers";
 import { getTaskDeadlineStatus } from "./lib/dateUtils";
+import { useAIRobot } from "./hooks/useAIRobot";
 
 // Import Components
 import { Sidebar } from "./components/layout/Sidebar";
@@ -35,6 +36,7 @@ export default function App() {
   const [isMainSidebarCollapsed, setIsMainSidebarCollapsed] = useState(false);
   const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState('all');
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState<string | null>(null);
@@ -64,9 +66,10 @@ export default function App() {
 
   // 1. Firebase Data Retrieval
   const {
-    tasks, messages: generalMessages, privateMessages, officialReports, logs, presence, categories,
+    tasks, messages: generalMessages, privateMessages, officialReports, aiMessages, logs, presence, categories,
     loading: firebaseLoading, addTask: firebaseAddTask, updateTask: firebaseUpdateTask,
     deleteTask: firebaseDeleteTask, approveTaskCompletion, trashTasksBulk, approveTasksBulk, sendMessage: firebaseSendMessage, sendDiscussionMessage,
+    sendAiMessage, triggerAiNudge, resetTaskAIStatus,
     createTopic, updateTopic, deleteTopic, deleteTopicsBulk, deleteTasksBulk, sendPrivateMessage: firebaseSendPrivateMsg,
     updateDiscussionMessageReactions, updatePrivateMessageReactions: firebaseUpdatePrivateMessageReactions,
     discussionTopics, discussionMessages, deleteDiscussionMessage,
@@ -138,7 +141,16 @@ export default function App() {
 
   // 5. App Logic Hook (Counts & Sorting)
   const { counts, sortedTasks } = useAppLogic({
-    tasks, effectiveUser, viewScope, search, activeTab, allUsers
+    tasks, effectiveUser, viewScope, search, activeTab, allUsers, selectedMonth
+  });
+
+  // 6. AI Robot Assistant Hook
+  useAIRobot({
+    tasks,
+    currentUser: effectiveUser,
+    sendAiMessage,
+    aiMessages,
+    users: allUsers
   });
 
   // Clear unread count for current section and clearance for new board tasks
@@ -403,6 +415,7 @@ export default function App() {
         <div className={`flex-1 ${activeTab === 'group_chat' ? 'h-full w-full' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full'}`}>
 
           {simulatedUser && <div className="sticky top-0 z-[60] bg-amber-500 text-white px-6 py-2 flex justify-between shadow-lg"><span>GIẢ LẬP: {simulatedUser.name}</span><button onClick={() => setSimulatedUser(null)}>Thoát</button></div>}
+          
           <MainContent
             activeTab={activeTab} effectiveUser={effectiveUser!} currentUser={currentUser} presence={presence} allUsers={allUsers}
             tasks={tasks} filteredTasks={sortedTasks} sortedTasks={sortedTasks} viewScope={viewScope} setViewScope={setViewScope}
@@ -419,9 +432,11 @@ export default function App() {
             logs={logs} setActiveTab={setActiveTab} setShowDirectChat={setShowDirectChat} unreadCounts={unreadCounts} groupUnreadCount={groupUnreadCount}
             setSimulatedUser={setSimulatedUser} firebaseSendPrivateMsg={firebaseSendPrivateMsg} deleteProfile={deleteProfile}
             resetSystem={resetSystem} deleteLogsBulk={deleteLogsBulk}
+            sendAiMessage={sendAiMessage} triggerAiNudge={triggerAiNudge} resetTaskAIStatus={resetTaskAIStatus} aiMessages={aiMessages}
             markAsRead={markAsRead} lastReadChatTimestamps={lastReadChatTimestamps}
             adminUnreadCount={adminUnreadCount} onOpenNotifications={() => setIsNotificationCenterOpen(true)}
             createNotification={createNotification}
+            selectedMonth={selectedMonth} onMonthChange={setSelectedMonth}
           />
         </div>
       </main>

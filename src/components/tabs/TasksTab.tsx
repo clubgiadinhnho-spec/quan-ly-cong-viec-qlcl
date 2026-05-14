@@ -25,7 +25,7 @@ interface TasksTabProps {
   allUsers: User[];
   search: string;
   setSearch: (s: string) => void;
-  handleExportExcel: () => void;
+  handleExportExcel: (tasks: Task[]) => void;
   handleImportExcel: (e: React.ChangeEvent<HTMLInputElement>) => void;
   updateTask: any;
   deleteTask: any;
@@ -42,6 +42,15 @@ interface TasksTabProps {
   toggleTaskSelection: (taskId: string) => void;
   setBulkSelection: (ids: string[], select: boolean) => void;
   createNotification: any;
+  markAsRead: (id: string) => void;
+  lastReadChatTimestamps: Record<string, number>;
+  selectedMonth?: string;
+  onMonthChange?: (m: string) => void;
+  tasks: Task[];
+  sendAiMessage: any;
+  triggerAiNudge: any;
+  resetTaskAIStatus: any;
+  aiMessages: any[];
 }
 
 export const TasksTab: React.FC<TasksTabProps> = ({
@@ -52,7 +61,10 @@ export const TasksTab: React.FC<TasksTabProps> = ({
   setShowHistoryModal, setShowChatModal, showChatModal, addTaskComment,
   updateTaskCommentReactions, setEditingTask, setConfirmModal,
   approveTaskCompletion, setActiveTab, highlightedTaskId,
-  toggleTaskSelection, setBulkSelection, createNotification
+  toggleTaskSelection, setBulkSelection, createNotification,
+  markAsRead, lastReadChatTimestamps,
+  selectedMonth, onMonthChange, tasks,
+  sendAiMessage, triggerAiNudge, resetTaskAIStatus, aiMessages
 }) => {
   return (
     <motion.div
@@ -79,7 +91,11 @@ export const TasksTab: React.FC<TasksTabProps> = ({
       </div>
 
       <div className="p-4 space-y-4">
-        <StatsSummary tasks={filteredTasks} />
+        <StatsSummary 
+          tasks={tasks} 
+          selectedMonth={selectedMonth}
+          onMonthChange={onMonthChange}
+        />
 
         <div className="flex items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm transition-all duration-300">
           <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
@@ -164,11 +180,16 @@ export const TasksTab: React.FC<TasksTabProps> = ({
             )}
           </div>
           <div className="flex items-center gap-3">
+            {search && (
+              <span translate="no" className="notranslate text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100 animate-in fade-in slide-in-from-right-1">
+                TÌM THẤY: {sortedTasks.length}
+              </span>
+            )}
             <div className="relative group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input
                 type="text"
-                placeholder="Tìm kiếm mã, tên, nội dung, nhân sự..."
+                placeholder="Tìm kiếm mã, nội dung, nhân sự, ngày khởi tạo, ngày bắt đầu, hạn hoàn thành, Gia hạn, chu kỳ lặp lại..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 text-xs w-72 placeholder:notranslate transition-all group-focus-within:border-blue-400 group-focus-within:shadow-sm shadow-sm"
@@ -191,6 +212,10 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           onEdit={setEditingTask}
           setConfirmModal={setConfirmModal}
           approveTaskCompletion={approveTaskCompletion}
+          sendAiMessage={sendAiMessage}
+          triggerAiNudge={triggerAiNudge}
+          resetTaskAIStatus={resetTaskAIStatus}
+          aiMessages={aiMessages}
           onNavigate={setActiveTab}
           type="active"
           isReadOnly={false}
@@ -199,6 +224,9 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           onToggleSelect={toggleTaskSelection}
           onBulkSelect={setBulkSelection}
           createNotification={createNotification}
+          markAsRead={markAsRead}
+          lastReadChatTimestamps={lastReadChatTimestamps}
+          presence={presence}
         />
       </div>
     </motion.div>

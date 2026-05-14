@@ -24,7 +24,12 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
   if (!task) return null;
 
   // Process history to include daily versioning
-  const processedHistory = (task.history || []).sort((a: any, b: any) => {
+  const processedHistory = (task.history || [])
+    .filter((h: any) => {
+      const content = h.content || '';
+      return !/(?:🤖|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content);
+    })
+    .sort((a: any, b: any) => {
     const aTime = typeof a.timestamp === 'string' ? parseISO(a.timestamp).getTime() : (a.timestamp as any).toDate().getTime();
     const bTime = typeof b.timestamp === 'string' ? parseISO(b.timestamp).getTime() : (b.timestamp as any).toDate().getTime();
     return aTime - bTime;
@@ -47,7 +52,12 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
   // Merge history and comments into a single timeline
   const combinedTimeline = [
     ...processedHistory,
-    ...(task.comments || []).map(c => ({ ...c, type: 'chat', version: undefined }))
+    ...(task.comments || [])
+      .filter((c: any) => {
+        const content = c.content || '';
+        return !/(?:🤖|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content);
+      })
+      .map(c => ({ ...c, type: 'chat', version: undefined }))
   ];
 
   // Group combined timeline by week
@@ -91,6 +101,7 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
     
     // Convert old tags to HTML classes for consistent rendering
     let processed = content;
+
     processed = processed.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
     processed = processed.replace(/__(.*?)__/g, '<u>$1</u>');
     processed = processed.replace(/<hl>(.*?)<\/hl>/g, '<mark>$1</mark>');

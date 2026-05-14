@@ -161,7 +161,9 @@ export const useAppLogic = ({
       }
 
       if (activeTab === "completed_tasks") {
-        const isCompleted = (t.status === 'COMPLETED' || t.status === 'Hoàn thành' || (t.cycleHistory && t.cycleHistory.length > 0)) && !t.waitingApproval;
+        // THIẾT QUÂN LUẬT: Master Data Only - Chỉ đếm Task gốc đã xong (COMPLETED)
+        // Loại bỏ đếm ảo từ cycleHistory để khớp 100% với Sidebar và Dashboard
+        const isCompleted = (t.status === 'COMPLETED' || t.status === 'Hoàn thành') && !t.waitingApproval;
         return isCompleted && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
       }
       

@@ -95,7 +95,11 @@ export const TaskAIChat: React.FC<TaskAIChatProps> = ({
       });
 
       // 2. Call Gemini
-      const googleAi = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("Sếp Trường ơi, Robot chưa được nạp khóa API trên Vercel. Sếp kiểm tra lại nhé!");
+      }
+      const googleAi = new GoogleGenAI({ apiKey });
       const systemPrompt = `Bạn là Robot trợ lý AI chuyên nghiệp. 
 Nhiệm vụ của bạn: Nhắc nhở và hỗ trợ người dùng hoàn thành công việc.
 Công việc hiện tại: "${task.title}"
@@ -111,25 +115,19 @@ Yêu cầu:
 4. Trả lời ngắn gọn, súc tích bằng tiếng Việt.
 5. Đây là cuộc hội thoại riêng tư chỉ giữa bạn và người này, người khác không thấy nội dung này.`;
 
-      const history = taskMessages.map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-      }));
-
-      // Add current user message to local context
-      history.push({ role: 'user', parts: [{ text: userMsg }] });
-
-      const result = await googleAi.models.generateContent({
+      const response = await googleAi.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: history,
-        config: {
-          systemInstruction: systemPrompt,
-          maxOutputTokens: 1024,
-          temperature: 0.7,
-        }
+        contents: [
+          { role: 'user', parts: [{ text: systemPrompt }] },
+          ...taskMessages.map(m => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.content }]
+          })),
+          { role: 'user', parts: [{ text: userMsg }] }
+        ]
       });
 
-      const aiText = result.text || "Xin lỗi, tôi gặp chút trục trặc. Bạn cần hỗ trợ gì thêm không?";
+      const aiText = response.text || "Xin lỗi, tôi gặp chút trục trặc. Bạn cần hỗ trợ gì thêm không?";
 
       // 3. Save AI message to Firebase
       await onSendMessage({

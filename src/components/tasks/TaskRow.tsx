@@ -1,7 +1,6 @@
 import React from 'react';
 import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw, Trash2, Bell, RefreshCw, Highlighter, Check, ThumbsUp, CheckCircle2, Tag, Pencil, Eye, History, UserCircle, ChevronDown, Zap, Banknote, Bold, Underline, Palette, Eraser, Edit3 } from 'lucide-react';
 import { Task, User, AIChatMessage } from '../../types';
-import { GoogleGenAI } from "@google/genai";
 import { formatDate, calculateNextDeadline, getTaskDeadlineStatus } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
 import { TaskAIChat } from './TaskAIChat';

@@ -22,19 +22,11 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks, selectedMonth
   
   // LOGIC HOÀN THÀNH CHUẨN: Bao gồm cả việc đã xong kỳ cũ
   const completedTasks = React.useMemo(() => {
+    // THIẾT QUÂN LUẬT: Master Data Only - Chỉ đếm Task gốc đã xong, không đếm history trùng
     const directCompleted = nonDeleted.filter(t => (t.status === 'COMPLETED' || t.status === 'Hoàn thành') && !t.waitingApproval);
-    const cycleItems: any[] = [];
-    nonDeleted.forEach(t => {
-      if (t.cycleHistory && t.cycleHistory.length > 0) {
-        t.cycleHistory.forEach(entry => {
-          cycleItems.push({
-            ...t,
-            actualEndDate: entry.completedAt
-          });
-        });
-      }
-    });
-    const combined = [...directCompleted, ...cycleItems];
+    
+    // THỰC THI: Loại bỏ hoàn toàn việc đếm cycleHistory ảo để khớp 100% với số dòng trên Table
+    const combined = [...directCompleted];
     
     // THIẾT QUÂN LUẬT: Deduplicate fingerprint để khớp bảng
     const uniqueMap = new Map();
@@ -45,8 +37,6 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks, selectedMonth
       const contentStr = (item.currentUpdate || '').trim();
       const fingerprint = `${item.code}_${dateStr}_${contentStr}`;
       if (!uniqueMap.has(fingerprint)) {
-        uniqueMap.set(fingerprint, item);
-      } else if (item.isCycleRecord && !uniqueMap.get(fingerprint).isCycleRecord) {
         uniqueMap.set(fingerprint, item);
       }
     });

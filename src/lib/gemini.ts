@@ -5,14 +5,16 @@ let aiInstance: GoogleGenAI | null = null;
 
 const getAi = () => {
   if (!aiInstance) {
-    const apiKey = process.env.GEMINI_API_KEY || '';
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
     aiInstance = new GoogleGenAI({ apiKey });
   }
   return aiInstance;
 };
 
 export async function getPerformanceAdvice(user: User, tasks: Task[]) {
-  if (!process.env.GEMINI_API_KEY) return "Vui lòng cấu hình API Key để nhận lời khuyên từ AI.";
+  if (!process.env.NEXT_PUBLIC_GEMINI_API_KEY && !process.env.GEMINI_API_KEY) {
+    return "Sếp Trường ơi, Robot chưa được nạp khóa API trên Vercel. Sếp kiểm tra lại nhé!";
+  }
 
   const completedTasks = tasks.filter(t => t.status === 'COMPLETED' && t.assigneeId === user.id);
   const ongoingTasks = tasks.filter(t => t.status === 'IN_PROGRESS' && t.assigneeId === user.id);

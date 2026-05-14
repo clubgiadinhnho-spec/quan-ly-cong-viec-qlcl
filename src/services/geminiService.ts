@@ -5,7 +5,7 @@ let aiInstance: GoogleGenAI | null = null;
 
 const getAi = () => {
   if (!aiInstance) {
-    const apiKey = process.env.GEMINI_API_KEY || '';
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
     aiInstance = new GoogleGenAI({ apiKey });
   }
   return aiInstance;
@@ -40,14 +40,14 @@ YÊU CẦU:
 3. Luôn giữ thái độ chuyên nghiệp.`;
 
   try {
-    if (!process.env.GEMINI_API_KEY) {
-      return role === 'Admin' ? 'Ghi nhận kết quả tốt.' : 'Đã hoàn thành theo mục tiêu đề ra.';
+    if (!process.env.NEXT_PUBLIC_GEMINI_API_KEY && !process.env.GEMINI_API_KEY) {
+      return "Sếp Trường ơi, Robot chưa được nạp khóa API trên Vercel. Sếp kiểm tra lại nhé!";
     }
 
     const ai = getAi();
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: prompt,
     });
 
     return response.text || (role === 'Admin' ? 'Ghi nhận kết quả tốt.' : 'Đã hoàn thành theo mục tiêu đề ra.');

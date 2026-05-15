@@ -68,56 +68,62 @@ export function useAuth(allUsers: UserType[]) {
     return finalUser;
   }, [simulatedUser, currentUser, allUsers]);
 
+  const [fbUser, setFbUser] = useState<any>(null);
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
-      if (fbUser) {
-        const userEmail = (fbUser.email || "").toLowerCase();
-        const systemAdmins = [
-          "truong.le@tanphuvietnam.vn", 
-          "lenhattruong.tpp@gmail.com", 
-          "lenhattruong.caphef1@gmail.com",
-          "club.nhuatanphu@gmail.com", 
-          "tanphuvietnam.tpp@gmail.com", 
-          "truongln.tanhongngoc@gmail.com"
-        ];
-        const isSystemAdmin = systemAdmins.includes(userEmail);
-        
-        const currentAllUsers = allUsersRef.current;
-        
-        let matchingStaff = currentAllUsers.find(s => s.id === fbUser.uid);
-        if (!matchingStaff) {
-          matchingStaff = currentAllUsers.find(s => 
-            (s.companyEmail || "").toLowerCase() === userEmail || 
-            (s.personalEmail || "").toLowerCase() === userEmail
-          );
-        }
-        
-        if (isSystemAdmin) {
-          const adminProfile = matchingStaff ? { ...matchingStaff, role: "Admin" as any } : {
-            id: fbUser.uid,
-            name: "System Admin",
-            role: "Admin",
-            personalEmail: fbUser.email || "",
-            status: "ACTIVE",
-            uniqueKey: `ADMIN_${fbUser.uid}`
-          };
-          setCurrentUser({ ...adminProfile, id: fbUser.uid, email: fbUser.email || "", lastActive: Date.now() } as UserType);
-        } else if (matchingStaff) {
-          if (matchingStaff.status === 'ACTIVE' || matchingStaff.role === 'Admin') {
-            setCurrentUser({ ...matchingStaff, id: fbUser.uid, email: fbUser.email || "", lastActive: Date.now() } as UserType);
-          } else {
-            handleLogout();
-          }
-        } else {
-          setCurrentUser(null);
-        }
-      } else {
-        setCurrentUser(null);
-      }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFbUser(user);
       setAuthReady(true);
     });
     return () => unsubscribe();
-  }, [handleLogout]);
+  }, []);
+
+  useEffect(() => {
+    if (fbUser) {
+      const userEmail = (fbUser.email || "").toLowerCase();
+      const systemAdmins = [
+        "truong.le@tanphuvietnam.vn", 
+        "lenhattruong.tpp@gmail.com", 
+        "lenhattruong.caphef1@gmail.com",
+        "club.nhuatanphu@gmail.com", 
+        "tanphuvietnam.tpp@gmail.com", 
+        "truongln.tanhongngoc@gmail.com",
+        "lenhattruong.ddt@gmail.com"
+      ];
+      const isSystemAdmin = systemAdmins.includes(userEmail);
+      
+      let matchingStaff = allUsers.find(s => s.id === fbUser.uid);
+      if (!matchingStaff) {
+        matchingStaff = allUsers.find(s => 
+          (s.companyEmail || "").toLowerCase() === userEmail || 
+          (s.personalEmail || "").toLowerCase() === userEmail
+        );
+      }
+      
+      if (isSystemAdmin) {
+        const adminProfile = matchingStaff ? { ...matchingStaff, role: "Admin" as any } : {
+          id: fbUser.uid,
+          name: "System Admin",
+          role: "Admin",
+          personalEmail: fbUser.email || "",
+          status: "ACTIVE",
+          uniqueKey: `ADMIN_${fbUser.uid}`
+        };
+        setCurrentUser({ ...adminProfile, id: fbUser.uid, email: fbUser.email || "", lastActive: Date.now() } as UserType);
+      } else if (matchingStaff) {
+        if (matchingStaff.status === 'ACTIVE' || matchingStaff.role === 'Admin') {
+          setCurrentUser({ ...matchingStaff, id: fbUser.uid, email: fbUser.email || "", lastActive: Date.now() } as UserType);
+        } else {
+          handleLogout();
+        }
+      } else {
+        // If not found yet, maybe they are not registered or allUsers not fully loaded
+        setCurrentUser(null);
+      }
+    } else {
+      setCurrentUser(null);
+    }
+  }, [fbUser, allUsers, handleLogout]);
 
   return {
     currentUser,

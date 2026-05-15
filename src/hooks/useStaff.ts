@@ -59,44 +59,31 @@ export const useStaff = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Listen to Firebase Auth to determine role and profile key
-    const unsubAuth = onAuthStateChanged(auth, (fbUser) => {
-      if (!fbUser) {
-        setFirestoreProfiles({});
-        setLoading(false);
-        return;
-      }
-
-      const email = (fbUser.email || "").toLowerCase();
-      const isAdmin = SYSTEM_ADMIN_EMAILS.map(e => e.toLowerCase()).includes(email);
-      
-      // Find matching staff to get current uniqueKey
-      const staffMember = FIXED_STAFF.find(s => 
-        (s.companyEmail || "").toLowerCase() === email || 
-        (s.personalEmail || "").toLowerCase() === email
-      );
-
-      let unsubSnapshot: () => void;
-
-      // ALL users can see all profiles to allow assigning tasks and seeing staff names
-      unsubSnapshot = onSnapshot(collection(db, 'user_profiles'), (snapshot) => {
-        const p: Record<string, User> = {};
-        snapshot.docs.forEach(doc => {
-          p[doc.id] = { ...doc.data(), id: doc.id } as User;
-        });
-        setFirestoreProfiles(p);
-        setLoading(false);
-      }, (err) => {
-        console.error("❌ [useStaff] Snapshot error:", err);
-        setLoading(false);
+    // 1. Listen to staff profiles immediately (allow read: if true in rules)
+    const unsubSnapshot = onSnapshot(collection(db, 'user_profiles'), (snapshot) => {
+      const p: Record<string, User> = {};
+      snapshot.docs.forEach(doc => {
+        p[doc.id] = { ...doc.data(), id: doc.id } as User;
       });
-
-      return () => {
-        if (unsubSnapshot) unsubSnapshot();
-      };
+      setFirestoreProfiles(p);
+      setLoading(false);
+    }, (err) => {
+      console.error("❌ [useStaff] Snapshot error:", err);
+      setLoading(false);
     });
 
-    return () => unsubAuth();
+    // 2. Auth listener for other purposes (optional)
+    const unsubAuth = onAuthStateChanged(auth, (fbUser) => {
+      if (!fbUser) {
+        // We keep profiles even if logged out so login screen can show them if needed
+        return;
+      }
+    });
+
+    return () => {
+      unsubSnapshot();
+      unsubAuth();
+    };
   }, []);
 
   const allStaff = useMemo(() => {

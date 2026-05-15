@@ -53,9 +53,11 @@ export const ReactionPicker: React.FC<ReactionPickerProps> = ({ onSelect, onClos
 interface ReactionBadgeProps {
   reactions?: { userId: string; emoji: string }[];
   users: { id: string; name: string }[];
+  onReact?: (emoji: string) => void;
+  currentUser?: { id: string; uniqueKey?: string };
 }
 
-export const ReactionBadge: React.FC<ReactionBadgeProps> = ({ reactions, users }) => {
+export const ReactionBadge: React.FC<ReactionBadgeProps> = ({ reactions, users, onReact, currentUser }) => {
   if (!reactions || reactions.length === 0) return null;
 
   // Group by emoji
@@ -68,15 +70,31 @@ export const ReactionBadge: React.FC<ReactionBadgeProps> = ({ reactions, users }
     <div className="flex flex-wrap gap-1 mt-1">
       {Object.keys(grouped).map((emoji) => {
         const count = grouped[emoji];
+        const reactedByMe = currentUser && reactions.some(r => 
+          (r.userId === currentUser.id || (currentUser.uniqueKey && r.userId === currentUser.uniqueKey)) && 
+          r.emoji === emoji
+        );
+        
         return (
-          <div 
+          <button 
             key={emoji}
-            title={reactions.filter(r => r.emoji === emoji).map(r => users.find(u => u.id === r.userId)?.name).join(', ')}
-            className="flex items-center gap-1 bg-gray-100/80 border border-gray-200/50 px-1.5 py-0.5 rounded-full text-[10px] font-bold text-gray-600 shadow-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onReact?.(emoji);
+            }}
+            title={reactions.filter(r => r.emoji === emoji).map(r => {
+              const user = users.find(u => u.id === r.userId || (u as any).uniqueKey === r.userId);
+              return user?.name || 'Ẩn danh';
+            }).join(', ')}
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold shadow-sm transition-all active:scale-90 ${
+              reactedByMe 
+                ? 'bg-blue-100 border-blue-200 text-blue-700' 
+                : 'bg-gray-100/80 border border-gray-200/50 text-gray-600 hover:bg-gray-200'
+            }`}
           >
             <span>{emoji}</span>
-            {(count as number) > 1 && <span>{count as number}</span>}
-          </div>
+            {count > 1 && <span>{count}</span>}
+          </button>
         );
       })}
     </div>

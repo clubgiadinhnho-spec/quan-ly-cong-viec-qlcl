@@ -19,6 +19,9 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks, selectedMonth
   
   const priorityTasks = activeTasks.filter(t => !!t.priorityOrder);
   const normalTasks = activeTasks.filter(t => !priorityTasks.includes(t));
+
+  const overdueCount = activeTasks.filter(t => getTaskDeadlineStatus(t).status === 'CRITICAL').length;
+  const todayCount = activeTasks.filter(t => getTaskDeadlineStatus(t).status === 'URGENT').length;
   
   // LOGIC HOÀN THÀNH CHUẨN: Bao gồm cả việc đã xong kỳ cũ
   const completedTasks = React.useMemo(() => {
@@ -150,7 +153,21 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks, selectedMonth
             </div>
             <div className="min-w-0">
               <p className="text-[10px] text-white font-black uppercase tracking-widest whitespace-nowrap">ƯU TIÊN / GẤP</p>
-              <p className="text-[9px] text-red-100 font-bold uppercase opacity-80 leading-none mt-0.5 whitespace-nowrap">BẤT QUY TẮC</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                {overdueCount > 0 && (
+                  <span translate="no" className="notranslate text-[9px] bg-white text-red-600 font-black px-1 rounded-sm animate-pulse whitespace-nowrap">
+                    QUÁ HẠN: {overdueCount}
+                  </span>
+                )}
+                {todayCount > 0 && (
+                  <span translate="no" className="notranslate text-[9px] bg-orange-400 text-white font-black px-1 rounded-sm whitespace-nowrap">
+                    HÔM NAY: {todayCount}
+                  </span>
+                )}
+                {overdueCount === 0 && todayCount === 0 && (
+                  <p className="text-[9px] text-red-100 font-bold uppercase opacity-80 leading-none whitespace-nowrap uppercase">BẤT QUY TẮC</p>
+                )}
+              </div>
             </div>
           </div>
           <div className="text-[33px] font-medium text-white leading-none shrink-0"><span translate="no" className="notranslate">{priorityTasks.length}</span></div>

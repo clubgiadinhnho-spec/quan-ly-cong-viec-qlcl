@@ -37,7 +37,7 @@ interface TaskRowProps {
   onSendMessage: (taskId: string, content: string) => void;
   onReact?: (taskId: string, commentId: string, emoji: string) => void;
   onTogglePriority: (id: string) => void;
-  onEdit: (task: Task) => void;
+  onEdit?: (task: Task) => void;
   onSetPriority?: (id: string, order: number | null) => void;
   idx: number;
   setConfirmModal: (modal: any) => void;
@@ -255,6 +255,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [stopRecurrence, setStopRecurrence] = React.useState(false);
+  const [requestStop, setRequestStop] = React.useState(false);
   const [loadingAI, setLoadingAI] = React.useState<string | null>(null);
 
   const handleSuggestAI = async (role: 'Staff' | 'Admin', field: 'QUALITY' | 'COST' | 'DELIVERY', score: number, setter: (val: string) => void) => {
@@ -270,6 +271,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   const handleStatusAction = async () => {
     if (isProcessing) return;
+    
+    // Auto-sync stop states when opening QCD modal
+    setStopRecurrence(task.requestEndTracking || false);
+    setRequestStop(task.requestEndTracking || false);
     
     // Staff sends completion request
     if (!isAdmin) {
@@ -292,6 +297,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         waitingApproval: true,
         isNewUpdate: true,
         updatedAt: new Date().toISOString(),
+        requestEndTracking: requestStop,
         staffQCD: {
           q: staffQ,
           c: staffC,
@@ -408,7 +414,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                     }
                   }
                 }}
-                className={`p-1.5 rounded-full transition-all hover:scale-110 active:scale-95 ${
+                className={`group/robot p-1.5 rounded-full transition-all hover:scale-110 active:scale-95 ${
                   task.aiReminderResponded === false
                     ? 'bg-yellow-400 text-black shadow-[0_0_20px_rgba(253,224,71,0.8)] ring-2 ring-yellow-200 animate-pulse'
                     : task.aiReminderResponded === true
@@ -417,8 +423,13 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                         ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-100' 
                         : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
                 }`}
-                title={isAdmin ? (task.aiReminderResponded ? "Nhân viên đã phản hồi AI - Nhấn để xem" : "Robot đang nhắc việc nhân viên (Màu Vàng)") : "Nhấn để trò chuyện với Robot Trợ Lý AI"}
+                title={isAdmin ? (task.aiReminderResponded ? "Nhân viên đã phản hồi AI - Nhấn để xem" : "Robot đang nhắc việc nhân viên (Màu Vàng)") : "INOCHI XIN CHÀO! ✨"}
               >
+                <div className="absolute -top-6 left-0 bg-blue-50 text-blue-600 text-[8px] px-1.5 py-0.5 rounded-md shadow-sm whitespace-nowrap opacity-0 group-hover/robot:opacity-100 pointer-events-none transition-all z-[101] flex items-center gap-1 border border-blue-100/50 backdrop-blur-sm">
+                  <Sparkles size={8} className="text-amber-400" />
+                  <span className="notranslate font-medium tracking-wide">INOCHI XIN CHÀO! ✨</span>
+                  <div className="absolute -bottom-1 left-3 w-1.5 h-1.5 bg-blue-50 rotate-45 border-r border-b border-blue-100/50"></div>
+                </div>
                 <RobotAvatar size={18} animate={isAiReminding && task.assigneeId === user.uniqueKey} />
               </button>
 
@@ -609,7 +620,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
         {isManager && (
           <button 
-            onClick={() => onEdit(task)}
+            onClick={() => onEdit?.(task)}
             className="absolute top-1 right-1 text-blue-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity z-10"
             title="CHỈNH SỬA NỘI DUNG & GIA HẠN"
           >
@@ -936,7 +947,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                           <div className="flex flex-col gap-1.5 w-full items-center">
                             {(isManager || isOwner || isAuthor) && (
                               <button 
-                                onClick={() => onEdit(task)}
+                                onClick={() => onEdit?.(task)}
                                 className="w-7 h-7 flex items-center justify-center bg-emerald-500 text-white rounded-md hover:bg-emerald-600 transition-all group/btn border-2 border-emerald-400"
                                 title="SỬA"
                               >
@@ -1224,6 +1235,22 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                                   />
                                 </div>
                               ))}
+
+                              {isRecurringTask && isOwner && (
+                                <div className="mt-4 p-3 bg-rose-50 rounded-xl border border-rose-100 flex items-center justify-between gap-4 shadow-sm">
+                                  <div className="flex flex-col">
+                                    <span translate="no" className="notranslate text-[9px] font-black text-rose-800 uppercase tracking-widest leading-tight">YÊU CẦU DUYỆT KẾT THÚC THEO DÕI</span>
+                                    <span translate="no" className="notranslate text-[8px] font-bold text-rose-500 uppercase mt-0.5 tracking-tighter">Công việc này sẽ không lặp lại nữa</span>
+                                  </div>
+                                  <button 
+                                    type="button"
+                                    onClick={() => setRequestStop(!requestStop)}
+                                    className={`w-10 h-5 rounded-full relative transition-all duration-300 shadow-inner ${requestStop ? 'bg-rose-600' : 'bg-gray-200'}`}
+                                  >
+                                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all duration-300 shadow-md ${requestStop ? 'left-5.5' : 'left-0.5'}`} />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -1304,8 +1331,15 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
                       <div className="p-2 border-t border-gray-100 bg-slate-50 flex flex-col sm:flex-row gap-3">
                         {isAdmin && isRecurringTask && (
-                          <div className="flex items-center gap-3 bg-red-50 px-4 py-2 rounded-lg border border-red-100 flex-1">
-                            <span translate="no" className="notranslate text-[10px] font-black text-red-700 uppercase leading-tight">DỪNG LẶP LẠI (KẾT THÚC HOÀN TOÀN CÔNG VIỆC NÀY)</span>
+                          <div className={`flex items-center gap-3 px-4 py-2 rounded-lg border flex-1 transition-all ${
+                            task.requestEndTracking ? 'bg-amber-50 border-amber-200 ring-2 ring-amber-100' : 'bg-red-50 border-red-100'
+                          }`}>
+                            <div className="flex flex-col flex-1">
+                              <span translate="no" className="notranslate text-[10px] font-black text-red-700 uppercase leading-tight">DỪNG LẶP LẠI (KẾT THÚC HOÀN TOÀN CÔNG VIỆC NÀY)</span>
+                              {task.requestEndTracking && (
+                                <span translate="no" className="notranslate text-[8px] font-black text-rose-600 uppercase mt-0.5 animate-pulse">⚠️ Nhân viên đang yêu cầu kết thúc</span>
+                              )}
+                            </div>
                             <button 
                               type="button"
                               onClick={() => setStopRecurrence(!stopRecurrence)}

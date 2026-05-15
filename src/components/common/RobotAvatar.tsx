@@ -9,7 +9,7 @@ interface RobotAvatarProps {
 
 export const RobotAvatar: React.FC<RobotAvatarProps> = ({ size = 20, className = '', animate = false }) => {
   return (
-    <div className={`flex items-center justify-center ${animate ? 'animate-bounce' : ''} ${className}`}>
+    <div className={`flex items-center justify-center ${animate ? 'animate-bounce' : ''} ${className}`} title="INOCHI XIN CHÀO! ✨">
       <RobotIconSVG size={size} />
     </div>
   );

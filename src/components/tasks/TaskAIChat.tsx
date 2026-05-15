@@ -27,7 +27,18 @@ export const TaskAIChat: React.FC<TaskAIChatProps> = ({
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-focus input when chat opens with a slight delay to ensure animation readiness
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Auto-hide logic: 30 seconds
   const resetHideTimer = () => {
@@ -95,12 +106,12 @@ export const TaskAIChat: React.FC<TaskAIChatProps> = ({
       });
 
       // 2. Call Gemini
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
       if (!apiKey) {
         throw new Error("Sếp Trường ơi, Robot chưa được nạp khóa API trên Vercel. Sếp kiểm tra lại nhé!");
       }
       const googleAi = new GoogleGenAI({ apiKey });
-      const systemPrompt = `Bạn là Robot trợ lý AI chuyên nghiệp. 
+      const systemPrompt = `Bạn là INOCHI, Robot trợ lý AI chuyên nghiệp và thân thiện. 
 Nhiệm vụ của bạn: Nhắc nhở và hỗ trợ người dùng hoàn thành công việc.
 Công việc hiện tại: "${task.title}"
 Mục tiêu: "${task.objective}"
@@ -109,7 +120,7 @@ Người đang nói chuyện với bạn: ${currentUser.name} (${currentUser.rol
 Nhân viên phụ trách chính: ${assigneeName || 'Chưa xác định'}
 
 Yêu cầu:
-1. Luôn xưng hô lịch sự, chuyên nghiệp.
+1. Luôn xưng hô lịch sự, thân thiện, xưng "Inochi" và gọi người dùng là "Sếp" hoặc "Bạn" tùy vai trò.
 2. Nếu là nhân viên phụ trách: Tập trung vào việc thúc đẩy tiến độ, gợi ý giải pháp.
 3. Nếu là Admin: Hỗ trợ phân tích công việc, gợi ý cách quản lý hoặc kiểm tra.
 4. Trả lời ngắn gọn, súc tích bằng tiếng Việt.
@@ -226,7 +237,7 @@ Yêu cầu:
           <div className="flex items-center gap-1">
             <RobotAvatar size={14} animate />
             <div>
-              <h3 className="text-white text-[9.5px] font-black uppercase tracking-wider leading-none">AI BOT</h3>
+              <h3 className="text-white text-[9.5px] font-black uppercase tracking-wider leading-none">INOCHI</h3>
               <p className="text-blue-100 text-[7.5px] font-bold uppercase tracking-tight mt-0.5 opacity-80">{task.code}</p>
             </div>
           </div>
@@ -281,6 +292,7 @@ Yêu cầu:
         <div className="p-1.5 bg-white border-t border-blue-50">
           <div className="relative flex items-center bg-gray-50 rounded-md px-1.5 py-0.5 border border-blue-50/50 focus-within:border-blue-300 focus-within:bg-white transition-all">
             <input 
+              ref={inputRef}
               type="text"
               placeholder="Chat..."
               value={input}

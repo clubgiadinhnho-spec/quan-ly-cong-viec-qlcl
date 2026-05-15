@@ -5,7 +5,7 @@ let aiInstance: GoogleGenAI | null = null;
 
 const getAi = () => {
   if (!aiInstance) {
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
     aiInstance = new GoogleGenAI({ apiKey });
   }
   return aiInstance;
@@ -40,7 +40,7 @@ YÊU CẦU:
 3. Luôn giữ thái độ chuyên nghiệp.`;
 
   try {
-    if (!process.env.NEXT_PUBLIC_GEMINI_API_KEY && !process.env.GEMINI_API_KEY) {
+    if (!process.env.NEXT_PUBLIC_GEMINI_API_KEY && !process.env.VITE_GEMINI_API_KEY && !process.env.GEMINI_API_KEY) {
       return "Sếp Trường ơi, Robot chưa được nạp khóa API trên Vercel. Sếp kiểm tra lại nhé!";
     }
 

@@ -266,7 +266,17 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
                       </div>
 
                       {/* Reaction trigger */}
-                      <div className={`absolute top-0 opacity-0 group-hover/msg:opacity-100 transition-opacity flex z-10 ${isMe ? '-left-6' : '-right-6'}`}>
+                      <div className={`absolute top-0 opacity-0 group-hover/msg:opacity-100 transition-opacity flex gap-0.5 z-10 ${isMe ? '-left-12' : '-right-12'}`}>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onReact?.(task.id, comment.id, '👍'); }}
+                          className={`p-1 bg-white border rounded-full shadow-sm transition-all text-[10px] ${
+                            comment.reactions?.some(r => r.userId === currentUser.uniqueKey && r.emoji === '👍')
+                              ? 'text-blue-600 border-blue-200 bg-blue-50'
+                              : 'text-gray-400 border-gray-100 hover:text-blue-500 hover:border-blue-200'
+                          }`}
+                        >
+                          👍
+                        </button>
                         <button 
                           onClick={(e) => { e.stopPropagation(); setShowEmojiFor(comment.id); }}
                           className="p-1 bg-white border border-gray-100 rounded-full text-gray-400 hover:text-blue-500 hover:border-blue-200 shadow-sm transition-all"
@@ -281,11 +291,19 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
                         onSelect={(emoji) => onReact?.(task.id, comment.id, emoji)}
                         position={isMe ? "left" : "right"}
                       />
+                      
+                      {/* Reactions Badge Group - Attached to bubble */}
+                      {comment.reactions && comment.reactions.length > 0 && (
+                        <div className={`absolute -bottom-2.5 flex flex-wrap gap-1 z-30 scale-90 ${isMe ? 'left-2' : 'right-2'}`}>
+                          <ReactionBadge 
+                            reactions={comment.reactions} 
+                            users={users} 
+                            onReact={(emoji) => onReact?.(task.id, comment.id, emoji)}
+                            currentUser={currentUser}
+                          />
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  
-                  <div className={`${isMe ? 'mr-0.5' : 'ml-8'} mt-0.5 scale-75 origin-left`}>
-                    <ReactionBadge reactions={comment.reactions} users={users} />
                   </div>
 
                   {!isMe && (

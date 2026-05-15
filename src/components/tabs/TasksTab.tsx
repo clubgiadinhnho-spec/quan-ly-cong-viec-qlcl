@@ -8,64 +8,39 @@ import { StatsSummary } from '../dashboard/StatsSummary';
 import { TaskList } from '../tasks/TaskList';
 import { downloadSampleExcel } from '../../utils/excelUtils';
 
+import { useAuthContext } from '../../contexts/AuthContext';
+import { useTaskContext } from '../../contexts/TaskContext';
+
 interface TasksTabProps {
-  effectiveUser: User;
-  presence: any[];
-  setShowTaskModal: (show: boolean) => void;
-  adminUnreadCount: number;
-  onOpenNotifications: () => void;
-  filteredTasks: Task[];
-  viewScope: 'mine' | 'all';
-  setViewScope: (scope: 'mine' | 'all') => void;
-  myActiveCount: number;
-  allActiveCount: number;
+  // Most props are now handled via context
   selectedTaskIds: string[];
   handleBulkDelete: () => void;
-  sortedTasks: Task[];
-  allUsers: User[];
-  search: string;
-  setSearch: (s: string) => void;
-  handleExportExcel: (tasks: Task[]) => void;
-  handleImportExcel: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  updateTask: any;
-  deleteTask: any;
-  setShowHistoryModal: (id: string | null) => void;
-  setShowChatModal: (id: string | null) => void;
-  showChatModal: string | null;
-  addTaskComment: any;
-  updateTaskCommentReactions: any;
-  setEditingTask: (t: Task | null) => void;
-  setConfirmModal: (m: any) => void;
-  approveTaskCompletion?: (id: string, modifierName?: string, leaderQCD?: any, stopRecurrence?: boolean) => Promise<void>;
-  setActiveTab: (tab: string) => void;
-  highlightedTaskId: string | null;
   toggleTaskSelection: (taskId: string) => void;
   setBulkSelection: (ids: string[], select: boolean) => void;
-  createNotification: any;
-  markAsRead: (id: string) => void;
-  lastReadChatTimestamps: Record<string, number>;
-  selectedMonth?: string;
-  onMonthChange?: (m: string) => void;
-  tasks: Task[];
-  sendAiMessage: any;
-  triggerAiNudge: any;
-  resetTaskAIStatus: any;
-  aiMessages: any[];
 }
 
 export const TasksTab: React.FC<TasksTabProps> = ({
-  effectiveUser, presence, setShowTaskModal, adminUnreadCount, onOpenNotifications,
-  filteredTasks, viewScope, setViewScope, myActiveCount, allActiveCount,
-  selectedTaskIds, handleBulkDelete, sortedTasks, allUsers, search, setSearch,
-  handleExportExcel, handleImportExcel, updateTask, deleteTask,
-  setShowHistoryModal, setShowChatModal, showChatModal, addTaskComment,
-  updateTaskCommentReactions, setEditingTask, setConfirmModal,
-  approveTaskCompletion, setActiveTab, highlightedTaskId,
-  toggleTaskSelection, setBulkSelection, createNotification,
-  markAsRead, lastReadChatTimestamps,
-  selectedMonth, onMonthChange, tasks,
-  sendAiMessage, triggerAiNudge, resetTaskAIStatus, aiMessages
+  selectedTaskIds,
+  handleBulkDelete,
+  toggleTaskSelection,
+  setBulkSelection
 }) => {
+  const { effectiveUser, allUsers } = useAuthContext();
+  const {
+    presence, setShowTaskModal, adminUnreadCount, onOpenNotifications,
+    sortedTasks, search, setSearch, viewScope, setViewScope, counts,
+    handleExportExcel, handleImportExcel, updateTask, deleteTask,
+    setShowHistoryModal, setShowChatModal, showChatModal, addTaskComment,
+    updateTaskCommentReactions, setEditingTask, setConfirmModal,
+    approveTaskCompletion, setActiveTab, highlightedTaskId,
+    createNotification, markAsRead, lastReadChatTimestamps,
+    selectedMonth, onMonthChange, tasks,
+    sendAiMessage, triggerAiNudge, resetTaskAIStatus, aiMessages
+  } = useTaskContext();
+
+  const myActiveCount = counts.mine;
+  const allActiveCount = counts.allActive;
+
   return (
     <motion.div
       key="tasks"

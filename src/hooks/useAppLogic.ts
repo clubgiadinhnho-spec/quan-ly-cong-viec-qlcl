@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Task, User } from '../types';
 import { isUserTask, normalizeString, getTaskAssigneeName } from '../utils/userUtils';
 import { getTaskDeadlineStatus } from '../lib/dateUtils';
@@ -22,6 +22,68 @@ export const useAppLogic = ({
   allUsers,
   selectedMonth = 'all'
 }: UseAppLogicProps) => {
+  // THIẾT QUÂN LUẬT: Trì hoãn luân hồi (Delayed Sorting) - 3 phút
+  const [stableSortTimes, setStableSortTimes] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const now = Date.now();
+    const COOLDOWN_MS = 3 * 60 * 1000;
+
+    setStableSortTimes(prev => {
+      const next = { ...prev };
+      let changed = false;
+
+      tasks.forEach(t => {
+        const realTime = new Date(t.lastActionAt || t.updatedAt || 0).getTime();
+        const stableTime = prev[t.id];
+
+        if (!stableTime) {
+          // Task mới hoàn toàn hoặc lần đầu load
+          next[t.id] = realTime;
+          changed = true;
+        } else if (realTime > stableTime) {
+          // Có cập nhật mới!
+          // Nếu cập nhật này đã cũ (hơn 3 phút trước - ví dụ vừa vào app thấy data cũ) -> Cập nhật ngay
+          if (now - realTime > COOLDOWN_MS) {
+            next[t.id] = realTime;
+            changed = true;
+          }
+          // Nếu là cập nhật "nóng" (< 3 phút) -> Giữ nguyên stableTime cũ để task không nhảy
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [tasks]);
+
+  // Bộ quét định kỳ để "giải phóng" các Task đã hết 3 phút chờ
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const COOLDOWN_MS = 3 * 60 * 1000;
+
+      setStableSortTimes(prev => {
+        const next = { ...prev };
+        let changed = false;
+
+        tasks.forEach(t => {
+          const realTime = new Date(t.lastActionAt || t.updatedAt || 0).getTime();
+          const stableTime = prev[t.id] || 0;
+
+          // Nếu realTime mới hơn stableTime và đã trôi qua hơn 3 phút
+          if (realTime > stableTime && (now - realTime >= COOLDOWN_MS)) {
+            next[t.id] = realTime;
+            changed = true;
+          }
+        });
+
+        return changed ? next : prev;
+      });
+    }, 10000); // Quét mỗi 10 giây để đảm bảo độ chính xác
+
+    return () => clearInterval(interval);
+  }, [tasks]);
+
   const matchesSearch = useMemo(() => (t: Task) => {
     if (!search) return true;
     const term = normalizeString(search);
@@ -120,15 +182,29 @@ export const useAppLogic = ({
     const approvalList = filterByScope(baseApproval);
     const trashList = filterByScope(baseTrash);
 
-    // Đặc biệt: Công việc ưu tiên (Báo động Sidebar theo lệnh Trưởng phòng)
+    // Đặc biệt: Công việc ưu tiên & Báo động thời gian (Báo động Sidebar theo lệnh Trưởng phòng)
+    const activeDeadlineStatuses = activeList.map(t => ({
+      task: t,
+      status: getTaskDeadlineStatus(t).status
+    }));
+
+    const overdueCount = activeDeadlineStatuses.filter(s => s.status === 'CRITICAL').length;
+    const todayCount = activeDeadlineStatuses.filter(s => s.status === 'URGENT').length;
+    const soonCount = activeDeadlineStatuses.filter(s => s.status === 'WARNING').length;
     const priorityList = activeList.filter(t => !!t.priorityOrder);
-    const criticalCount = priorityList.length;
+    
+    // Critical Count cho báo động Sidebar = Ưu tiên 1-N + Quá hạn + Hạn hôm nay + Sắp hết hạn (mới bổ sung)
+    const totalCriticalAlerts = priorityList.length + overdueCount + todayCount + soonCount;
 
     return {
       pending: pendingList.length,
       active: activeList.length,
-      activeAlerts: criticalCount,
-      attention: criticalCount > 0 || activeList.some(t => t.isNewInBoard),
+      activeAlerts: totalCriticalAlerts,
+      overdueCount,
+      todayCount,
+      soonCount,
+      priorityCount: priorityList.length,
+      attention: totalCriticalAlerts > 0 || activeList.some(t => t.isNewInBoard),
       allActive: activeList.length,
       mine: activeList.filter(t => isUserTask(t, effectiveUser)).length,
       completedTotal: getCompletedCount(),
@@ -178,15 +254,15 @@ export const useAppLogic = ({
       if (b.priorityOrder && !a.priorityOrder) return 1;
       if (a.priorityOrder && b.priorityOrder) return a.priorityOrder - b.priorityOrder;
 
-      // Last Action Time
-      const timeA = new Date(a.lastActionAt || a.updatedAt || 0).getTime();
-      const timeB = new Date(b.lastActionAt || b.updatedAt || 0).getTime();
+      // Last Action Time - THIẾT QUÂN LUẬT: Dùng thời gian ổn định (Delayed Sorting)
+      const timeA = stableSortTimes[a.id] || new Date(a.lastActionAt || a.updatedAt || 0).getTime();
+      const timeB = stableSortTimes[b.id] || new Date(b.lastActionAt || b.updatedAt || 0).getTime();
       if (timeB !== timeA) return timeB - timeA;
 
       // Code
       return b.code.localeCompare(a.code);
     });
-  }, [tasks, activeTab, search, viewScope, effectiveUser]);
+  }, [tasks, activeTab, search, viewScope, effectiveUser, stableSortTimes]);
 
   return {
     counts,

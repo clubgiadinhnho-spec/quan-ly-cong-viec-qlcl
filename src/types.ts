@@ -210,6 +210,7 @@ export interface Task {
   lastActionAt?: string;
   aiReminderResponded?: boolean;
   aiReminderLastDate?: string;
+  requestEndTracking?: boolean;
 }
 
 export interface ReportDraft {

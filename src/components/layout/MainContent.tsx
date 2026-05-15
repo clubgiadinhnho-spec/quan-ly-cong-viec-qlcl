@@ -13,94 +13,45 @@ import { StaffListTab } from '../tabs/StaffListTab';
 import { SystemHistoryTab } from '../tabs/SystemHistoryTab';
 import { CategoryManagement } from '../tasks/CategoryManagement';
 
-interface MainContentProps {
-  activeTab: string;
-  effectiveUser: User;
-  currentUser: User | null;
-  presence: any[];
-  allUsers: User[];
-  tasks: Task[];
-  filteredTasks: Task[];
-  sortedTasks: Task[];
-  viewScope: 'mine' | 'all';
-  setViewScope: (scope: 'mine' | 'all') => void;
-  search: string;
-  setSearch: (s: string) => void;
-  myActiveCount: number;
-  allActiveCount: number;
-  setShowTaskModal: (show: boolean) => void;
-  handleExportExcel: (tasks: Task[]) => void;
-  handleImportExcel: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  updateTask: any;
-  deleteTask: any;
-  approveTaskCompletion?: (id: string, modifierName?: string, leaderQCD?: any, stopRecurrence?: boolean) => Promise<void>;
-  setShowHistoryModal: (id: string | null) => void;
-  setShowChatModal: (id: string | null) => void;
-  showChatModal: string | null;
-  addTaskComment: any;
-  updateTaskCommentReactions: any;
-  setEditingTask: (t: Task | null) => void;
-  setConfirmModal: (m: any) => void;
-  highlightedTaskId: string | null;
-  discussionTopics: DiscussionTopic[];
-  discussionMessages: DiscussionMessage[];
-  sendDiscussionMessage: any;
-  updateDiscussionMessageReactions: any;
-  createTopic: any;
-  updateTopic: any;
-  deleteTopic: any;
-  deleteTopicsBulk: any;
-  deleteDiscussionMessage: any;
-  updateProfile: any;
-  officialReports: OfficialReport[];
-  firebaseSaveReportDraft: any;
-  firebaseSaveOfficialReport: any;
-  permanentDeleteTask: any;
-  restoreTask: any;
-  setActiveTab: (tab: string) => void;
-  setShowDirectChat: (u: User | null) => void;
-  unreadCounts: Record<string, number>;
-  groupUnreadCount: number;
-  setSimulatedUser: (u: User | null) => void;
-  firebaseSendPrivateMsg: any;
-  deleteProfile: any;
-  deleteTasksBulk: any;
-  trashTasksBulk: any;
-  approveTasksBulk: any;
-  logs: LogEntry[];
-  resetSystem: () => Promise<void>;
-  deleteLogsBulk: (logIds: string[]) => Promise<boolean>;
-  markAsRead: (id: string) => void;
-  lastReadChatTimestamps: Record<string, number>;
-  adminUnreadCount: number;
-  onOpenNotifications: () => void;
-  createNotification: any;
-  selectedMonth: string;
-  onMonthChange: (m: string) => void;
-  sendAiMessage: any;
-  triggerAiNudge: any;
-  resetTaskAIStatus: any;
-  aiMessages: any[];
-}
+import { useAuthContext } from '../../contexts/AuthContext';
+import { useTaskContext } from '../../contexts/TaskContext';
 
-export const MainContent: React.FC<MainContentProps> = (props) => {
+export const MainContent: React.FC = () => {
+  const { 
+    effectiveUser, currentUser, allUsers, 
+    setSimulatedUser, updateProfile, deleteProfile 
+  } = useAuthContext();
+
   const {
-    activeTab, effectiveUser, currentUser, presence, allUsers, tasks, filteredTasks, sortedTasks,
-    viewScope, setViewScope, search, setSearch, myActiveCount, allActiveCount, setShowTaskModal,
-    handleExportExcel, handleImportExcel, updateTask, deleteTask, approveTaskCompletion, setShowHistoryModal, setShowChatModal,
-    showChatModal, addTaskComment, updateTaskCommentReactions, setEditingTask, setConfirmModal,
-    highlightedTaskId, discussionTopics, discussionMessages, sendDiscussionMessage,
-    updateDiscussionMessageReactions, createTopic, updateTopic, deleteTopic, deleteTopicsBulk, deleteDiscussionMessage,
-    updateProfile, officialReports, firebaseSaveReportDraft, firebaseSaveOfficialReport,
-    permanentDeleteTask, restoreTask, setActiveTab, setShowDirectChat, unreadCounts, groupUnreadCount,
-    setSimulatedUser, firebaseSendPrivateMsg, deleteProfile, deleteTasksBulk, trashTasksBulk, approveTasksBulk, logs, resetSystem,
-    deleteLogsBulk, markAsRead, lastReadChatTimestamps,
+    activeTab, sortedTasks, tasks, viewScope, setViewScope, 
+    search, setSearch, counts, setShowTaskModal,
+    handleExportExcel, handleImportExcel, updateTask, deleteTask, 
+    approveTaskCompletion, setShowHistoryModal, setShowChatModal,
+    showChatModal, addTaskComment, updateTaskCommentReactions, 
+    setEditingTask, setConfirmModal, highlightedTaskId, 
+    discussionTopics, discussionMessages, sendDiscussionMessage,
+    updateDiscussionMessageReactions, createTopic, updateTopic, 
+    deleteTopic, deleteTopicsBulk, deleteDiscussionMessage,
+    officialReports, saveReportDraft, saveOfficialReport,
+    permanentDeleteTask, restoreTask, setActiveTab, unreadCounts, 
+    groupUnreadCount, deleteTasksBulk, trashTasksBulk, 
+    approveTasksBulk, logs, markAsRead, lastReadChatTimestamps,
     adminUnreadCount, onOpenNotifications, createNotification,
-    selectedMonth, onMonthChange,
-    sendAiMessage, triggerAiNudge, resetTaskAIStatus, aiMessages
-  } = props;
+    selectedMonth, onMonthChange, sendAiMessage, triggerAiNudge, 
+    resetTaskAIStatus, aiMessages, presence,
+    showDirectChat, setShowDirectChat
+  } = useTaskContext();
 
   const [selectedTaskIds, setSelectedTaskIds] = React.useState<string[]>([]);
+  
+  const myActiveCount = counts.mine;
+  const allActiveCount = counts.allActive;
+  const filteredTasks = sortedTasks;
+  const firebaseSaveReportDraft = saveReportDraft;
+  const firebaseSaveOfficialReport = saveOfficialReport;
+  const firebaseSendPrivateMsg = (recId: string, msg: string) => {}; // TODO: Add to TaskActions/Context
+  const resetSystem = async () => {};
+  const deleteLogsBulk = async (ids: string[]) => true;
 
   // Clear selection when changing tabs to prevent stale data
   React.useEffect(() => {

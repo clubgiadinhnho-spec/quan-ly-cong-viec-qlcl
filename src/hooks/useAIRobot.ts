@@ -96,7 +96,7 @@ export const useAIRobot = ({
           const assignee = users.find(u => u.uniqueKey === topTask.assigneeId || u.id === topTask.assigneeId);
           const name = assignee?.name || 'bạn';
 
-          const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+          const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
           if (!apiKey) {
             await sendAiMessage({
               taskId: topTask.id,

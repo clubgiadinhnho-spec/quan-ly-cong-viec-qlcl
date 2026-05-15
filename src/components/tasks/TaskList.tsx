@@ -15,7 +15,7 @@ interface TaskListProps {
   showChatModal: string | null;
   onSendMessage: (taskId: string, content: string) => void;
   onReact?: (taskId: string, commentId: string, emoji: string) => void;
-  onEdit: (task: Task) => void;
+  onEdit?: (task: Task) => void;
   setConfirmModal: (modal: any) => void;
   onApprove?: (id: string) => void;
   approveTaskCompletion?: (id: string, modifierName?: string, leaderQCD?: any, stopRecurrence?: boolean) => Promise<void>;
@@ -48,7 +48,7 @@ export const TaskList: React.FC<TaskListProps> = ({
   showChatModal,
   onSendMessage,
   onReact,
-  onEdit,
+  onEdit = () => {},
   setConfirmModal,
   onApprove,
   approveTaskCompletion,

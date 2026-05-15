@@ -1045,18 +1045,33 @@ const handleCreateTopic = () => {
                               )}
 
                               {/* Message Actions (Hovered) */}
-                              <div className={`absolute top-0 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all z-20 ${isMe ? '-left-12' : '-right-12'} flex flex-col gap-1.5`}>
-                                <button 
-                                  onClick={() => setShowEmojiFor(showEmojiFor === msg.id ? null : msg.id)}
-                                  className="w-9 h-9 bg-white shadow-lg border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-amber-500 hover:scale-110 active:scale-95 transition-all"
-                                >
-                                  <Smile size={18} />
-                                </button>
+                              <div className={`absolute top-0 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all z-20 ${isMe ? '-left-20' : '-right-20'} flex flex-col gap-1.5`}>
+                                <div className="flex gap-1.5">
+                                  <button 
+                                    onClick={() => onReact(msg.id, '👍')}
+                                    className={`w-9 h-9 bg-white shadow-lg border rounded-xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 ${
+                                      msg.reactions?.some(r => (r.userId === currentUser.id || r.userId === currentUser.uniqueKey) && r.emoji === '👍') 
+                                        ? 'text-blue-600 border-blue-200 bg-blue-50' 
+                                        : 'text-slate-400 border-slate-200 hover:text-blue-600'
+                                    }`}
+                                    title="Thích"
+                                  >
+                                    <span className="text-sm">👍</span>
+                                  </button>
+                                  
+                                  <button 
+                                    onClick={() => setShowEmojiFor(showEmojiFor === msg.id ? null : msg.id)}
+                                    className="w-9 h-9 bg-white shadow-lg border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-amber-500 hover:scale-110 active:scale-95 transition-all"
+                                    title="Biểu cảm"
+                                  >
+                                    <Smile size={18} />
+                                  </button>
+                                </div>
                                 
                                 {(currentUser.id === msg.authorId || currentUser.role === 'Admin') && (
                                   <button 
                                     onClick={() => onDeleteMessage?.(msg.id)}
-                                    className="w-9 h-9 bg-white shadow-lg border border-slate-200 rounded-xl flex items-center justify-center text-slate-300 hover:text-red-500 hover:scale-110 active:scale-95 transition-all"
+                                    className="w-9 h-9 bg-white shadow-lg border border-slate-200 rounded-xl flex items-center justify-center text-slate-300 hover:text-red-500 hover:scale-110 active:scale-95 transition-all self-end"
                                     title="Xóa tin nhắn"
                                   >
                                     <Trash2 size={16} />
@@ -1073,17 +1088,18 @@ const handleCreateTopic = () => {
                                   position="top"
                                 />
                               </div>
+                              {/* Reactions Badge Group - Attached to bubble */}
+                              {msg.reactions && msg.reactions.length > 0 && (
+                                <div className={`absolute -bottom-3 flex flex-wrap gap-1 z-30 ${isMe ? 'left-4' : 'right-4'}`}>
+                                  <ReactionBadge 
+                                    reactions={msg.reactions} 
+                                    users={users}
+                                    onReact={(emoji) => onReact(msg.id, emoji)}
+                                    currentUser={currentUser}
+                                  />
+                                </div>
+                              )}
                             </div>
-
-                            {/* Reactions Badge Group */}
-                            {msg.reactions && msg.reactions.length > 0 && (
-                              <div className={`absolute -bottom-3 flex flex-wrap gap-1 shadow-sm ${isMe ? 'right-0' : 'left-0'}`}>
-                                <ReactionBadge 
-                                  reactions={msg.reactions} 
-                                  users={users}
-                                />
-                              </div>
-                            )}
                           </div>
                         </div>
                       </motion.div>

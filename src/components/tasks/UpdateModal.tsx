@@ -17,8 +17,8 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, task,
   const toHTML = (content: string) => {
     if (!content) return '';
     
-    // Hide content completely if it's from any Robot/AI source
-    if (/(?:🤖|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content)) {
+    // Hide content completely if it's from any JOB/Robot source
+    if (/(?:🤖|\[JOB|JOB Assist|JOB Assistant|JOB Update|JOB:|\bJOB\b|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content)) {
       return '';
     }
 

@@ -75,6 +75,12 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
 
   const handleBulkDelete = () => {
     if (selectedIds.length === 0) return;
+    
+    if (selectedIds.length > 5) {
+      alert("Hệ thống chỉ cho phép xóa tối đa 5 dòng nhật ký cùng lúc để đảm bảo tính an toàn dữ liệu.");
+      return;
+    }
+
     setConfirmModal({
       show: true,
       title: "XÁC NHẬN XÓA NHẬT KÝ",
@@ -283,7 +289,7 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="">
               {logs.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-24 text-center border border-slate-200">
@@ -299,7 +305,7 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
                 logs
                   .filter(log => {
                     const details = log.details || '';
-                    return !/(?:🤖|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(details);
+                    return !/(?:🤖|\[JOB|JOB Assist|JOB Assistant|JOB Update|JOB:|\bJOB\b|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(details);
                   })
                   .map((log, index) => (
                     <tr 

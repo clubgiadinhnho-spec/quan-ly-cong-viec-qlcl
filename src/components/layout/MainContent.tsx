@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { User, Task, LogEntry, OfficialReport, DiscussionTopic, DiscussionMessage } from '../../types';
+import { User, Task, LogEntry, OfficialReport, DiscussionTopic, DiscussionMessage, TaskCategory } from '../../types';
 import { TasksTab } from '../tabs/TasksTab';
 import { NewProposalsTab } from '../tabs/NewProposalsTab';
 import { PendingApprovalTab } from '../tabs/PendingApprovalTab';
@@ -24,7 +24,7 @@ export const MainContent: React.FC = () => {
 
   const {
     activeTab, sortedTasks, tasks, viewScope, setViewScope, 
-    search, setSearch, counts, setShowTaskModal,
+    search, setSearch, counts, setShowTaskModal, categories,
     handleExportExcel, handleImportExcel, updateTask, deleteTask, 
     approveTaskCompletion, setShowHistoryModal, setShowChatModal,
     showChatModal, addTaskComment, updateTaskCommentReactions, 
@@ -89,25 +89,44 @@ export const MainContent: React.FC = () => {
     return Array.from(new Set(realIds));
   };
 
+  const isAdminUser = effectiveUser?.role === 'Admin' || 
+    effectiveUser?.email === 'truong.le@tanphuvietnam.vn' || 
+    effectiveUser?.email === 'lenhattruong.tpp@gmail.com' ||
+    effectiveUser?.id === 'lenhattruong.tpp@gmail.com';
+
   const handleBulkDelete = () => {
     if (selectedTaskIds.length === 0) return;
-    const realIds = getRealDocIds(selectedTaskIds);
+    
+    if (selectedTaskIds.length > 5) {
+      setConfirmModal({
+        show: true,
+        title: <span translate="no" className="notranslate font-black uppercase text-red-600">LỖI THAO TÁC</span>,
+        message: (
+          <div className="bg-red-600 p-4 rounded-xl text-center border-4 border-red-400 shadow-[0_0_20px_rgba(220,38,38,0.5)]">
+            <p className="text-white font-black text-lg uppercase leading-tight">
+              <span translate="no" className="notranslate">CHỈ ĐƯỢC PHÉP CHỌN TỐI ĐA 5 CÔNG VIỆC ĐỂ XÓA MỖI LẦN!</span>
+            </p>
+          </div>
+        ) as any,
+        confirmText: <span translate="no" className="notranslate text-white font-black">ĐÃ HIỂU</span>,
+        onConfirm: () => setConfirmModal((p: any) => ({ ...p, show: false })),
+        isAlert: true
+      });
+      return;
+    }
+
     setConfirmModal({
       show: true,
-      title: <span translate="no" className="notranslate">XÁC NHẬN XÓA NHIỀU</span>,
-      message: (
-        <span translate="no" className="notranslate">
-          Bạn đang chọn XÓA {realIds.length} công việc. Hành động này sẽ chuyển các công việc vào THÙNG RÁC. Bạn có chắc chắn không?
-        </span>
-      ),
+      title: <span translate="no" className="notranslate font-black uppercase">XÁC NHẬN XÓA NHÓM</span>,
+      message: <span translate="no" className="notranslate">{`Bạn có chắc chắn muốn CHUYỂN ${selectedTaskIds.length} công việc đã chọn VÀO THÙNG RÁC không?`}</span>,
       onConfirm: async () => {
+        const realIds = getRealDocIds(selectedTaskIds);
         try {
-          await trashTasksBulk(realIds, effectiveUser.name);
+          await trashTasksBulk(realIds, effectiveUser?.name);
           setSelectedTaskIds([]);
+          setConfirmModal((p: any) => p ? { ...p, show: false } : p);
         } catch (error) {
           alert("Có lỗi xảy ra khi xóa.");
-        } finally {
-          setConfirmModal((p: any) => ({ ...p, show: false }));
         }
       }
     });
@@ -115,23 +134,42 @@ export const MainContent: React.FC = () => {
 
   const handlePermanentBulkDelete = () => {
     if (selectedTaskIds.length === 0) return;
-    const realIds = getRealDocIds(selectedTaskIds);
+    
+    if (selectedTaskIds.length > 5) {
+      setConfirmModal({
+        show: true,
+        title: <span translate="no" className="notranslate font-black uppercase text-red-600">LỖI THAO TÁC</span>,
+        message: (
+          <div className="bg-red-600 p-4 rounded-xl text-center border-4 border-red-400 shadow-[0_0_20px_rgba(220,38,38,0.5)]">
+            <p className="text-white font-black text-lg uppercase leading-tight">
+              <span translate="no" className="notranslate">CHỈ ĐƯỢC PHÉP CHỌN TỐI ĐA 5 CÔNG VIỆC ĐỂ XÓA VĨNH VIỄN!</span>
+            </p>
+          </div>
+        ) as any,
+        confirmText: <span translate="no" className="notranslate text-white font-black">ĐÃ HIỂU</span>,
+        onConfirm: () => setConfirmModal((p: any) => ({ ...p, show: false })),
+        isAlert: true
+      });
+      return;
+    }
+
     setConfirmModal({
       show: true,
-      title: <span translate="no" className="notranslate">XÁC NHẬN XÓA VĨNH VIỄN NHIỀU</span>,
+      title: <span translate="no" className="notranslate font-black uppercase text-red-600">XÁC NHẬN XÓA VĨNH VIỄN</span>,
       message: (
-        <span translate="no" className="notranslate">
-          Bạn đang chọn XÓA VĨNH VIỄN {realIds.length} công việc. Hành động này KHÔNG THỂ HOÀN TÁC. Bạn có chắc chắn không?
-        </span>
-      ),
+         <div className="text-center space-y-2">
+            <p className="notranslate font-bold text-red-700 uppercase">CẢNH BÁO: Hành động này sẽ XÓA VĨNH VIỄN {selectedTaskIds.length} mục và KHÔNG THỂ KHÔI PHỤC!</p>
+            <p className="notranslate">Bạn có chắc chắn muốn tiếp tục?</p>
+         </div>
+      ) as any,
       onConfirm: async () => {
+        const realIds = getRealDocIds(selectedTaskIds);
         try {
-          await deleteTasksBulk(realIds, effectiveUser.name);
+          await deleteTasksBulk(realIds, effectiveUser?.name);
           setSelectedTaskIds([]);
+          setConfirmModal((p: any) => p ? { ...p, show: false } : p);
         } catch (error) {
-          alert("Có lỗi xảy ra khi xóa.");
-        } finally {
-          setConfirmModal((p: any) => ({ ...p, show: false }));
+          alert("Có lỗi xảy ra khi xóa vĩnh viễn.");
         }
       }
     });
@@ -146,7 +184,8 @@ export const MainContent: React.FC = () => {
     highlightedTaskId, search, setSearch,
     markAsRead, lastReadChatTimestamps,
     selectedMonth, onMonthChange, tasks,
-    sendAiMessage, triggerAiNudge, resetTaskAIStatus, aiMessages
+    sendAiMessage, triggerAiNudge, resetTaskAIStatus, aiMessages,
+    handleImportExcel
   };
 
   return (
@@ -224,6 +263,7 @@ export const MainContent: React.FC = () => {
           allUsers={allUsers}
           updateProfile={updateProfile}
           presence={presence}
+          categories={categories}
         />
       )}
 
@@ -242,7 +282,7 @@ export const MainContent: React.FC = () => {
 
       {activeTab === "category_management" && effectiveUser?.role === "Admin" && (
         <motion.div key="category_management" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
-          <CategoryManagement tasks={tasks} />
+          <CategoryManagement tasks={tasks} setConfirmModal={setConfirmModal} />
         </motion.div>
       )}
 
@@ -270,6 +310,7 @@ export const MainContent: React.FC = () => {
           sendDiscussionMessage={sendDiscussionMessage}
           updateProfile={updateProfile}
           deleteProfile={deleteProfile}
+          setConfirmModal={setConfirmModal}
           setActiveTab={setActiveTab}
           setShowDirectChat={setShowDirectChat}
         />

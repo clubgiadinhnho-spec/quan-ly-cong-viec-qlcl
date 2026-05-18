@@ -68,7 +68,7 @@ export const ReactionBadge: React.FC<ReactionBadgeProps> = ({ reactions, users, 
 
   return (
     <div className="flex flex-wrap gap-1 mt-1">
-      {Object.keys(grouped).map((emoji) => {
+      {Object.keys(grouped || {}).map((emoji) => {
         const count = grouped[emoji];
         const reactedByMe = currentUser && reactions.some(r => 
           (r.userId === currentUser.id || (currentUser.uniqueKey && r.userId === currentUser.uniqueKey)) && 

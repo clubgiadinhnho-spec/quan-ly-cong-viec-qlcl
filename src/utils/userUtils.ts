@@ -64,6 +64,77 @@ export const isUserTask = (task: Task, user: User | null): boolean => {
 };
 
 /**
+ * Kiểm tra xem người dùng có quyền Admin hay không.
+ */
+export const checkIsAdmin = (user: User | null): boolean => {
+  if (!user) return false;
+  
+  const role = (user.role || '').toUpperCase();
+  if (role === 'ADMIN') return true;
+
+  const identifiers = [
+    (user.uniqueKey || '').toLowerCase(),
+    (user.id || '').toLowerCase(),
+    (user.email || '').toLowerCase(),
+    (user.companyEmail || '').toLowerCase(),
+  ];
+
+  const adminIdentifiers = [
+    'lenhattruong09xxxxxxxx',
+    'lenhattruong.tpp@gmail.com',
+    'lenhattruong.caphef1@gmail.com',
+    'truong.le@tanphuvietnam.vn',
+    'club.nhuatanphu@gmail.com',
+    'tanphuvietnam.tpp@gmail.com',
+    'truongln.tanhongngoc@gmail.com'
+  ];
+
+  if (identifiers.some(id => adminIdentifiers.includes(id))) return true;
+
+  // So khớp tên (không dấu, chữ thường)
+  const normalizedName = normalizeString(user.name || '');
+  if (normalizedName === 'le nhat truong') return true;
+
+  return false;
+};
+
+/**
+ * Kiểm tra xem công việc có phải là định kỳ hay không.
+ */
+export const checkIsRecurring = (task: Partial<Task> | null): boolean => {
+  if (!task) return false;
+  
+  // 1. Check direct recurrence field
+  if (task.recurrence) {
+    const rec = task.recurrence.toUpperCase();
+    const noneValues = ['NONE', 'KHÔNG LẶP', 'KHONG LAP', 'KHÔNG', 'KHONG', 'KHÔNG LẶP LẠI', 'KHONG LAP LAI', 'NO', 'FALSE', '0'];
+    const normalizedRec = normalizeString(rec).toUpperCase();
+    if (!noneValues.includes(normalizedRec) && normalizedRec !== '') return true;
+  }
+  
+  // 2. Check if it has cycle history (evidence of recurrence)
+  if (task.cycleHistory && task.cycleHistory.length > 0) return true;
+  
+  return false;
+};
+
+/**
+ * Kiểm tra xem công việc có bị xóa hay không.
+ */
+export const isTaskDeleted = (task: any): boolean => {
+  if (!task) return true;
+  if (task.deletedAt) return true;
+  if (task.requestDelete === true) return true;
+  
+  const statusStr = String(task.status || '');
+  if (!statusStr) return false;
+
+  const status = normalizeString(statusStr).replace(/\s+/g, '').toUpperCase();
+  const deletedStatuses = ['DELETED', 'RAC', 'TRASH', 'DAXOA', 'DELETE', 'XOA', 'TRUNGTAMXOA', 'RECYCLED'];
+  return deletedStatuses.includes(status);
+};
+
+/**
  * Chuẩn hóa chuỗi: chuyển thành chữ thường, loại bỏ dấu tiếng Việt.
  */
 export const normalizeString = (str: string): string => {

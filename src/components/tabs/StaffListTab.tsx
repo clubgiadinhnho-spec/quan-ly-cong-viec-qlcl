@@ -18,6 +18,7 @@ interface StaffListTabProps {
   sendDiscussionMessage: any;
   updateProfile: any;
   deleteProfile: any;
+  setConfirmModal: (m: any) => void;
   setActiveTab: (tab: string) => void;
   setShowDirectChat: (u: User | null) => void;
 }
@@ -25,7 +26,7 @@ interface StaffListTabProps {
 export const StaffListTab: React.FC<StaffListTabProps> = ({
   effectiveUser, currentUser, presence, unreadCounts, groupUnreadCount,
   allUsers, setSimulatedUser, firebaseSendPrivateMsg, discussionTopics,
-  sendDiscussionMessage, updateProfile, deleteProfile, setActiveTab, setShowDirectChat
+  sendDiscussionMessage, updateProfile, deleteProfile, setConfirmModal, setActiveTab, setShowDirectChat
 }) => {
   return (
     <motion.div key="staff_list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -51,7 +52,17 @@ export const StaffListTab: React.FC<StaffListTabProps> = ({
           }}
           onDeleteStaff={(userId) => {
             const staff = allUsers.find(u => u.id === userId);
-            if (staff) deleteProfile(staff.uniqueKey);
+            if (staff) {
+              setConfirmModal({
+                show: true,
+                title: "XÁC NHẬN XÓA NHÂN VIÊN",
+                message: `Bạn có chắc chắn muốn xóa vĩnh viễn hồ sơ của nhân viên [${staff.name}] không? Hành động này không thể hoàn tác.`,
+                onConfirm: async () => {
+                  await deleteProfile(staff.uniqueKey);
+                  setConfirmModal((p: any) => p ? { ...p, show: false } : p);
+                }
+              });
+            }
           }}
         />
       </div>

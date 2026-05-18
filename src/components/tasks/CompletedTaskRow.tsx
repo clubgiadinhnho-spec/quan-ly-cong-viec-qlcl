@@ -1,13 +1,15 @@
 import React from 'react';
-import { MessageSquare, Paperclip, Highlighter, Check, X, RotateCcw, ThumbsUp, Info, Tag, Trash2, CheckCircle2, History } from 'lucide-react';
+import { MessageSquare, Paperclip, Highlighter, Check, X, RotateCcw, ThumbsUp, Info, Tag, Trash2, CheckCircle2, History, Eraser, Edit3 } from 'lucide-react';
 import { Task, User } from '../../types';
 import { formatDate } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
 import { AuditModal } from './AuditModal';
+import { UpdateModal } from './UpdateModal';
 import { AnimatePresence, motion } from 'motion/react';
 import { calculateKPI } from '../../utils/taskUtils';
+import { Portal } from '../common/Portal';
 
-import { getUserById, getSafeNameProps, getTaskAssigneeName, isUserTask } from '../../utils/userUtils';
+import { getUserById, getSafeNameProps, getTaskAssigneeName, isUserTask, checkIsAdmin, checkIsRecurring } from '../../utils/userUtils';
 
 import { Avatar } from '../common/Avatar';
 
@@ -32,6 +34,7 @@ interface CompletedTaskRowProps {
   onUndo: (id: string) => void;
   onUpdate: (id: string, updates: Partial<Task>) => void;
   onDelete?: (id: string) => void;
+  onEdit?: (task: Task) => void;
   isSelected?: boolean;
   onToggleSelect?: (id: string) => void;
   setConfirmModal: (modal: any) => void;
@@ -41,19 +44,42 @@ interface CompletedTaskRowProps {
 
 export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ 
   task, user, users, idx, onViewHistory, onOpenChat, isChatOpen, onSendMessage, onReact, onUndo, onUpdate, onDelete,
-  isSelected, onToggleSelect, setConfirmModal, markAsRead, lastReadChatTimestamps
+  onEdit, isSelected, onToggleSelect, setConfirmModal, markAsRead, lastReadChatTimestamps
 }) => {
   const chatButtonRef = React.useRef<HTMLButtonElement>(null);
 
   const assigneeName = getTaskAssigneeName(task, users);
   const assignee = getUserById(assigneeName, users) || getUserById(task.assigneeId, users);
   const isOwner = user?.uniqueKey === task.assigneeId || isUserTask(task, user);
-  const isAdmin = user.role?.toUpperCase() === 'ADMIN' || user.uniqueKey === 'LeNhatTruong09xxxxxxxx' || user.name === 'Lê Nhật Trường' || user.id === 'lenhattruong.caphef1@gmail.com';
-  const isManager = isAdmin;
+  const isAdmin = checkIsAdmin(user);
+  const isManager = isAdmin || user?.role === 'Trưởng Phòng';
 
   const [showColorPicker, setShowColorPicker] = React.useState(false);
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [showAuditModal, setShowAuditModal] = React.useState(false);
+  const [showUpdateModal, setShowUpdateModal] = React.useState(false);
+
+  const toHTML = (content: string) => {
+    if (!content) return '';
+    if (/(?:🤖|\[JOB|JOB Assist|JOB Assistant|JOB Update|JOB:|\bJOB\b|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content)) {
+      return '';
+    }
+    let processed = content;
+    processed = processed.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+    processed = processed.replace(/__(.*?)__/g, '<u>$1</u>');
+    processed = processed.replace(/<hl>(.*?)<\/hl>/g, '<mark>$1</mark>');
+    return processed;
+  };
+
+  const handleUpdateProgress = (taskId: string, htmlContent: string) => {
+    onUpdate(taskId, { 
+      currentUpdate: htmlContent,
+      isNewUpdate: true,
+      lastActionAt: new Date().toISOString(),
+      lastUpdatedByRole: user.role,
+      version: (task.version || 0) + 1
+    });
+  };
 
   // When chat opens or new comments arrive while open, update last read timestamp
   React.useEffect(() => {
@@ -71,7 +97,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
   }).length;
   const showBadge = unreadCount > 0 && !isChatOpen;
 
-  const isRecurringTask = task.recurrence && task.recurrence !== 'NONE' && task.recurrence !== 'KHÔNG LẶP';
+  const isRecurringTask = checkIsRecurring(task);
 
   const showRedAlert = () => {
     setConfirmModal({
@@ -94,7 +120,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
 
   return (
     <tr id={`task-${task.id}`} className={`hover:bg-gray-50/50 transition-all ${isSelected ? 'bg-blue-50/50' : ''} ${highlightClass}`}>
-      <td className="p-1 text-center border-b border-l border-r border-gray-300 align-middle">
+      <td className="p-1 text-center border border-gray-300 align-middle">
          <input 
            type="checkbox" 
            checked={isSelected}
@@ -102,7 +128,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
            className="w-3 h-3 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all"
          />
       </td>
-      <td className="p-1 text-center text-[12px] font-bold text-gray-300 border-b border-r border-gray-300 align-top">
+      <td className="p-1 text-center text-[12px] font-bold text-gray-300 border border-gray-300 align-top">
         <div className="flex flex-col items-center gap-1 pt-0.5 opacity-60">
           <span translate="no" className="notranslate leading-none">
             {task.code}
@@ -124,7 +150,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           )}
         </div>
       </td>
-      <td className={`p-1 border-b border-r border-gray-300 align-top h-px transition-colors ${task.highlightColor || task.isHighlighted ? 'border-l-4 border-amber-500' : ''}`}>
+      <td className={`p-1 border border-gray-300 align-top h-px transition-colors ${task.highlightColor || task.isHighlighted ? 'border-l-4 border-amber-500' : ''}`}>
         <div className="flex flex-col h-full gap-1.5 px-0.5 pt-0.5 pb-4">
           {/* Identity Section */}
           <div className="flex items-center gap-2">
@@ -168,11 +194,27 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
             </div>
 
             {/* Hàng 4: Kết thúc thực tế (Vì đây là CompletedTaskRow) */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 min-h-[22px]">
               <span className="text-[13px]" translate="no">✅</span>
-              <p className="text-[12px] font-black text-green-700 tracking-tighter leading-none">
-                <span translate="no" className="notranslate uppercase">XONG: {formatDate(task.actualEndDate)}</span>
-              </p>
+              <div className="flex-1">
+                {(isAdmin || isManager) ? (
+                  <div className="flex items-center gap-1 group/date relative">
+                    <span translate="no" className="notranslate text-[12px] font-black text-green-700 tracking-tighter uppercase whitespace-nowrap">XONG:</span>
+                    <div className="relative">
+                      <input 
+                        type="date"
+                        value={task.actualEndDate || ''}
+                        onChange={(e) => onUpdate(task.id, { actualEndDate: e.target.value })}
+                        className="bg-green-50 border border-green-200 rounded px-1 text-[11px] font-black text-green-700 tracking-tighter w-[95px] focus:ring-1 focus:ring-green-400 focus:border-green-400 cursor-pointer outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[12px] font-black text-green-700 tracking-tighter leading-none">
+                    <span translate="no" className="notranslate uppercase">XONG: {formatDate(task.actualEndDate)}</span>
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -212,7 +254,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           </div>
         </div>
       </td>
-      <td className={`p-1.5 border-b border-r border-gray-300 relative group align-top h-px ${(!isAdmin && !isOwner) ? 'bg-gray-50' : ''}`}>
+      <td className="p-1.5 border border-gray-300 relative group align-top h-px">
         {task.attachmentUrl && (
           <a 
             href={task.attachmentUrl} 
@@ -238,7 +280,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
       </td>
       
       <td 
-        className={`p-1 border-b border-r border-gray-300 align-top h-px ${(!isAdmin && !isOwner) ? 'bg-gray-50' : ''}`}
+        className="p-1 border border-gray-300 align-top h-px"
         onClick={(e) => {
           e.stopPropagation();
           if (isAdmin && task.isNewUpdate) {
@@ -246,39 +288,45 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           }
         }}
       >
-        <div className="flex flex-col gap-1 h-full min-h-[60px] justify-between">
-          <textarea
-            translate="no"
-            readOnly={!isAdmin && !isOwner}
-            className={`notranslate w-full p-2.5 rounded-sm flex-1 transition-all outline-none resize-none text-[15px] text-blue-950 font-medium leading-tight ${
-              (!isAdmin && !isOwner) ? 'bg-gray-50 cursor-not-allowed' : 'bg-transparent cursor-text'
-            } ${
-              task.isNewUpdate 
-                ? 'border-2 border-blue-700' 
-                : 'border border-gray-200'
-            }`}
-            defaultValue={task.currentUpdate}
-            onBlur={(e) => {
-              const newValue = e.target.value;
-              if (newValue !== task.currentUpdate) {
-                onUpdate?.(task.id, { 
-                  currentUpdate: newValue,
-                  isNewUpdate: true,
-                  version: (task.version || 0) + 1
-                });
-              }
-            }}
-            onMouseLeave={() => {
-              if (isAdmin && task.isNewUpdate) {
-                onUpdate?.(task.id, { isNewUpdate: false });
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.currentTarget.blur();
-              }
-            }}
-            placeholder={(!isAdmin && !isOwner) ? "Chỉ xem..." : "Nhập ghi chú cuối cùng..."}
+        <div className="flex flex-col h-full min-h-[60px] relative">
+          <div className="flex items-center justify-between px-2 py-0.5 border-b border-gray-50/50 bg-gray-50/20 shrink-0">
+             <span translate="no" className="notranslate text-[9px] font-black text-blue-400 uppercase tracking-widest">Cập nhật</span>
+             {(isAdmin || isManager || isOwner) && (
+               <button 
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   setShowUpdateModal(true);
+                 }}
+                 className="w-5 h-5 flex items-center justify-center rounded bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all border border-blue-100"
+                 title="SỬA CẬP NHẬT (RICH TEXT)"
+               >
+                 <Edit3 size={11} strokeWidth={3} />
+               </button>
+             )}
+          </div>
+          <div className="flex-1 flex flex-col p-2 relative overflow-hidden group/cell">
+            <style dangerouslySetInnerHTML={{ __html: `
+              .rich-text-content * { font-style: normal !important; }
+            ` }} />
+            <div 
+              translate="no"
+              className={`notranslate rich-text-content flex-1 w-full text-[15px] font-medium outline-none leading-relaxed text-blue-950 font-sans ${isAdmin || isManager || isOwner ? 'cursor-pointer hover:bg-gray-50/50' : ''}`}
+              dangerouslySetInnerHTML={{ __html: toHTML(task.currentUpdate || '') }}
+              onClick={() => (isAdmin || isManager || isOwner) && setShowUpdateModal(true)}
+              title={isAdmin || isManager || isOwner ? "Bấm để sửa nội dung cập nhật" : "Nội dung cập nhật"}
+            />
+            
+            {/* Fallback textarea only for non-HTML plain editing if needed or for legacy? 
+                Actually the user said Admin should edit everything. 
+                Using the toHTML + UpdateModal is better consistency. 
+            */}
+          </div>
+
+          <UpdateModal 
+            isOpen={showUpdateModal}
+            onClose={() => setShowUpdateModal(false)}
+            task={task}
+            onSave={handleUpdateProgress}
           />
 
           {/* Result Line (Leader's Result) */}
@@ -310,7 +358,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           )}
         </div>
       </td>
-      <td className="p-1 text-center border-b border-r border-gray-300 align-top pt-1">
+      <td className="p-1 text-center border border-gray-300 align-top pt-1">
         {task.priorityOrder ? (
           <span 
             style={{ 
@@ -325,7 +373,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           <span className="text-[9px] font-bold text-gray-300">-</span>
         )}
       </td>
-      <td className="py-1 px-1 text-center border-b border-r border-gray-300 align-middle">
+      <td className="py-1 px-1 text-center border border-gray-300 align-middle">
         <div className="flex flex-col items-center justify-center gap-1.5 w-full max-w-[44px] mx-auto min-h-full py-0.5">
           {(isAdmin || isOwner) ? (
             <>
@@ -428,7 +476,19 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                 )
               )}
 
-              {/* 2. VIEW DETAILS BUTTON (HISTORY) - SECOND */}
+              {/* 2. EDIT BUTTON (ADMIN/MANAGER ONLY) - NEW */}
+              {(isAdmin || isManager) && (
+                <button 
+                  onClick={() => onEdit?.(task)}
+                  title="CHỈNH SỬA CÔNG VIỆC"
+                  className="w-7 h-7 flex items-center justify-center bg-emerald-500 text-white rounded-md border-2 border-emerald-400 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                >
+                  <Highlighter size={16} strokeWidth={3} />
+                  <span className="sr-only notranslate" translate="no"><span translate="no" className="notranslate">CHỈNH SỬA</span></span>
+                </button>
+              )}
+
+              {/* 3. VIEW DETAILS BUTTON (HISTORY) - SECOND */}
                 <button 
                   onClick={() => onViewHistory(task.id)}
                   title="XEM CHI TIẾT CẬP NHẬT"
@@ -455,33 +515,37 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                  
                  <AnimatePresence>
                     {showColorPicker && (
-                      <motion.div 
-                        initial={{ opacity: 0, x: 10, scale: 0.9 }}
-                        animate={{ opacity: 1, x: 0, scale: 1 }}
-                        exit={{ opacity: 0, x: 10, scale: 0.9 }}
-                        className="absolute right-full mr-2 top-0 bg-white border border-gray-200 rounded-md p-1.5 flex flex-col gap-1.5 z-[100]"
-                      >
-                        {Object.keys(HIGHLIGHT_COLORS).map(color => (
-                            <button
-                              key={color}
-                              onClick={() => {
-                                onUpdate(task.id, { highlightColor: color, isHighlighted: true });
-                                setShowColorPicker(false);
-                              }}
-                              className={`w-6 h-6 rounded-md border border-gray-200 transition-transform hover:scale-125 ${HIGHLIGHT_COLORS[color].split(' ')[0]}`}
-                            />
-                          ))}
-                        <button
-                          onClick={() => {
-                            onUpdate(task.id, { highlightColor: null, isHighlighted: false });
-                            setShowColorPicker(false);
-                          }}
-                          title="Bỏ highlight"
-                          className="w-6 h-6 rounded-md border border-gray-300 flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-500 transition-colors"
+                      <>
+                        <div className="fixed inset-0 z-[90]" onClick={() => setShowColorPicker(false)} />
+                        <motion.div 
+                          initial={{ opacity: 0, x: 10, scale: 0.9 }}
+                          animate={{ opacity: 1, x: 0, scale: 1 }}
+                          exit={{ opacity: 0, x: 10, scale: 0.9 }}
+                          className="absolute right-full mr-2 top-0 bg-white border border-gray-200 rounded-md p-1.5 flex flex-col gap-1.5 shadow-xl z-[100] min-w-[36px]"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <X size={12} strokeWidth={3} />
-                        </button>
-                      </motion.div>
+                          {(Object.keys(HIGHLIGHT_COLORS || {})).map(color => (
+                              <button
+                                key={color}
+                                onClick={() => {
+                                  onUpdate(task.id, { highlightColor: color, isHighlighted: true });
+                                  setShowColorPicker(false);
+                                }}
+                                className={`w-6 h-6 rounded-md border border-gray-200 transition-transform hover:scale-125 ${HIGHLIGHT_COLORS[color].split(' ')[0]}`}
+                              />
+                            ))}
+                          <button
+                            onClick={() => {
+                              onUpdate(task.id, { highlightColor: null, isHighlighted: false });
+                              setShowColorPicker(false);
+                            }}
+                            title="Bỏ highlight"
+                            className="w-6 h-6 rounded-md border border-gray-300 flex items-center justify-center text-gray-400 hover:text-red-500 hover:border-red-500 transition-colors bg-white mt-1"
+                          >
+                            <Eraser size={12} strokeWidth={3} />
+                          </button>
+                        </motion.div>
+                      </>
                     )}
                  </AnimatePresence>
               </div>
@@ -489,7 +553,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
               {/* 4. FORCE DELETE (ADMIN ONLY) - NEW */}
               {isAdmin && (
                 <button 
-                  onClick={() => onDelete && onDelete(task.id)}
+                  onClick={() => onDelete?.(task.id)}
                   title="XÓA CƯỠNG BỨC (VĨNH VIỄN)"
                   className="w-7 h-7 flex items-center justify-center bg-red-600 text-white rounded-md hover:bg-red-700 transition-all border-2 border-red-400 group/btn"
                 >
@@ -508,6 +572,8 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           <AuditModal 
             task={task} 
             onClose={() => setShowAuditModal(false)} 
+            onUpdate={onUpdate}
+            canEdit={isAdmin || isManager}
           />
         )}
       </AnimatePresence>

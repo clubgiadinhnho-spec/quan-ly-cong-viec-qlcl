@@ -12,6 +12,7 @@ import { AppModals } from "./components/layout/AppModals";
 
 import { useAuthContext } from "./contexts/AuthContext";
 import { useTaskContext } from "./contexts/TaskContext";
+import { isTaskDeleted } from "./utils/userUtils";
 
 export default function App() {
   const { 
@@ -26,8 +27,8 @@ export default function App() {
     addTask, updateTask, deleteTask, approveTaskCompletion, trashTasksBulk, approveTasksBulk, deleteTasksBulk, restoreTask, permanentDeleteTask,
     addTaskComment, updateTaskCommentReactions, sendDiscussionMessage, updateDiscussionMessageReactions, createTopic, updateTopic, deleteTopic,
     deleteTopicsBulk, deleteDiscussionMessage, saveReportDraft, saveOfficialReport, sendAiMessage, triggerAiNudge, resetTaskAIStatus,
-    handleExportExcel, handleImportExcel, notifications, adminUnreadCount, markNotifRead, deleteNotif, createNotification,
-    appNotifications, setConfirmModal,
+    handleExportExcel, handleImportExcel, handleSuperBackup, notifications, adminUnreadCount, markNotifRead, deleteNotif, createNotification,
+    appNotifications, setConfirmModal, confirmModal,
     showTaskModal, setShowTaskModal, editingTask, setEditingTask, showHistoryModal, setShowHistoryModal, showChatModal, setShowChatModal,
     highlightedTaskId, setHighlightedTaskId, showDirectChat, setShowDirectChat, isChatMinimized, setIsChatMinimized,
     isNotificationCenterOpen, setIsNotificationCenterOpen, showHealthReminder, setShowHealthReminder
@@ -36,15 +37,15 @@ export default function App() {
   const [isMainSidebarCollapsed, setIsMainSidebarCollapsed] = useState(false);
   const lastReminderTime = useRef<number>(Date.now());
 
-  const { unreadNotifications, lastReadChatTimestamps, markAsRead, markSectionAsViewed } = appNotifications;
+  const { unreadNotifications, lastReadChatTimestamps, markAsRead, markSectionAsViewed } = appNotifications || { unreadNotifications: [], lastReadChatTimestamps: {}, markAsRead: () => {}, markSectionAsViewed: () => {} };
 
   const handleJumpToTask = useCallback((taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
+    if (!task || task.isCycleRecord) return;
 
     setHighlightedTaskId(taskId);
     
-    if (task.deletedAt || task.status === 'DELETED') {
+    if (isTaskDeleted(task)) {
       setActiveTab("trash");
     } else if (task.status === 'PENDING_APPROVAL' || task.status === 'PENDING') {
       setActiveTab("pending_confirmation");
@@ -116,7 +117,9 @@ export default function App() {
         pendingApprovalAlert={counts.pendingApprovalUnread > 0}
         completedTasksAlert={counts.completedUnread > 0}
         trashTasksAlert={false}
-        isCollapsed={isMainSidebarCollapsed} onToggleCollapse={() => setIsMainSidebarCollapsed(!isMainSidebarCollapsed)}
+        isCollapsed={isMainSidebarCollapsed} 
+        onToggleCollapse={() => setIsMainSidebarCollapsed(!isMainSidebarCollapsed)}
+        onSuperBackup={handleSuperBackup}
       />
       <main className={`flex-1 relative flex flex-col ${activeTab === 'group_chat' ? 'h-screen overflow-hidden' : 'py-6'}`}>
         <div className={`flex-1 ${activeTab === 'group_chat' ? 'h-full w-full' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full'}`}>
@@ -155,7 +158,7 @@ export default function App() {
         privateMessages={[]}
         firebaseSendPrivateMsg={() => {}}
         handleJumpToTask={handleJumpToTask}
-        confirmModal={{ show: false, title: "", message: "", onConfirm: () => {} }}
+        confirmModal={confirmModal}
         setConfirmModal={setConfirmModal}
         showHealthReminder={showHealthReminder}
         setShowHealthReminder={setShowHealthReminder}

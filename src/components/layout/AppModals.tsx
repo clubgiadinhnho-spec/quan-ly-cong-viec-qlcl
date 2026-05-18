@@ -80,11 +80,13 @@ export const AppModals: React.FC<AppModalsProps> = ({
       )}
       
       <ConfirmModal 
-        show={confirmModal.show} 
-        title={confirmModal.title} 
-        message={confirmModal.message} 
-        onConfirm={confirmModal.onConfirm} 
+        show={confirmModal?.show || false} 
+        title={confirmModal?.title || ""} 
+        message={confirmModal?.message || ""} 
+        onConfirm={confirmModal?.onConfirm || (() => {})} 
         onClose={() => setConfirmModal((p: any) => ({ ...p, show: false }))} 
+        confirmText={(confirmModal as any)?.confirmText}
+        isAlert={(confirmModal as any)?.isAlert}
       />
       
       {showHealthReminder && currentUser?.reminderSettings && (

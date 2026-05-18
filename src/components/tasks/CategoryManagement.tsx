@@ -7,9 +7,10 @@ import { motion, AnimatePresence } from 'motion/react';
 
 interface CategoryManagementProps {
   tasks: Task[];
+  setConfirmModal?: (m: any) => void;
 }
 
-export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks }) => {
+export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks, setConfirmModal }) => {
   const [categories, setCategories] = useState<TaskCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,6 +40,7 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
 
   const [formData, setFormData] = useState({
     code: '',
+    activityName: '',
     name: ''
   });
 
@@ -58,10 +60,10 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
   const handleOpenModal = (cat: TaskCategory | null = null) => {
     if (cat) {
       setEditingCategory(cat);
-      setFormData({ code: cat.code, name: cat.name });
+      setFormData({ code: cat.code, activityName: cat.activityName || '', name: cat.name });
     } else {
       setEditingCategory(null);
-      setFormData({ code: '', name: '' });
+      setFormData({ code: '', activityName: '', name: '' });
     }
     setError(null);
     setSuccessMsg(null);
@@ -92,17 +94,19 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
       if (editingCategory) {
         await updateDoc(doc(db, 'task_categories', editingCategory.id), {
           code: code,
+          activityName: formData.activityName.trim(),
           name: formData.name
         });
         setIsModalOpen(false);
       } else {
         await addDoc(collection(db, 'task_categories'), {
           code: code,
+          activityName: formData.activityName.trim(),
           name: formData.name
         });
         
         // CHẾ ĐỘ NHẬP LIỆU LIÊN TỤC
-        setFormData({ code: '', name: '' });
+        setFormData({ code: '', activityName: '', name: '' });
         setSuccessMsg('ĐÃ LƯU! MỜI NHẬP TIẾP.');
         codeInputRef.current?.focus();
         
@@ -125,7 +129,22 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
       return;
     }
 
-    if (window.confirm(`Bạn có chắc chắn muốn xóa danh mục [${cat.code}] - ${cat.name}?`)) {
+    if (setConfirmModal) {
+      setConfirmModal({
+        show: true,
+        title: "XÁC NHẬN XÓA DANH MỤC",
+        message: `Bạn có chắc chắn muốn xóa vĩnh viễn danh mục [${cat.code}] - ${cat.name} không?`,
+        onConfirm: async () => {
+          try {
+            await deleteDoc(doc(db, 'task_categories', cat.id));
+            setConfirmModal((p: any) => ({ ...p, show: false }));
+          } catch (err) {
+            console.error('Error deleting category:', err);
+            alert("Lỗi khi xóa danh mục.");
+          }
+        }
+      });
+    } else if (window.confirm(`Bạn có chắc chắn muốn xóa danh mục [${cat.code}] - ${cat.name}?`)) {
       try {
         await deleteDoc(doc(db, 'task_categories', cat.id));
       } catch (err) {
@@ -154,6 +173,11 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
   const handleBulkMerge = async () => {
     if (selectedIds.length < 2) {
       alert('Vui lòng chọn ít nhất 2 danh mục để gộp!');
+      return;
+    }
+
+    if (selectedIds.length > 5) {
+      alert('Hệ thống chỉ cho phép gộp tối đa 5 danh mục cùng lúc để đảm bảo an toàn cấu trúc dữ liệu.');
       return;
     }
 
@@ -187,56 +211,68 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
       ? `🔥 CHIẾN DỊCH TÁI CẤU TRÚC: Bạn có chắc muốn gộp ${selectedIds.length} mã cũ vào MÃ MỚI [${finalTargetCode}]?`
       : `🔥 LỆNH THANH TRỪNG: Bạn có chắc muốn gộp ${sourceCategories.length} mã cũ vào mã [${finalTargetCode}]? Thao tác này sẽ cập nhật TOÀN BỘ công việc liên quan.`;
 
-    if (!window.confirm(confirmMsg)) {
-      return;
-    }
-
-    setIsMerging(true);
-    try {
-      const batch = writeBatch(db);
-      const tasksRef = collection(db, 'tasks');
-      
-      // Step 1: Create new category if needed
-      if (isCreatingNewTarget) {
-        const newCatRef = doc(collection(db, 'task_categories'));
-        batch.set(newCatRef, {
-          code: finalTargetCode,
-          name: newTargetName.trim(),
-          createdAt: new Date().toISOString()
-        });
-      }
-
-      // Step 2: Cập nhật toàn bộ Task (kể cả đã xóa) sang mã mới
-      const categoriesToProcess = isCreatingNewTarget 
-        ? categories.filter(c => selectedIds.includes(c.id))
-        : sourceCategories;
-
-      for (const sourceCat of categoriesToProcess) {
-        const q = query(tasksRef, where('category', '==', sourceCat.code));
-        const snapshot = await getDocs(q);
-        snapshot.docs.forEach(taskDoc => {
-          batch.update(taskDoc.ref, { 
-            category: finalTargetCode,
-            lastActionAt: new Date().toISOString()
+    const performMerge = async () => {
+      setIsMerging(true);
+      try {
+        const batch = writeBatch(db);
+        const tasksRef = collection(db, 'tasks');
+        
+        // Step 1: Create new category if needed
+        if (isCreatingNewTarget) {
+          const newCatRef = doc(collection(db, 'task_categories'));
+          batch.set(newCatRef, {
+            code: finalTargetCode,
+            name: newTargetName.trim(),
+            createdAt: new Date().toISOString()
           });
+        }
+
+        // Step 2: Cập nhật toàn bộ Task (kể cả đã xóa) sang mã mới
+        const categoriesToProcess = isCreatingNewTarget 
+          ? categories.filter(c => selectedIds.includes(c.id))
+          : sourceCategories;
+
+        for (const sourceCat of categoriesToProcess) {
+          const q = query(tasksRef, where('category', '==', sourceCat.code));
+          const snapshot = await getDocs(q);
+          snapshot.docs.forEach(taskDoc => {
+            batch.update(taskDoc.ref, { 
+              category: finalTargetCode,
+              lastActionAt: new Date().toISOString()
+            });
+          });
+        }
+
+        // Step 3: Xóa các danh mục cũ
+        categoriesToProcess.forEach(cat => {
+          batch.delete(doc(db, 'task_categories', cat.id));
         });
+
+        await batch.commit();
+        
+        setSelectedIds([]);
+        setIsMergeModalOpen(false);
+        alert('🔥 CẬP NHẬT ĐỒNG BỘ THÀNH CÔNG! HỆ THỐNG ĐÃ ĐƯỢC TÁI CẤU TRÚC.');
+      } catch (err) {
+        console.error('Merge error:', err);
+        alert('Lỗi khi thực hiện gộp mã!');
+      } finally {
+        setIsMerging(false);
       }
+    };
 
-      // Step 3: Xóa các danh mục cũ
-      categoriesToProcess.forEach(cat => {
-        batch.delete(doc(db, 'task_categories', cat.id));
+    if (setConfirmModal) {
+      setConfirmModal({
+        show: true,
+        title: "TÁI CẤU TRÚC DANH MỤC",
+        message: confirmMsg,
+        onConfirm: async () => {
+          await performMerge();
+          setConfirmModal((p: any) => ({ ...p, show: false }));
+        }
       });
-
-      await batch.commit();
-      
-      setSelectedIds([]);
-      setIsMergeModalOpen(false);
-      alert('🔥 CẬP NHẬT ĐỒNG BỘ THÀNH CÔNG! HỆ THỐNG ĐÃ ĐƯỢC TÁI CẤU TRÚC.');
-    } catch (err) {
-      console.error('Merge error:', err);
-      alert('Lỗi khi thực hiện gộp mã!');
-    } finally {
-      setIsMerging(false);
+    } else if (window.confirm(confirmMsg)) {
+      await performMerge();
     }
   };
 
@@ -311,21 +347,24 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
                       onChange={toggleSelectAll}
                     />
                   </th>
-                  <th className="px-4 py-4 text-left text-[11px] font-black uppercase tracking-widest border-r border-blue-500/30">
+                  <th className="px-4 py-4 text-center text-[11px] font-black uppercase tracking-widest border-r border-blue-500/30">
                     <span translate="no" className="notranslate">STT</span>
                   </th>
-                  <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest border-r border-blue-500/30">
+                  <th className="px-6 py-4 text-center text-[11px] font-black uppercase tracking-widest border-r border-blue-500/30 w-24">
                     <span translate="no" className="notranslate">MÃ</span>
                   </th>
-                  <th className="px-6 py-4 text-left text-[11px] font-black uppercase tracking-widest border-r border-blue-500/30">
-                    <span translate="no" className="notranslate">TÊN PHÂN LOẠI</span>
+                  <th className="px-6 py-4 text-center text-[11px] font-black uppercase tracking-widest border-r border-blue-500/30 w-1/3">
+                    <span translate="no" className="notranslate">TÊN HOẠT ĐỘNG</span>
+                  </th>
+                  <th className="px-6 py-4 text-center text-[11px] font-black uppercase tracking-widest border-r border-blue-500/30">
+                    <span translate="no" className="notranslate">DIỄN GIẢI</span>
                   </th>
                   <th className="px-6 py-4 text-center text-[11px] font-black uppercase tracking-widest">
                     <span translate="no" className="notranslate">THAO TÁC</span>
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-200 border-b border-gray-200">
                 <AnimatePresence mode="popLayout">
                   {filteredCategories.map((cat, index) => (
                     <motion.tr
@@ -334,9 +373,9 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className={`hover:bg-blue-50/50 transition-colors group ${selectedIds.includes(cat.id) ? 'bg-orange-50' : ''}`}
+                      className={`hover:bg-blue-50/50 transition-colors group border-b border-gray-100 ${selectedIds.includes(cat.id) ? 'bg-orange-50' : ''}`}
                     >
-                      <td className="px-4 py-4 text-center border-r border-gray-50">
+                      <td className="px-4 py-4 text-center border-r border-gray-200">
                         <input 
                           type="checkbox" 
                           className="w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
@@ -344,20 +383,25 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
                           onChange={() => toggleSelect(cat.id)}
                         />
                       </td>
-                      <td className="px-4 py-4 text-center text-xs font-bold text-gray-400 border-r border-gray-50">
+                      <td className="px-4 py-4 text-center text-xs font-bold text-gray-400 border-r border-gray-200">
                         <span translate="no" className="notranslate">{index + 1}</span>
                       </td>
-                      <td className="px-6 py-4 border-r border-gray-50">
+                      <td className="px-6 py-4 border-r border-gray-200">
                         <span translate="no" className="notranslate font-mono font-black text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 uppercase">
                           {cat.code}
                         </span>
                       </td>
-                      <td className="px-6 py-4 border-r border-gray-50">
-                        <span translate="no" className="notranslate font-bold text-gray-700">
+                      <td className="px-6 py-4 border-r border-gray-200">
+                        <span translate="no" className="notranslate font-black text-slate-800">
+                          {cat.activityName || '-'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 border-r border-gray-200">
+                        <span translate="no" className="notranslate font-medium text-gray-600 text-sm">
                           {cat.name}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 border-r border-gray-100">
                         <div className="flex justify-center gap-2">
                           <button 
                             onClick={() => handleOpenModal(cat)}
@@ -445,7 +489,7 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
                   </div>
                 )}
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="md:col-span-1">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">
                       <span translate="no" className="notranslate">MÃ</span>
@@ -461,20 +505,35 @@ export const CategoryManagement: React.FC<CategoryManagementProps> = ({ tasks })
                       onChange={(e) => setFormData({...formData, code: e.target.value})}
                     />
                   </div>
-                  <div className="md:col-span-2">
+                  <div className="md:col-span-3">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">
-                      <span translate="no" className="notranslate">TÊN PHÂN LOẠI</span>
+                      <span translate="no" className="notranslate">TÊN HOẠT ĐỘNG</span>
                     </label>
                     <input 
                       required
                       translate="no"
                       type="text" 
-                      placeholder="VD: Hoạt động thử nghiệm sản phẩm mới"
-                      className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold text-gray-700 text-lg notranslate placeholder:notranslate"
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      placeholder="VD: THỰC HIỆN THỬ NGHIỆM"
+                      className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-black text-gray-800 uppercase text-lg notranslate placeholder:notranslate"
+                      value={formData.activityName}
+                      onChange={(e) => setFormData({...formData, activityName: e.target.value})}
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">
+                    <span translate="no" className="notranslate">DIỄN GIẢI</span>
+                  </label>
+                  <input 
+                    required
+                    translate="no"
+                    type="text" 
+                    placeholder="VD: Hoạt động thử nghiệm sản phẩm mới"
+                    className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-bold text-gray-700 text-lg notranslate placeholder:notranslate"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  />
                 </div>
 
                 <div className="pt-6 flex gap-4">

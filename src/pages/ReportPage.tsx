@@ -9,6 +9,7 @@ import html2canvas from 'html2canvas';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { motion, AnimatePresence } from 'motion/react';
+import { isTaskDeleted, isUserTask } from '../utils/userUtils';
 
 import { cleanModernColors } from '../lib/colorUtils';
 
@@ -50,6 +51,7 @@ export const ReportPage = ({
     const [month, year] = reportPeriod.split('/');
     if (!month || !year) return [];
     return tasks.filter(t => {
+      if (isTaskDeleted(t)) return false;
       const date = new Date(t.issueDate);
       const m = String(date.getMonth() + 1).padStart(2, '0');
       const y = String(date.getFullYear());

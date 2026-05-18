@@ -33,6 +33,28 @@ export function formatDate(dateString: string | null | undefined): string {
   }
 }
 
+export function getMonthYear(date: any): string {
+  if (!date) return '';
+  const dateStr = typeof date === 'string' ? date : (date as any).toISOString?.() || '';
+  
+  let m = '', y = '';
+  // Try ISO format: 2026-05-...
+  const isoMatch = dateStr.match(/^(\d{4})-(\d{2})/);
+  if (isoMatch) {
+    y = isoMatch[1].slice(-2);
+    m = isoMatch[2];
+  } else {
+    // Try VN format: 13/05/26 or 13/05/2026
+    const vnMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+    if (vnMatch) {
+      y = vnMatch[3].slice(-2);
+      m = vnMatch[2].padStart(2, '0');
+    }
+  }
+
+  return m && y ? `${m}/${y}` : '';
+}
+
 export function formatDateTime(dateString: string | null | undefined): string {
   if (!dateString) return '—';
   

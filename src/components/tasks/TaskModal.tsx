@@ -44,6 +44,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
   const [issueDate, setIssueDate] = useState(task?.issueDate || new Date().toISOString().split('T')[0]);
   const [expectedDate, setExpectedDate] = useState(task?.expectedEndDate || '');
   const [extensionDate, setExtensionDate] = useState(task?.extensionDate || '');
+  const [actualEndDate, setActualEndDate] = useState(task?.actualEndDate || '');
   const [recurrence, setRecurrence] = useState<RecurrenceType>(task?.recurrence || 'NONE');
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentData, setAttachmentData] = useState<{ url: string, name: string } | null>(null);
@@ -135,7 +136,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
       return max;
     }, 0);
     
-    return `C${String(maxNum + 1).padStart(4, '0')}`;
+    return `C${String(maxNum + 1).padStart(6, '0')}`;
   }, [tasks, isEdit, task?.code]);
 
   // Sync deadline if cycle or start date changes, unless manually edited
@@ -371,6 +372,39 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                 </div>
               )}
 
+              {/* Day Done (actualEndDate) - only for Admin editing completed task */}
+              {isEdit && isAdmin && (
+                <div className="col-span-2">
+                  <label className="block text-[10px] font-black text-green-600 mb-1 uppercase tracking-wider">
+                    <span translate="no" className="notranslate">NGÀY HOÀN THÀNH (XONG)</span>
+                  </label>
+                  <div className="relative group">
+                    <input 
+                      type="text"
+                      placeholder="dd/mm/yy"
+                      className="w-full px-3 py-1.5 bg-green-50 border border-green-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 text-sm font-bold text-green-700 pr-10 transition-all placeholder:text-green-300"
+                      value={formatToDisplayDate(actualEndDate)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val.length === 8 && val.includes('/')) {
+                          const iso = parseFromDisplayToISO(val);
+                          if (iso) setActualEndDate(iso);
+                        }
+                      }}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+                      <Calendar size={16} className="text-green-400 group-focus-within:text-green-500 pointer-events-none" />
+                      <input 
+                        type="date"
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                        value={actualEndDate}
+                        onChange={(e) => setActualEndDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Row 4: Classification */}
               <div className="col-span-2">
                 <label className="block text-[10px] font-black text-gray-500 mb-1 uppercase tracking-wider">
@@ -384,7 +418,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                   <option value="" translate="no" className="notranslate">CHỌN PHÂN LOẠI</option>
                   {categories.map((c) => (
                     <option key={c.id} value={c.code} translate="no" className="notranslate">
-                      [{c.code}] {c.name}
+                      [{c.code}] {c.activityName || c.name}
                     </option>
                   ))}
                 </select>
@@ -547,6 +581,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                   startDate: finalStartDate,
                   expectedEndDate: finalExpectedDate || null,
                   extensionDate: extensionDate || null,
+                  actualEndDate: actualEndDate || null,
                   recurrence: recurrence || 'NONE',
                   attachmentUrl: attachmentData?.url || "",
                   attachmentName: attachmentData?.name || "",

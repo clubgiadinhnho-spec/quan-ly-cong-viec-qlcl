@@ -3,6 +3,10 @@ import { Task, TaskComment } from "../types";
 
 let aiInstance: GoogleGenAI | null = null;
 
+// Cache để giảm Quota AI
+const qcdCache: Record<string, { result: string, timestamp: number }> = {};
+const CACHE_TIMEOUT = 1000 * 60 * 60; // 1 giờ
+
 const getAi = () => {
   if (!aiInstance) {
     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
@@ -17,6 +21,15 @@ export const generateQCDExplanation = async (
   field: 'QUALITY' | 'COST' | 'DELIVERY',
   score: number
 ): Promise<string> => {
+  // Key dựa trên ID công việc, vai trò, tiêu chí và điểm số
+  const cacheKey = `${task.id}-${role}-${field}-${score}`;
+  const now = Date.now();
+
+  if (qcdCache[cacheKey] && (now - qcdCache[cacheKey].timestamp < CACHE_TIMEOUT)) {
+    console.log("🚀 [AI Quota] Sử dụng kết quả giải trình từ bộ nhớ đệm.");
+    return qcdCache[cacheKey].result;
+  }
+
   const chatContext = task.comments?.map(c => `[${c.authorId}]: ${c.content}`).join('\n') || 'Không có thảo luận trong chat.';
   
   const systemPrompt = role === 'Admin' 
@@ -41,7 +54,7 @@ YÊU CẦU:
 
   try {
     if (!process.env.NEXT_PUBLIC_GEMINI_API_KEY && !process.env.VITE_GEMINI_API_KEY && !process.env.GEMINI_API_KEY) {
-      return "Sếp Trường ơi, Robot chưa được nạp khóa API trên Vercel. Sếp kiểm tra lại nhé!";
+      return "Sếp Trường ơi, JOB chưa được nạp khóa API trên Vercel. Sếp kiểm tra lại nhé!";
     }
 
     const ai = getAi();
@@ -50,7 +63,14 @@ YÊU CẦU:
       contents: prompt,
     });
 
-    return response.text || (role === 'Admin' ? 'Ghi nhận kết quả tốt.' : 'Đã hoàn thành theo mục tiêu đề ra.');
+    const result = response.text || (role === 'Admin' ? 'Ghi nhận kết quả tốt.' : 'Đã hoàn thành theo mục tiêu đề ra.');
+    
+    // Lưu cache
+    if (result && !result.includes("Sếp Trường ơi")) {
+      qcdCache[cacheKey] = { result, timestamp: now };
+    }
+
+    return result;
   } catch (error) {
     console.error("Gemini Error:", error);
     return role === 'Admin' ? 'Ghi nhận kết quả tốt.' : 'Đã hoàn thành theo mục tiêu đề ra.';

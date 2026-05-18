@@ -610,7 +610,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
         {filteredStaff.map((staff) => {
           const isVisible = visiblePasswords[staff.id];
           const isTruong = currentUser.role === 'Admin' || currentUser.personalEmail === 'lenhattruong.tpp@gmail.com';
-          const permissionsCount = staff.delegatedPermissions ? Object.values(staff.delegatedPermissions).filter(Boolean).length : 0;
+          const permissionsCount = (staff.delegatedPermissions && typeof staff.delegatedPermissions === 'object') ? Object.values(staff.delegatedPermissions).filter(Boolean).length : 0;
           const starCount = permissionsCount >= 5 ? 3 : (permissionsCount >= 3 ? 2 : (permissionsCount >= 1 ? 1 : 0));
 
           return (

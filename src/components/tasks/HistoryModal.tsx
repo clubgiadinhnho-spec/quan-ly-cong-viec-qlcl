@@ -27,7 +27,7 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
   const processedHistory = (task.history || [])
     .filter((h: any) => {
       const content = h.content || '';
-      return !/(?:🤖|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content);
+      return !/(?:🤖|\[JOB|JOB Assist|JOB Assistant|JOB Update|JOB:|\bJOB\b|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content);
     })
     .sort((a: any, b: any) => {
     const aTime = typeof a.timestamp === 'string' ? parseISO(a.timestamp).getTime() : (a.timestamp as any).toDate().getTime();
@@ -55,7 +55,7 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
     ...(task.comments || [])
       .filter((c: any) => {
         const content = c.content || '';
-        return !/(?:🤖|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content);
+        return !/(?:🤖|\[JOB|JOB Assist|JOB Assistant|JOB Update|JOB:|\bJOB\b|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content);
       })
       .map(c => ({ ...c, type: 'chat', version: undefined }))
   ];

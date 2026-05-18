@@ -24,7 +24,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { allStaff: allUsers, loading: staffLoading, updateProfile, deleteProfile } = useStaff();
   const auth = useAuth(allUsers);
   
-  const isAdmin = auth.effectiveUser?.role === 'Admin';
+  const isAdmin = auth.effectiveUser?.role === 'Admin' || 
+    auth.effectiveUser?.email === 'truong.le@tanphuvietnam.vn' || 
+    auth.effectiveUser?.email === 'lenhattruong.tpp@gmail.com' ||
+    auth.effectiveUser?.id === 'lenhattruong.tpp@gmail.com';
 
   const value = {
     ...auth,

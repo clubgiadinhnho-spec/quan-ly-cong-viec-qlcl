@@ -15,6 +15,7 @@ interface TrashTabProps {
   handlePermanentBulkDelete: () => void;
   sortedTasks: Task[];
   handleExportExcel: (tasks: Task[]) => void;
+  handleImportExcel: (e: React.ChangeEvent<HTMLInputElement>) => void;
   allUsers: User[];
   updateTask: any;
   permanentDeleteTask: any;
@@ -37,7 +38,7 @@ interface TrashTabProps {
 
 export const TrashTab: React.FC<TrashTabProps> = ({
   effectiveUser, presence, adminUnreadCount, onOpenNotifications,
-  selectedTaskIds, handlePermanentBulkDelete, sortedTasks, handleExportExcel, allUsers,
+  selectedTaskIds, handlePermanentBulkDelete, sortedTasks, handleExportExcel, handleImportExcel, allUsers,
   updateTask, permanentDeleteTask, setShowHistoryModal, setShowChatModal,
   showChatModal, addTaskComment, updateTaskCommentReactions, setEditingTask,
   setConfirmModal, restoreTask, highlightedTaskId, toggleTaskSelection, setBulkSelection,
@@ -85,13 +86,20 @@ export const TrashTab: React.FC<TrashTabProps> = ({
               />
             </div>
             {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canExportExcel) && (
-              <button
-                onClick={() => handleExportExcel(sortedTasks)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-red-700 border border-red-200 rounded-lg text-[10px] font-bold hover:bg-red-50 transition-all uppercase shadow-sm"
-              >
-                <FileDown size={12} />
-                <span translate="no" className="notranslate">Xuất Excel</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold hover:bg-blue-700 transition-all uppercase shadow-sm cursor-pointer shadow-blue-200">
+                  <FileDown size={12} className="rotate-180" />
+                  <span translate="no" className="notranslate">Nhập Excel</span>
+                  <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
+                </label>
+                <button
+                  onClick={() => handleExportExcel(sortedTasks)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-red-700 border border-red-200 rounded-lg text-[10px] font-bold hover:bg-red-50 transition-all uppercase shadow-sm"
+                >
+                  <FileDown size={12} />
+                  <span translate="no" className="notranslate">Xuất Excel</span>
+                </button>
+              </div>
             )}
           </div>
         </div>

@@ -66,6 +66,7 @@ export interface User {
   updatedFields?: string[];
   updatedFieldsAt?: string;
   updatedAt?: string;
+  layoutConfig?: any;
 }
 
 export interface ProgressUpdate {
@@ -136,6 +137,7 @@ export interface TaskCategory {
   id: string;
   code: string;
   name: string;
+  activityName?: string;
 }
 
 export interface QCDEvaluation {
@@ -211,6 +213,8 @@ export interface Task {
   aiReminderResponded?: boolean;
   aiReminderLastDate?: string;
   requestEndTracking?: boolean;
+  last_ai_content?: string;
+  last_ai_response?: string;
 }
 
 export interface ReportDraft {

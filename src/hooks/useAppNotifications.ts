@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { User, Task, PrivateMessage, DiscussionMessage, TaskComment } from '../types';
+import { isTaskDeleted } from '../utils/userUtils';
 
 interface Notification {
   type: 'direct' | 'task' | 'approve_ht' | 'approve_delete';
@@ -63,7 +64,7 @@ export const useAppNotifications = (
       const next = prev.filter((n) => {
         if (n.type === "approve_ht" || n.type === "approve_delete") {
           const t = tasks.find((task) => task.id === n.taskId);
-          if (!t || t.deletedAt) return false;
+          if (!t || isTaskDeleted(t)) return false;
           if (n.type === "approve_ht" && t.status !== "PENDING_APPROVAL") return false;
           if (n.type === "approve_delete" && !t.requestDelete) return false;
         }
@@ -76,7 +77,7 @@ export const useAppNotifications = (
       if (effectiveUser && (effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canApproveTask)) {
         tasks.forEach((t) => {
           const reqKey = `${t.id}-${t.status === "PENDING_APPROVAL" ? "HT" : ""}-${t.requestDelete ? "XOA" : ""}`;
-          if ((t.status === "PENDING_APPROVAL" || t.requestDelete) && !t.deletedAt && !knownRequests.current.has(reqKey)) {
+          if ((t.status === "PENDING_APPROVAL" || t.requestDelete) && !isTaskDeleted(t) && !knownRequests.current.has(reqKey)) {
             const type = t.status === "PENDING_APPROVAL" ? "approve_ht" : "approve_delete";
             const exists = next.find((n) => n.taskId === t.id && n.type === type);
             if (!exists) {
@@ -113,7 +114,7 @@ export const useAppNotifications = (
       }
 
       // 4. Bình luận công việc mới
-      tasks.forEach(t => {
+      tasks.filter(t => !isTaskDeleted(t) && !t.isCycleRecord).forEach(t => {
         if (t.comments && t.comments.length > 0) {
           const lastComment = t.comments[t.comments.length - 1];
           if (lastComment.id !== lastTaskCommentId.current[t.id]) {
@@ -189,8 +190,34 @@ export const useAppNotifications = (
     setLastViewedSections(prev => ({ ...prev, [sectionId]: Date.now() }));
   }, []);
 
+  const unreadCounts = useMemo(() => {
+    if (!effectiveUser) return {};
+    const counts: Record<string, number> = {};
+    privateMessages.forEach(msg => {
+      if (msg.senderId === effectiveUser.id) return;
+      const lastRead = lastReadChatTimestamps[msg.senderId] || 0;
+      const msgTime = new Date(msg.timestamp).getTime();
+      if (msgTime > lastRead) {
+        counts[msg.senderId] = (counts[msg.senderId] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [privateMessages, lastReadChatTimestamps, effectiveUser?.id]);
+
+  const groupUnreadCount = useMemo(() => {
+    if (!effectiveUser) return 0;
+    const lastRead = lastReadChatTimestamps['group_chat'] || 0;
+    return discussionMessages.filter(msg => {
+      if (msg.authorId === effectiveUser.id) return false;
+      const msgTime = new Date(msg.timestamp).getTime();
+      return msgTime > lastRead;
+    }).length;
+  }, [discussionMessages, lastReadChatTimestamps, effectiveUser?.id]);
+
   return {
     unreadNotifications,
+    unreadCounts,
+    groupUnreadCount,
     setUnreadNotifications,
     lastReadChatTimestamps,
     lastViewedSections,

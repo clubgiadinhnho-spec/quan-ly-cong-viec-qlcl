@@ -16,6 +16,7 @@ interface PendingApprovalTabProps {
   handleBulkDelete: () => void;
   sortedTasks: Task[];
   handleExportExcel: (tasks: Task[]) => void;
+  handleImportExcel: (e: React.ChangeEvent<HTMLInputElement>) => void;
   allUsers: User[];
   updateTask: any;
   deleteTask: any;
@@ -40,7 +41,7 @@ interface PendingApprovalTabProps {
 
 export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
   effectiveUser, presence, setShowTaskModal, adminUnreadCount, onOpenNotifications,
-  selectedTaskIds, handleBulkDelete, sortedTasks, handleExportExcel, allUsers, updateTask, deleteTask,
+  selectedTaskIds, handleBulkDelete, sortedTasks, handleExportExcel, handleImportExcel, allUsers, updateTask, deleteTask,
   setShowHistoryModal, setShowChatModal, showChatModal, addTaskComment,
   updateTaskCommentReactions, setEditingTask, setConfirmModal, approveTaskCompletion,
   setActiveTab, highlightedTaskId, toggleTaskSelection, setBulkSelection, createNotification,
@@ -97,13 +98,20 @@ export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
             </div>
 
             {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canExportExcel) && (
-              <button
-                onClick={() => handleExportExcel(sortedTasks.filter(t => t.waitingApproval))}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-amber-700 border border-amber-200 rounded-lg text-[10px] font-bold hover:bg-amber-50 transition-all uppercase shadow-sm"
-              >
-                <FileDown size={12} />
-                <span translate="no" className="notranslate">Xuất Excel</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold hover:bg-blue-700 transition-all uppercase shadow-sm cursor-pointer shadow-blue-200">
+                  <FileDown size={12} className="rotate-180" />
+                  <span translate="no" className="notranslate">Nhập Excel</span>
+                  <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
+                </label>
+                <button
+                  onClick={() => handleExportExcel(sortedTasks.filter(t => t.waitingApproval))}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-amber-700 border border-amber-200 rounded-lg text-[10px] font-bold hover:bg-amber-50 transition-all uppercase shadow-sm"
+                >
+                  <FileDown size={12} />
+                  <span translate="no" className="notranslate">Xuất Excel</span>
+                </button>
+              </div>
             )}
           </div>
         </div>

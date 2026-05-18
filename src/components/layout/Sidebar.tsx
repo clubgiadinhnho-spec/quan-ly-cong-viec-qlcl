@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User } from '../../types';
-import { ClipboardList, User as UserIcon, CheckCircle2, BarChart3, LogOut, MessageSquare, Users, Database, Sparkles, Trash2, ChevronRight, Tag, Clock, Workflow, LayoutGrid, ShieldAlert, CheckCheck, PlusSquare } from 'lucide-react';
+import { ClipboardList, User as UserIcon, CheckCircle2, BarChart3, LogOut, MessageSquare, Users, Database, Sparkles, Trash2, ChevronRight, Tag, Clock, Workflow, LayoutGrid, ShieldAlert, CheckCheck, PlusSquare, Save } from 'lucide-react';
 
 import { Avatar } from '../common/Avatar';
 import { GroupChatIcon, GroupDiscussionIcon } from '../common/Icons';
@@ -25,6 +25,7 @@ interface SidebarProps {
   trashTasksAlert?: boolean;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  onSuperBackup?: () => void;
 }
 
 export const Sidebar = ({ 
@@ -46,6 +47,7 @@ export const Sidebar = ({
   trashTasksAlert = false,
   isCollapsed,
   onToggleCollapse,
+  onSuperBackup,
 }: SidebarProps) => {
   const prevCounts = React.useRef<Record<string, number>>({});
   const [bouncingItems, setBouncingItems] = React.useState<Record<string, boolean>>({});
@@ -112,7 +114,14 @@ export const Sidebar = ({
   const currentColor = COLOR_OPTIONS.find(c => c.id === sidebarColor) || COLOR_OPTIONS[0];
   const isDark = currentColor.isDark;
 
-  const hasDelegatedPermissions = (u: User) => u.delegatedPermissions && Object.values(u.delegatedPermissions).some(v => v);
+  const hasDelegatedPermissions = (u: any) => {
+    if (!u || !u.delegatedPermissions) return false;
+    try {
+      return Object.values(u.delegatedPermissions).some(v => !!v);
+    } catch (e) {
+      return false;
+    }
+  };
 
   return (
     <motion.aside 
@@ -180,7 +189,8 @@ export const Sidebar = ({
             { id: 'reports', label: 'BÁO CÁO THÁNG', icon: BarChart3 },
             ...(user.role === 'Admin'
               ? [
-                  { id: 'system_history', label: 'NHẬT KÝ HỆ THỐNG', icon: Database, color: 'bg-indigo-600 text-white shadow-indigo-100' }
+                  { id: 'system_history', label: 'NHẬT KÝ HỆ THỐNG', icon: Database, color: 'bg-indigo-600 text-white shadow-indigo-100' },
+                  { id: 'super_backup', label: 'SIÊU BACKUP', icon: Save, color: 'bg-amber-500 text-white shadow-amber-100', isAction: true }
                 ]
               : []),
           ].map((item: any, idx: number, arr: any[]) => {
@@ -196,13 +206,13 @@ export const Sidebar = ({
                 )}
                 
                 <button
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => item.isAction ? onSuperBackup?.() : setActiveTab(item.id)}
                   title={isCollapsed ? item.label : undefined}
                   className={`w-full flex items-center ${isCollapsed ? 'justify-center p-3' : 'gap-2.5 py-2 px-3.5'} text-lg font-medium rounded-xl transition-all relative z-10 ${
                     activeTab === item.id 
                       ? (isDark ? 'bg-white/20 text-white shadow-sm' : 'bg-blue-50 text-blue-700 shadow-sm')
-                      : (isDark ? 'text-white/60 hover:bg-white/10 hover:text-white' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900')
-                  } ${item.isSubItem && !isCollapsed ? 'pl-6' : ''} ${!isCollapsed && idx === 5 ? 'mt-5' : ''}`}
+                      : (isDark ? 'text-white/60 hover:bg-white/10 hover:text-white' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 ml-0')
+                  } ${item.isSubItem && !isCollapsed ? 'pl-6' : ''} ${!isCollapsed && idx === 5 ? 'mt-5' : ''} ${item.isAction ? 'text-amber-600 hover:bg-amber-50' : ''}`}
                 >
                   <div className={`shrink-0 flex items-center justify-center transition-transform ${activeTab === item.id ? 'scale-110' : 'group-hover/nav:scale-110'} ${isCollapsed ? 'relative' : ''}`}>
                     {item.isSubItem && activeTab === item.id ? (
@@ -215,7 +225,7 @@ export const Sidebar = ({
                       <span className={`absolute -top-2.5 -right-2.5 min-w-[17px] h-4.5 px-1 rounded-full flex items-center justify-center border border-white shadow-xl z-[150] ${
                         item.color || 'bg-gray-500'
                       } text-white ${item.isAlert ? 'animate-bounce' : ''}`}>
-                        <span translate="no" className="notranslate font-black text-[11px] leading-tight filter drop-shadow-sm">
+                        <span translate="no" className="notranslate font-semibold text-[12px] leading-tight filter drop-shadow-sm">
                           {item.count}
                         </span>
                       </span>
@@ -228,10 +238,11 @@ export const Sidebar = ({
                     </div>
                   )}
                   {item.count !== undefined && !isCollapsed && (
-                    <span className={`ml-auto min-w-[22px] h-5.5 px-1.5 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-lg shrink-0 z-[150] ${
+                    <span className={`ml-auto min-w-[22px] h-6 px-1.5 rounded-full flex items-center justify-center border-2 ${isDark ? 'border-transparent' : 'border-white'} shadow-lg shrink-0 z-[150] ${
                       item.color || 'bg-gray-500'
                     } text-white ${item.isAlert ? 'animate-bounce' : ''}`}>
-                      <span translate="no" className="notranslate font-black text-[13px] leading-none">
+                      {/* THIẾT QUÂN LUẬT: Font-semibold, text-[14px] cố định - Cấm thay đổi */}
+                      <span translate="no" className="notranslate font-semibold text-[14px] leading-none">
                         {item.count}
                       </span>
                     </span>
@@ -241,7 +252,7 @@ export const Sidebar = ({
             );
           })}
         </nav>
-
+        
         {/* Bottom Fixed Area */}
         <div className="flex-none space-y-4 pt-4 border-t border-gray-100/30 mt-auto">
           {/* Group Chat */}
@@ -255,8 +266,8 @@ export const Sidebar = ({
                 <GroupChatIcon className="w-5 h-5 text-white" />
               </div>
               {groupUnreadCount > 0 && isCollapsed && (
-                <div className="absolute -top-2.5 -right-2.5 bg-blue-600 text-white min-w-[15px] h-4 px-0.5 rounded-full flex items-center justify-center border border-white shadow-xl z-[150]">
-                  <span translate="no" className="notranslate text-[11px] font-black leading-tight filter drop-shadow-sm">{groupUnreadCount}</span>
+                <div className="absolute -top-2.5 -right-2.5 bg-blue-600 text-white min-w-[15px] h-4.5 px-0.5 rounded-full flex items-center justify-center border border-white shadow-xl z-[150]">
+                  <span translate="no" className="notranslate text-[12px] font-semibold leading-tight filter drop-shadow-sm">{groupUnreadCount}</span>
                 </div>
               )}
             </div>
@@ -271,8 +282,8 @@ export const Sidebar = ({
               </div>
             )}
             {groupUnreadCount > 0 && !isCollapsed && (
-              <div className="bg-blue-600 text-white min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center shadow-md border border-white z-[150]">
-                <span translate="no" className="notranslate text-white text-[13px] font-black leading-none">
+              <div className="bg-blue-600 text-white min-w-[20px] h-6 px-1.5 rounded-full flex items-center justify-center shadow-md border border-white z-[150]">
+                <span translate="no" className="notranslate text-white text-[14px] font-semibold leading-none">
                   {groupUnreadCount}
                 </span>
               </div>

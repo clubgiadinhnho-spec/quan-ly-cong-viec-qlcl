@@ -6,7 +6,8 @@ import { Header } from '../layout/Header';
 import { HolidayBanner } from '../layout/HolidayBanner';
 import { StatsSummary } from '../dashboard/StatsSummary';
 import { TaskList } from '../tasks/TaskList';
-import { isUserTask, normalizeString, getTaskAssigneeName } from '../../utils/userUtils';
+import { isUserTask, normalizeString, getTaskAssigneeName, isTaskDeleted } from '../../utils/userUtils';
+import { getMonthYear } from '../../lib/dateUtils';
 
 interface CompletedTasksTabProps {
   effectiveUser: User;
@@ -19,6 +20,7 @@ interface CompletedTasksTabProps {
   tasks: Task[];
   filteredTasks: Task[];
   handleExportExcel: (tasks: Task[]) => void;
+  handleImportExcel: (e: React.ChangeEvent<HTMLInputElement>) => void;
   selectedTaskIds: string[];
   handleBulkDelete: () => void;
   handlePermanentBulkDelete: () => void;
@@ -46,7 +48,7 @@ interface CompletedTasksTabProps {
 
 export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
   effectiveUser, presence, setShowTaskModal, adminUnreadCount, onOpenNotifications,
-  viewScope, setViewScope, tasks, filteredTasks, handleExportExcel, selectedTaskIds,
+  viewScope, setViewScope, tasks, filteredTasks, handleExportExcel, handleImportExcel, selectedTaskIds,
   handleBulkDelete, handlePermanentBulkDelete, allUsers, updateTask, deleteTask,
   setShowHistoryModal, setShowChatModal, showChatModal, addTaskComment,
   updateTaskCommentReactions, setEditingTask, setConfirmModal, approveTaskCompletion,
@@ -55,7 +57,7 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
   selectedMonth, onMonthChange
 }) => {
   const getTasksToDisplay = () => {
-    let combined = tasks.filter(t => (t.status === "COMPLETED" || t.status === "Hoàn thành") && !t.waitingApproval && !t.deletedAt);
+    let combined = tasks.filter(t => (t.status === "COMPLETED" || t.status === "Hoàn thành") && !t.waitingApproval && !isTaskDeleted(t) && !t.isCycleRecord);
     
     // Search Filtering
     if (search) {
@@ -109,25 +111,7 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
 
     // Month Filtering
     if (selectedMonth && selectedMonth !== 'all') {
-      combined = combined.filter(t => {
-        const date = t.actualEndDate;
-        if (!date) return false;
-        const dateStr = typeof date === 'string' ? date : (date as any).toISOString?.() || '';
-        
-        let m = '', y = '';
-        const isoMatch = dateStr.match(/^(\d{4})-(\d{2})/);
-        const vnMatch = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{2})/);
-
-        if (isoMatch) {
-          y = isoMatch[1].substring(2);
-          m = isoMatch[2];
-        } else if (vnMatch) {
-          y = vnMatch[3];
-          m = vnMatch[2];
-        }
-        
-        return `${m}/${y}` === selectedMonth;
-      });
+      combined = combined.filter(t => getMonthYear(t.actualEndDate) === selectedMonth);
     }
 
     return combined.sort((a, b) => new Date(b.actualEndDate || 0).getTime() - new Date(a.actualEndDate || 0).getTime());
@@ -207,13 +191,20 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
               />
             </div>
             {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canExportExcel) && (
-              <button
-                onClick={() => handleExportExcel(tasksToDisplay)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-50 transition-all uppercase shadow-sm"
-              >
-                <FileDown size={12} />
-                <span translate="no" className="notranslate">Xuất Excel</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold hover:bg-blue-700 transition-all uppercase shadow-sm cursor-pointer shadow-blue-200">
+                  <FileDown size={12} className="rotate-180" />
+                  <span translate="no" className="notranslate">Nhập Excel</span>
+                  <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
+                </label>
+                <button
+                  onClick={() => handleExportExcel(tasksToDisplay)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-50 transition-all uppercase shadow-sm"
+                >
+                  <FileDown size={12} />
+                  <span translate="no" className="notranslate">Xuất Excel</span>
+                </button>
+              </div>
             )}
           </div>
         </div>

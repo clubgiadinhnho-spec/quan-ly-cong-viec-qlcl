@@ -95,6 +95,7 @@ export const NewProposalsTab: React.FC<NewProposalsTabProps> = ({
           onOpenCategoryManagement={() => setActiveTab('category_management')}
           handleExportExcel={handleExportExcel}
           search={search}
+          setSearch={setSearch}
           markAsRead={markAsRead}
           lastReadChatTimestamps={lastReadChatTimestamps}
           presence={presence}

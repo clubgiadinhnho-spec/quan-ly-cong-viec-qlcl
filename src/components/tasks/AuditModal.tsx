@@ -9,16 +9,43 @@ import { Portal } from '../common/Portal';
 interface AuditModalProps {
   task: Task;
   onClose: () => void;
+  onUpdate?: (id: string, updates: Partial<Task>) => void;
+  canEdit?: boolean;
 }
 
-export const AuditModal: React.FC<AuditModalProps> = ({ task, onClose }) => {
+export const AuditModal: React.FC<AuditModalProps> = ({ task, onClose, onUpdate, canEdit }) => {
   const leaderQCD = task.leaderQCD || { q: 0, c: 0, d: 0 };
   const staffQCD = task.staffQCD || { q: 0, c: 0, d: 0 };
 
-  const { avg, percentage, isPass, label, colorClass } = calculateKPI(leaderQCD.q, leaderQCD.c, leaderQCD.d);
+  const [editValues, setEditValues] = React.useState({
+    q: leaderQCD.q,
+    c: leaderQCD.c,
+    d: leaderQCD.d,
+    qComment: leaderQCD.qComment || '',
+    cComment: leaderQCD.cComment || '',
+    dComment: leaderQCD.dComment || ''
+  });
+
+  const { avg, percentage, isPass, label, colorClass } = calculateKPI(editValues.q, editValues.c, editValues.d);
   
   // Custom display for percentage level
   const statusLabel = percentage >= 120 ? 'XUẤT SẮC' : percentage >= 100 ? 'ĐẠT KPI' : 'KHÔNG ĐẠT KPI';
+
+  const handleSave = () => {
+    if (!onUpdate) return;
+    onUpdate(task.id, {
+      leaderQCD: {
+        ...leaderQCD,
+        q: editValues.q,
+        c: editValues.c,
+        d: editValues.d,
+        qComment: editValues.qComment,
+        cComment: editValues.cComment,
+        dComment: editValues.dComment
+      }
+    });
+    onClose();
+  };
 
   const steps = [
     {
@@ -27,8 +54,9 @@ export const AuditModal: React.FC<AuditModalProps> = ({ task, onClose }) => {
       icon: <ShieldCheck size={20} className="text-blue-600" />,
       staffScore: staffQCD.q,
       staffNote: staffQCD.qExplanation || staffQCD.explanation || 'Chưa có giải trình',
-      leaderScore: leaderQCD.q,
-      leaderNote: leaderQCD.qComment || 'Chưa có nhận xét'
+      leaderScore: editValues.q,
+      leaderNote: editValues.qComment,
+      key: 'q' as const
     },
     {
       id: 'C',
@@ -36,8 +64,9 @@ export const AuditModal: React.FC<AuditModalProps> = ({ task, onClose }) => {
       icon: <DollarSign size={20} className="text-emerald-600" />,
       staffScore: staffQCD.c,
       staffNote: staffQCD.cExplanation || staffQCD.explanation || 'Chưa có giải trình',
-      leaderScore: leaderQCD.c,
-      leaderNote: leaderQCD.cComment || 'Chưa có nhận xét'
+      leaderScore: editValues.c,
+      leaderNote: editValues.cComment,
+      key: 'c' as const
     },
     {
       id: 'D',
@@ -45,8 +74,9 @@ export const AuditModal: React.FC<AuditModalProps> = ({ task, onClose }) => {
       icon: <Clock size={20} className="text-amber-600" />,
       staffScore: staffQCD.d,
       staffNote: staffQCD.dExplanation || staffQCD.explanation || 'Chưa có giải trình',
-      leaderScore: leaderQCD.d,
-      leaderNote: leaderQCD.dComment || 'Chưa có nhận xét'
+      leaderScore: editValues.d,
+      leaderNote: editValues.dComment,
+      key: 'd' as const
     }
   ];
 
@@ -75,10 +105,10 @@ export const AuditModal: React.FC<AuditModalProps> = ({ task, onClose }) => {
           </div>
 
           <p className="text-[8px] font-black tracking-[0.2em] text-amber-500 uppercase">
-             <span translate="no" className="notranslate">VINH DANH THÀNH TÍCH</span>
+             <span translate="no" className="notranslate">{canEdit ? 'CHỈNH SỬA ĐỐI SOÁT Q-C-D' : 'VINH DANH THÀNH TÍCH'}</span>
           </p>
           <h2 className="text-base font-black text-blue-900 tracking-tight text-center leading-tight">
-             <span translate="no" className="notranslate">VINH DANH: {task.assigneeName}</span>
+             <span translate="no" className="notranslate">{canEdit ? 'CẬP NHẬT ĐIỂM SỐ' : `VINH DANH: ${task.assigneeName}`}</span>
           </h2>
           
           <button 
@@ -130,8 +160,8 @@ export const AuditModal: React.FC<AuditModalProps> = ({ task, onClose }) => {
                            ))}
                            <span className="ml-1 font-black text-blue-700 text-[9px]" translate="no">({step.staffScore})</span>
                          </div>
-                         <div className="p-1.5 bg-[#F8FAFC] rounded-lg border border-blue-50 italic text-gray-500 text-[9px] leading-tight max-w-[120px]">
-                            <span translate="no" className="notranslate truncate block">"{step.staffNote}"</span>
+                         <div className="p-1.5 bg-[#F8FAFC] rounded-lg border border-blue-50 text-gray-500 text-[9px] leading-tight max-w-[120px]">
+                            <span translate="no" className="notranslate break-words block">"{step.staffNote}"</span>
                          </div>
                       </div>
                     </td>
@@ -139,18 +169,35 @@ export const AuditModal: React.FC<AuditModalProps> = ({ task, onClose }) => {
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-0.5">
                            {[1, 2, 3, 4, 5].map(s => (
-                             <Star 
-                               key={s} 
-                               size={11} 
-                               className={`${s <= step.leaderScore ? 'fill-amber-500 text-amber-500 drop-shadow-[0_0_2px_rgba(245,158,11,0.1)]' : 'text-gray-200'}`} 
-                               fill={s <= step.leaderScore ? 'currentColor' : 'none'}
-                             />
+                             <button
+                               key={s}
+                               disabled={!canEdit}
+                               onClick={() => setEditValues(prev => ({ ...prev, [step.key]: s }))}
+                               className="focus:outline-none transition-transform active:scale-125"
+                             >
+                                <Star 
+                                  size={canEdit ? 14 : 11} 
+                                  className={`${s <= step.leaderScore ? 'fill-amber-500 text-amber-500 drop-shadow-[0_0_2px_rgba(245,158,11,0.1)]' : 'text-gray-200'} ${canEdit ? 'hover:text-amber-400' : ''}`} 
+                                  fill={s <= step.leaderScore ? 'currentColor' : 'none'}
+                                />
+                             </button>
                            ))}
-                           <span className="ml-1 font-black text-amber-700 text-[9px]" translate="no">({step.leaderScore})</span>
+                           <span className="ml-1 font-black text-amber-700 text-[10px]" translate="no">({step.leaderScore})</span>
                          </div>
-                         <div className="p-1.5 bg-white rounded-lg border border-amber-100 italic text-gray-700 text-[9px] font-medium leading-tight shadow-sm max-w-[120px]">
-                            <span translate="no" className="notranslate uppercase font-black text-[7px] text-amber-500 mb-0.5 block tracking-tighter">NX:</span>
-                            <span translate="no" className="notranslate truncate block">"{step.leaderNote}"</span>
+                         <div className="flex flex-col gap-1">
+                            <span translate="no" className="notranslate uppercase font-black text-[7px] text-amber-500 block tracking-tighter">NX LÃNH ĐẠO:</span>
+                            {canEdit ? (
+                              <textarea 
+                                value={step.leaderNote}
+                                onChange={(e) => setEditValues(prev => ({ ...prev, [`${step.key}Comment`]: e.target.value }))}
+                                className="w-full p-1.5 bg-white rounded-lg border border-amber-200 text-gray-700 text-[10px] font-medium leading-tight shadow-sm min-h-[40px] outline-none focus:ring-1 focus:ring-amber-400"
+                                placeholder="Nhập nhận xét..."
+                              />
+                            ) : (
+                              <div className="p-1.5 bg-white rounded-lg border border-amber-100 italic text-gray-700 text-[9px] font-medium leading-tight shadow-sm max-w-[120px]">
+                                <span translate="no" className="notranslate break-words block">"{step.leaderNote || 'Chưa có nhận xét'}"</span>
+                              </div>
+                            )}
                          </div>
                       </div>
                     </td>
@@ -162,7 +209,7 @@ export const AuditModal: React.FC<AuditModalProps> = ({ task, onClose }) => {
 
           {/* Conclusion - Micro Certification Seal */}
           <div className="mt-4 relative">
-             <div className="absolute -top-2 left-1/2 -translate-x-1/2 px-2.5 py-0.5 bg-amber-500 text-white rounded-full text-[7px] font-black tracking-widest uppercase shadow-md">
+             <div className="absolute -top-2 left-1/2 -translate-x-1/2 px-2.5 py-0.5 bg-amber-500 text-white rounded-full text-[7px] font-black tracking-widest uppercase shadow-md pointer-events-none">
                 <span translate="no" className="notranslate">KẾT QUẢ TỔNG HỢP</span>
              </div>
              
@@ -198,13 +245,29 @@ export const AuditModal: React.FC<AuditModalProps> = ({ task, onClose }) => {
         </div>
 
         {/* Footer - Micro */}
-        <div className="p-2 bg-gray-50 border-t border-amber-50 flex justify-center">
+        <div className="p-3 bg-gray-50 border-t border-amber-50 flex justify-center gap-3">
            <button 
              onClick={onClose}
-             className="px-6 py-1.5 bg-gray-900 text-white rounded-lg font-black text-[9px] uppercase tracking-[0.1em] hover:bg-black transition-all active:scale-95 shadow-sm border-b border-black"
+             className="px-6 py-2 bg-white text-gray-500 rounded-xl font-black text-[10px] uppercase tracking-[0.1em] hover:bg-gray-100 transition-all border border-gray-200 shadow-sm"
            >
-             <span translate="no" className="notranslate">ĐÓNG BẢNG VÀNG</span>
+             <span translate="no" className="notranslate">HỦY BỎ</span>
            </button>
+           {canEdit && (
+             <button 
+               onClick={handleSave}
+               className="px-8 py-2 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-[0.1em] hover:bg-blue-700 transition-all active:scale-95 shadow-md border-b-2 border-blue-800"
+             >
+               <span translate="no" className="notranslate">LƯU THAY ĐỔI</span>
+             </button>
+           )}
+           {!canEdit && (
+              <button 
+                onClick={onClose}
+                className="px-6 py-1.5 bg-gray-900 text-white rounded-lg font-black text-[9px] uppercase tracking-[0.1em] hover:bg-black transition-all active:scale-95 shadow-sm border-b border-black"
+              >
+                <span translate="no" className="notranslate">ĐÓNG BẢNG VÀNG</span>
+              </button>
+           )}
         </div>
       </motion.div>
     </div>

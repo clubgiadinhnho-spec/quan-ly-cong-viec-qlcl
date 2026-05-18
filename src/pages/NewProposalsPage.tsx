@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Task, User } from '../types';
 import { TaskList } from '../components/tasks/TaskList';
 import { Search, Sparkles, CheckCircle2, Trash2, FileDown } from 'lucide-react';
-import { normalizeString, getTaskAssigneeName } from '../utils/userUtils';
+import { normalizeString, getTaskAssigneeName, isTaskDeleted } from '../utils/userUtils';
 
 interface NewProposalsPageProps {
   tasks: Task[];
@@ -25,6 +25,7 @@ interface NewProposalsPageProps {
   onBulkDelete?: () => void;
   onOpenCategoryManagement?: () => void;
   handleExportExcel: (tasks: Task[]) => void;
+  handleImportExcel: (e: React.ChangeEvent<HTMLInputElement>) => void;
   search: string;
   setSearch: (s: string) => void;
   markAsRead: (id: string) => void;
@@ -44,6 +45,7 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
   onBulkDelete,
   onOpenCategoryManagement,
   handleExportExcel,
+  handleImportExcel,
   search,
   setSearch,
   markAsRead,
@@ -55,7 +57,7 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
 
   const pendingTasks = useMemo(() => {
     return tasks
-      .filter(t => !t.deletedAt && t.status === 'PENDING')
+      .filter(t => !isTaskDeleted(t) && t.status === 'PENDING' && !t.isCycleRecord)
       .filter(t => {
         if (!search) return true;
         const term = normalizeString(search);
@@ -151,7 +153,7 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
             }
           ]
         });
-        setConfirmModal((p: any) => ({ ...p, show: false }));
+        setConfirmModal((p: any) => p ? { ...p, show: false } : p);
       }
     });
   };
@@ -215,14 +217,21 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
             </div>
 
              {(currentUser.role === "Admin" || currentUser.delegatedPermissions?.canExportExcel) && (
-               <button
-                 onClick={() => handleExportExcel(pendingTasks)}
-                 className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-50 transition-all uppercase shadow-sm"
-               >
-                 <FileDown size={12} />
-                 <span translate="no" className="notranslate">Xuất Excel</span>
-               </button>
-             )}
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold hover:bg-blue-700 transition-all uppercase shadow-sm cursor-pointer shadow-blue-200">
+                    <FileDown size={12} className="rotate-180" />
+                    <span translate="no" className="notranslate">Nhập Excel</span>
+                    <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
+                  </label>
+                  <button
+                    onClick={() => handleExportExcel(pendingTasks)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-50 transition-all uppercase shadow-sm"
+                  >
+                    <FileDown size={12} />
+                    <span translate="no" className="notranslate">Xuất Excel</span>
+                  </button>
+                </div>
+              )}
              {isManager && selectedIds.length > 0 && (
                <div className="flex items-center gap-2">
                  <button

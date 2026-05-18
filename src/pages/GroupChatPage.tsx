@@ -170,7 +170,16 @@ export const GroupChatPage = ({
 
   const handleBulkDelete = async () => {
     if (selectedBulkIds.length === 0) return;
+    
+    if (selectedBulkIds.length > 5) {
+      window.alert("Hệ thống chỉ cho phép xóa tối đa 5 chủ đề cùng lúc để tránh rủi ro dữ liệu.");
+      return;
+    }
 
+    setShowBulkDeleteConfirm(true);
+  };
+
+  const confirmBulkDelete = async () => {
     try {
       setIsDeleting(true);
       if (!onDeleteTopicsBulk) {
@@ -180,7 +189,6 @@ export const GroupChatPage = ({
       
       await onDeleteTopicsBulk(selectedBulkIds);
       
-      // If current selected topic is being deleted, deselect it
       if (selectedTopicId && selectedBulkIds.includes(selectedTopicId)) {
         setSelectedTopicId(null);
       }
@@ -188,8 +196,6 @@ export const GroupChatPage = ({
       setSelectedBulkIds([]);
       setIsBulkMode(false);
       setShowBulkDeleteConfirm(false);
-      
-      // Removed window.location.reload() to maintain a smooth SPA experience
     } catch (err) {
       window.alert("Thất bại: " + (err instanceof Error ? err.message : "Lỗi không xác định"));
     } finally {
@@ -949,7 +955,7 @@ const handleCreateTopic = () => {
                 {filteredMessages
                   .filter(msg => {
                     const content = msg.content || '';
-                    return !/(?:🤖|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content);
+                    return !/(?:🤖|\[JOB|JOB Assist|JOB Assistant|JOB Update|JOB:|\bJOB\b|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content);
                   })
                   .map((msg, idx) => {
                     const author = getAuthor(msg.authorId);
@@ -1449,7 +1455,7 @@ const handleCreateTopic = () => {
               <div className="space-y-2">
                 <button 
                   disabled={isDeleting}
-                  onClick={handleBulkDelete}
+                  onClick={confirmBulkDelete}
                   className="w-full py-3.5 bg-red-600 text-white rounded-xl font-black uppercase tracking-widest text-[11px] transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/20 disabled:opacity-50"
                 >
                   {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}

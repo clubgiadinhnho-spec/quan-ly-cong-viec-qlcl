@@ -193,7 +193,7 @@ export const TaskList: React.FC<TaskListProps> = ({
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-300">
+        <tbody className="">
           {sortedTasks.map((task, idx) => (
             type === 'trash' ? (
               <TaskRow 
@@ -353,6 +353,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                   onUpdate(realId, updates);
                 }}
                 onDelete={onDelete}
+                onEdit={onEdit}
                 isSelected={selectedIds.includes(task.id)}
                 onToggleSelect={onToggleSelect}
                 setConfirmModal={setConfirmModal}

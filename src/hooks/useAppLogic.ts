@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Task, User } from '../types';
-import { isUserTask, normalizeString, getTaskAssigneeName } from '../utils/userUtils';
+import { isUserTask, normalizeString, getTaskAssigneeName, isTaskDeleted } from '../utils/userUtils';
 import { getTaskDeadlineStatus } from '../lib/dateUtils';
+import { getMonthYear } from '../lib/dateUtils';
 
 interface UseAppLogicProps {
   tasks: Task[];
@@ -132,14 +133,14 @@ export const useAppLogic = ({
   const counts = useMemo(() => {
     
     // Base collections based on status - THIẾT QUÂN LUẬT
-    const basePending = tasks.filter(t => t.status === 'PENDING' && !t.deletedAt);
-    const baseActive = tasks.filter(t => t.status === 'APPROVED' && !t.waitingApproval && !t.deletedAt);
-    const baseApproval = tasks.filter(t => t.waitingApproval === true && !t.deletedAt);
-    const baseTrash = tasks.filter(t => (t.deletedAt || t.status === 'DELETED'));
+    const basePending = tasks.filter(t => t.status === 'PENDING' && !isTaskDeleted(t) && !t.isCycleRecord);
+    const baseActive = tasks.filter(t => t.status === 'APPROVED' && !t.waitingApproval && !isTaskDeleted(t) && !t.isCycleRecord);
+    const baseApproval = tasks.filter(t => t.waitingApproval === true && !isTaskDeleted(t) && !t.isCycleRecord);
+    const baseTrash = tasks.filter(t => isTaskDeleted(t));
 
     // HOÀN THÀNH CHUẨN: Master Data Only - THIẾT QUÂN LUẬT
-    const getCompletedCount = (filteredByMonth = false) => {
-      let combined = tasks.filter(t => (t.status === 'COMPLETED' || t.status === 'Hoàn thành') && !t.waitingApproval && !t.deletedAt);
+    const getCompletedCount = (filteredByMonth = true) => {
+      let combined = tasks.filter(t => (t.status === 'COMPLETED' || t.status === 'Hoàn thành') && !t.waitingApproval && !isTaskDeleted(t) && !t.isCycleRecord);
       
       // Scope filtering
       if (viewScope === 'mine') {
@@ -149,23 +150,8 @@ export const useAppLogic = ({
       // Month filtering
       if (filteredByMonth && selectedMonth && selectedMonth !== 'all') {
         combined = combined.filter(t => {
-          const date = t.actualEndDate;
-          if (!date) return false;
-          const dateStr = typeof date === 'string' ? date : (date as any).toISOString?.() || '';
-          
-          let m = '', y = '';
-          const isoMatch = dateStr.match(/^(\d{4})-(\d{2})/);
-          const vnMatch = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{2})/);
-
-          if (isoMatch) {
-            y = isoMatch[1].substring(2);
-            m = isoMatch[2];
-          } else if (vnMatch) {
-            y = vnMatch[3];
-            m = vnMatch[2];
-          }
-          
-          return `${m}/${y}` === selectedMonth;
+          const d = t.expectedEndDate || t.actualEndDate || t.issueDate;
+          return getMonthYear(d) === selectedMonth;
         });
       }
       
@@ -174,7 +160,14 @@ export const useAppLogic = ({
 
     // Scope filtering for active areas
     const filterByScope = (list: Task[]) => {
-      return list.filter(t => viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
+      let filtered = list;
+      if (selectedMonth && selectedMonth !== 'all') {
+        filtered = filtered.filter(t => {
+          const d = t.expectedEndDate || t.actualEndDate || t.issueDate;
+          return getMonthYear(d) === selectedMonth;
+        });
+      }
+      return filtered.filter(t => viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
     };
 
     const pendingList = basePending; // Nhân viên được xem tất cả đề xuất mới
@@ -207,9 +200,11 @@ export const useAppLogic = ({
       attention: totalCriticalAlerts > 0 || activeList.some(t => t.isNewInBoard),
       allActive: activeList.length,
       mine: activeList.filter(t => isUserTask(t, effectiveUser)).length,
-      completedTotal: getCompletedCount(),
+      completedTotal: getCompletedCount(false),
+      completedUnread: tasks.filter(t => (t.status === 'COMPLETED' || t.status === 'Hoàn thành') && !isTaskDeleted(t) && !t.waitingApproval && t.isNewInBoard).length,
       trash: trashList.length,
       pendingApprovalTotal: approvalList.length,
+      pendingApprovalUnread: approvalList.filter(t => t.isNewInBoard).length,
       staffTotal: allUsers.length
     };
   }, [tasks, effectiveUser, viewScope, allUsers, selectedMonth]);
@@ -217,16 +212,23 @@ export const useAppLogic = ({
   // 2. Main Sorting & Filtering Logic
   const sortedTasks = useMemo(() => {
     return tasks.filter(t => {
-      // 1. Kiểm tra tìm kiếm trước (Áp dụng cho mọi tab)
+      // 1. Kiểm tra tìm kiếm (nếu không có search thì true)
       if (!matchesSearch(t)) return false;
 
-      // 2. Kiểm tra Tab & Scope
+      // 2. Lọc theo THÁNG (Luôn tuân thủ lọc tháng ngay cả khi search để đảm bảo tính nhất quán của trang)
+      if (selectedMonth && selectedMonth !== 'all' && activeTab !== 'trash') {
+        const d = t.expectedEndDate || t.actualEndDate || t.issueDate;
+        if (getMonthYear(d) !== selectedMonth) return false;
+      }
+
+      // 3. Kiểm tra Tab & Scope
       if (activeTab === "trash") {
-        const isDeleted = !!t.deletedAt || t.status === 'DELETED';
+        const isDeleted = isTaskDeleted(t);
         return isDeleted && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
       }
       
-      if (t.deletedAt) return false;
+      if (isTaskDeleted(t)) return false;
+      if (t.isCycleRecord) return false;
 
       if (activeTab === "pending_confirmation") {
         return t.status === "PENDING"; 

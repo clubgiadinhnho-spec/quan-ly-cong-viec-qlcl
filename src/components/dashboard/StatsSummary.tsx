@@ -1,7 +1,8 @@
 import React from 'react';
 import { Task } from '../../types';
 import { Activity, Zap, Shield, CheckCircle } from 'lucide-react';
-import { getTaskDeadlineStatus } from '../../lib/dateUtils';
+import { getTaskDeadlineStatus, getMonthYear } from '../../lib/dateUtils';
+import { isTaskDeleted } from '../../utils/userUtils';
 
 interface StatsSummaryProps {
   tasks: Task[];
@@ -10,7 +11,7 @@ interface StatsSummaryProps {
 }
 
 export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks, selectedMonth = 'all', onMonthChange }) => {
-  const nonDeleted = tasks.filter(t => !t.deletedAt);
+  const nonDeleted = tasks.filter(t => !isTaskDeleted(t) && !t.isCycleRecord);
   // YÊU CẦU BẮT BUỘC: Dashboard chỉ tính các việc APPROVED và KHÔNG đang chờ duyệt
   const approvedTasks = nonDeleted.filter(t => t.status === 'APPROVED' && !t.waitingApproval);
   
@@ -52,24 +53,8 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks, selectedMonth
     completedTasks.forEach(t => {
       const date = t.actualEndDate;
       if (date) {
-        // HỖ TRỢ CẢ 2 ĐỊNH DẠNG: ISO (2026-05-...) hoặc DD/MM/YY (13/05/26)
-        const dateStr = typeof date === 'string' ? date : (date as any).toISOString?.() || '';
-        
-        let m = '', y = '';
-        const isoMatch = dateStr.match(/^(\d{4})-(\d{2})/);
-        const vnMatch = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{2})/);
-
-        if (isoMatch) {
-          y = isoMatch[1].substring(2);
-          m = isoMatch[2];
-        } else if (vnMatch) {
-          y = vnMatch[3];
-          m = vnMatch[2];
-        }
-
-        if (m && y) {
-          months.add(`${m}/${y}`);
-        }
+        const my = getMonthYear(date);
+        if (my) months.add(my);
       }
     });
     return Array.from(months).sort((a, b) => {
@@ -82,25 +67,7 @@ export const StatsSummary: React.FC<StatsSummaryProps> = ({ tasks, selectedMonth
 
   const filteredCompleted = selectedMonth === 'all' 
     ? completedTasks 
-    : completedTasks.filter(t => {
-        const date = t.actualEndDate;
-        if (!date) return false;
-        const dateStr = typeof date === 'string' ? date : (date as any).toISOString?.() || '';
-        
-        let m = '', y = '';
-        const isoMatch = dateStr.match(/^(\d{4})-(\d{2})/);
-        const vnMatch = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{2})/);
-
-        if (isoMatch) {
-          y = isoMatch[1].substring(2);
-          m = isoMatch[2];
-        } else if (vnMatch) {
-          y = vnMatch[3];
-          m = vnMatch[2];
-        }
-        
-        return `${m}/${y}` === selectedMonth;
-      });
+    : completedTasks.filter(t => getMonthYear(t.actualEndDate) === selectedMonth);
 
   const completedCount = filteredCompleted.length;
 

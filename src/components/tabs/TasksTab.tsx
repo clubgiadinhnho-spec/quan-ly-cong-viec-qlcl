@@ -98,7 +98,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
             <div className="flex items-center gap-2">
               <button
                 onClick={handleBulkDelete}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg active:scale-95 border-b-4 border-red-800"
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg active:scale-95 border-2 border-red-500"
               >
                 <Trash2 size={16} strokeWidth={2.5} />
                 <span translate="no" className="notranslate">XÓA ({selectedTaskIds.length})</span>
@@ -140,16 +140,13 @@ export const TasksTab: React.FC<TasksTabProps> = ({
                   </button>
                 )}
                 {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canImportExcel) && (
-                  <button
-                    onClick={() => {}} 
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-all uppercase cursor-pointer"
+                  <label 
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-all uppercase cursor-pointer shadow-sm active:scale-95"
                   >
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <FileUp size={12} />
-                      <span translate="no" className="notranslate">Nhập từ Excel</span>
-                      <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
-                    </label>
-                  </button>
+                    <FileUp size={12} />
+                    <span translate="no" className="notranslate">Nhập từ Excel</span>
+                    <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
+                  </label>
                 )}
               </div>
             )}

@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { User, Task } from '../types';
+import { JobAvatar } from '../components/common/JobAvatar';
+import { calculateKPI } from '../utils/taskUtils';
+import { User, Task, TaskCategory } from '../types';
 import { User as UserIcon, FileText, MessageSquare, Shield, HelpCircle, CheckCircle2, Clock, Edit3, Save, Lock, Mail, Phone, UserCircle, Key, Eye, EyeOff, CheckCircle, Camera } from 'lucide-react';
 import { getPerformanceAdvice } from '../lib/gemini';
-import { formatDate } from '../lib/dateUtils';
+import { formatDate, getMonthYear } from '../lib/dateUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { Avatar } from '../components/common/Avatar';
-import { getSafeNameProps, isUserTask } from '../utils/userUtils';
+import { getSafeNameProps, isUserTask, isTaskDeleted } from '../utils/userUtils';
+import { ChevronDown, Calendar, Users, Target, PieChart as PieChartIcon, BarChart3, TrendingUp, Sparkles } from 'lucide-react';
 import { generateUniqueKey } from '../utils/stringUtils';
 import { updateAuthPassword } from '../lib/firebase';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 interface ProfilePageProps {
   currentUser: User;
   tasks: Task[];
   users: User[];
   onUpdateProfile: (email: string, updates: Partial<User>) => Promise<void>;
+  categories: TaskCategory[];
 }
 
 // GIÁ TRỊ BẤT BIẾN - AI KHÔNG ĐƯỢC TỰ Ý THAY ĐỔI DANH SÁCH CHỨC DANH NÀY
@@ -25,56 +30,385 @@ const getDisplayNameTitle = (user: User) => {
   return user.title || 'CHUYÊN VIÊN QC';
 };
 
-export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: ProfilePageProps) => {
-  // Use currentUser directly since we don't have URL routing
-  const user = currentUser;
+export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdateProfile }: ProfilePageProps) => {
+  const isAdmin = React.useMemo(() => {
+    if (!currentUser) return false;
+    const adminEmails = [
+      "truong.le@tanphuvietnam.vn", 
+      "lenhattruong.tpp@gmail.com", 
+      "lenhattruong.caphef1@gmail.com",
+      "club.nhuatanphu@gmail.com", 
+      "tanphuvietnam.tpp@gmail.com", 
+      "truongln.tanhongngoc@gmail.com"
+    ];
+    return currentUser.name === 'Lê Nhật Trường' || 
+           currentUser.role === 'Admin' || 
+           (currentUser.title || '').toUpperCase().includes('TRƯỞNG PHÒNG') ||
+           adminEmails.includes((currentUser.companyEmail || '').toLowerCase()) ||
+           adminEmails.includes((currentUser.personalEmail || '').toLowerCase());
+  }, [currentUser]);
+
+  const [filterScope, setFilterScope] = useState<'mine' | 'department' | string>('mine');
+  
+  const initialScopeSet = React.useRef(false);
+  useEffect(() => {
+    if (currentUser && !initialScopeSet.current) {
+      setFilterScope(isAdmin ? 'department' : (currentUser.uniqueKey || 'mine'));
+      initialScopeSet.current = true;
+    }
+  }, [currentUser, isAdmin]);
+  
+  // Use filterScope to determine who we are viewing
+  const userBeingViewed = React.useMemo(() => {
+    if (!filterScope || filterScope === 'mine' || filterScope === 'department') return currentUser;
+    return users.find(u => u.uniqueKey === filterScope || u.id === filterScope) || currentUser;
+  }, [filterScope, currentUser, users]);
+
+  const user = userBeingViewed;
   
   const [isEditing, setIsEditing] = useState(false);
+  
+  // GIÁ TRỊ MẶC ĐỊNH CHO BỐ CỤC - CỐ ĐỊNH, KHÔNG CÒN TÙY CHỈNH
+  const DEFAULT_LAYOUT = [
+    { id: 'TYPE_STATS', span: 6, height: 500, order: 0 },
+    { id: 'CHART', span: 6, height: 500, order: 1 },
+    { id: 'STATUS_CHART', span: 4, height: 370, order: 2 },
+    { id: 'RADAR_CHART', span: 4, height: 370, order: 3 },
+    { id: 'RANKING_CHART', span: 4, height: 370, order: 4 },
+    { id: 'AI', span: 12, height: 0, order: 5 }
+  ];
+
+  const layoutConfig = React.useMemo(() => {
+    return DEFAULT_LAYOUT.filter(item => {
+      // THIẾT QUÂN LUẬT: Nhân viên không được xem bảng xếp hạng tổng
+      if (item.id === 'RANKING_CHART' && !isAdmin) return false;
+      return true;
+    });
+  }, [isAdmin]);
+
   const [advice, setAdvice] = useState<string | null>(null);
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [topN, setTopN] = useState<number>(0); // 0 means All
 
-  const canEdit = true; // One can always edit their own profile if the parent allows passing these props 
+  const isSelf = currentUser?.id === user?.id;
+  const canEdit = isAdmin || isSelf; 
 
   const [formData, setFormData] = useState({
-    name: user.name,
-    phone: user.phone,
-    companyEmail: user.companyEmail,
-    personalEmail: user.personalEmail,
-    title: user.title || '',
-    avatar: user.avatar || ''
+    name: user?.name || '',
+    phone: user?.phone || '',
+    companyEmail: user?.companyEmail || '',
+    personalEmail: user?.personalEmail || 'CHỜ CẬP NHẬT',
+    title: user?.title || '',
+    avatar: user?.avatar || ''
   });
 
   useEffect(() => {
-    if (!isEditing) {
+    if (!isEditing && user) {
       setFormData({
-        name: user.name,
-        phone: user.phone,
-        companyEmail: user.companyEmail,
-        personalEmail: user.personalEmail,
+        name: user.name || '',
+        phone: user.phone || '',
+        companyEmail: user.companyEmail || '',
+        personalEmail: user.personalEmail || 'CHỜ CẬP NHẬT',
         title: user.title || '',
         avatar: user.avatar || ''
       });
     }
-  }, [user.id, user.name, user.phone, user.companyEmail, user.personalEmail, user.avatar, isEditing]);
+  }, [user?.id, user?.name, user?.phone, user?.companyEmail, user?.personalEmail, user?.avatar, isEditing]);
 
   const [passwordData, setPasswordData] = useState({
     newPassword: '',
     confirmPassword: ''
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [showScoringGuide, setShowScoringGuide] = useState(false);
 
-  const hasDelegatedPermissions = (u: User) => u.delegatedPermissions && Object.values(u.delegatedPermissions).some(v => v);
+  const hasDelegatedPermissions = (u: any) => {
+    if (!u || !u.delegatedPermissions) return false;
+    try {
+      return Object.values(u.delegatedPermissions || {}).some(v => !!v);
+    } catch (e) {
+      return false;
+    }
+  };
 
-  const myTasks = tasks.filter((t) => isUserTask(t, user));
-  const completed = myTasks.filter((t) => t.status === 'COMPLETED').length;
-  const ongoing = myTasks.filter((t) => t.status === 'IN_PROGRESS').length;
-  const efficiency = myTasks.length > 0 ? Math.round((completed / myTasks.length) * 100) : 0;
+  // LOGIC TÍNH TOÁN DỮ LIỆU ĐƯỢC LỌC
+  const getFilteredData = () => {
+    // THIẾT QUÂN LUẬT: Nhân viên chỉ được xem dữ liệu của chính mình
+    const currentScope = isAdmin ? filterScope : 'mine';
+
+    // THIẾT QUÂN LUẬT: Luôn lọc bỏ công việc đã xóa để khớp với các Board (Metric Integrity)
+    // THIẾT QUÂN LUẬT: Master Data Only - Không đếm các bản ghi lịch sử chu kỳ (isCycleRecord)
+    // THIẾT QUÂN LUẬT: Chỉ thống kê các việc đã Duyệt (APPROVED) hoặc Hoàn thành (COMPLETED) để khớp với Bảng công việc
+    let filtered = tasks.filter(t => 
+      !isTaskDeleted(t) && 
+      !t.isCycleRecord && 
+      (t.status === 'APPROVED' || t.status === 'COMPLETED' || t.status === 'Hoàn thành') &&
+      !t.waitingApproval
+    );
+
+    // 1. Lọc theo phạm vi (Cá nhân / Cả phòng / Nhân sự cụ thể)
+    if (currentScope === 'mine') {
+      filtered = filtered.filter(t => isUserTask(t, user));
+    } else if (currentScope === 'department') {
+      // Giữ nguyên (Cả phòng)
+    } else if (currentScope) {
+      // THIẾT QUÂN LUẬT: Luôn dùng isUserTask để đảm bảo tính đồng nhất khi lọc theo nhân sự
+      filtered = filtered.filter(t => isUserTask(t, user));
+    }
+
+    // THIẾT QUÂN LUẬT: Loại bỏ trùng lặp nếu có (Cơ chế bảo vệ dữ liệu)
+    const uniqueIds = new Set();
+    filtered = filtered.filter(t => {
+      if (uniqueIds.has(t.id)) return false;
+      uniqueIds.add(t.id);
+      return true;
+    });
+
+    // 2. Lọc theo tháng - THIẾT QUÂN LUẬT: Lọc theo HẠN HOÀN THÀNH (Deadline)
+    if (selectedMonth !== 'all') {
+      filtered = filtered.filter(t => {
+        // Ưu tiên lọc theo Hạn hoàn thành để biết khối lượng công việc mục tiêu của tháng đó
+        const date = t.expectedEndDate || t.actualEndDate || t.issueDate;
+        return getMonthYear(date) === selectedMonth;
+      });
+    }
+
+    const completedTasks = filtered.filter(t => t.status === 'COMPLETED');
+    const ongoingTasks = filtered.filter(t => t.status === 'IN_PROGRESS' || t.status === 'APPROVED');
+    const pendingTasks = filtered.filter(t => t.status === 'PENDING');
+    const eff = filtered.length > 0 ? Math.round((completedTasks.length / filtered.length) * 100) : 0;
+
+    // THỐNG KÊ QCD (QUẢN TRỊ CHẤT LƯỢNG)
+    let qcdPass = 0;
+    let qcdFail = 0;
+    let sumQ = 0, sumC = 0, sumD = 0;
+    let countQCD = 0;
+    let onTimeCount = 0;
+
+    filtered.forEach(t => {
+      if (t.leaderQCD) {
+        // THIẾT QUÂN LUẬT QCD MỚI: Đạt khi cả 3 chỉ số >= 3
+        const isPass = t.leaderQCD.q >= 3 && t.leaderQCD.c >= 3 && t.leaderQCD.d >= 3;
+        if (isPass) qcdPass++;
+        else qcdFail++;
+        
+        // CÁCH TÍNH ĐÚNG HẠN MỚI: Dựa vào điểm D (Delivery) >= 3 theo đúng hướng dẫn chấm điểm
+        if (t.leaderQCD.d >= 3) {
+          onTimeCount++;
+        }
+
+        sumQ += t.leaderQCD.q;
+        sumC += t.leaderQCD.c;
+        sumD += t.leaderQCD.d;
+        countQCD++;
+      }
+    });
+
+    const qcdTotal = qcdPass + qcdFail;
+    const qcdPassRate = qcdTotal > 0 ? Math.round((qcdPass / qcdTotal) * 100) : 0;
+    const qcdFailRate = qcdTotal > 0 ? 100 - qcdPassRate : 0;
+    const onTimeRate = countQCD > 0 ? Math.round((onTimeCount / countQCD) * 100) : 0;
+
+    const avgQ = countQCD > 0 ? parseFloat((sumQ / countQCD).toFixed(1)) : 0;
+    const avgC = countQCD > 0 ? parseFloat((sumC / countQCD).toFixed(1)) : 0;
+    const avgD = countQCD > 0 ? parseFloat((sumD / countQCD).toFixed(1)) : 0;
+
+    // 3. DỮ LIỆU BIỂU ĐỒ TRẠNG THÁI (STATUS)
+    const statusPieData = [
+      { name: 'ĐỀ XUẤT', value: pendingTasks.length, color: '#f59e0b' },
+      { name: 'ĐANG LÀM', value: ongoingTasks.length, color: '#2563eb' },
+      { name: 'HOÀN THÀNH', value: completedTasks.length, color: '#10b981' }
+    ].filter(s => s.value > 0);
+
+    // 4. DỮ LIỆU RADAR (SO SÁNH PHÒNG VS CÁ NHÂN)
+    // Tính trung bình toàn phòng cho QCD
+    const deptQCDTasks = tasks.filter(t => t.leaderQCD && !isTaskDeleted(t) && !t.isCycleRecord);
+    const deptSumQ = deptQCDTasks.reduce((acc, t) => acc + (t.leaderQCD?.q || 0), 0);
+    const deptSumC = deptQCDTasks.reduce((acc, t) => acc + (t.leaderQCD?.c || 0), 0);
+    const deptSumD = deptQCDTasks.reduce((acc, t) => acc + (t.leaderQCD?.d || 0), 0);
+    const deptCount = deptQCDTasks.length || 1;
+
+    const radarData = [
+      { subject: 'QUALITY', personal: avgQ, department: isAdmin ? deptSumQ / deptCount : avgQ, fullMark: 5 },
+      { subject: 'COST', personal: avgC, department: isAdmin ? deptSumC / deptCount : avgC, fullMark: 5 },
+      { subject: 'DELIVERY', personal: avgD, department: isAdmin ? deptSumD / deptCount : avgD, fullMark: 5 }
+    ];
+
+    // 5. XẾP HẠNG NHÂN SỰ (CHỈ TÍNH NHÂN SỰ CÓ VIỆC & KHÔNG BỊ XÓA)
+    const userRankingRaw: Record<string, { name: string, total: number, count: number, taskDetails: any[] }> = {};
+    // THIẾT QUÂN LUẬT: Chỉ dùng filtered đã lọc deletedAt và Scope để xếp hạng
+    filtered.forEach(t => {
+      if (t.assigneeId && t.leaderQCD) {
+        if (!userRankingRaw[t.assigneeId]) {
+          const u = users.find(user => user.uniqueKey === t.assigneeId || user.id === t.assigneeId);
+          userRankingRaw[t.assigneeId] = { name: u?.name || 'Ẩn danh', total: 0, count: 0, taskDetails: [] };
+        }
+        const taskAvg = (t.leaderQCD.q + t.leaderQCD.c + t.leaderQCD.d) / 3;
+        userRankingRaw[t.assigneeId].total += (t.leaderQCD.q + t.leaderQCD.c + t.leaderQCD.d);
+        userRankingRaw[t.assigneeId].count++;
+        userRankingRaw[t.assigneeId].taskDetails.push({
+          code: t.code,
+          title: t.title,
+          avg: parseFloat(taskAvg.toFixed(2)),
+          qcd: `Q:${t.leaderQCD.q} C:${t.leaderQCD.c} D:${t.leaderQCD.d}`
+        });
+      }
+    });
+
+    const rankingData = Object.entries(userRankingRaw || {})
+      .map(([id, u]) => ({ 
+        id,
+        name: u.name, 
+        score: parseFloat((u.total / (u.count * 3)).toFixed(1)),
+        details: u.taskDetails
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+
+    // THỐNG KÊ THEO LOẠI CÔNG VIỆC
+    const typeStatsMap: Record<string, number> = {};
+    filtered.forEach(t => {
+      const catId = t.category || 'other';
+      typeStatsMap[catId] = (typeStatsMap[catId] || 0) + 1;
+    });
+
+    const typeData = Object.entries(typeStatsMap || {}).map(([id, count]) => {
+      const cat = categories.find(c => c.id === id || c.code === id);
+      const categoryTasks = filtered.filter(t => {
+        const tCatId = t.category || 'other';
+        return tCatId === id || (cat && (t.category === cat.id || t.category === cat.code));
+      });
+      
+      let displayName = (id === 'other' || id === 'KHÁC') ? 'KHÁC' : id;
+      let shortCode = (id === 'other' || id === 'KHÁC') ? 'KHÁC' : id;
+      if (cat) {
+        displayName = `[${cat.code}] ${cat.activityName || cat.name}`;
+        shortCode = `[${cat.code}]`;
+      }
+      return {
+        name: displayName,
+        code: shortCode,
+        description: cat?.name || '',
+        tasksList: categoryTasks.map(t => ({ 
+          title: t.title, 
+          code: t.code, 
+          status: t.status,
+          isPending: t.status === 'PENDING' || t.status === 'PENDING_APPROVAL' || t.waitingApproval
+        })),
+        value: count,
+        color: id === 'other' || id === 'KHÁC' ? '#94a3b8' : getRandomColor(id)
+      };
+    }).sort((a, b) => b.value - a.value);
+
+    // Apply Top N filter if active
+    const finalTypeData = topN > 0 ? typeData.slice(0, topN) : typeData;
+
+    return {
+      total: filtered.length,
+      completed: completedTasks.length,
+      ongoing: ongoingTasks.length,
+      efficiency: eff,
+      list: filtered,
+      typeData: finalTypeData,
+      statusData: statusPieData,
+      radarData,
+      rankingData,
+      metrics: {
+        avgQ, avgC, avgD, onTimeRate
+      },
+      qcd: {
+        pass: qcdPass,
+        fail: qcdFail,
+        total: qcdTotal,
+        passRate: qcdPassRate,
+        failRate: qcdFailRate
+      }
+    };
+  };
+
+  const renderCustomizedLabel = (props: any) => {
+    const { cx, cy, midAngle, outerRadius, fill, code, percent } = props;
+    const RADIAN = Math.PI / 180;
+    const sin = Math.sin(-RADIAN * midAngle);
+    const cos = Math.cos(-RADIAN * midAngle);
+    const sx = cx + (outerRadius + 5) * cos;
+    const sy = cy + (outerRadius + 5) * sin;
+    const mx = cx + (outerRadius + 20) * cos;
+    const my = cy + (outerRadius + 20) * sin;
+    const ex = mx + (cos >= 0 ? 1 : -1) * 15;
+    const ey = my;
+    const textAnchor = cos >= 0 ? 'start' : 'end';
+
+    // Tính toán vị trí cho phần trăm bên trong miếng bánh
+    const radiusInner = outerRadius * 0.6;
+    const xInner = cx + radiusInner * cos;
+    const yInner = cy + radiusInner * sin;
+
+    return (
+      <g>
+        <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" strokeWidth={1} />
+        <circle cx={ex} cy={ey} r={2} fill={fill} stroke="none" />
+        <text 
+          x={ex + (cos >= 0 ? 1 : -1) * 8} 
+          y={ey} 
+          textAnchor={textAnchor} 
+          fill="#475569" 
+          dominantBaseline="central"
+          className="text-[12px] font-black notranslate"
+          translate="no"
+        >
+          {code}
+        </text>
+        {percent > 0.04 && (
+          <text
+            x={xInner}
+            y={yInner}
+            fill="white"
+            textAnchor="middle"
+            dominantBaseline="central"
+            className="text-[12px] font-black pointer-events-none drop-shadow-md"
+          >
+            {`${(percent * 100).toFixed(0)}%`}
+          </text>
+        )}
+      </g>
+    );
+  };
+
+  const getRandomColor = (id: string) => {
+    const colors = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+      hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  const stats = getFilteredData();
+
+  // Tạo danh sách tháng từ dữ liệu
+  const availableMonths = React.useMemo(() => {
+    const months = new Set<string>();
+    tasks.filter(t => !isTaskDeleted(t) && !t.isCycleRecord).forEach(t => {
+      // Nhất quán với logic lọc: Sử dụng Hạn hoàn thành (Deadline) và Ngày tạo
+      const d1 = getMonthYear(t.issueDate);
+      const d2 = getMonthYear(t.expectedEndDate);
+      if (d1) months.add(d1);
+      if (d2) months.add(d2);
+    });
+    return Array.from(months).sort((a, b) => {
+      const [m1, y1] = a.split('/').map(Number);
+      const [m2, y2] = b.split('/').map(Number);
+      return (y2 + 2000) * 12 + m2 - ((y1 + 2000) * 12 + m1);
+    });
+  }, [tasks]);
 
   const getAdvice = async () => {
     setLoadingAdvice(true);
-    const feedback = await getPerformanceAdvice(user, tasks);
+    const feedback = await getPerformanceAdvice(user, stats.list, currentUser);
     setAdvice(feedback);
     setLoadingAdvice(false);
   };
@@ -112,6 +446,7 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
         avatar: formData.avatar,
         password: currentPassword,
         uniqueKey: profileKey, // Đảm bảo ghi lại key
+        layoutConfig: layoutConfig, // LƯU BỐ CỤC TÙY CHỈNH
         updatedAt: new Date().toISOString()
       };
 
@@ -195,13 +530,15 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
               </div>
 
               {!isEditing && canEdit && (
-                <button 
-                  onClick={() => setIsEditing(true)}
-                  className="h-10 px-6 rounded-xl bg-white text-slate-800 text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-50 transition-all active:scale-95 flex items-center gap-2 border border-slate-200"
-                >
-                  <Edit3 size={16} strokeWidth={2.5} />
-                  <span translate="no" className="notranslate">CHỈNH SỬA</span>
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setIsEditing(true)}
+                    className="h-10 px-6 rounded-xl bg-white text-slate-800 text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-slate-50 transition-all active:scale-95 flex items-center gap-2 border border-slate-200"
+                  >
+                    <Edit3 size={16} strokeWidth={2.5} />
+                    <span translate="no" className="notranslate">CHỈNH SỬA</span>
+                  </button>
+                </div>
               )}
               {isEditing && (
                 <div className="flex gap-2">
@@ -405,73 +742,569 @@ export const ProfilePage = ({ currentUser, tasks, users, onUpdateProfile }: Prof
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-4 px-0">
-             <StatCard icon={<FileText size={14} strokeWidth={3} />} label="Tổng dự án" value={myTasks.length} color="bg-amber-500" borderColor="border-amber-600" />
-             <StatCard icon={<CheckCircle2 size={14} strokeWidth={3} />} label="Hiệu suất" value={`${efficiency}%`} color="bg-emerald-500" borderColor="border-emerald-600" />
-             <StatCard icon={<Clock size={14} strokeWidth={3} />} label="Đang xử lý" value={ongoing} color="bg-red-500" borderColor="border-red-600" />
-             <StatCard icon={<CheckCircle size={14} strokeWidth={3} />} label="Hoàn thành" value={completed} color="bg-blue-600" borderColor="border-blue-700" />
-          </div>
-        </div>
+          {/* BỘ LỌC THỐNG KÊ LINH HOẠT - THIẾT QUÂN LUẬT */}
+          <div className="bg-slate-50/50 p-2 rounded-[24px] border border-slate-100 flex items-center gap-4 shadow-inner">
+            {isAdmin && (
+              <div className="flex bg-white rounded-xl border border-slate-200 p-1 shadow-sm shrink-0">
+                <button 
+                  onClick={() => setFilterScope('mine')}
+                  className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${filterScope === 'mine' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+                >
+                  <Target size={12} /> CÁ NHÂN
+                </button>
+                <button 
+                  onClick={() => setFilterScope('department')}
+                  className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${filterScope === 'department' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+                >
+                  <Users size={12} /> CẢ PHÒNG
+                </button>
+                <div className="relative group ml-2">
+                  <select 
+                    value={(filterScope || '').length > 15 ? filterScope : ''} 
+                    onChange={(e) => setFilterScope(e.target.value)}
+                    className="appearance-none bg-slate-100 border-none rounded-lg px-4 pr-10 py-1.5 text-[10px] font-black text-slate-700 uppercase outline-none cursor-pointer hover:bg-slate-200 transition-colors"
+                  >
+                    <option value="">CHỌN NHÂN SỰ</option>
+                    {users.filter(u => u.id !== user?.id).map(u => (
+                      <option key={u.uniqueKey} value={u.uniqueKey}>{(u.name || '').toUpperCase()}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+            )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 translate="no" className="notranslate text-[12px] font-black text-gray-800 flex items-center gap-2 uppercase tracking-tighter">
-                    <FileText className="text-blue-600" />
-                    LỊCH SỬ CÔNG VIỆC CHI TIẾT
-                  </h3>
-                </div>
-                <div className="space-y-4">
-                  {myTasks.length === 0 ? (
-                    <p className="text-center text-gray-400 py-10 italic">
-                      <span translate="no" className="notranslate">Chưa có dữ liệu công việc.</span>
-                    </p>
-                  ) : (
-                    myTasks.slice(0, 5).map((t) => (
-                      <div key={t.id} className="p-5 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-between group hover:bg-white hover:border-blue-200 hover:shadow-md transition-all">
-                        <div className="space-y-1">
-                          <p translate="no" className="notranslate text-sm font-bold text-gray-800 group-hover:text-blue-600 transition-colors uppercase">{t.title}</p>
-                          <div className="flex items-center gap-3">
-                            <span translate="no" className="notranslate text-[10px] font-black text-blue-500/60 uppercase">MÃ: {t.code}</span>
-                            <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1">
-                              <Clock size={10} /> 
-                              <span translate="no" className="notranslate">HẠN: {formatDate(t.expectedEndDate)}</span>
-                            </span>
-                          </div>
-                        </div>
-                        <span className={`text-[9px] font-black px-3 py-1 rounded-lg uppercase tracking-widest border ${
-                          t.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'
-                        }`}>
-                          <span translate="no" className="notranslate">{t.status === 'COMPLETED' ? 'HOÀN THÀNH' : 'ĐANG XỬ LÝ'}</span>
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
+            <div className="flex-1"></div>
+
+            <div className="flex items-center gap-2 bg-white rounded-xl border border-slate-200 px-4 py-2 shadow-sm shrink-0">
+              <Calendar size={14} className="text-blue-500" />
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">THÁNG LỌC:</span>
+              <select 
+                value={selectedMonth} 
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="bg-transparent border-none outline-none text-[12px] font-bold text-slate-900 cursor-pointer"
+              >
+                <option value="all">TẤT CẢ</option>
+                {availableMonths.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
             </div>
           </div>
 
-          <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 h-fit flex flex-col gap-6">
-            <h3 translate="no" className="notranslate text-[12px] font-black text-gray-800 flex items-center gap-2 uppercase tracking-tighter">
-              <MessageSquare className="text-blue-600" />
-              TƯ VẤN HIỆU SUẤT AI
-            </h3>
-            {advice ? (
-              <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 animate-in zoom-in-95 duration-300 shadow-inner">
-                 <div className="prose prose-sm prose-blue text-xs leading-relaxed text-gray-700 whitespace-pre-wrap font-medium notranslate" translate="no">
-                   {advice}
-                 </div>
-                 <button onClick={getAdvice} className="mt-6 text-[10px] font-black text-blue-600 hover:underline border-none bg-transparent cursor-pointer">
-                   <span translate="no" className="notranslate">LÀM MỚI PHÂN TÍCH</span>
-                 </button>
-              </div>
-            ) : (
-              <button onClick={getAdvice} disabled={loadingAdvice} className="w-full bg-gray-900 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all disabled:opacity-50 text-xs uppercase tracking-widest shadow-xl active:scale-95">
-                {loadingAdvice ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span translate="no" className="notranslate">BẮT ĐẦU PHÂN TÍCH AI</span>}
-              </button>
-            )}
+          <div className="grid grid-cols-4 gap-4 px-0">
+             <StatCard icon={<FileText size={14} strokeWidth={3} />} label="Tổng dự án" value={stats.total} color="bg-amber-500" borderColor="border-amber-600" />
+             <StatCard icon={<CheckCircle2 size={14} strokeWidth={3} />} label="Hiệu suất" value={`${stats.efficiency}%`} color="bg-emerald-500" borderColor="border-emerald-600" />
+             <StatCard icon={<Clock size={14} strokeWidth={3} />} label="Đang xử lý" value={stats.ongoing} color="bg-red-500" borderColor="border-red-600" />
+             <StatCard icon={<CheckCircle size={14} strokeWidth={3} />} label="Hoàn thành" value={stats.completed} color="bg-blue-600" borderColor="border-blue-700" />
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {layoutConfig.sort((a,b) => (a.order || 0) - (b.order || 0)).map((item, index) => {
+            const isPersonalView = filterScope !== 'department';
+            const contextLabel = isPersonalView ? 'CÁ NHÂN' : 'HỆ THỐNG';
+            const activeProfileKey = filterScope === 'mine' ? currentUser?.uniqueKey : filterScope;
+
+            if (item.id === 'TYPE_STATS') {
+              return (
+                <div key={item.id} style={{ gridColumn: `span ${item.span || 4} / span ${item.span || 4}`, minHeight: `${item.height || 350}px` }} className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex flex-col gap-2 relative">
+                  <div className="flex items-center justify-between px-2 pt-2">
+                    <h3 translate="no" className="notranslate text-[12px] font-black text-slate-800 flex items-center gap-2 uppercase tracking-[0.1em]">
+                      <BarChart3 size={16} className="text-blue-600" />
+                      LOẠI CÔNG VIỆC
+                    </h3>
+                    <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                      <span className="text-[8px] font-black text-slate-400 uppercase leading-none">TOP:</span>
+                      <select 
+                        value={topN}
+                        onChange={(e) => setTopN(Number(e.target.value))}
+                        className="bg-transparent border-none outline-none text-[9px] font-black text-blue-600 cursor-pointer"
+                      >
+                        <option value={0}>TẤT CẢ</option>
+                        <option value={3}>3</option>
+                        <option value={5}>5</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar" style={{ maxHeight: `${(item.height || 350) - 100}px` }}>
+                    {stats.typeData.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-10 opacity-30">
+                        <PieChartIcon size={40} />
+                        <p className="text-[10px] font-bold mt-2">CHƯA CÓ DỮ LIỆU</p>
+                      </div>
+                    ) : (
+                      stats.typeData.map((type, idx) => (
+                        <div key={idx} className="flex flex-col p-3 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all group shadow-sm overflow-hidden min-h-[52px] justify-center">
+                          <div className="flex items-start justify-between w-full gap-4">
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <div className="w-2 h-2 rounded-full shrink-0 mt-1" style={{ backgroundColor: type.color }}></div>
+                              <span translate="no" className="notranslate text-[11px] font-bold text-slate-700 uppercase whitespace-normal break-words leading-tight">{type.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                              <span className="text-[14px] font-black text-slate-900">{type.value}</span>
+                              <span className="text-[9px] font-bold text-slate-400">({Math.round((type.value / stats.total) * 100)}%)</span>
+                            </div>
+                          </div>
+                          {type.tasksList && type.tasksList.length > 0 && (
+                            <div className="max-h-0 opacity-0 group-hover:max-h-48 group-hover:opacity-100 group-hover:mt-3 transition-all duration-300 overflow-y-auto custom-scrollbar-slim">
+                              <div className="pt-2 border-t border-slate-200/50 space-y-1.5">
+                                {type.tasksList.slice(0, 15).map((t: any, i: number) => (
+                                  <div key={i} className="flex items-start gap-2 bg-white/50 p-1.5 rounded-xl border border-slate-100/50 shadow-sm">
+                                    <div className="flex flex-col items-center shrink-0 min-w-[36px]">
+                                      <span className="text-[8px] text-blue-600 font-black leading-none">{t.code}</span>
+                                      <span className={`text-[6px] font-black uppercase mt-1 px-1 py-0.5 rounded-md ${
+                                        t.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-600' : 
+                                        t.isPending ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
+                                      }`}>
+                                        {t.status === 'COMPLETED' ? 'DONE' : t.isPending ? 'WAIT' : 'DOING'}
+                                      </span>
+                                    </div>
+                                    <p translate="no" className="notranslate text-[9px] font-bold text-slate-600 leading-tight py-0.5">
+                                      {t.title}
+                                    </p>
+                                  </div>
+                                ))}
+                                {type.tasksList.length > 15 && (
+                                  <p className="text-[9px] text-blue-500 font-black italic px-2 pt-1 uppercase tracking-tighter">...và {type.tasksList.length - 15} công việc khác</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            if (item.id === 'CHART') {
+              return (
+                <div key={item.id} style={{ gridColumn: `span ${item.span || 5} / span ${item.span || 5}`, minHeight: `${item.height || 350}px` }} className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex flex-col gap-2 relative">
+                  <h3 translate="no" className="notranslate text-[12px] font-black text-slate-800 flex items-center gap-2 uppercase tracking-[0.1em] px-2 pt-2">
+                    <TrendingUp size={16} className="text-emerald-600" />
+                    CƠ CẤU CÔNG VIỆC
+                  </h3>
+                  <div className="flex-1 w-full min-h-[250px]" style={{ minHeight: `${(item.height || 370) - 100}px`, position: 'relative' }}>
+                    {stats.typeData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                        <PieChart>
+                          <Pie
+                            data={stats.typeData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={0}
+                            outerRadius={Math.min((item.height || 450) / 2.8, 160)}
+                            paddingAngle={2}
+                            dataKey="value"
+                            label={renderCustomizedLabel}
+                            labelLine={false}
+                          >
+                            {stats.typeData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip 
+                            contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 'bold' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center opacity-20">
+                        <div className="w-32 h-32 rounded-full border-8 border-dashed border-slate-300"></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            if (item.id === 'STATUS_CHART') {
+              return (
+                <div key={item.id} style={{ gridColumn: `span ${item.span || 4} / span ${item.span || 4}`, minHeight: `${item.height || 350}px` }} className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex flex-col gap-2 relative">
+                  <h3 translate="no" className="notranslate text-[12px] font-black text-slate-800 flex items-center gap-2 uppercase tracking-[0.1em] px-2 pt-2">
+                    <PieChartIcon size={16} className="text-amber-500" />
+                    TRẠNG THÁI {contextLabel}
+                    <span className="text-[8px] text-slate-400 font-bold ml-auto">(DỮ LIỆU LÃNH ĐẠO)</span>
+                  </h3>
+                  <div className="flex-1 w-full min-h-[250px]" style={{ minHeight: `${(item.height || 370) - 100}px`, position: 'relative' }}>
+                    {stats.statusData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                        <PieChart>
+                          <Pie
+                            data={stats.statusData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={Math.min((item.height || 450) / 5, 80)}
+                            outerRadius={Math.min((item.height || 450) / 2.8, 160)}
+                            paddingAngle={5}
+                            dataKey="value"
+                            labelLine={false}
+                            label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+                              const RADIAN = Math.PI / 180;
+                              const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                              const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                              const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                              return (
+                                <text 
+                                  x={x} 
+                                  y={y} 
+                                  fill="white" 
+                                  textAnchor="middle" 
+                                  dominantBaseline="central"
+                                  className="text-[11px] font-black notranslate pointer-events-none drop-shadow-md" 
+                                  translate="no"
+                                >
+                                  {`${(percent * 100).toFixed(0)}%`}
+                                </text>
+                              );
+                            }}
+                          >
+                            {stats.statusData.map((entry: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend 
+                            verticalAlign="bottom" 
+                            height={25} 
+                            formatter={(value) => <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">{value}</span>}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center opacity-20">
+                         <p className="text-[10px] font-black">CHƯA CÓ DỮ LIỆU</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            if (item.id === 'RADAR_CHART') {
+              return (
+                <div key={item.id} style={{ gridColumn: `span ${item.span || 4} / span ${item.span || 4}`, minHeight: `${item.height || 350}px` }} className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex flex-col gap-2 relative">
+                  <h3 translate="no" className="notranslate text-[12px] font-black text-slate-800 flex items-center gap-2 uppercase tracking-[0.1em] px-2 pt-2">
+                    <Target size={16} className="text-purple-600" />
+                    NĂNG LỰC QCD
+                    <span className="text-[8px] text-slate-400 font-bold ml-auto">(TỪ LÃNH ĐẠO)</span>
+                  </h3>
+                  <div className="flex-1 w-full min-h-[250px]" style={{ minHeight: `${(item.height || 370) - 100}px`, position: 'relative' }}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                      <RadarChart cx="50%" cy="50%" outerRadius="80%" data={stats.radarData}>
+                        <PolarGrid />
+                        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 'black', fill: '#64748b' }} />
+                        <PolarRadiusAxis angle={30} domain={[0, 5]} tick={{ fontSize: 9 }} />
+                        <Radar name="Phòng" dataKey="department" stroke="#cbd5e1" fill="#cbd5e1" fillOpacity={0.5} />
+                        <Radar name="Cá nhân" dataKey="personal" stroke="#2563eb" fill="#2563eb" fillOpacity={0.6} />
+                        <Tooltip />
+                        <Legend 
+                          verticalAlign="bottom" 
+                          height={25} 
+                          formatter={(value) => <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">{value}</span>}
+                        />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              );
+            }
+
+            if (item.id === 'RANKING_CHART') {
+              return (
+                <div key={item.id} style={{ gridColumn: `span ${item.span || 4} / span ${item.span || 4}`, minHeight: `${item.height || 350}px` }} className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex flex-col gap-2 relative">
+                  <h3 translate="no" className="notranslate text-[12px] font-black text-slate-800 flex items-center gap-2 uppercase tracking-[0.1em] px-2 pt-2">
+                    <BarChart3 size={16} className="text-blue-600" />
+                    XẾP HẠNG PHÒNG
+                    <span className="text-[8px] text-blue-400 font-bold ml-auto">(ĐIỂM LÃNH ĐẠO CHẤM)</span>
+                  </h3>
+                  <div className="flex-1 w-full min-h-[250px]" style={{ minHeight: `${(item.height || 370) - 100}px`, position: 'relative' }}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                      <BarChart data={stats.rankingData} layout="vertical" margin={{ left: 0, right: 35, top: 10, bottom: 0 }}>
+                        <XAxis type="number" hide domain={[0, 5]} />
+                        <YAxis dataKey="name" type="category" width={60} tick={{ fontSize: 10, fontWeight: 'bold', fill: '#64748b' }} />
+                        <Tooltip 
+                           contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)', padding: '16px' }}
+                           cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }}
+                           content={({ active, payload }) => {
+                             if (active && payload && payload.length && payload[0].payload) {
+                               const data = payload[0].payload;
+                               return (
+                                 <div className="bg-white/95 backdrop-blur-md p-4 rounded-[24px] shadow-2xl border border-slate-100 flex flex-col gap-3 min-w-[220px]">
+                                   <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                     <span className="text-[11px] font-black text-slate-800 uppercase tracking-widest">{data.name || 'ẨN DANH'}</span>
+                                     <span className="text-sm font-black text-blue-600">{data.score || 0}</span>
+                                   </div>
+                                   <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto custom-scrollbar-slim pr-1">
+                                     {data.details && Array.isArray(data.details) && data.details.map((d: any, idx: number) => (
+                                       <div key={idx} className="flex flex-col gap-1 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                                         <div className="flex items-center justify-between">
+                                           <span className="text-[9px] font-black text-blue-600">{d.code || 'N/A'}</span>
+                                           <span className="text-[9px] font-black text-slate-400">TB: {d.avg || 0}</span>
+                                         </div>
+                                         <p translate="no" className="notranslate text-[9px] font-bold text-slate-600 leading-tight border-l-2 border-blue-200 pl-2">
+                                           {d.title || 'Không có tiêu đề'}
+                                         </p>
+                                         <span translate="no" className="notranslate text-[8px] font-black text-slate-500 uppercase tracking-tighter bg-white/50 self-start px-1.5 py-0.5 rounded border border-slate-100">
+                                           {d.qcd || 'Q:0 C:0 D:0'}
+                                         </span>
+                                       </div>
+                                     ))}
+                                   </div>
+                                   <div className="pt-1 text-center">
+                                     <span className="text-[8px] text-slate-400 font-bold uppercase">TỔNG: {Array.isArray(data.details) ? data.details.length : 0} CÔNG VIỆC</span>
+                                   </div>
+                                 </div>
+                               );
+                             }
+                             return null;
+                           }}
+                        />
+                        <Bar 
+                          dataKey="score" 
+                          radius={[0, 10, 10, 0]} 
+                          label={{ position: 'right', fontSize: 10, fontWeight: 'black', fill: '#64748b' }}
+                        >
+                          {stats.rankingData.map((entry: any, index: number) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={entry.id === activeProfileKey ? '#f59e0b' : '#2563eb'} 
+                            />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              );
+            }
+
+            if (item.id === 'AI') {
+              return (
+                <div key={item.id} style={{ gridColumn: 'span 12 / span 12', minHeight: 'auto' }} className="bg-white p-0 rounded-[28px] shadow-sm border border-slate-100 flex flex-col relative overflow-hidden">
+                  
+                  <div className="flex flex-col w-full h-full">
+                    {/* Header với Icon - Cực kỳ gọn gàng */}
+                     <div className="flex items-center gap-3 px-4 py-3 bg-white/80 backdrop-blur-md z-10 sticky top-0 border-b border-slate-50">
+                        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center border-2 border-white shadow-md relative shrink-0">
+                           <div className="absolute inset-0 bg-blue-400/20 rounded-full animate-ping opacity-20"></div>
+                           <JobAvatar size={18} animate />
+                        </div>
+                        <div className="flex items-center gap-2 min-w-0">
+                           <h3 translate="no" className="notranslate text-[12px] font-black text-slate-800 uppercase tracking-[0.2em] whitespace-nowrap">
+                             KẾT QUẢ AI PHÂN TÍCH
+                           </h3>
+                           <div className="h-0.5 w-6 bg-blue-600/20 rounded-full"></div>
+                        </div>
+
+                        {/* Button Hướng dẫn QCD */}
+                        <div className="flex-1 flex justify-end px-2">
+                           <button 
+                             onClick={() => setShowScoringGuide(!showScoringGuide)}
+                             className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all flex items-center gap-2 group shrink-0 shadow-sm"
+                           >
+                              <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center shrink-0">
+                                <HelpCircle size={12} className="text-white" />
+                              </div>
+                              <span translate="no" className="notranslate text-[10px] font-black text-blue-700 uppercase tracking-widest hidden sm:inline">
+                                HƯỚNG DẪN CHẤM ĐIỂM QCD (NHẤN ĐỂ XEM)
+                              </span>
+                              <span translate="no" className="notranslate text-[10px] font-black text-blue-700 uppercase tracking-widest sm:hidden">
+                                HƯỚNG DẪN QCD
+                              </span>
+                              <ChevronDown size={14} className={`text-blue-600 transition-transform duration-300 ${showScoringGuide ? 'rotate-180' : ''}`} />
+                           </button>
+                        </div>
+                     </div>
+
+                     {/* Bảng Hướng dẫn Collapsible */}
+                     <AnimatePresence>
+                       {showScoringGuide && (
+                         <motion.div 
+                           initial={{ height: 0, opacity: 0 }}
+                           animate={{ height: 'auto', opacity: 1 }}
+                           exit={{ height: 0, opacity: 0 }}
+                           transition={{ duration: 0.3, ease: 'easeInOut' }}
+                           className="overflow-hidden bg-white border-b border-slate-50"
+                         >
+                           <div className="px-4 py-4 flex flex-col gap-6">
+                             {/* BỘ KHUNG 5 MỨC ĐỘ */}
+                             <div>
+                                <div className="flex items-center gap-2 mb-4">
+                                   <div className="w-1.5 h-4 bg-blue-600 rounded-full"></div>
+                                   <h4 translate="no" className="notranslate text-[11px] font-black text-slate-800 uppercase tracking-widest">
+                                     BỘ KHUNG 5 MỨC ĐỘ
+                                   </h4>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                                   {[
+                                     { l: 'MỨC 5 (XUẤT SẮC)', c: 'Hoàn thành tốt nhiệm vụ; Có ứng dụng AI hoặc Sáng kiến giúp việc nhanh hơn, nhàn hơn; Được cấp trên khen ngợi.', bg: 'bg-indigo-50/50', txt: 'text-indigo-700', border: 'border-indigo-100' },
+                                     { l: 'MỨC 4 (TỐT)', c: 'Hoàn thành đúng hạn; Kết quả sạch sẽ, ít sai sót; Sắp xếp công việc khoa học.', bg: 'bg-blue-50/50', txt: 'text-blue-700', border: 'border-blue-100' },
+                                     { l: 'MỨC 3 (ĐẠT - 100% KPI)', c: 'Hoàn thành đầy đủ việc được giao; Đúng tiến độ; Đạt yêu cầu chất lượng cơ bản của công ty.', bg: 'bg-emerald-50/50', txt: 'text-emerald-700', border: 'border-emerald-100' },
+                                     { l: 'MỨC 2 (CẦN CỐ GẮNG)', c: 'Còn sai sót nhỏ phải nhắc nhở; Trễ hạn nhẹ.', bg: 'bg-amber-50/50', txt: 'text-amber-700', border: 'border-amber-100' },
+                                     { l: 'MỨC 1 (KÉM)', c: 'Không hoàn thành việc; Sai sót gây hậu quả; Thiếu trách nhiệm.', bg: 'bg-rose-50/50', txt: 'text-rose-700', border: 'border-rose-100' }
+                                   ].map((m, i) => (
+                                     <div key={i} className={`${m.bg} p-3 rounded-2xl border ${m.border} flex flex-col gap-2 transition-transform hover:scale-[1.02]`}>
+                                       <span translate="no" className={`notranslate text-[10px] font-black ${m.txt} uppercase tracking-tighter`}>
+                                         {m.l}
+                                       </span>
+                                       <span translate="no" className="notranslate text-[11px] text-slate-600 leading-relaxed font-medium">
+                                         {m.c}
+                                       </span>
+                                     </div>
+                                   ))}
+                                </div>
+                             </div>
+
+                             {/* GỢI Ý TÁC CHIẾN */}
+                             <div>
+                                <div className="flex items-center gap-2 mb-4">
+                                   <div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>
+                                   <h4 translate="no" className="notranslate text-[11px] font-black text-slate-800 uppercase tracking-widest">
+                                     GỢI Ý TÁC CHIẾN (MẸO ĐẠT ĐIỂM 4-5)
+                                   </h4>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                   <div className="bg-white border border-slate-100 p-4 rounded-2xl flex items-start gap-4 shadow-sm hover:shadow-md transition-shadow">
+                                     <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                                       <span translate="no" className="notranslate font-black text-blue-600 text-sm">Q</span>
+                                     </div>
+                                     <div className="flex flex-col gap-1">
+                                       <span translate="no" className="notranslate text-[10px] font-black text-blue-600 uppercase tracking-widest">QUALITY</span>
+                                       <span translate="no" className="notranslate text-[11px] text-slate-600 leading-tight">
+                                         Hồ sơ chuẩn 100%, không lỗi chính tả/số liệu, không cần sửa lại.
+                                       </span>
+                                     </div>
+                                   </div>
+
+                                   <div className="bg-white border border-slate-100 p-4 rounded-2xl flex items-start gap-4 shadow-sm hover:shadow-md transition-shadow">
+                                     <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                                       <span translate="no" className="notranslate font-black text-emerald-600 text-sm">C</span>
+                                     </div>
+                                     <div className="flex flex-col gap-1">
+                                       <span translate="no" className="notranslate text-[10px] font-black text-emerald-600 uppercase tracking-widest">COST</span>
+                                       <span translate="no" className="notranslate text-[11px] text-slate-600 leading-tight">
+                                         Dùng AI hoặc sáng kiến giảm &gt;30% thời gian làm việc.
+                                       </span>
+                                     </div>
+                                   </div>
+
+                                   <div className="bg-white border border-slate-100 p-4 rounded-2xl flex items-start gap-4 shadow-sm hover:shadow-md transition-shadow">
+                                     <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
+                                       <span translate="no" className="notranslate font-black text-indigo-600 text-sm">D</span>
+                                     </div>
+                                     <div className="flex flex-col gap-1">
+                                       <span translate="no" className="notranslate text-[10px] font-black text-indigo-600 uppercase tracking-widest">DELIVERY</span>
+                                       <span translate="no" className="notranslate text-[11px] text-slate-600 leading-tight">
+                                         Gửi báo cáo sớm hơn hạn định hoặc xử lý việc khẩn siêu tốc.
+                                       </span>
+                                     </div>
+                                   </div>
+                                </div>
+                             </div>
+                           </div>
+                         </motion.div>
+                       )}
+                     </AnimatePresence>
+
+                    {/* Content Area - Bung sát viền tối đa, giảm padding dọc */}
+                    <div className="flex-1 w-full p-1 flex flex-col gap-1">
+                      {/* THỐNG KÊ CHI TIẾT (TOP TILES GỌN) */}
+                      <div className="px-3 pt-2 grid grid-cols-4 gap-2">
+                        <div className="bg-white border border-slate-100 rounded-2xl p-3 flex flex-col items-center justify-center shadow-sm">
+                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">ĐIỂM Q (TB)</span>
+                           <span className="text-xl font-black text-blue-600">{stats.metrics.avgQ}</span>
+                        </div>
+                        <div className="bg-white border border-slate-100 rounded-2xl p-3 flex flex-col items-center justify-center shadow-sm">
+                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">ĐIỂM C (TB)</span>
+                           <span className="text-xl font-black text-emerald-600">{stats.metrics.avgC}</span>
+                        </div>
+                        <div className="bg-white border border-slate-100 rounded-2xl p-3 flex flex-col items-center justify-center shadow-sm">
+                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">ĐIỂM D (TB)</span>
+                           <span className="text-xl font-black text-amber-600">{stats.metrics.avgD}</span>
+                        </div>
+                        <div className="bg-white border border-slate-100 rounded-2xl p-3 flex flex-col items-center justify-center shadow-sm">
+                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">ĐÚNG HẠN (%)</span>
+                           <span className="text-xl font-black text-indigo-600">{stats.metrics.onTimeRate}%</span>
+                        </div>
+                      </div>
+
+                      {/* THỐNG KÊ QCD - THEO MÔ HÌNH TRÊN PHÂN TÍCH, DƯỚI NHẬN XÉT */}
+                      <div className="px-3 pt-2 pb-1 grid grid-cols-2 gap-2">
+                        <div className="bg-emerald-50 rounded-2xl p-3 border border-emerald-100 flex flex-col gap-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[12px] font-black text-emerald-600 uppercase tracking-widest">ĐẠT QCD</span>
+                            <div className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center">
+                              <CheckCircle size={10} className="text-white" strokeWidth={3} />
+                            </div>
+                          </div>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-xl font-black text-emerald-900">{stats.qcd.pass}</span>
+                            <span className="text-[10px] font-bold text-emerald-500">việc</span>
+                          </div>
+                          <div className="w-full h-1 bg-emerald-100 rounded-full mt-1 overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${stats.qcd.passRate}%` }}></div>
+                          </div>
+                          <span className="text-[9px] font-bold text-emerald-600 mt-0.5">Tỷ lệ: {stats.qcd.passRate}%</span>
+                        </div>
+
+                        <div className="bg-rose-50 rounded-2xl p-3 border border-rose-100 flex flex-col gap-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[12px] font-black text-rose-600 uppercase tracking-widest">KHÔNG ĐẠT</span>
+                            <div className="w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center">
+                              <Clock size={10} className="text-white" strokeWidth={3} />
+                            </div>
+                          </div>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-xl font-black text-rose-900">{stats.qcd.fail}</span>
+                            <span className="text-[10px] font-bold text-rose-500">việc</span>
+                          </div>
+                          <div className="w-full h-1 bg-rose-100 rounded-full mt-1 overflow-hidden">
+                            <div className="h-full bg-rose-500 rounded-full" style={{ width: `${stats.qcd.failRate}%` }}></div>
+                          </div>
+                          <span className="text-[9px] font-bold text-rose-600 mt-0.5">Tỷ lệ: {stats.qcd.failRate}%</span>
+                        </div>
+                      </div>
+
+                      {advice ? (
+                        <div className="bg-slate-50/40 rounded-[22px] p-4 lg:p-5 h-full border border-slate-100 flex flex-col animate-in fade-in duration-500 flex-1">
+                          <div className="prose prose-sm prose-blue text-[13.5px] leading-relaxed text-slate-700 whitespace-pre-wrap font-medium notranslate translate-no flex-1 max-h-[120px] overflow-y-auto custom-scrollbar-slim pr-1" translate="no">
+                            {advice}
+                          </div>
+                          <div className="mt-2 flex justify-end">
+                            <button onClick={getAdvice} className="text-[9px] font-black text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-widest flex items-center gap-2 group">
+                              <span translate="no" className="notranslate underline underline-offset-4 decoration-blue-200">LÀM MỚI PHÂN TÍCH</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-full flex items-center justify-center p-4 min-h-[80px]">
+                          <button 
+                            onClick={getAdvice} 
+                            disabled={loadingAdvice} 
+                            className="w-full max-w-sm bg-blue-600 text-white font-black py-3 px-8 rounded-xl flex items-center justify-center gap-4 transition-all hover:bg-blue-700 hover:shadow-lg disabled:opacity-50 text-[10px] uppercase tracking-[0.2em] shadow-md shadow-blue-100 active:scale-95 group"
+                          >
+                            {loadingAdvice ? (
+                              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                              <>
+                                <Sparkles size={14} className="text-amber-400 group-hover:rotate-12 transition-transform" />
+                                <span translate="no" className="notranslate">KÍCH HOẠT PHÂN TÍCH AI</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            return null;
+          })}
         </div>
       </div>
     </div>

@@ -4,7 +4,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Send, X, User, Loader2, Sparkles } from 'lucide-react';
 import { Task, AIChatMessage, User as UserType } from '../../types';
 import { GoogleGenAI } from "@google/genai";
-import { RobotAvatar } from '../common/RobotAvatar';
+import { JobAvatar } from '../common/JobAvatar';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 interface TaskAIChatProps {
   task: Task;
@@ -88,30 +90,56 @@ export const TaskAIChat: React.FC<TaskAIChatProps> = ({
     }
   }, [taskMessages, loading]);
 
-  const handleSend = async () => {
-    if (!input.trim() || loading) return;
+  // AUTO-TRIGGER FIRST MESSAGE ON OPEN
+  useEffect(() => {
+    if (taskMessages.length === 0 && !loading) {
+      handleSend(true);
+    }
+  }, []);
 
-    const userMsg = input.trim();
-    setInput('');
+  const handleSend = async (isInitialMode = false) => {
+    if ((!input.trim() && !isInitialMode) || loading) return;
+
+    const userMsg = isInitialMode ? "(Yêu cầu hỗ trợ công việc)" : input.trim();
+    if (!isInitialMode) setInput('');
     setLoading(true);
 
     try {
-      // 1. Save user message to Firebase
-      await onSendMessage({
-        taskId: task.id,
-        userId: currentUser.uniqueKey || currentUser.id,
-        role: 'user',
-        content: userMsg,
-        timestamp: new Date().toISOString()
-      });
+      // 1. CACHE CHECK: "Nhớ bài - Không hỏi lại"
+      const currentTaskContent = `${task.title} | ${task.objective} | ${task.expectedEndDate}`;
+      if (isInitialMode && task.last_ai_content === currentTaskContent && task.last_ai_response) {
+        await onSendMessage({
+          taskId: task.id,
+          userId: currentUser.uniqueKey || currentUser.id,
+          role: 'assistant',
+          content: task.last_ai_response,
+          timestamp: new Date().toISOString()
+        });
+        setLoading(false);
+        return;
+      }
 
-      // 2. Call Gemini
+      // 2. Save user message to Firebase (only if not initial auto-trigger)
+      if (!isInitialMode) {
+        await onSendMessage({
+          taskId: task.id,
+          userId: currentUser.uniqueKey || currentUser.id,
+          role: 'user',
+          content: userMsg,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // 3. Call Gemini
       const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        throw new Error("Sếp Trường ơi, Robot chưa được nạp khóa API trên Vercel. Sếp kiểm tra lại nhé!");
+        throw new Error("Sếp Trường ơi, JOB chưa được nạp khóa API trên Vercel. Sếp kiểm tra lại nhé!");
       }
-      const googleAi = new GoogleGenAI({ apiKey });
-      const systemPrompt = `Bạn là INOCHI, Robot trợ lý AI chuyên nghiệp và thân thiện. 
+
+      let aiText = "";
+      try {
+        const googleAi = new GoogleGenAI({ apiKey });
+        const systemPrompt = `Bạn là JOB, trợ lý AI chuyên nghiệp và thân thiện. 
 Nhiệm vụ của bạn: Nhắc nhở và hỗ trợ người dùng hoàn thành công việc.
 Công việc hiện tại: "${task.title}"
 Mục tiêu: "${task.objective}"
@@ -120,27 +148,46 @@ Người đang nói chuyện với bạn: ${currentUser.name} (${currentUser.rol
 Nhân viên phụ trách chính: ${assigneeName || 'Chưa xác định'}
 
 Yêu cầu:
-1. Luôn xưng hô lịch sự, thân thiện, xưng "Inochi" và gọi người dùng là "Sếp" hoặc "Bạn" tùy vai trò.
+1. Luôn xưng hô lịch sự, thân thiện, xưng "JOB" và gọi người dùng là "Sếp" hoặc "Bạn" tùy vai trò.
 2. Nếu là nhân viên phụ trách: Tập trung vào việc thúc đẩy tiến độ, gợi ý giải pháp.
 3. Nếu là Admin: Hỗ trợ phân tích công việc, gợi ý cách quản lý hoặc kiểm tra.
 4. Trả lời ngắn gọn, súc tích bằng tiếng Việt.
 5. Đây là cuộc hội thoại riêng tư chỉ giữa bạn và người này, người khác không thấy nội dung này.`;
 
-      const response = await googleAi.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          { role: 'user', parts: [{ text: systemPrompt }] },
-          ...taskMessages.map(m => ({
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: m.content }]
-          })),
-          { role: 'user', parts: [{ text: userMsg }] }
-        ]
-      });
+        const response = await googleAi.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: [
+            { role: 'user', parts: [{ text: systemPrompt }] },
+            ...taskMessages.map(m => ({
+              role: m.role === 'assistant' ? 'model' : 'user',
+              parts: [{ text: m.content }]
+            })),
+            { role: 'user', parts: [{ text: userMsg }] }
+          ]
+        });
 
-      const aiText = response.text || "Xin lỗi, tôi gặp chút trục trặc. Bạn cần hỗ trợ gì thêm không?";
+        aiText = response.text || "Xin lỗi, tôi gặp chút trục trặc. Bạn cần hỗ trợ gì thêm không?";
 
-      // 3. Save AI message to Firebase
+        // 4. Update Cache in Firestore
+        const taskRef = doc(db, 'tasks', task.id);
+        await updateDoc(taskRef, {
+          last_ai_content: currentTaskContent,
+          last_ai_response: aiText
+        });
+
+      } catch (geminiError: any) {
+        // FALLBACK BRAIN: Xử lý lỗi Quota (429) hoặc lỗi mạng
+        if (geminiError?.status === 429 || geminiError?.message?.includes('429')) {
+          console.warn("Gemini Quota Exceeded. Using Fallback Brain.");
+          const deadline = task.expectedEndDate || task.dueDate || 'chưa định';
+          const objective = task.objective || task.title;
+          aiText = `${currentUser.name} ơi, hiện JOB đang quá tải (Quota), nhưng JOB nhắc nè: hạn ${deadline} sắp đến, mục tiêu "${objective}" tiến hành đến đâu rồi? Sếp cần tập trung hoàn thành nhé!`;
+        } else {
+          throw geminiError;
+        }
+      }
+
+      // 5. Save AI message to Firebase
       await onSendMessage({
         taskId: task.id,
         userId: currentUser.uniqueKey || currentUser.id,
@@ -222,7 +269,7 @@ Yêu cầu:
         style={{ width: dimensions.width, height: dimensions.height, maxHeight: '80vh' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Minimalist Comic Tail SVG */}
+        {/* Minimalist Tip SVG */}
         <svg className="absolute inset-0 overflow-visible pointer-events-none z-[-1]">
           <path 
             d="M -10 24 L 0 16 L 0 32 Z" 
@@ -235,10 +282,10 @@ Yêu cầu:
         {/* Header Compact - Drag handle */}
         <div className="bg-blue-600 px-2 py-1 flex items-center justify-between shadow-sm cursor-grab active:cursor-grabbing rounded-t-xl shrink-0">
           <div className="flex items-center gap-1">
-            <RobotAvatar size={14} animate />
+            <JobAvatar size={14} animate />
             <div>
-              <h3 className="text-white text-[9.5px] font-black uppercase tracking-wider leading-none">INOCHI</h3>
-              <p className="text-blue-100 text-[7.5px] font-bold uppercase tracking-tight mt-0.5 opacity-80">{task.code}</p>
+              <h3 className="notranslate text-white text-[9.5px] font-black uppercase tracking-wider leading-none">JOB</h3>
+              <p className="notranslate text-blue-100 text-[7.5px] font-bold uppercase tracking-tight mt-0.5 opacity-80">{task.code}</p>
             </div>
           </div>
           <button onClick={onClose} className="text-white/80 hover:text-white transition-colors">
@@ -254,12 +301,12 @@ Yêu cầu:
         >
           {taskMessages.length === 0 && (
             <div className="text-center py-2">
-              <RobotAvatar size={22} className="mx-auto mb-1 opacity-50" />
+              <JobAvatar size={22} className="mx-auto mb-1 opacity-50" />
               <p className="text-[8.5px] text-gray-400 font-bold uppercase tracking-widest leading-none">Lệnh?</p>
             </div>
           )}
           
-          {taskMessages.map((msg) => (
+          {taskMessages.map((msg, idx) => (
             <div 
               key={msg.id}
               className={`flex w-full ${msg.role === 'assistant' ? 'justify-start' : 'justify-end'}`}
@@ -289,7 +336,7 @@ Yêu cầu:
         </div>
 
         {/* Action Bar Compact */}
-        <div className="p-1.5 bg-white border-t border-blue-50">
+        <div className="p-1.5 bg-white border-t border-blue-50 rounded-b-xl">
           <div className="relative flex items-center bg-gray-50 rounded-md px-1.5 py-0.5 border border-blue-50/50 focus-within:border-blue-300 focus-within:bg-white transition-all">
             <input 
               ref={inputRef}

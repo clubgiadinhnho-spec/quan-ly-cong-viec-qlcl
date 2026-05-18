@@ -6,8 +6,10 @@ import { useAppLogic } from "../hooks/useAppLogic";
 import { useExcelHandlers } from "../hooks/useExcelHandlers";
 import { useNotifications } from "../hooks/useNotifications";
 import { useAppNotifications } from "../hooks/useAppNotifications";
-import { useAIRobot } from "../hooks/useAIRobot";
+import { useJobAI } from "../hooks/useJobAI";
 import { useAuthContext } from "./AuthContext";
+import { db } from "../lib/firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 interface TaskContextType {
   tasks: Task[];
@@ -51,14 +53,18 @@ interface TaskContextType {
   triggerAiNudge: any;
   resetTaskAIStatus: any;
   
-  handleExportExcel: (tasks: Task[]) => void;
+  handleExportExcel: (tasks: Task[], customFileName?: string) => void;
   handleImportExcel: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleSuperBackup: () => void;
   
   notifications: any[];
   adminUnreadCount: number;
   markNotifRead: (id: string) => void;
   deleteNotif: (id: string) => void;
   createNotification: any;
+  
+  unreadCounts: Record<string, number>;
+  groupUnreadCount: number;
   
   appNotifications: any;
   markAsRead: (id: string) => void;
@@ -72,6 +78,7 @@ interface TaskContextType {
   setSearch: (s: string) => void;
   selectedMonth: string;
   setSelectedMonth: (m: string) => void;
+  onMonthChange: (m: string) => void;
   
   setConfirmModal: (m: any) => void;
   confirmModal: any;
@@ -117,6 +124,11 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const [showHealthReminder, setShowHealthReminder] = useState(false);
 
+  // Reset search when changing tabs to meet "search on which page only searches... of that page only" requirement
+  useEffect(() => {
+    setSearch("");
+  }, [activeTab]);
+
   const {
     tasks, messages: generalMessages, privateMessages, officialReports, aiMessages, logs, presence, categories,
     loading, addTask: firebaseAddTask, updateTask: firebaseUpdateTask,
@@ -129,8 +141,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     deleteLogsBulk
   } = useFirebaseData(effectiveUser?.id);
 
-  const { handleExportExcel, handleImportExcel } = useExcelHandlers({
-    currentUser: effectiveUser, tasks, allUsers, firebaseAddTask, setConfirmModal
+  const { handleExportExcel, handleImportExcel, handleSuperBackup } = useExcelHandlers({
+    currentUser: effectiveUser, tasks, allUsers, firebaseAddTask, setConfirmModal, activeTab
   });
 
   const { addTask, updateTask, addTaskComment, updateTaskCommentReactions } = useTaskActions({
@@ -148,9 +160,9 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     showDirectChat?.id || null, activeTab, showChatModal
   );
 
-  const { markAsRead, lastReadChatTimestamps } = appNotifications;
+  const { markAsRead, lastReadChatTimestamps, unreadCounts, groupUnreadCount } = appNotifications;
 
-  useAIRobot({
+  useJobAI({
     tasks, currentUser: effectiveUser, sendAiMessage, aiMessages, users: allUsers
   });
 
@@ -162,26 +174,76 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [effectiveUser?.id, effectiveUser?.avatar, effectiveUser?.name, authReady, updatePresence]);
 
+  // THIẾT QUÂN LUẬT: Siêu Backup tự động vào 15:00 (VN) Thứ 4 & Thứ 6
+  // Vietnam 15:00 = UTC 08:00
+  useEffect(() => {
+    if (!isAdmin || !authReady) return;
+
+    const checkAutoBackup = async () => {
+      const now = new Date();
+      const utcDay = now.getUTCDay(); // 3 = Wed, 5 = Fri
+      const utcHours = now.getUTCHours();
+      const utcMinutes = now.getUTCMinutes();
+      
+      // Kiểm tra khung giờ 15:00 - 15:05 Việt Nam (08:00 - 08:05 UTC)
+      if ((utcDay === 3 || utcDay === 5) && utcHours === 8 && utcMinutes < 6) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        try {
+          const backupRef = doc(db, 'settings', 'backup_status');
+          const backupDoc = await getDoc(backupRef);
+          
+          if (!backupDoc.exists() || backupDoc.data().lastAutoBackupDay !== todayStr) {
+            console.log(`[HỆ THỐNG] Kích hoạt SIÊU BACKUP tự động ngày ${todayStr}`);
+            handleSuperBackup();
+            // Cập nhật flag để không lặp lại trong ngày (nếu có nhiều admin online)
+            await setDoc(backupRef, { 
+              lastAutoBackupDay: todayStr,
+              lastBackupBy: effectiveUser?.name || 'AutoSystem',
+              timestamp: new Date().toISOString()
+            }, { merge: true });
+          }
+        } catch (error) {
+          console.error("[AUTO BACKUP ERROR]", error);
+        }
+      }
+    };
+
+    const interval = setInterval(checkAutoBackup, 60000); // Kiểm tra mỗi phút
+    checkAutoBackup();
+    return () => clearInterval(interval);
+  }, [isAdmin, authReady, handleSuperBackup, effectiveUser]);
+
   const deleteTaskLocal = useCallback(async (id: string) => {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
-    setConfirmModal({ show: true, title: "XÁC NHẬN XÓA", message: "Công việc này sẽ được chuyển vào THÙNG RÁC.", onConfirm: async () => {
+
+    const performDelete = async () => {
       await firebaseUpdateTask(id, { 
         deletedAt: new Date().toISOString(),
         status: 'DELETED' as any 
       }, effectiveUser?.name);
-      if (effectiveUser?.role !== 'Admin') {
+      if (effectiveUser?.role !== 'Admin' && !isAdmin) {
         await createNotification(effectiveUser?.name || 'Nhân viên', task.code, task.id, 'DELETE_REQUEST');
       }
-      setConfirmModal(p => ({ ...p, show: false }));
-    }});
-  }, [firebaseUpdateTask, effectiveUser, tasks, createNotification]);
+    };
+
+    setConfirmModal({ 
+      show: true, 
+      title: "XÁC NHẬN XÓA", 
+      message: `Bạn có chắc chắn muốn chuyển công việc [${task.code}] vào THÙNG RÁC không?`, 
+      onConfirm: async () => {
+        await performDelete();
+        setConfirmModal(p => ({ ...p, show: false }));
+      }
+    });
+  }, [firebaseUpdateTask, effectiveUser, tasks, createNotification, isAdmin]);
 
   const restoreTask = useCallback(async (id: string) => {
     await firebaseUpdateTask(id, { 
       deletedAt: null as any,
-      status: 'PENDING' as any,
-      isNewInBoard: false,
+      status: 'APPROVED' as any,
+      isNewInBoard: true,
       lastActionAt: new Date().toISOString()
     });
   }, [firebaseUpdateTask]);
@@ -199,23 +261,111 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   }, [firebaseDeleteTask]);
 
   const trashTasksBulkLocal = useCallback(async (ids: string[]) => {
-    await trashTasksBulk(ids, effectiveUser?.name);
-    if (effectiveUser?.role !== 'Admin') {
-      for (const id of ids) {
-        const task = tasks.find(t => t.id === id);
-        if (task) await createNotification(effectiveUser?.name || 'Nhân viên', task.code, task.id, 'DELETE_REQUEST');
-      }
+    if (ids.length > 5) {
+      alert("Để đảm bảo an toàn dữ liệu, hệ thống chỉ cho phép xóa tối đa 5 công việc cùng lúc.");
+      return;
     }
-  }, [trashTasksBulk, tasks, effectiveUser, createNotification]);
+
+    setConfirmModal({
+      show: true,
+      title: "XÁC NHẬN XÓA NHÓM",
+      message: `Bạn có chắc chắn muốn chuyển ${ids.length} công việc đã chọn vào THÙNG RÁC không?`,
+      onConfirm: async () => {
+        await trashTasksBulk(ids, effectiveUser?.name);
+        if (effectiveUser?.role !== 'Admin' && !isAdmin) {
+          for (const id of ids) {
+            const task = tasks.find(t => t.id === id);
+            if (task) await createNotification(effectiveUser?.name || 'Nhân viên', task.code, task.id, 'DELETE_REQUEST');
+          }
+        }
+        setConfirmModal(p => ({ ...p, show: false }));
+      }
+    });
+  }, [trashTasksBulk, tasks, effectiveUser, createNotification, isAdmin]);
+
+  const deleteTasksBulkLocal = useCallback(async (ids: string[]) => {
+    if (ids.length > 5) {
+      alert("Hệ thống chỉ cho phép xóa vĩnh viễn tối đa 5 công việc cùng lúc.");
+      return;
+    }
+
+    setConfirmModal({
+      show: true,
+      title: "XÁC NHẬN XÓA VĨNH VIỄN NHÓM",
+      message: `Hành động này sẽ XÓA VĨNH VIỄN ${ids.length} công việc đã chọn và không thể hoàn tác. Bạn có chắc chắn không?`,
+      onConfirm: async () => {
+        await deleteTasksBulk(ids, effectiveUser?.name);
+        setConfirmModal(p => ({ ...p, show: false }));
+      }
+    });
+  }, [deleteTasksBulk, effectiveUser]);
+
+  const deleteTopicLocal = useCallback(async (id: string) => {
+    const topic = discussionTopics.find(t => t.id === id);
+    setConfirmModal({
+      show: true,
+      title: "XÁC NHẬN XÓA CHỦ ĐỀ",
+      message: `Bạn có chắc chắn muốn XÓA VĨNH VIỄN chủ đề "${topic?.title || id}" và toàn bộ tin nhắn liên quan không?`,
+      onConfirm: async () => {
+        await deleteTopic(id);
+        setConfirmModal(p => ({ ...p, show: false }));
+      }
+    });
+  }, [deleteTopic, discussionTopics]);
+
+  const deleteTopicsBulkLocal = useCallback(async (ids: string[]) => {
+    if (ids.length > 5) {
+      alert("Hệ thống chỉ cho phép xóa tối đa 5 chủ đề cùng lúc.");
+      return;
+    }
+    setConfirmModal({
+      show: true,
+      title: "XÁC NHẬN XÓA NHIỀU CHỦ ĐỀ",
+      message: `Hành động này sẽ XÓA VĨNH VIỄN ${ids.length} chủ đề và toàn bộ nội dung bên trong. Bạn có chắc chắn không?`,
+      onConfirm: async () => {
+        await deleteTopicsBulk(ids);
+        setConfirmModal(p => ({ ...p, show: false }));
+      }
+    });
+  }, [deleteTopicsBulk]);
+
+  const deleteDiscussionMessageLocal = useCallback(async (id: string) => {
+    setConfirmModal({
+      show: true,
+      title: "XÁC NHẬN XÓA TIN NHẮN",
+      message: "Bạn có chắc chắn muốn xóa tin nhắn này không? Hành động này không thể hoàn tác.",
+      onConfirm: async () => {
+        await deleteDiscussionMessage(id);
+        setConfirmModal(p => ({ ...p, show: false }));
+      }
+    });
+  }, [deleteDiscussionMessage]);
+
+  const deleteNotifLocal = useCallback(async (id: string) => {
+    // Thông báo thường không quan trọng bằng dữ liệu công việc, 
+    // nhưng để an toàn 100% tôi cũng thêm confirm nếu user muốn.
+    // Thường thì notifications xóa nhanh nên maybe cứ hỏi cho chắc.
+    setConfirmModal({
+      show: true,
+      title: "XÓA THÔNG BÁO",
+      message: "Xóa thông báo này?",
+      onConfirm: async () => {
+        await deleteNotif(id);
+        setConfirmModal(p => ({ ...p, show: false }));
+      }
+    });
+  }, [deleteNotif]);
 
   const value = {
     tasks, sortedTasks, counts, categories, discussionTopics, discussionMessages, logs, officialReports, aiMessages, presence, loading,
     addTask, updateTask, deleteTask: deleteTaskLocal, approveTaskCompletion, trashTasksBulk: trashTasksBulkLocal, approveTasksBulk,
-    deleteTasksBulk, restoreTask, permanentDeleteTask, addTaskComment, updateTaskCommentReactions,
-    sendDiscussionMessage, updateDiscussionMessageReactions, createTopic, updateTopic, deleteTopic, deleteTopicsBulk, deleteDiscussionMessage,
+    deleteTasksBulk: deleteTasksBulkLocal, restoreTask, permanentDeleteTask, addTaskComment, updateTaskCommentReactions,
+    sendDiscussionMessage, updateDiscussionMessageReactions, createTopic, updateTopic, 
+    deleteTopic: deleteTopicLocal, deleteTopicsBulk: deleteTopicsBulkLocal, deleteDiscussionMessage: deleteDiscussionMessageLocal,
     saveReportDraft, saveOfficialReport, sendAiMessage, triggerAiNudge, resetTaskAIStatus,
-    handleExportExcel, handleImportExcel, notifications, adminUnreadCount, markNotifRead, deleteNotif, createNotification,
-    appNotifications, markAsRead, lastReadChatTimestamps, activeTab, setActiveTab, viewScope, setViewScope, search, setSearch, selectedMonth, setSelectedMonth,
+    handleExportExcel, handleImportExcel, handleSuperBackup, notifications: appNotifications?.unreadNotifications || [], adminUnreadCount, markNotifRead, deleteNotif: deleteNotifLocal, createNotification,
+    appNotifications, markAsRead: appNotifications?.markAsRead || (() => {}), lastReadChatTimestamps: appNotifications?.lastReadChatTimestamps || {}, unreadCounts: appNotifications?.unreadCounts || {}, groupUnreadCount: appNotifications?.groupUnreadCount || 0, activeTab, setActiveTab, viewScope, setViewScope, search, setSearch, 
+    selectedMonth, setSelectedMonth, onMonthChange: setSelectedMonth,
     setConfirmModal, confirmModal,
     showTaskModal, setShowTaskModal, editingTask, setEditingTask, showHistoryModal, setShowHistoryModal, showChatModal, setShowChatModal,
     highlightedTaskId, setHighlightedTaskId, showDirectChat, setShowDirectChat, isChatMinimized, setIsChatMinimized,

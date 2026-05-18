@@ -411,16 +411,16 @@ export const useFirebaseData = (currentUserId?: string) => {
         if (t.code) codeCounts[t.code] = (codeCounts[t.code] || 0) + 1; 
       });
 
-      // Tìm các task cần sửa: có -K HOẶC bị trùng mã
-      const tasksToFix = tasks.filter(t => (t.code && codeCounts[t.code] > 1) || t.code?.includes('-K'));
+      // Tìm các task cần sửa: có -K HOẶC bị trùng mã HOẶC chưa đủ 6 chữ số
+      const tasksToFix = tasks.filter(t => (t.code && codeCounts[t.code] > 1) || t.code?.includes('-K') || (t.code?.startsWith('C') && t.code.split('-K')[0].length < 7));
       
       if (tasksToFix.length > 0) {
-        console.log(`[MIGRATION] Phát hiện ${tasksToFix.length} bản ghi cần xử lý trùng lặp/chuẩn hóa.`);
+        console.log(`[MIGRATION] Phát hiện ${tasksToFix.length} bản ghi cần xử lý trùng lặp/chuẩn hóa mã 6 số.`);
         const batch = writeBatch(db);
         
-        // Tập hợp các mã "an toàn" (không trùng, không -K)
+        // Tập hợp các mã "an toàn" (không trùng, không -K, và đã đủ 6 số)
         const usedCodes = new Set(
-          tasks.filter(t => t.code && !t.code.includes('-K') && codeCounts[t.code] === 1)
+          tasks.filter(t => t.code && !t.code.includes('-K') && codeCounts[t.code] === 1 && t.code.length >= 7)
                .map(t => t.code)
         );
         
@@ -434,12 +434,18 @@ export const useFirebaseData = (currentUserId?: string) => {
         }, 0);
 
         tasksToFix.forEach(t => {
-          let cleanCode = t.code?.split('-K')[0];
+          let cleanCode = t.code?.split('-K')[0] || '';
+
+          // Chuẩn hóa sang 6 số nếu khớp pattern Cxxx
+          const match = cleanCode.match(/C(\d+)/);
+          if (match) {
+            cleanCode = `C${match[1].padStart(6, '0')}`;
+          }
           
-          // Nếu mã sau khi làm sạch vẫn bị trùng hoặc t.code ban đầu đã bị trùng
+          // Nếu mã sau khi làm sạch vẫn bị trùng hoặc t.code ban đầu đã bị trùng hoặc rỗng
           if (!cleanCode || usedCodes.has(cleanCode) || codeCounts[t.code || ''] > 1) {
             maxNum++;
-            cleanCode = `C${String(maxNum).padStart(4, '0')}`;
+            cleanCode = `C${String(maxNum).padStart(6, '0')}`;
           }
           
           usedCodes.add(cleanCode);
@@ -509,7 +515,7 @@ export const useFirebaseData = (currentUserId?: string) => {
   const addTask = useCallback(async (task: Omit<Task, 'id'>, authorName?: string) => {
     try {
       const cleanTask = Object.fromEntries(
-        Object.entries(task).filter(([_, v]) => v !== undefined)
+        Object.entries(task || {}).filter(([_, v]) => v !== undefined)
       );
 
       const docRef = await addDoc(collection(db, 'tasks'), {
@@ -549,7 +555,7 @@ export const useFirebaseData = (currentUserId?: string) => {
       const taskCode = existingTask.code || 'N/A';
 
       const cleanUpdates = Object.fromEntries(
-        Object.entries(updates).filter(([_, v]) => v !== undefined)
+        Object.entries(updates || {}).filter(([_, v]) => v !== undefined)
       );
 
       // THIẾT QUÂN LUẬT LUÂN HỒI: Nếu cập nhật status -> COMPLETED mà chưa qua approveTaskCompletion
@@ -569,7 +575,7 @@ export const useFirebaseData = (currentUserId?: string) => {
           return m ? parseInt(m[1], 10) : 0;
         });
         const maxCodeNum = Math.max(0, ...codes);
-        const nextCode = `C${String(maxCodeNum + 1).padStart(4, '0')}`;
+        const nextCode = `C${String(maxCodeNum + 1).padStart(6, '0')}`;
 
         // 2. Kết thúc kỳ cũ
         batch.update(taskRef, {
@@ -685,7 +691,7 @@ export const useFirebaseData = (currentUserId?: string) => {
         }
       } else {
         // Detailed log based on what fields were touched
-        const changedFields = Object.keys(updates).filter(k => k !== 'updatedAt');
+        const changedFields = Object.keys(updates || {}).filter(k => k !== 'updatedAt');
         if (changedFields.length > 0) {
           const fieldMap: Record<string, string> = {
             title: 'Tên công việc',
@@ -742,7 +748,7 @@ export const useFirebaseData = (currentUserId?: string) => {
             return m ? parseInt(m[1], 10) : 0;
           });
           const maxCodeNum = Math.max(0, ...codes);
-          return `C${String(maxCodeNum + 1).padStart(4, '0')}`;
+          return `C${String(maxCodeNum + 1).padStart(6, '0')}`;
         };
         const nextCode = getNextTaskCode();
 

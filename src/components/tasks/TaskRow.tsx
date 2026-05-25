@@ -102,8 +102,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const isKNB = task.category === 'KNB';
   const isTwoStage = isKNN || isKNB;
   const taskCreatedAt = task.systemCreatedAt || task.issueDate || task.updatedAt || new Date().toISOString();
-  // Điều kiện Ân xá: systemCreatedAt hoặc issueDate trước ngày 20/05/2026
-  const isLegacyKNN = isKNN && new Date(taskCreatedAt).getTime() < new Date('2026-05-20T00:00:00Z').getTime();
+  // Điều kiện Ân xá: systemCreatedAt hoặc issueDate trước ngày 22/05/2026
+  const isLegacyKNN = isKNN && new Date(taskCreatedAt).getTime() < new Date('2026-05-22T23:59:59').getTime();
   const isStage1Done = !!(task.stage1Done || isLegacyKNN);
 
   // Tính toán SLA: KNN 48 giờ, KNB 8 giờ làm việc
@@ -486,6 +486,40 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     }
   };
 
+  const confirmReceipt = async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    try {
+      const currentT = Date.now();
+      const hoursL = (slaDeadlineMs - currentT) / (1000 * 60 * 60);
+      
+      await onUpdate(task.id, {
+        stage1Done: true,
+        stage1CompletedAt: new Date().toISOString(),
+        stage1KpiPassed: hoursL > 0,
+        recurrence: task.recurrence || 'BI_WEEKLY',
+        updatedAt: new Date().toISOString()
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleGreenButtonClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isProcessing) return;
+
+    if (isKNN) {
+      if (!isStage1Done) {
+        await confirmReceipt();
+      } else {
+        setShowQCDModal(true);
+      }
+    } else {
+      handleStatusAction();
+    }
+  };
+
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [stopRecurrence, setStopRecurrence] = React.useState(false);
   const [requestStop, setRequestStop] = React.useState(false);
@@ -558,28 +592,22 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       const cC = leaderCComment.trim() || 'Đồng ý';
       const dC = leaderDComment.trim() || 'Đồng ý';
 
+      const leaderQCDEval = {
+        q: leaderQ,
+        c: leaderC,
+        d: leaderD,
+        explanation: `Q: ${qC} | C: ${cC} | D: ${dC}`,
+        qComment: qC,
+        cComment: cC,
+        dComment: dC
+      };
+
       if (approveTaskCompletion) {
-        await approveTaskCompletion(task.id, user.name, {
-          q: leaderQ,
-          c: leaderC,
-          d: leaderD,
-          explanation: `Q: ${qC} | C: ${cC} | D: ${dC}`,
-          qComment: qC,
-          cComment: cC,
-          dComment: dC
-        }, stopRecurrence);
+        await approveTaskCompletion(task.id, user.name, leaderQCDEval, stopRecurrence);
       } else {
         onUpdate(task.id, {
           status: 'COMPLETED',
-          leaderQCD: { 
-            q: leaderQ, 
-            c: leaderC, 
-            d: leaderD, 
-            explanation: `Q: ${qC} | C: ${cC} | D: ${dC}`,
-            qComment: qC,
-            cComment: cC,
-            dComment: dC
-          },
+          leaderQCD: leaderQCDEval,
           waitingApproval: false,
           updatedAt: new Date().toISOString()
         });
@@ -888,37 +916,44 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           
           {isTwoStage && (
             <div className="w-[calc(100%+12px)] flex items-center h-5.5 bg-slate-50 border-t border-slate-200 overflow-hidden font-sans select-none mt-auto -mx-1.5 -mb-1.5 rounded-b-[7px]">
-              {/* GĐ1 Segment */}
-              <div 
-                className={`relative h-full flex items-center justify-center text-center text-[10px] font-black px-2 transition-all duration-300 border-r border-slate-200/50 ${
-                  isStage1Done 
-                    ? 'bg-emerald-50 text-emerald-800' 
-                    : (isSlaOverdue 
+              {isStage1Done ? (
+                <div 
+                  className="relative h-full flex items-center justify-center text-center text-[10px] font-black px-2 bg-sky-50 text-sky-800 w-full"
+                  style={{ flexGrow: 1 }}
+                >
+                  <span translate="no" className="notranslate truncate">
+                    GĐ2: Theo dõi diễn tiến
+                  </span>
+                </div>
+              ) : (
+                <>
+                  {/* GĐ1 Segment */}
+                  <div 
+                    className={`relative h-full flex items-center justify-center text-center text-[10px] font-black px-2 transition-all duration-300 border-r border-slate-200/50 ${
+                      isSlaOverdue 
                         ? 'bg-rose-50 text-rose-700' 
                         : (hoursLeft <= 12 
                             ? 'bg-orange-50 text-orange-700' 
-                            : 'bg-amber-50 text-amber-900'))
-                }`}
-                style={{ flexGrow: 2 }}
-              >
-                <span className="truncate">
-                  GĐ1: {isStage1Done ? formatDurationAbbr(stage1CompletedTime - startMs) : formatCountdown(timeLeftMs)}
-                </span>
-              </div>
+                            : 'bg-amber-50 text-amber-900')
+                    }`}
+                    style={{ flexGrow: 2 }}
+                  >
+                    <span translate="no" className="notranslate truncate">
+                      GĐ1: {formatCountdown(timeLeftMs)}
+                    </span>
+                  </div>
 
-              {/* GĐ2 Segment */}
-              <div 
-                className={`relative h-full flex items-center justify-center text-center text-[10px] font-black px-2 transition-all duration-300 ${
-                  isStage1Done 
-                    ? (task.status === 'COMPLETED' ? 'bg-blue-50 text-blue-800' : 'bg-sky-50 text-sky-800') 
-                    : 'bg-slate-50 text-slate-400'
-                }`}
-                style={{ flexGrow: Math.max(3, getCycleDays(task.recurrence) - 2) }}
-              >
-                <span className="truncate">
-                  GĐ2: {isStage1Done ? (task.status === 'COMPLETED' ? 'xong' : formatDurationAbbr(currentTime - stage1CompletedTime)) : 'chờ...'}
-                </span>
-              </div>
+                  {/* GĐ2 Segment */}
+                  <div 
+                    className="relative h-full flex items-center justify-center text-center text-[10px] font-black px-2 transition-all duration-300 bg-slate-50 text-slate-400"
+                    style={{ flexGrow: Math.max(3, getCycleDays(task.recurrence) - 2) }}
+                  >
+                    <span translate="no" className="notranslate truncate">
+                      GĐ2: chờ...
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -1090,7 +1125,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       </td>
       <td className="py-2 px-1 text-center border border-gray-300 align-middle">
         <div className="flex flex-col items-center justify-center gap-1.5 w-fit mx-auto min-w-[40px] py-1">
-            {(isAdmin || isOwner || isAuthor) ? (
+            {(isAdmin || isOwner || isAuthor || user?.role === 'Trưởng Phòng') ? (
               <>
                 {!isReadOnly && !task.deletedAt && task.status !== 'DELETED' && (
                   <>
@@ -1099,75 +1134,34 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                       isTwoStage ? (
                         !isStage1Done ? (
                           <button 
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (isProcessing) return;
-                              setIsProcessing(true);
-                              try {
-                                const currentT = Date.now();
-                                const hoursL = (slaDeadlineMs - currentT) / (1000 * 60 * 60);
-                                
-                                onUpdate(task.id, {
-                                  stage1Done: true,
-                                  stage1CompletedAt: new Date().toISOString(),
-                                  stage1KpiPassed: hoursL > 0,
-                                  recurrence: task.recurrence || (isKNN ? 'BI_WEEKLY' : 'NONE'),
-                                  updatedAt: new Date().toISOString()
-                                });
-                              } finally {
-                                setIsProcessing(false);
-                              }
-                            }}
+                            onClick={handleGreenButtonClick}
                             disabled={isProcessing}
                             title={isSlaOverdue && isAdmin ? "XÁC NHẬN HOÀN THÀNH" : "XÁC NHẬN TIẾP NHẬN"}
-                            className="w-7 h-7 flex items-center justify-center rounded-md transition-all group/btn border-2 bg-green-600 hover:bg-green-700 border-green-400 text-white shadow-sm hover:scale-105 active:scale-95"
+                            className="relative w-7 h-7 flex items-center justify-center rounded-md transition-all group/btn border-2 bg-green-600 hover:bg-green-700 border-green-400 text-white shadow-sm hover:scale-105 active:scale-95 group/tooltip"
                           >
                             <CheckCircle2 size={18} strokeWidth={3} />
+                            <span className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] py-1 px-2 rounded opacity-0 pointer-events-none group-hover/tooltip:opacity-100 whitespace-nowrap transition-opacity z-50 notranslate" translate="no">
+                              {isSlaOverdue && isAdmin ? "XÁC NHẬN HOÀN THÀNH" : "XÁC NHẬN TIẾP NHẬN"}
+                            </span>
                           </button>
                         ) : (
-                          (isAdmin || isOwner) ? (
+                          (isAdmin || isOwner || user?.role === 'Trưởng Phòng') ? (
                             <button 
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if (isProcessing) return;
-                                setIsProcessing(true);
-                                try {
-                                  const currentDeadline = task.extensionDate || task.expectedEndDate || new Date().toISOString().split('T')[0];
-                                  const recType = task.recurrence && task.recurrence !== 'NONE' ? task.recurrence : (isKNN ? 'BI_WEEKLY' : 'WEEKLY');
-                                  const nextDeadline = calculateNextDeadline(currentDeadline, recType);
-                                  const newHistoryEntry: CycleHistoryEntry = {
-                                    version: (task.cycleHistory?.length || 0) + 1,
-                                    code: task.code,
-                                    reportContent: task.currentUpdate || 'Cập nhật định kỳ',
-                                    objective: task.objective,
-                                    completedAt: new Date().toISOString(),
-                                    nextDeadline: nextDeadline
-                                  };
-                                  const updatedCycleHistory = [...(task.cycleHistory || []), newHistoryEntry];
-                                  
-                                  onUpdate(task.id, {
-                                    expectedEndDate: nextDeadline,
-                                    extensionDate: null,
-                                    currentUpdate: '',
-                                    version: (task.version || 0) + 1,
-                                    cycleHistory: updatedCycleHistory,
-                                    updatedAt: new Date().toISOString()
-                                  });
-                                } finally {
-                                  setIsProcessing(false);
-                                }
-                              }}
+                              onClick={handleGreenButtonClick}
                               disabled={isProcessing}
-                              className="w-7 h-7 flex items-center justify-center rounded-md transition-all group/btn border-2 bg-emerald-600 hover:bg-emerald-700 border-emerald-400 text-white shadow-sm hover:scale-105 active:scale-95"
-                              title="CHỐT CHU KỲ TỰ ĐỘNG (Cộng hạn)"
+                              className="relative w-7 h-7 flex items-center justify-center rounded-md transition-all group/btn border-2 bg-emerald-600 hover:bg-emerald-700 border-emerald-400 text-white shadow-sm hover:scale-105 active:scale-95 group/tooltip"
+                              title="CHỐT CHU KỲ 2 TUẦN"
                             >
                               <RefreshCw size={14} />
+                              <span className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] py-1 px-2 rounded opacity-0 pointer-events-none group-hover/tooltip:opacity-100 whitespace-nowrap transition-opacity z-50 notranslate" translate="no">
+                                CHỐT CHU KỲ 2 TUẦN
+                              </span>
                             </button>
                           ) : null
                         )
                       ) : (
                         <button 
-                          onClick={handleStatusAction}
+                          onClick={handleGreenButtonClick}
                           title={isAdmin ? 'XÁC NHẬN HOÀN THÀNH' : 'GỬI HOÀN THÀNH'}
                           className={`w-7 h-7 flex items-center justify-center rounded-md transition-all group/btn border-2 ${
                             isAdmin 

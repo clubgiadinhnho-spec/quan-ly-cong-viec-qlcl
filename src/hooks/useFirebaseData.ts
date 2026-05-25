@@ -131,6 +131,37 @@ export const useFirebaseData = (currentUserId?: string) => {
               code: data.code || 'N/A'
             } as Task;
           });
+
+          // Background Auto-Migration execution for legacy KNN tasks (category is 'KNN', created before 2026-05-22) which do not have stage1Done === true
+          const legacyKNNToMigrate = tasksData.filter(t => 
+            t.category === 'KNN' && 
+            t.stage1Done !== true &&
+            new Date(t.systemCreatedAt || t.issueDate || t.updatedAt || now).getTime() < new Date('2026-05-22T23:59:59').getTime()
+          );
+
+          if (legacyKNNToMigrate.length > 0) {
+            (async () => {
+              try {
+                const batch = writeBatch(db);
+                let count = 0;
+                legacyKNNToMigrate.forEach(t => {
+                  const ref = doc(db, 'tasks', t.id);
+                  batch.update(ref, {
+                    stage1Done: true,
+                    updatedAt: serverTimestamp()
+                  });
+                  count++;
+                });
+                if (count > 0) {
+                  await batch.commit();
+                  console.log(`[AUTO-MIGRATION] Loaded and migrated ${count} legacy KNN tasks to stage1Done: true`);
+                }
+              } catch (err) {
+                console.error("[AUTO-MIGRATION] Error migrating legacy KNN tasks:", err);
+              }
+            })();
+          }
+        
         
         // In-memory sort by code (desc)
         const sorted = tasksData.sort((a, b) => (b.code || '').localeCompare(a.code || ''));
@@ -731,7 +762,8 @@ export const useFirebaseData = (currentUserId?: string) => {
         return;
       }
 
-      const isRecurring = existingTask.recurrence && existingTask.recurrence !== 'NONE' && (existingTask.recurrence as any) !== 'KHÔNG LẶP';
+      const recurrenceType = existingTask.category === 'KNN' ? (existingTask.recurrence || 'BI_WEEKLY') : existingTask.recurrence;
+      const isRecurring = (recurrenceType && recurrenceType !== 'NONE' && (recurrenceType as any) !== 'KHÔNG LẶP') || existingTask.category === 'KNN';
       
       const batch = writeBatch(db);
       const now = new Date().toISOString();
@@ -739,7 +771,8 @@ export const useFirebaseData = (currentUserId?: string) => {
 
       if (isRecurring && !stopRecurrence) {
         const currentDeadline = existingTask.extensionDate || existingTask.expectedEndDate;
-        const nextDeadline = calculateNextDeadline(currentDeadline || dateOnly, existingTask.recurrence);
+        const recType = recurrenceType || 'BI_WEEKLY';
+        const nextDeadline = calculateNextDeadline(currentDeadline || dateOnly, recType);
         
         // 1. Tìm mã Cxxxx lớn nhất hiện có (Unique ID) - THIẾT QUÂN LUẬT SINH MÃ
         const getNextTaskCode = () => {
@@ -789,6 +822,7 @@ export const useFirebaseData = (currentUserId?: string) => {
 
         const nextTaskData: any = {
           ...cleanBaseData,
+          recurrence: recType,
           status: 'APPROVED', 
           code: nextCode,
           previousTaskId: id, // Đấu nối chuỗi quan hệ (Task Linking)

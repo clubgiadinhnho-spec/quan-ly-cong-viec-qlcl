@@ -155,9 +155,48 @@ export function calculateKnbSlaDeadline(createdAtStr: string, workingHoursNeed =
   return current;
 }
 
+export function parseSafeDate(input: string | null | undefined): Date {
+  if (!input) return new Date();
+  
+  // Try standard parsing first
+  let date = new Date(input);
+  if (!isNaN(date.getTime())) {
+    return date;
+  }
+  
+  // Try parsing custom format e.g. DD/MM/YYYY or DD/MM/YY or YYYY-MM-DD
+  try {
+    const cleanInput = String(input).trim();
+    // Match dd/mm/yyyy or dd/mm/yy
+    const matchSlash = cleanInput.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if (matchSlash) {
+      const d = parseInt(matchSlash[1], 10);
+      const m = parseInt(matchSlash[2], 10) - 1; // 0-indexed month
+      let y = parseInt(matchSlash[3], 10);
+      if (y < 100) {
+        y += 2000; // Assume 20xx
+      }
+      return new Date(y, m, d);
+    }
+    
+    // Match yyyy-mm-dd
+    const matchDash = cleanInput.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if (matchDash) {
+      const y = parseInt(matchDash[1], 10);
+      const m = parseInt(matchDash[2], 10) - 1;
+      const d = parseInt(matchDash[3], 10);
+      return new Date(y, m, d);
+    }
+  } catch (e) {
+    console.error("Error parsing safe date:", e);
+  }
+  
+  return new Date();
+}
+
 export function calculateNextDeadline(start: string, type: string): string {
   if (type === 'NONE') return '';
-  const date = new Date(start);
+  const date = parseSafeDate(start);
   switch (type) {
     case 'DAILY': date.setDate(date.getDate() + 1); break;
     case 'TRI_DAILY': date.setDate(date.getDate() + 3); break;
@@ -166,7 +205,11 @@ export function calculateNextDeadline(start: string, type: string): string {
     case 'TRI_WEEKLY': date.setDate(date.getDate() + 21); break;
     case 'MONTHLY': date.setMonth(date.getMonth() + 1); break;
   }
-  return date.toISOString().split('T')[0];
+  
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 export type DeadlineStatus = 'CRITICAL' | 'URGENT' | 'WARNING' | 'NORMAL';

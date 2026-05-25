@@ -31,7 +31,7 @@ service cloud.firestore {
       return data.keys().hasAll(['code', 'title', 'assigneeId', 'status']) &&
              data.code is string && data.code.size() <= 50 &&
              data.title is string && data.title.size() <= 500 &&
-             (data.status in ['IN_PROGRESS', 'PENDING_APPROVAL', 'COMPLETED', 'CANCELLED', 'ON_HOLD', 'Hoàn thành', 'Đang thực hiện', 'Chưa bắt đầu', 'Tạm dừng', 'AWAITING_CONFIRMATION']);
+             (data.status in ['IN_PROGRESS', 'PENDING_APPROVAL', 'COMPLETED', 'CANCELLED', 'ON_HOLD', 'Hoàn thành', 'Đang thực hiện', 'Chưa bắt đầu', 'Tạm dừng', 'AWAITING_CONFIRMATION', 'PENDING', 'APPROVED', 'DELETED']);
     }
 
     function isValidMessage(data) {
@@ -114,6 +114,9 @@ service cloud.firestore {
     match /official_reports/{reportId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+    }
+    match /kpi_configs/{configId} {
+      allow read, write: if isAdmin();
     }
 
     // 9. System

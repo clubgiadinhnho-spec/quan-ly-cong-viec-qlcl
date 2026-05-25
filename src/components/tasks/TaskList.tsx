@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Task, User } from '../../types';
 import { TaskRow } from './TaskRow';
 import { CompletedTaskRow } from './CompletedTaskRow';
@@ -70,6 +70,62 @@ export const TaskList: React.FC<TaskListProps> = ({
   aiMessages,
   presence
 }) => {
+  // THIẾT QUÂN LUẬT: Trì hoãn luân hồi ổn định bộ sắp xếp - 3 phút
+  const [stableSortTimes, setStableSortTimes] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const now = Date.now();
+    const COOLDOWN_MS = 3 * 60 * 1000;
+
+    setStableSortTimes(prev => {
+      const next = { ...prev };
+      let changed = false;
+
+      tasks.forEach(t => {
+        const realTime = new Date(t.lastActionAt || t.updatedAt || 0).getTime();
+        const stableTime = prev[t.id];
+
+        if (!stableTime) {
+          next[t.id] = realTime;
+          changed = true;
+        } else if (realTime > stableTime) {
+          if (now - realTime > COOLDOWN_MS) {
+            next[t.id] = realTime;
+            changed = true;
+          }
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [tasks]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const COOLDOWN_MS = 3 * 60 * 1000;
+
+      setStableSortTimes(prev => {
+        const next = { ...prev };
+        let changed = false;
+
+        tasks.forEach(t => {
+          const realTime = new Date(t.lastActionAt || t.updatedAt || 0).getTime();
+          const stableTime = prev[t.id] || 0;
+
+          if (realTime > stableTime && (now - realTime >= COOLDOWN_MS)) {
+            next[t.id] = realTime;
+            changed = true;
+          }
+        });
+
+        return changed ? next : prev;
+      });
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [tasks]);
+
   const sortedTasks = [...tasks].sort((a, b) => {
     // Lớp 1 (Ưu tiên tuyệt đối): Priority Order (1 -> 2 -> 3...)
     if (a.priorityOrder && !b.priorityOrder) return -1;
@@ -80,9 +136,9 @@ export const TaskList: React.FC<TaskListProps> = ({
     if (a.status === 'AWAITING_CONFIRMATION' && b.status !== 'AWAITING_CONFIRMATION') return -1;
     if (b.status === 'AWAITING_CONFIRMATION' && a.status !== 'AWAITING_CONFIRMATION') return 1;
 
-    // Lớp 2 (Hoạt động mới nhất): Dựa trên lastActionAt hoặc updatedAt
-    const timeA = new Date(a.lastActionAt || a.updatedAt || 0).getTime();
-    const timeB = new Date(b.lastActionAt || b.updatedAt || 0).getTime();
+    // Lớp 2 (Hoạt động mới nhất): Dựa trên lastActionAt hoặc updatedAt (Bảo hộ TRÌ HOÃN LUÂN HỒI 3 PHÚT)
+    const timeA = stableSortTimes[a.id] || new Date(a.lastActionAt || a.updatedAt || 0).getTime();
+    const timeB = stableSortTimes[b.id] || new Date(b.lastActionAt || b.updatedAt || 0).getTime();
     if (timeB !== timeA) return timeB - timeA;
 
     // Lớp cuối: Mã công việc (Mới nhất lên trên)
@@ -148,7 +204,7 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   return (
     <div className="border border-gray-300 rounded-md bg-white shadow-sm overflow-visible">
-      <table className="w-full text-left border-collapse table-fixed min-w-full">
+      <table className="w-full text-left border-collapse table-fixed min-w-full print-table">
         <thead>
           <tr className="bg-blue-600 h-12">
             <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[40px] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
@@ -173,10 +229,10 @@ export const TaskList: React.FC<TaskListProps> = ({
                  }}
                />
             </th>
-            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[7.5%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
+            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[9%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
               <span translate="no" className="notranslate">Mã</span>
             </th>
-            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[21.5%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
+            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[20%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
               <span translate="no" className="notranslate">Nhân sự</span>
             </th>
             <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] w-[35%] align-middle">
@@ -199,6 +255,7 @@ export const TaskList: React.FC<TaskListProps> = ({
               <TaskRow 
                 key={task.id} 
                 task={task} 
+                tasks={tasks}
                 user={user} 
                 users={users} 
                 idx={idx}
@@ -231,6 +288,7 @@ export const TaskList: React.FC<TaskListProps> = ({
               <TaskRow 
                 key={task.id} 
                 task={task} 
+                tasks={tasks}
                 user={user} 
                 users={users} 
                 idx={idx}
@@ -352,6 +410,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                   const realId = id.includes('_cycle_') ? id.split('_cycle_')[0] : id;
                   onUpdate(realId, updates);
                 }}
+                onSetPriority={handleSetPriority}
                 onDelete={onDelete}
                 onEdit={onEdit}
                 isSelected={selectedIds.includes(task.id)}

@@ -94,6 +94,67 @@ export function formatFullDateTime(dateString: string | null | undefined): strin
   }
 }
 
+export function calculateKnbSlaDeadline(createdAtStr: string, workingHoursNeed = 8): Date {
+  let current = new Date(createdAtStr);
+  if (isNaN(current.getTime())) {
+    current = new Date();
+  }
+  let remMs = workingHoursNeed * 60 * 60 * 1000;
+  let safetyCounter = 0;
+  
+  while (remMs > 0 && safetyCounter < 1000) {
+    safetyCounter++;
+    const day = current.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    
+    // 1. If Sunday, move to Monday 8:00 AM
+    if (day === 0) {
+      current.setDate(current.getDate() + 1);
+      current.setHours(8, 0, 0, 0);
+      continue;
+    }
+    
+    const year = current.getFullYear();
+    const month = current.getMonth();
+    const date = current.getDate();
+    
+    const p1Start = new Date(year, month, date, 8, 0, 0, 0);
+    const p1End = new Date(year, month, date, 12, 0, 0, 0);
+    const p2Start = new Date(year, month, date, 13, 0, 0, 0);
+    const p2End = new Date(year, month, date, 17, 0, 0, 0);
+    
+    const curTime = current.getTime();
+    
+    if (curTime < p1Start.getTime()) {
+      current.setTime(p1Start.getTime());
+    } else if (curTime >= p1Start.getTime() && curTime < p1End.getTime()) {
+      const msLeftInP1 = p1End.getTime() - curTime;
+      if (remMs <= msLeftInP1) {
+        current.setTime(curTime + remMs);
+        remMs = 0;
+      } else {
+        remMs -= msLeftInP1;
+        current.setTime(p2Start.getTime());
+      }
+    } else if (curTime >= p1End.getTime() && curTime < p2Start.getTime()) {
+      current.setTime(p2Start.getTime());
+    } else if (curTime >= p2Start.getTime() && curTime < p2End.getTime()) {
+      const msLeftInP2 = p2End.getTime() - curTime;
+      if (remMs <= msLeftInP2) {
+        current.setTime(curTime + remMs);
+        remMs = 0;
+      } else {
+        remMs -= msLeftInP2;
+        current.setDate(current.getDate() + 1);
+        current.setHours(8, 0, 0, 0);
+      }
+    } else {
+      current.setDate(current.getDate() + 1);
+      current.setHours(8, 0, 0, 0);
+    }
+  }
+  return current;
+}
+
 export function calculateNextDeadline(start: string, type: string): string {
   if (type === 'NONE') return '';
   const date = new Date(start);

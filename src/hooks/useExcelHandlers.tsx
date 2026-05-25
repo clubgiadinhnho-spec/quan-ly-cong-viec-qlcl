@@ -131,17 +131,23 @@ export const useExcelHandlers = ({
 
     const dateStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '');
     
-    // DeXuat: status === 'PENDING' && !deletedAt && activeTab === 'new_proposals' ? no, actually based on current status
+    // DeXuat: status === 'PENDING' && !deletedAt
     const deXuat = tasks.filter(t => t.status === 'PENDING' && !t.deletedAt);
     const bangChinh = tasks.filter(t => t.status === 'APPROVED' && !t.waitingApproval && !t.deletedAt);
     const trinhDuyet = tasks.filter(t => t.waitingApproval && !t.deletedAt);
     const hoanThanh = tasks.filter(t => t.status === 'COMPLETED' && !t.deletedAt);
     const thungRac = tasks.filter(t => t.deletedAt);
 
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
     exportTasksToExcel(deXuat, allUsers, `Backup_DeXuat_${dateStr}.xlsx`);
+    await sleep(800);
     exportTasksToExcel(bangChinh, allUsers, `Backup_BangChinh_${dateStr}.xlsx`);
+    await sleep(800);
     exportTasksToExcel(trinhDuyet, allUsers, `Backup_TrinhDuyet_${dateStr}.xlsx`);
+    await sleep(800);
     exportTasksToExcel(hoanThanh, allUsers, `Backup_HoanThanh_${dateStr}.xlsx`);
+    await sleep(800);
     exportTasksToExcel(thungRac, allUsers, `Backup_ThungRac_${dateStr}.xlsx`);
     
     alert("Hệ thống đã kích hoạt lệnh SIÊU BACKUP - 5 file đã được tải xuống.");

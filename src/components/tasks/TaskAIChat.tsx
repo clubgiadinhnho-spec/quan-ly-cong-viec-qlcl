@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Send, X, User, Loader2, Sparkles } from 'lucide-react';
 import { Task, AIChatMessage, User as UserType } from '../../types';
-import { GoogleGenAI } from "@google/genai";
 import { JobAvatar } from '../common/JobAvatar';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -130,16 +129,14 @@ export const TaskAIChat: React.FC<TaskAIChatProps> = ({
         });
       }
 
-      // 3. Call Gemini
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("Sếp Trường ơi, JOB chưa được nạp khóa API trên Vercel. Sếp kiểm tra lại nhé!");
-      }
-
+      // 3. Call Gemini Proxy
       let aiText = "";
       try {
-        const googleAi = new GoogleGenAI({ apiKey });
-        const systemPrompt = `Bạn là JOB, trợ lý AI chuyên nghiệp và thân thiện. 
+        const response = await fetch('/api/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: `Bạn là JOB, trợ lý AI chuyên nghiệp và thân thiện. 
 Nhiệm vụ của bạn: Nhắc nhở và hỗ trợ người dùng hoàn thành công việc.
 Công việc hiện tại: "${task.title}"
 Mục tiêu: "${task.objective}"
@@ -152,21 +149,21 @@ Yêu cầu:
 2. Nếu là nhân viên phụ trách: Tập trung vào việc thúc đẩy tiến độ, gợi ý giải pháp.
 3. Nếu là Admin: Hỗ trợ phân tích công việc, gợi ý cách quản lý hoặc kiểm tra.
 4. Trả lời ngắn gọn, súc tích bằng tiếng Việt.
-5. Đây là cuộc hội thoại riêng tư chỉ giữa bạn và người này, người khác không thấy nội dung này.`;
-
-        const response = await googleAi.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: [
-            { role: 'user', parts: [{ text: systemPrompt }] },
-            ...taskMessages.map(m => ({
-              role: m.role === 'assistant' ? 'model' : 'user',
-              parts: [{ text: m.content }]
-            })),
-            { role: 'user', parts: [{ text: userMsg }] }
-          ]
+5. Đây là cuộc hội thoại riêng tư chỉ giữa bạn và người này, người khác không thấy nội dung này.`,
+            messages: taskMessages.map(m => ({
+              role: m.role,
+              content: m.content
+            }))
+          }),
         });
 
-        aiText = response.text || "Xin lỗi, tôi gặp chút trục trặc. Bạn cần hỗ trợ gì thêm không?";
+        if (!response.ok) {
+           const err = await response.json();
+           throw new Error(err.error || 'Failed to generate content');
+        }
+
+        const data = await response.json();
+        aiText = data.text || "Xin lỗi, tôi gặp chút trục trặc. Bạn cần hỗ trợ gì thêm không?";
 
         // 4. Update Cache in Firestore
         const taskRef = doc(db, 'tasks', task.id);

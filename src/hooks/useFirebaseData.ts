@@ -411,16 +411,16 @@ export const useFirebaseData = (currentUserId?: string) => {
         if (t.code) codeCounts[t.code] = (codeCounts[t.code] || 0) + 1; 
       });
 
-      // Tìm các task cần sửa: có -K HOẶC bị trùng mã HOẶC chưa đủ 6 chữ số
-      const tasksToFix = tasks.filter(t => (t.code && codeCounts[t.code] > 1) || t.code?.includes('-K') || (t.code?.startsWith('C') && t.code.split('-K')[0].length < 7));
+      // Tìm các task cần sửa: có -K HOẶC bị trùng mã HOẶC chưa đủ 8 chữ số
+      const tasksToFix = tasks.filter(t => (t.code && codeCounts[t.code] > 1) || t.code?.includes('-K') || (t.code?.startsWith('C') && t.code.split('-K')[0].length < 9));
       
       if (tasksToFix.length > 0) {
-        console.log(`[MIGRATION] Phát hiện ${tasksToFix.length} bản ghi cần xử lý trùng lặp/chuẩn hóa mã 6 số.`);
+        console.log(`[MIGRATION] Phát hiện ${tasksToFix.length} bản ghi cần xử lý trùng lặp/chuẩn hóa mã 8 số.`);
         const batch = writeBatch(db);
         
-        // Tập hợp các mã "an toàn" (không trùng, không -K, và đã đủ 6 số)
+        // Tập hợp các mã "an toàn" (không trùng, không -K, và đã đủ 8 số)
         const usedCodes = new Set(
-          tasks.filter(t => t.code && !t.code.includes('-K') && codeCounts[t.code] === 1 && t.code.length >= 7)
+          tasks.filter(t => t.code && !t.code.includes('-K') && codeCounts[t.code] === 1 && t.code.length >= 9)
                .map(t => t.code)
         );
         
@@ -436,16 +436,16 @@ export const useFirebaseData = (currentUserId?: string) => {
         tasksToFix.forEach(t => {
           let cleanCode = t.code?.split('-K')[0] || '';
 
-          // Chuẩn hóa sang 6 số nếu khớp pattern Cxxx
+          // Chuẩn hóa sang 8 số nếu khớp pattern Cxxx
           const match = cleanCode.match(/C(\d+)/);
           if (match) {
-            cleanCode = `C${match[1].padStart(6, '0')}`;
+            cleanCode = `C${match[1].padStart(8, '0')}`;
           }
           
           // Nếu mã sau khi làm sạch vẫn bị trùng hoặc t.code ban đầu đã bị trùng hoặc rỗng
           if (!cleanCode || usedCodes.has(cleanCode) || codeCounts[t.code || ''] > 1) {
             maxNum++;
-            cleanCode = `C${String(maxNum).padStart(6, '0')}`;
+            cleanCode = `C${String(maxNum).padStart(8, '0')}`;
           }
           
           usedCodes.add(cleanCode);

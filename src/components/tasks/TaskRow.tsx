@@ -1,7 +1,7 @@
 import React from 'react';
 import { MessageSquare, Paperclip, X, CheckCircle, XCircle, Sparkles, RotateCcw, Trash2, Bell, RefreshCw, Highlighter, Check, ThumbsUp, CheckCircle2, Tag, Pencil, Eye, History, UserCircle, ChevronDown, Zap, Banknote, Bold, Underline, Palette, Eraser, Edit3 } from 'lucide-react';
 import { Task, User, AIChatMessage } from '../../types';
-import { formatDate, calculateNextDeadline, getTaskDeadlineStatus } from '../../lib/dateUtils';
+import { formatDate, calculateNextDeadline, getTaskDeadlineStatus, calculateKnbSlaDeadline } from '../../lib/dateUtils';
 import { TaskChat } from './TaskChat';
 import { TaskAIChat } from './TaskAIChat';
 import { AnimatePresence, motion } from 'motion/react';
@@ -16,6 +16,7 @@ import { ChatIconSVG } from '../common/ChatIconSVG';
 
 import { getUserById, getSafeNameProps, getTaskAssigneeName, isUserTask, checkIsAdmin, checkIsRecurring } from '../../utils/userUtils';
 import { generateQCDExplanation } from '../../services/geminiService';
+import { useTaskContext } from '../../contexts/TaskContext';
 
 const HIGHLIGHT_COLORS: Record<string, string> = {
   'amber': '!bg-amber-50/50 hover:!bg-amber-100/60 ring-inset ring-1 ring-amber-200/30 text-amber-950',
@@ -27,6 +28,7 @@ const HIGHLIGHT_COLORS: Record<string, string> = {
 
 interface TaskRowProps {
   task: Task;
+  tasks?: Task[];
   user: User;
   users: User[];
   onUpdate: (id: string, updates: Partial<Task>) => void;
@@ -61,7 +63,7 @@ interface TaskRowProps {
 }
 
 export const TaskRow: React.FC<TaskRowProps> = ({ 
-  task, user, users, onUpdate, onDelete, onViewHistory, onOpenChat, 
+  task, tasks = [], user, users, onUpdate, onDelete, onViewHistory, onOpenChat, 
   isChatOpen, onSendMessage, onReact, onTogglePriority, onSetPriority, onEdit, idx, setConfirmModal,
   isReadOnly = false, isUpdateReadOnly = false, onRestore, onApprove, approveTaskCompletion, onNavigate, highlightedTaskId, isSelected, onToggleSelect,
   createNotification, markAsRead, lastReadChatTimestamps,
@@ -93,7 +95,110 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   
   const canSeeAI = isAdmin || user.role === 'Trưởng Phòng';
 
-  const canEditPriority = isAdmin;
+  const canEditPriority = isAdmin || user.role === 'Trưởng Phòng';
+  
+  // Logic xử lý đặc biệt cho KNN (Khiếu nại ngoài) & KNB (Khiếu nại bộ) - 2 Giai đoạn
+  const isKNN = task.category === 'KNN';
+  const isKNB = task.category === 'KNB';
+  const isTwoStage = isKNN || isKNB;
+  const taskCreatedAt = task.systemCreatedAt || task.issueDate || task.updatedAt || new Date().toISOString();
+  // Điều kiện Ân xá: systemCreatedAt hoặc issueDate trước ngày 20/05/2026
+  const isLegacyKNN = isKNN && new Date(taskCreatedAt).getTime() < new Date('2026-05-20T00:00:00Z').getTime();
+  const isStage1Done = !!(task.stage1Done || isLegacyKNN);
+
+  // Tính toán SLA: KNN 48 giờ, KNB 8 giờ làm việc
+  const slaDeadlineMs = isKNN 
+    ? (new Date(taskCreatedAt).getTime() + 48 * 60 * 60 * 1000)
+    : calculateKnbSlaDeadline(taskCreatedAt).getTime();
+  const [currentTime, setCurrentTime] = React.useState(Date.now());
+  
+  React.useEffect(() => {
+    if (isTwoStage) {
+      const interval = setInterval(() => {
+        setCurrentTime(Date.now());
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [isTwoStage]);
+
+  const timeLeftMs = slaDeadlineMs - currentTime;
+  const hoursLeft = timeLeftMs / (1000 * 60 * 60);
+  const isSlaOverdue = hoursLeft <= 0;
+
+  const formatTimeLeft = (ms: number) => {
+    if (ms <= 0) return 'TRỄ';
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const startMs = new Date(taskCreatedAt).getTime();
+  const stage1CompletedTime = task.stage1CompletedAt 
+    ? new Date(task.stage1CompletedAt).getTime() 
+    : startMs;
+
+  const formatDuration = (ms: number) => {
+    if (ms < 0) ms = 0;
+    const totalSeconds = Math.floor(ms / 1000);
+    const totalMinutes = Math.floor(totalSeconds / 60);
+    const totalHours = Math.floor(totalMinutes / 60);
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    const minutes = totalMinutes % 60;
+
+    if (days > 0) {
+      return `${days} ngày ${hours} giờ`;
+    }
+    if (hours > 0) {
+      return `${hours} giờ ${minutes} phút`;
+    }
+    return `${minutes} phút`;
+  };
+
+  const formatDurationAbbr = (ms: number) => {
+    if (ms < 0) ms = 0;
+    const totalSeconds = Math.floor(ms / 1000);
+    const totalMinutes = Math.floor(totalSeconds / 60);
+    const totalHours = Math.floor(totalMinutes / 60);
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    const minutes = totalMinutes % 60;
+
+    if (days > 0) {
+      return `${days}d${hours > 0 ? `${hours}h` : ''}`;
+    }
+    if (hours > 0) {
+      return `${hours}h${minutes > 0 ? `${minutes}m` : ''}`;
+    }
+    return `${minutes}m`;
+  };
+
+  const formatCountdown = (ms: number) => {
+    const isOverdue = ms < 0;
+    const absoluteMs = Math.abs(ms);
+    const totalSeconds = Math.floor(absoluteMs / 1000);
+    const totalHours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    const formatted = `${totalHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    return isOverdue ? `Trễ -${formatted}` : formatted;
+  };
+
+  const getCycleDays = (recurrence?: string): number => {
+    switch (recurrence) {
+      case 'DAILY': return 3;
+      case 'TRI_DAILY': return 3;
+      case 'WEEKLY': return 7;
+      case 'BI_WEEKLY': return 14;
+      case 'TRI_WEEKLY': return 21;
+      case 'MONTHLY': return 30;
+      default: return 7;
+    }
+  };
+
   const [showColorPicker, setShowColorPicker] = React.useState(false);
   const [showQCDModal, setShowQCDModal] = React.useState(false);
   const [showUpdateModal, setShowUpdateModal] = React.useState(false);
@@ -191,6 +296,132 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   );
 
   const isRecurringTask = checkIsRecurring(task);
+  
+  const getTaskRecurrenceStats = () => {
+    const parseSafeDate = (dateVal: any): number => {
+      if (!dateVal) return 0;
+      
+      // If it's already a number or Firestore Timestamp
+      if (typeof dateVal === 'number') return dateVal;
+      if (dateVal && typeof dateVal === 'object') {
+        if (typeof dateVal.toMillis === 'function') return dateVal.toMillis();
+        if (typeof dateVal.seconds === 'number') return dateVal.seconds * 1000;
+      }
+
+      const dateStr = String(dateVal).trim();
+      if (!dateStr) return 0;
+
+      // Try splitting first to support local timezone creation for YYYY-MM-DD and DD/MM/YYYY
+      try {
+        const parts = dateStr.split(/[-/ T:]/);
+        if (parts.length >= 3) {
+          const p0 = parseInt(parts[0], 10);
+          const p1 = parseInt(parts[1], 10);
+          const p2 = parseInt(parts[2], 10);
+
+          if (!isNaN(p0) && !isNaN(p1) && !isNaN(p2)) {
+            // Case 1: YYYY-MM-DD
+            if (parts[0].length === 4) {
+              const d = new Date(p0, p1 - 1, p2);
+              if (!isNaN(d.getTime())) return d.getTime();
+            }
+            // Case 2: DD/MM/YYYY or DD/MM/YY
+            if (parts[2].length === 2 || parts[2].length === 4) {
+              let year = p2;
+              if (parts[2].length === 2) {
+                year = p2 < 50 ? 2000 + p2 : 1900 + p2;
+              }
+              const d = new Date(year, p1 - 1, p0);
+              if (!isNaN(d.getTime())) return d.getTime();
+            }
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      let parsed = new Date(dateStr);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.getTime();
+      }
+
+      return 0;
+    };
+
+    let context: any = null;
+    try {
+      context = useTaskContext();
+    } catch (err) {
+      // ignore
+    }
+    const allTasks = context?.tasks || tasks || [];
+
+    if (!allTasks || allTasks.length === 0) {
+      return { cycleCount: 0, elapsedDays: 0 };
+    }
+
+    const currentTitle = (task.title || '').trim().toLowerCase();
+    
+    // Find all completed tasks with the exact same title & assignee
+    const completedTasks = allTasks.filter(t => 
+      t.status === 'COMPLETED' && 
+      !t.deletedAt && 
+      t.assigneeId === task.assigneeId &&
+      (t.title || '').trim().toLowerCase() === currentTitle
+    );
+
+    // Number of completed historical cycles
+    const completedCount = completedTasks.length;
+
+    // Cycle count displayed on critical active board: 
+    // +1 if the task is active (not already completed)
+    const isActive = task.status !== 'COMPLETED';
+    const cycleCount = isActive ? completedCount + 1 : completedCount;
+
+    // Dò trong danh sách công việc hoàn thành (completedTasks) để tìm ngày bắt đầu (startDate) sớm nhất
+    let earliestTime = 0;
+
+    if (completedTasks.length > 0) {
+      completedTasks.forEach(t => {
+        // Ưu tiên startDate (ngày bắt đầu) của chu kỳ hoàn thành
+        const sTime = parseSafeDate(t.startDate);
+        if (sTime > 0) {
+          if (earliestTime === 0 || sTime < earliestTime) {
+            earliestTime = sTime;
+          }
+        }
+      });
+
+      // Nếu không một công việc hoàn thành nào có startDate, ta tìm ngày bắt đầu/khởi tạo sớm nhất của chúng làm fallback
+      if (earliestTime === 0) {
+        completedTasks.forEach(t => {
+          const cTime = parseSafeDate(t.startDate) || parseSafeDate(t.issueDate) || parseSafeDate(t.createdAt) || parseSafeDate(t.systemCreatedAt);
+          if (cTime > 0) {
+            if (earliestTime === 0 || cTime < earliestTime) {
+              earliestTime = cTime;
+            }
+          }
+        });
+      }
+    }
+
+    // Nếu vẫn không tìm được (hoặc chưa có công việc hoàn thành nào), ta dùng ngày của task hiện tại
+    if (earliestTime === 0) {
+      earliestTime = parseSafeDate(task.startDate) || parseSafeDate(task.issueDate) || parseSafeDate(task.createdAt) || parseSafeDate(task.systemCreatedAt) || Date.now();
+    }
+
+    const d1 = new Date(earliestTime);
+    const d2 = new Date();
+    const date1 = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate());
+    const date2 = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate());
+    const diffTime = date2.getTime() - date1.getTime();
+    const elapsedDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    return {
+      cycleCount,
+      elapsedDays: Math.max(0, elapsedDays)
+    };
+  };
 
   const showRedAlert = () => {
     setConfirmModal({
@@ -231,9 +462,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     return processed;
   };
 
-  const handleUpdateProgress = (taskId: string, htmlContent: string) => {
+  const handleUpdateProgress = (taskId: string, htmlContent: string, aiApplied?: boolean, aiAppliedDetails?: string) => {
     onUpdate(taskId, { 
       currentUpdate: htmlContent,
+      aiApplied: aiApplied ?? null,
+      aiAppliedDetails: aiAppliedDetails ?? null,
       isNewUpdate: true,
       lastActionAt: new Date().toISOString(),
       lastUpdatedByRole: user.role,
@@ -393,6 +626,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                      {task.code}
                    </span>
                 </div>
+
+
 
             {/* Job Icon below Code */}
             <div className="relative">
@@ -642,14 +877,50 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             <span translate="no" className="notranslate font-bold">MỤC TIÊU: </span>
             <span translate="no" className="notranslate">{task.objective}</span>
           </div>
-          
-                         <div className="mt-1 flex items-center gap-1">
+
+          <div className="mt-1 flex items-center gap-1">
               {task.waitingApproval && (
                 <span className="text-[8px] font-black text-amber-500 bg-amber-50 px-1 py-0.2 rounded-sm animate-pulse border border-amber-100 uppercase tracking-tighter">
                   <span translate="no" className="notranslate">CHỜ DUYỆT</span>
                 </span>
               )}
           </div>
+          
+          {isTwoStage && (
+            <div className="w-[calc(100%+12px)] flex items-center h-5.5 bg-slate-50 border-t border-slate-200 overflow-hidden font-sans select-none mt-auto -mx-1.5 -mb-1.5 rounded-b-[7px]">
+              {/* GĐ1 Segment */}
+              <div 
+                className={`relative h-full flex items-center justify-center text-center text-[10px] font-black px-2 transition-all duration-300 border-r border-slate-200/50 ${
+                  isStage1Done 
+                    ? 'bg-emerald-50 text-emerald-800' 
+                    : (isSlaOverdue 
+                        ? 'bg-rose-50 text-rose-700' 
+                        : (hoursLeft <= 12 
+                            ? 'bg-orange-50 text-orange-700' 
+                            : 'bg-amber-50 text-amber-900'))
+                }`}
+                style={{ flexGrow: 2 }}
+              >
+                <span className="truncate">
+                  GĐ1: {isStage1Done ? formatDurationAbbr(stage1CompletedTime - startMs) : formatCountdown(timeLeftMs)}
+                </span>
+              </div>
+
+              {/* GĐ2 Segment */}
+              <div 
+                className={`relative h-full flex items-center justify-center text-center text-[10px] font-black px-2 transition-all duration-300 ${
+                  isStage1Done 
+                    ? (task.status === 'COMPLETED' ? 'bg-blue-50 text-blue-800' : 'bg-sky-50 text-sky-800') 
+                    : 'bg-slate-50 text-slate-400'
+                }`}
+                style={{ flexGrow: Math.max(3, getCycleDays(task.recurrence) - 2) }}
+              >
+                <span className="truncate">
+                  GĐ2: {isStage1Done ? (task.status === 'COMPLETED' ? 'xong' : formatDurationAbbr(currentTime - stage1CompletedTime)) : 'chờ...'}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </td>
 
@@ -702,21 +973,52 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   )}
                 </div>
 
-                {(!isReadOnly && !isUpdateReadOnly && (isAdmin || isOwner)) && (
-                  <button 
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      setShowUpdateModal(true);
-                      if (isAdmin && task.isNewUpdate) {
-                        onUpdate(task.id, { isNewUpdate: false });
-                      }
-                    }}
-                    className="w-5 h-5 flex items-center justify-center rounded-md bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-blue-100 group/edit"
-                    title="CẬP NHẬT TIẾN ĐỘ"
-                  >
-                    <Edit3 size={11} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
-                  </button>
-                )}
+                <div translate="no" className="notranslate flex items-center gap-1.5 shrink-0">
+                  {isRecurringTask && (() => {
+                    const { cycleCount, elapsedDays } = getTaskRecurrenceStats();
+                    let bgClass = "bg-emerald-500 text-white border-emerald-600";
+                    if (cycleCount > 6) {
+                      bgClass = "bg-red-600 text-white border-red-700";
+                    } else if (cycleCount > 3) {
+                      bgClass = "bg-orange-500 text-white border-orange-600";
+                    }
+                    return (
+                      <span 
+                        translate="no" 
+                        className={`notranslate text-[9px] font-black px-1.5 py-0.5 rounded-sm border shadow-sm transition-colors ${bgClass}`}
+                        title={`Số lần lặp: ${cycleCount} - Số ngày xử lý kể từ ngày sinh ra: ${elapsedDays}`}
+                      >
+                        CK:{cycleCount}-TD:{elapsedDays}
+                      </span>
+                    );
+                  })()}
+
+                  {task.aiApplied && (
+                    <span 
+                      translate="no" 
+                      className="notranslate text-[9px] font-black px-1.5 py-0.5 bg-rose-600 text-white rounded-sm border border-rose-700 shadow-sm shrink-0"
+                      title={task.aiAppliedDetails || "Có ứng dụng AI"}
+                    >
+                      AI
+                    </span>
+                  )}
+
+                  {(!isReadOnly && !isUpdateReadOnly && (isAdmin || isOwner)) && (
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setShowUpdateModal(true);
+                        if (isAdmin && task.isNewUpdate) {
+                          onUpdate(task.id, { isNewUpdate: false });
+                        }
+                      }}
+                      className="w-5 h-5 flex items-center justify-center rounded-md bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-blue-100 group/edit shrink-0"
+                      title="CẬP NHẬT TIẾN ĐỘ"
+                    >
+                      <Edit3 size={11} strokeWidth={3} className="group-hover:scale-110 transition-transform" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="relative flex-1 flex flex-col p-2 pt-1 overflow-hidden">
@@ -747,11 +1049,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         </div>
       </td>
       <td className="p-0 text-center border border-gray-300 align-middle">
-        <div className="relative group/priority w-full h-full min-h-[32px] flex items-center justify-center p-1">
+        <div className="relative group/priority w-full h-full min-h-[40px] flex items-center justify-center p-1">
           <button 
             onClick={canEditPriority && !task.priorityOrder ? () => onTogglePriority(task.id) : undefined}
             disabled={!canEditPriority && !task.priorityOrder}
-            className={`w-[32px] h-[32px] flex flex-col items-center justify-center transition-all rounded-md border-2 ${
+            className={`w-[32px] h-[32px] flex flex-col items-center justify-center transition-all rounded-md border-2 relative ${
               task.priorityOrder 
                 ? `${
                     task.priorityOrder === 1 ? 'bg-red-50 text-red-700 border-red-200' :
@@ -761,9 +1063,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                     task.priorityOrder === 5 ? 'bg-blue-50 text-blue-700 border-blue-200' :
                     task.priorityOrder === 6 ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
                     'bg-purple-50 text-purple-700 border-purple-200'
-                  } font-black` 
+                  } font-black focus:ring-2 focus:ring-offset-1 focus:ring-blue-400` 
                 : 'text-gray-200 hover:text-red-500 hover:bg-red-50 border-gray-100 border-dashed'
-            } ${!canEditPriority ? 'cursor-default' : 'cursor-pointer hover:scale-110 active:scale-95'}`}
+            } ${!canEditPriority ? 'cursor-default' : 'cursor-pointer hover:scale-105 active:scale-95'}`}
           >
             {task.priorityOrder ? (
               <span className="text-[16px] leading-none font-black"><span translate="no" className="notranslate">{task.priorityOrder}</span></span>
@@ -778,10 +1080,10 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 e.stopPropagation();
                 onSetPriority && onSetPriority(task.id, null);
               }}
-              className="absolute top-1 right-1 w-3.5 h-3.5 bg-gray-600/80 text-white rounded-full flex items-center justify-center border border-white opacity-0 group-hover/priority:opacity-100 transition-opacity z-10 hover:bg-red-600"
-              title="Bỏ ưu tiên"
+              className="absolute top-0.5 right-1 w-4 h-4 bg-red-600 text-white rounded-full flex items-center justify-center border border-white opacity-0 group-hover/priority:opacity-100 transition-opacity z-10 hover:bg-black hover:scale-110 shadow-sm"
+              title="Gỡ bỏ ưu tiên"
             >
-              <X size={8} strokeWidth={4} />
+              <X size={10} strokeWidth={4} />
             </button>
           )}
         </div>
@@ -794,17 +1096,88 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   <>
                     {/* TRẠNG THÁI: APPROVED - NÚT XONG */}
                     {task.status === 'APPROVED' && !task.isLocked && (
-                      <button 
-                        onClick={handleStatusAction}
-                        title={isAdmin ? 'XÁC NHẬN HOÀN THÀNH' : 'GỬI HOÀN THÀNH'}
-                        className={`w-7 h-7 flex items-center justify-center rounded-md transition-all group/btn border-2 ${
-                          isAdmin 
-                            ? (task.waitingApproval ? 'bg-blue-600 animate-bounce border-blue-400' : 'bg-green-600 hover:bg-green-700 border-green-400') 
-                            : (task.waitingApproval ? 'bg-green-500 cursor-default opacity-50' : 'bg-green-600 hover:bg-green-700 border-green-400')
-                        } text-white shadow-sm hover:scale-105 active:scale-95`}
-                      >
-                        <CheckCircle2 size={18} strokeWidth={3} />
-                      </button>
+                      isTwoStage ? (
+                        !isStage1Done ? (
+                          <button 
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (isProcessing) return;
+                              setIsProcessing(true);
+                              try {
+                                const currentT = Date.now();
+                                const hoursL = (slaDeadlineMs - currentT) / (1000 * 60 * 60);
+                                
+                                onUpdate(task.id, {
+                                  stage1Done: true,
+                                  stage1CompletedAt: new Date().toISOString(),
+                                  stage1KpiPassed: hoursL > 0,
+                                  recurrence: task.recurrence || (isKNN ? 'BI_WEEKLY' : 'NONE'),
+                                  updatedAt: new Date().toISOString()
+                                });
+                              } finally {
+                                setIsProcessing(false);
+                              }
+                            }}
+                            disabled={isProcessing}
+                            title={isSlaOverdue && isAdmin ? "XÁC NHẬN HOÀN THÀNH" : "XÁC NHẬN TIẾP NHẬN"}
+                            className="w-7 h-7 flex items-center justify-center rounded-md transition-all group/btn border-2 bg-green-600 hover:bg-green-700 border-green-400 text-white shadow-sm hover:scale-105 active:scale-95"
+                          >
+                            <CheckCircle2 size={18} strokeWidth={3} />
+                          </button>
+                        ) : (
+                          isAdmin ? (
+                            <button 
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (isProcessing) return;
+                                setIsProcessing(true);
+                                try {
+                                  const currentDeadline = task.extensionDate || task.expectedEndDate || new Date().toISOString().split('T')[0];
+                                  const recType = task.recurrence && task.recurrence !== 'NONE' ? task.recurrence : (isKNN ? 'BI_WEEKLY' : 'WEEKLY');
+                                  const nextDeadline = calculateNextDeadline(currentDeadline, recType);
+                                  const newHistoryEntry: CycleHistoryEntry = {
+                                    version: (task.cycleHistory?.length || 0) + 1,
+                                    code: task.code,
+                                    reportContent: task.currentUpdate || 'Cập nhật định kỳ',
+                                    objective: task.objective,
+                                    completedAt: new Date().toISOString(),
+                                    nextDeadline: nextDeadline
+                                  };
+                                  const updatedCycleHistory = [...(task.cycleHistory || []), newHistoryEntry];
+                                  
+                                  onUpdate(task.id, {
+                                    expectedEndDate: nextDeadline,
+                                    extensionDate: null,
+                                    currentUpdate: '',
+                                    version: (task.version || 0) + 1,
+                                    cycleHistory: updatedCycleHistory,
+                                    updatedAt: new Date().toISOString()
+                                  });
+                                } finally {
+                                  setIsProcessing(false);
+                                }
+                              }}
+                              disabled={isProcessing}
+                              className="w-7 h-7 flex items-center justify-center rounded-md transition-all group/btn border-2 bg-emerald-600 hover:bg-emerald-700 border-emerald-400 text-white shadow-sm hover:scale-105 active:scale-95"
+                              title="CHỐT CHU KỲ TỰ ĐỘNG (Cộng hạn)"
+                            >
+                              <RefreshCw size={14} />
+                            </button>
+                          ) : null
+                        )
+                      ) : (
+                        <button 
+                          onClick={handleStatusAction}
+                          title={isAdmin ? 'XÁC NHẬN HOÀN THÀNH' : 'GỬI HOÀN THÀNH'}
+                          className={`w-7 h-7 flex items-center justify-center rounded-md transition-all group/btn border-2 ${
+                            isAdmin 
+                              ? (task.waitingApproval ? 'bg-blue-600 animate-bounce border-blue-400' : 'bg-green-600 hover:bg-green-700 border-green-400') 
+                              : (task.waitingApproval ? 'bg-green-500 cursor-default opacity-50' : 'bg-green-600 hover:bg-green-700 border-green-400')
+                          } text-white shadow-sm hover:scale-105 active:scale-95`}
+                        >
+                          <CheckCircle2 size={18} strokeWidth={3} />
+                        </button>
+                      )
                     )}
 
                     {/* TRẠNG THÁI: PENDING - NÚT DUYỆT */}

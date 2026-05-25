@@ -8,11 +8,13 @@ interface UpdateModalProps {
   isOpen: boolean;
   onClose: () => void;
   task: Task;
-  onSave: (taskId: string, content: string) => void;
+  onSave: (taskId: string, content: string, aiApplied?: boolean, aiAppliedDetails?: string) => void;
 }
 
 export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, task, onSave }) => {
   const editorRef = React.useRef<HTMLDivElement>(null);
+  const [aiApplied, setAiApplied] = React.useState(false);
+  const [aiAppliedDetails, setAiAppliedDetails] = React.useState('');
 
   const toHTML = (content: string) => {
     if (!content) return '';
@@ -34,6 +36,9 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, task,
   // Hard-binding: Force data into editor when modal opens or task changes
   React.useEffect(() => {
     if (isOpen) {
+      setAiApplied(!!task.aiApplied);
+      setAiAppliedDetails(task.aiAppliedDetails || '');
+      
       // Small delay to ensure Ref is attached and Animation is stable
       const timer = setTimeout(() => {
         if (editorRef.current) {
@@ -60,7 +65,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, task,
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [isOpen, task.id, task.currentUpdate]); 
+  }, [isOpen, task.id, task.currentUpdate, task.aiApplied, task.aiAppliedDetails]); 
 
   const handleApplyFormat = (e: React.MouseEvent, command: string, value?: string) => {
     e.preventDefault();
@@ -94,7 +99,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, task,
 
   const handleSave = () => {
     if (editorRef.current) {
-      onSave(task.id, editorRef.current.innerHTML);
+      onSave(task.id, editorRef.current.innerHTML, aiApplied, aiApplied ? aiAppliedDetails : '');
       onClose();
     }
   };
@@ -204,9 +209,42 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, task,
                   ref={editorRef}
                   contentEditable
                   translate="no"
-                  className="notranslate rich-text-content w-full h-full outline-none text-[15px] text-blue-950 font-medium leading-relaxed font-sans"
-                  style={{ minHeight: '100%', textAlign: 'justify', fontStyle: 'normal' }}
+                  className="notranslate rich-text-content w-full outline-none text-[15px] text-blue-950 font-medium leading-relaxed font-sans"
+                  style={{ minHeight: '120px', textAlign: 'justify', fontStyle: 'normal' }}
                 />
+
+                {/* AI Application Area */}
+                <div className="mt-6 pt-4 border-t border-gray-200/50 flex flex-col gap-3">
+                  <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                    <input 
+                      type="checkbox"
+                      checked={aiApplied}
+                      onChange={(e) => setAiApplied(e.target.checked)}
+                      className="mt-1 w-4.5 h-4.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 accent-blue-600"
+                    />
+                    <div>
+                      <span className="text-sm font-black text-rose-600 uppercase tracking-wide">Ứng dụng AI (Gemini, ChatGPT...)</span>
+                      <span className="text-xs text-slate-500 block mt-0.5">Tích chọn nếu bạn có ứng dụng một công cụ AI bất kì vào việc hỗ trợ giải quyết công việc này.</span>
+                    </div>
+                  </label>
+                  
+                  {aiApplied && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -5 }}
+                      className="mt-1"
+                    >
+                      <textarea
+                        rows={3}
+                        value={aiAppliedDetails}
+                        onChange={(e) => setAiAppliedDetails(e.target.value)}
+                        placeholder="Hãy mô tả chi tiết, rõ ràng nội dung ứng dụng AI của bạn tại đây (ví dụ: dùng Prompt để lập dàn ý, tối ưu hóa code, tóm tắt quy trình...)"
+                        className="w-full p-3 border border-red-200/60 bg-rose-50/10 rounded-xl text-sm text-slate-800 outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition-all font-medium placeholder-rose-300/80"
+                      />
+                    </motion.div>
+                  )}
+                </div>
               </div>
 
               {/* Footer */}

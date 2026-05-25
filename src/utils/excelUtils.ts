@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 import { Task, User } from '../types';
 
 export const exportTasksToExcel = (tasks: Task[], users: User[], fileName?: string) => {
@@ -20,7 +21,7 @@ export const exportTasksToExcel = (tasks: Task[], users: User[], fileName?: stri
       'NHÂN SỰ': task.assigneeName || task.assignedTo || (assignee ? assignee.name : 'QUẢN TRỊ VIÊN'),
       'HẠNG MỤC CÔNG VIỆC': task.title || '',
       'MỤC TIÊU ĐẠT ĐƯỢC': task.objective || '',
-      'NGÀY BẮT ĐẦU': formatDate(task.startDate || task.issueDate || ''),
+      'NGÀY BẤT ĐẦU': formatDate(task.startDate || task.issueDate || ''),
       'HẠN HOÀN THÀNH': formatDate(task.expectedEndDate || ''),
       'NGÀY GIA HẠN': formatDate(task.extensionDate || ''),
       'NGÀY XONG': formatDate(task.actualEndDate || ''),
@@ -54,7 +55,11 @@ export const exportTasksToExcel = (tasks: Task[], users: User[], fileName?: stri
   
   const dateStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '');
   const finalFileName = fileName || `BAO_CAO_QC_${dateStr}.xlsx`;
-  XLSX.writeFile(workbook, finalFileName);
+  
+  // Use file-saver for more reliable downloads in production web environments
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const dataBlob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+  saveAs(dataBlob, finalFileName);
 };
 
 export const downloadSampleExcel = () => {
@@ -65,7 +70,7 @@ export const downloadSampleExcel = () => {
       'NHÂN SỰ': 'Họ tên nhân viên',
       'HẠNG MỤC CÔNG VIỆC': 'Nội dung công việc chính',
       'MỤC TIÊU ĐẠT ĐƯỢC': 'Kết quả cần đạt',
-      'NGÀY BẮT ĐẦU': '20/05/26',
+      'NGÀY BẤT ĐẦU': '20/05/26',
       'HẠN HOÀN THÀNH': '25/05/26',
       'CHU KỲ LẶP': 'KHÔNG LẶP'
     }
@@ -75,7 +80,9 @@ export const downloadSampleExcel = () => {
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'MẪU NHẬP LIỆU');
   
-  XLSX.writeFile(workbook, 'MAU_NHAP_LIEU_QC.xlsx');
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const dataBlob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+  saveAs(dataBlob, 'MAU_NHAP_LIEU_QC.xlsx');
 };
 
 export const importTasksFromExcel = (file: File): Promise<any[]> => {

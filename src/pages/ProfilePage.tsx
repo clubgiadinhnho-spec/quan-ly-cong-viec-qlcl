@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { JobAvatar } from '../components/common/JobAvatar';
 import { calculateKPI } from '../utils/taskUtils';
 import { User, Task, TaskCategory } from '../types';
-import { User as UserIcon, FileText, MessageSquare, Shield, HelpCircle, CheckCircle2, Clock, Edit3, Save, Lock, Mail, Phone, UserCircle, Key, Eye, EyeOff, CheckCircle, Camera } from 'lucide-react';
+import { User as UserIcon, FileText, MessageSquare, Shield, HelpCircle, CheckCircle2, Clock, Edit3, Save, Lock, Mail, Phone, UserCircle, Key, Eye, EyeOff, CheckCircle, Camera, Printer, ExternalLink, X } from 'lucide-react';
 import { getPerformanceAdvice } from '../lib/gemini';
 import { formatDate, getMonthYear } from '../lib/dateUtils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -30,7 +30,32 @@ const getDisplayNameTitle = (user: User) => {
   return user.title || 'CHUYÊN VIÊN QC';
 };
 
+const getUserRoleTitle = (u: any): string => {
+  if (!u) return 'Nhân sự';
+  const name = u.name || '';
+  const normName = name.trim();
+  if (normName === 'Lê Nhật Trường') {
+    return 'Trưởng phòng';
+  }
+  if (normName === 'Võ Thị Mỹ Tân' || normName.includes('Mỹ Tân') || normName.includes('Tân')) {
+    return 'Trưởng nhóm';
+  }
+  if (normName === 'Bành Nhựt Hùng' || normName.includes('Nhựt Hùng') || normName === 'Nguyễn Kiều Phan Tú' || normName.includes('Phan Tú') || normName.endsWith('Tú')) {
+    return 'Nhân viên';
+  }
+  if (u.title && u.title !== 'CHUYÊN VIÊN QC' && u.title !== 'CHỜ CẬP NHẬT') {
+    return u.title;
+  }
+  return u.role === 'Staff' ? 'Nhân viên' : 'Quản lý';
+};
+
 export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdateProfile }: ProfilePageProps) => {
+  const [isClient, setIsMounted] = useState(false);
+  useEffect(() => {
+    const handle = window.requestAnimationFrame(() => setIsMounted(true));
+    return () => window.cancelAnimationFrame(handle);
+  }, []);
+
   const isAdmin = React.useMemo(() => {
     if (!currentUser) return false;
     const adminEmails = [
@@ -92,6 +117,38 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
   const [toast, setToast] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [topN, setTopN] = useState<number>(0); // 0 means All
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [modalPrintOrient, setModalPrintOrient] = useState<'portrait' | 'landscape'>('portrait');
+  const [modalPrintScale, setModalPrintScale] = useState<number>(80);
+
+  const urlParams = React.useMemo(() => {
+    return typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  }, []);
+
+  const isPrintMode = React.useMemo(() => {
+    return urlParams?.get('print') === 'true';
+  }, [urlParams]);
+
+  const layoutOrient = React.useMemo(() => {
+    return urlParams?.get('layout_orient') || modalPrintOrient;
+  }, [urlParams, modalPrintOrient]);
+
+  const printScale = React.useMemo(() => {
+    return Number(urlParams?.get('print_scale')) || modalPrintScale;
+  }, [urlParams, modalPrintScale]);
+
+  const handlePrintClick = () => {
+    setShowPrintModal(true);
+  };
+
+  const handleOpenNewTabToPrint = () => {
+    const printUrl = new URL(window.location.href);
+    printUrl.searchParams.set('print', 'true');
+    printUrl.searchParams.set('layout_orient', modalPrintOrient);
+    printUrl.searchParams.set('print_scale', modalPrintScale.toString());
+    window.open(printUrl.toString(), '_blank');
+    setShowPrintModal(false);
+  };
 
   const isSelf = currentUser?.id === user?.id;
   const canEdit = isAdmin || isSelf; 
@@ -389,6 +446,29 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
 
   const stats = getFilteredData();
 
+  // Auto-detect and run print if the URL has ?print=true
+  useEffect(() => {
+    if (urlParams?.get('print') === 'true') {
+      const checkAndPrint = () => {
+        const hasData = isClient && stats && stats.typeData && stats.typeData.length > 0;
+        if (hasData) {
+          window.print();
+          // Clean up url parameter to avoid continuous printing on page reloads
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('print');
+          newUrl.searchParams.delete('layout_orient');
+          newUrl.searchParams.delete('print_scale');
+          window.history.replaceState({}, '', newUrl.toString());
+        } else {
+          setTimeout(checkAndPrint, 500);
+        }
+      };
+      
+      const timer = setTimeout(checkAndPrint, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [urlParams, isClient, stats]);
+
   // Tạo danh sách tháng từ dữ liệu
   const availableMonths = React.useMemo(() => {
     const months = new Set<string>();
@@ -489,6 +569,188 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
 
   return (
     <div className={`min-h-screen -m-6 p-6 bg-white transition-colors duration-500`}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          @page {
+            size: A4 ${layoutOrient === 'landscape' ? 'landscape' : 'portrait'} !important;
+            margin: 0.4cm !important;
+          }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          body, html, #root, #root > div, main, main > div, .min-h-screen, [key="profile"], div[key="profile"] {
+            background: white !important;
+            color: black !important;
+            width: 100% !important;
+            height: auto !important;
+            min-height: auto !important;
+            overflow: visible !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            display: block !important;
+          }
+          #root {
+            transform: scale(${printScale / 100}) !important;
+            transform-origin: top left !important;
+            width: ${100 / (printScale / 100)}% !important;
+            height: auto !important;
+            overflow: visible !important;
+            display: block !important;
+          }
+          /* Hide non-printable elements cleanly */
+          .print\\:hidden, 
+          button, 
+          header:not(.print-header), 
+          .no-print,
+          .fixed,
+          nav,
+          aside {
+            display: none !important;
+          }
+          /* Preserve pristine 12-column layout grid for printing to keep cards side-by-side */
+          .profile-layout-grid {
+            display: grid !important;
+            grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+            gap: 10px !important;
+          }
+          .profile-layout-grid > div {
+            min-height: auto !important;
+            height: auto !important;
+            border-radius: 12px !important;
+            margin-bottom: 2px !important;
+            break-inside: avoid-page !important;
+            page-break-inside: avoid !important;
+          }
+          /* Allow AI Card to layout naturally, avoiding breaking inside the card */
+          #card-AI {
+            break-inside: avoid-page !important;
+            page-break-inside: avoid !important;
+          }
+          .profile-layout-grid > div:not(.p-0) {
+            padding: 10px 12px !important;
+          }
+          .profile-header-card {
+            padding: 10px 16px !important;
+            border-radius: 16px !important;
+            margin-bottom: 6px !important;
+          }
+          .space-y-6 > * + * {
+            margin-top: 8px !important;
+          }
+          .space-y-4 > * + * {
+            margin-top: 4px !important;
+          }
+          /* Force stats grid to 4-column row and make extremely compact to fit Page 1 */
+          .profile-stats-grid {
+            display: grid !important;
+            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+            gap: 8px !important;
+          }
+          /* Replace ink-heavy dark boxes with gorgeous executive cards on white paper */
+          .profile-stats-grid > div {
+            background: #f8fafc !important;
+            color: #0f172a !important;
+            border: 1px solid #cbd5e1 !important;
+            border-bottom: 4px solid currentColor !important;
+            box-shadow: none !important;
+            text-shadow: none !important;
+            min-height: 52px !important;
+            padding: 4px 12px !important;
+            border-radius: 12px !important;
+          }
+          .profile-stats-grid > div p,
+          .profile-stats-grid > div span {
+            color: #475569 !important;
+            font-size: 8px !important;
+            margin-bottom: 1px !important;
+          }
+          .profile-stats-grid > div p.text-2xl {
+            color: #0f172a !important;
+            font-size: 16px !important;
+            line-height: none !important;
+          }
+          .profile-stats-grid > div div.text-[10px] {
+            font-size: 8px !important;
+          }
+          .profile-stats-grid > div div.p-1.5 {
+            padding: 4px !important;
+          }
+          .profile-info-grid {
+            display: grid !important;
+            grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+            gap: 10px !important;
+          }
+          /* Ensure SVGs like Recharts scale dynamically inside their containers */
+          .recharts-wrapper, svg {
+            max-width: 100% !important;
+            overflow: visible !important;
+          }
+          /* Specific page-break protection for key blocks, avoiding generic styles like .bg-white or .rounded-2xl */
+          .profile-header-card,
+          .profile-stats-grid > div,
+          .profile-layout-grid > div,
+          #card-TYPE_STATS,
+          .recharts-wrapper, 
+          .print-avoid-break {
+            break-inside: avoid-page !important;
+            page-break-inside: avoid !important;
+          }
+          /* Cho phép danh sách cuộn kéo dài tự nhiên không giới hạn chiều cao khi in, ngăn sụp đổ flex-basis */
+          div.custom-scrollbar.overflow-y-auto {
+            flex: none !important;
+            display: block !important;
+            max-height: none !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+          /* Thu hẹp tối đa các dòng phân loại công việc trong card TYPE_STATS chỉ hiển thị đúng 1 dòng */
+          #card-TYPE_STATS .bg-slate-50 {
+            padding: 3px 6px !important;
+            min-height: auto !important;
+            height: auto !important;
+            margin-bottom: 2px !important;
+            border-radius: 8px !important;
+          }
+          #card-TYPE_STATS .bg-slate-50 span {
+            font-size: 9.5px !important;
+          }
+          #card-TYPE_STATS .bg-slate-50 .text-\[14px\] {
+            font-size: 11px !important;
+          }
+          #card-TYPE_STATS .bg-slate-50 .text-\[9px\] {
+            font-size: 8px !important;
+          }
+          #card-TYPE_STATS .custom-scrollbar-slim {
+            display: none !important;
+            height: 0 !important;
+            max-height: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            overflow: hidden !important;
+          }
+          /* Bảo vệ các ô thông tin cá nhân khoanh tròn không bị tràn chữ khi in zoom */
+          .profile-info-grid .bg-white {
+            padding: 8px 12px !important;
+          }
+          .profile-info-grid .bg-white p, 
+          .profile-info-grid .bg-white span,
+          .profile-info-grid .bg-white select,
+          .profile-info-grid .bg-white input {
+            font-size: 11px !important;
+          }
+          .profile-info-grid .bg-white span.uppercase {
+            font-size: 8px !important;
+          }
+          .profile-info-grid .bg-white .break-all {
+            font-size: 10.5px !important;
+            word-break: break-all !important;
+            white-space: normal !important;
+          }
+        }
+      `}} />
       <div className="space-y-6 max-w-6xl mx-auto animate-in fade-in duration-500">
         <AnimatePresence>
           {toast && (
@@ -505,7 +767,55 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
         </AnimatePresence>
 
         <div className="space-y-4">
-          <div className={`${getRoleBgColor(user)} rounded-[32px] shadow-xl relative flex flex-col px-12 py-6 overflow-hidden border-4 border-slate-100 w-full`}>
+          {/* HỒ SƠ ĐẸP CHO BẢN IN - TRANG CÁ NHÂN */}
+          <div className="hidden print:block border-b-2 border-slate-300 pb-2 mb-2">
+            <div className="flex justify-between items-start">
+              <div>
+                <h1 className="text-lg font-black text-slate-900 tracking-tight uppercase leading-none">
+                  HỒ SƠ NĂNG LỰC & HIỆU SUẤT CÁ NHÂN
+                </h1>
+                <p className="text-[8px] font-bold text-slate-500 uppercase mt-0.5 tracking-wider">
+                  MÔ HÌNH QUẢN TRỊ KPI ĐA CHIỀU PHÒNG QLCL TÂN PHÚ VIỆT NAM
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-[7px] font-black text-slate-400 block uppercase tracking-wider leading-none">THÁNG KHẢO SÁT</span>
+                <span className="text-[10px] font-black text-rose-600 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-md mt-0.5 inline-block">
+                  {selectedMonth === 'all' ? 'Toàn bộ' : `Tháng ${selectedMonth}`}
+                </span>
+              </div>
+            </div>
+            
+            <div className="mt-2 flex flex-row gap-8 justify-between bg-slate-50 p-2 rounded-xl border border-slate-200 text-xs">
+              <div className="flex items-center gap-2 text-left">
+                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-slate-300 shrink-0 bg-white">
+                  <Avatar src={user.avatar} name={user.name} size="full" className="border-none bg-transparent shadow-none" />
+                </div>
+                <div>
+                  <span className="font-bold text-slate-400 uppercase text-[7px] block leading-none mb-0.5">Nhân sự đánh giá</span>
+                  <span className="font-black text-slate-800 uppercase text-xs leading-none notranslate" translate="no">
+                    {user.name}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-right">
+                <div>
+                  <span className="font-bold text-slate-400 uppercase text-[7px] block mb-0.5">Mã nhân sự</span>
+                  <span className="font-bold text-slate-700 font-mono tracking-wider">#{user.code}</span>
+                </div>
+                <div>
+                  <span className="font-bold text-slate-400 uppercase text-[7px] block mb-0.5">Chức vụ</span>
+                  <span className="font-bold text-slate-700 uppercase text-[10px]">{getUserRoleTitle(user)}</span>
+                </div>
+                <div>
+                  <span className="font-bold text-slate-400 uppercase text-[7px] block mb-0.5">Bộ phận</span>
+                  <span className="font-bold text-slate-700 uppercase text-[10px]">Phòng QLCL</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className={`${getRoleBgColor(user)} rounded-[32px] shadow-xl relative flex flex-col px-12 py-6 overflow-hidden border-4 border-slate-100 w-full profile-header-card print:hidden`}>
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-6">
                 <h1 className="text-[28px] font-black text-slate-900 tracking-tight uppercase leading-none">
@@ -619,7 +929,7 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
               </div>
 
               <div className="flex-1 flex flex-col justify-center">
-                <div className="grid grid-cols-12 gap-4">
+                <div className="grid grid-cols-12 gap-4 profile-info-grid">
                   <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-2">
                     <div className="flex items-center gap-2 mb-2 opacity-50">
                       <Shield size={12} className="text-slate-400" />
@@ -627,7 +937,7 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
                     </div>
                     {!isEditing ? (
                       <div className="h-5 flex items-center">
-                        <p translate="no" className={`notranslate font-sans font-bold tracking-tight leading-none text-slate-900 text-[13px] uppercase whitespace-nowrap`}>
+                        <p translate="no" className={`notranslate font-sans font-bold tracking-tight leading-none text-slate-900 text-[13px] uppercase break-words`}>
                           {user.title || 'CHƯA XÁC ĐỊNH'}
                         </p>
                       </div>
@@ -653,7 +963,7 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
                     </div>
                     {!isEditing ? (
                       <div className="h-5 flex items-center">
-                        <p translate="no" className={`notranslate font-sans font-bold tracking-tight leading-none ${user.phone === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-900 text-[13px]'}`}>
+                        <p translate="no" className={`notranslate font-sans font-bold tracking-tight leading-none ${user.phone === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-900 text-[13px] break-all'}`}>
                           <span translate="no" className="notranslate">{user.phone}</span>
                         </p>
                       </div>
@@ -672,14 +982,14 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
                       <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">EMAIL CÔNG TY <span className="text-red-500">*</span></span>
                     </div>
                     {!isEditing ? (
-                      <div translate="no" className="notranslate space-y-1 text-slate-900">
-                        <div className="flex items-center gap-2 text-[13px] font-bold">
-                          <span className="text-[9px] font-black text-slate-400 w-16 shrink-0 tracking-tighter uppercase">CÔNG TY:</span>
-                          <span className="lowercase">{user.companyEmail || 'CHỜ CẬP NHẬT'}</span>
+                      <div translate="no" className="notranslate space-y-1 text-slate-900 w-full">
+                        <div className="flex items-start gap-2 text-[13px] font-bold min-w-0 leading-tight">
+                          <span className="text-[9px] font-black text-slate-400 w-16 shrink-0 tracking-tighter uppercase pt-0.5">CÔNG TY:</span>
+                          <span className="lowercase break-all min-w-0 flex-1 leading-normal select-all">{user.companyEmail || 'CHỜ CẬP NHẬT'}</span>
                         </div>
-                        <div className={`flex items-center gap-2 text-[13px] font-bold ${user.personalEmail === 'CHỜ CẬP NHẬT' ? 'text-gray-400' : 'text-[#1e3a8a]'}`}>
-                          <span className="text-[9px] font-black text-slate-400 w-16 shrink-0 tracking-tighter uppercase">CÁ NHÂN:</span>
-                          <span className="lowercase">{user.personalEmail || 'CHỜ CẬP NHẬT'}</span>
+                        <div className={`flex items-start gap-2 text-[13px] font-bold min-w-0 leading-tight ${user.personalEmail === 'CHỜ CẬP NHẬT' ? 'text-gray-400' : 'text-[#1e3a8a]'}`}>
+                          <span className="text-[9px] font-black text-slate-400 w-16 shrink-0 tracking-tighter uppercase pt-0.5">CÁ NHÂN:</span>
+                          <span className="lowercase break-all min-w-0 flex-1 leading-normal select-all">{user.personalEmail || 'CHỜ CẬP NHẬT'}</span>
                         </div>
                       </div>
                     ) : (
@@ -712,7 +1022,7 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
                     <div className="flex items-center justify-between">
                       {!isEditing ? (
                         <div className="flex items-center justify-between w-full h-8">
-                          <p translate="no" className={`notranslate font-mono font-black leading-none ${user.password === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-900 text-[13px] tracking-[0.1em]'}`}>
+                          <p translate="no" className={`notranslate font-mono font-black leading-none break-all ${user.password === 'CHỜ CẬP NHẬT' ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-900 text-[13px] tracking-[0.05em] sm:tracking-[0.1em]'}`}>
                             {showPassword ? (user.password || 'CHỜ CẬP NHẬT') : '••••••••••••'}
                           </p>
                           <button onClick={() => setShowPassword(!showPassword)} className="text-slate-300 hover:text-slate-600 transition-colors">
@@ -743,7 +1053,7 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
           </div>
 
           {/* BỘ LỌC THỐNG KÊ LINH HOẠT - THIẾT QUÂN LUẬT */}
-          <div className="bg-slate-50/50 p-2 rounded-[24px] border border-slate-100 flex items-center gap-4 shadow-inner">
+          <div className="bg-slate-50/50 p-2 rounded-[24px] border border-slate-100 flex items-center gap-4 shadow-inner print:hidden">
             {isAdmin && (
               <div className="flex bg-white rounded-xl border border-slate-200 p-1 shadow-sm shrink-0">
                 <button 
@@ -776,6 +1086,15 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
 
             <div className="flex-1"></div>
 
+            <button
+              onClick={handlePrintClick}
+              className="flex items-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white border border-rose-500 rounded-xl text-[10px] font-black tracking-wider shadow-sm hover:shadow active:scale-95 transition-all uppercase flex-shrink-0 print:hidden"
+              title="In/Xuất trang cá nhân ra PDF"
+            >
+              <Printer size={12} strokeWidth={3} />
+              <span translate="no" className="notranslate">In PDF</span>
+            </button>
+
             <div className="flex items-center gap-2 bg-white rounded-xl border border-slate-200 px-4 py-2 shadow-sm shrink-0">
               <Calendar size={14} className="text-blue-500" />
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">THÁNG LỌC:</span>
@@ -792,7 +1111,7 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-4 px-0">
+          <div className="grid grid-cols-4 gap-4 px-0 profile-stats-grid">
              <StatCard icon={<FileText size={14} strokeWidth={3} />} label="Tổng dự án" value={stats.total} color="bg-amber-500" borderColor="border-amber-600" />
              <StatCard icon={<CheckCircle2 size={14} strokeWidth={3} />} label="Hiệu suất" value={`${stats.efficiency}%`} color="bg-emerald-500" borderColor="border-emerald-600" />
              <StatCard icon={<Clock size={14} strokeWidth={3} />} label="Đang xử lý" value={stats.ongoing} color="bg-red-500" borderColor="border-red-600" />
@@ -800,15 +1119,22 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 profile-layout-grid">
           {layoutConfig.sort((a,b) => (a.order || 0) - (b.order || 0)).map((item, index) => {
             const isPersonalView = filterScope !== 'department';
             const contextLabel = isPersonalView ? 'CÁ NHÂN' : 'HỆ THỐNG';
             const activeProfileKey = filterScope === 'mine' ? currentUser?.uniqueKey : filterScope;
 
+            const hasRanking = layoutConfig.some(x => x.id === 'RANKING_CHART');
+            const calculatedSpan = isPrintMode
+              ? ((item.id === 'STATUS_CHART' || item.id === 'RADAR_CHART') 
+                  ? (hasRanking ? 4 : 6) 
+                  : (item.span || 4))
+              : (item.span || 4);
+
             if (item.id === 'TYPE_STATS') {
               return (
-                <div key={item.id} style={{ gridColumn: `span ${item.span || 4} / span ${item.span || 4}`, minHeight: `${item.height || 350}px` }} className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex flex-col gap-2 relative">
+                <div id="card-TYPE_STATS" key={item.id} style={{ gridColumn: `span ${calculatedSpan} / span ${calculatedSpan}`, minHeight: isPrintMode ? '340px' : `${item.height || 350}px` }} className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex flex-col gap-2 relative">
                   <div className="flex items-center justify-between px-2 pt-2">
                     <h3 translate="no" className="notranslate text-[12px] font-black text-slate-800 flex items-center gap-2 uppercase tracking-[0.1em]">
                       <BarChart3 size={16} className="text-blue-600" />
@@ -881,35 +1207,62 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
 
             if (item.id === 'CHART') {
               return (
-                <div key={item.id} style={{ gridColumn: `span ${item.span || 5} / span ${item.span || 5}`, minHeight: `${item.height || 350}px` }} className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex flex-col gap-2 relative">
+                <div id="card-CHART" key={item.id} style={{ gridColumn: `span ${calculatedSpan} / span ${calculatedSpan}`, minHeight: isPrintMode ? '340px' : `${item.height || 350}px` }} className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex flex-col gap-2 relative">
                   <h3 translate="no" className="notranslate text-[12px] font-black text-slate-800 flex items-center gap-2 uppercase tracking-[0.1em] px-2 pt-2">
                     <TrendingUp size={16} className="text-emerald-600" />
                     CƠ CẤU CÔNG VIỆC
                   </h3>
-                  <div className="flex-1 w-full min-h-[250px]" style={{ minHeight: `${(item.height || 370) - 100}px`, position: 'relative' }}>
-                    {stats.typeData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                        <PieChart>
-                          <Pie
-                            data={stats.typeData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={0}
-                            outerRadius={Math.min((item.height || 450) / 2.8, 160)}
-                            paddingAngle={2}
-                            dataKey="value"
-                            label={renderCustomizedLabel}
-                            labelLine={false}
-                          >
-                            {stats.typeData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip 
-                            contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 'bold' }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
+                  <div className="flex-1 w-full" style={{ width: '100%', height: isPrintMode ? '250px' : '350px', minHeight: isPrintMode ? '250px' : '350px', position: 'relative' }}>
+                    {isClient && stats.typeData.length > 0 ? (
+                      isPrintMode ? (
+                        <div className="flex justify-center items-center h-full w-full" style={{ width: '100%', height: '250px', margin: '0 auto' }}>
+                          <PieChart width={350} height={250}>
+                            <Pie
+                              data={stats.typeData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={0}
+                              outerRadius={75}
+                              paddingAngle={2}
+                              dataKey="value"
+                              label={renderCustomizedLabel}
+                              labelLine={false}
+                              isAnimationActive={false}
+                            >
+                              {stats.typeData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip 
+                              contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 'bold' }}
+                            />
+                          </PieChart>
+                        </div>
+                      ) : (
+                        <ResponsiveContainer width="99%" height="100%" minWidth={0} minHeight={0} debounce={50} id="chart-type" key={isClient ? 'ready' : 'loading'}>
+                          <PieChart>
+                            <Pie
+                              data={stats.typeData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={0}
+                              outerRadius={Math.min((item.height || 450) / 2.8, 160)}
+                              paddingAngle={2}
+                              dataKey="value"
+                              label={renderCustomizedLabel}
+                              labelLine={false}
+                              isAnimationActive={false}
+                            >
+                              {stats.typeData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip 
+                              contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 'bold' }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      )
                     ) : (
                       <div className="w-full h-full flex items-center justify-center opacity-20">
                         <div className="w-32 h-32 rounded-full border-8 border-dashed border-slate-300"></div>
@@ -922,57 +1275,105 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
 
             if (item.id === 'STATUS_CHART') {
               return (
-                <div key={item.id} style={{ gridColumn: `span ${item.span || 4} / span ${item.span || 4}`, minHeight: `${item.height || 350}px` }} className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex flex-col gap-2 relative">
+                <div id="card-STATUS_CHART" key={item.id} style={{ gridColumn: `span ${calculatedSpan} / span ${calculatedSpan}`, minHeight: isPrintMode ? '250px' : `${item.height || 350}px` }} className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex flex-col gap-2 relative">
                   <h3 translate="no" className="notranslate text-[12px] font-black text-slate-800 flex items-center gap-2 uppercase tracking-[0.1em] px-2 pt-2">
                     <PieChartIcon size={16} className="text-amber-500" />
                     TRẠNG THÁI {contextLabel}
                     <span className="text-[8px] text-slate-400 font-bold ml-auto">(DỮ LIỆU LÃNH ĐẠO)</span>
                   </h3>
-                  <div className="flex-1 w-full min-h-[250px]" style={{ minHeight: `${(item.height || 370) - 100}px`, position: 'relative' }}>
-                    {stats.statusData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                        <PieChart>
-                          <Pie
-                            data={stats.statusData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={Math.min((item.height || 450) / 5, 80)}
-                            outerRadius={Math.min((item.height || 450) / 2.8, 160)}
-                            paddingAngle={5}
-                            dataKey="value"
-                            labelLine={false}
-                            label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
-                              const RADIAN = Math.PI / 180;
-                              const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                              const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                              const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                              return (
-                                <text 
-                                  x={x} 
-                                  y={y} 
-                                  fill="white" 
-                                  textAnchor="middle" 
-                                  dominantBaseline="central"
-                                  className="text-[11px] font-black notranslate pointer-events-none drop-shadow-md" 
-                                  translate="no"
-                                >
-                                  {`${(percent * 100).toFixed(0)}%`}
-                                </text>
-                              );
-                            }}
-                          >
-                            {stats.statusData.map((entry: any, index: number) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                          <Legend 
-                            verticalAlign="bottom" 
-                            height={25} 
-                            formatter={(value) => <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">{value}</span>}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
+                  <div className="flex-1 w-full" style={{ width: '100%', height: isPrintMode ? '190px' : '250px', minHeight: isPrintMode ? '190px' : '250px', position: 'relative' }}>
+                    {isClient && stats.statusData.length > 0 ? (
+                      isPrintMode ? (
+                        <div className="flex justify-center items-center h-full w-full" style={{ width: '100%', height: '190px', margin: '0 auto' }}>
+                          <PieChart width={240} height={190}>
+                            <Pie
+                              data={stats.statusData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={25}
+                              outerRadius={55}
+                              paddingAngle={5}
+                              dataKey="value"
+                              labelLine={false}
+                              isAnimationActive={false}
+                              label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+                                const RADIAN = Math.PI / 180;
+                                const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                                const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                                const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                                return (
+                                  <text 
+                                    x={x} 
+                                    y={y} 
+                                    fill="white" 
+                                    textAnchor="middle" 
+                                    dominantBaseline="central"
+                                    className="text-[11px] font-black notranslate pointer-events-none drop-shadow-md" 
+                                    translate="no"
+                                  >
+                                    {`${(percent * 100).toFixed(0)}%`}
+                                  </text>
+                                );
+                              }}
+                            >
+                              {stats.statusData.map((entry: any, index: number) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                            <Legend 
+                              verticalAlign="bottom" 
+                              height={20} 
+                              formatter={(value) => <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">{value}</span>}
+                            />
+                          </PieChart>
+                        </div>
+                      ) : (
+                        <ResponsiveContainer width="99%" height="100%" minWidth={0} minHeight={0} debounce={50} id="chart-status" key={isClient ? 'ready' : 'loading'}>
+                          <PieChart>
+                            <Pie
+                              data={stats.statusData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={Math.min((item.height || 450) / 5, 80)}
+                              outerRadius={Math.min((item.height || 450) / 2.8, 160)}
+                              paddingAngle={5}
+                              dataKey="value"
+                              labelLine={false}
+                              isAnimationActive={false}
+                              label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+                                const RADIAN = Math.PI / 180;
+                                const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                                const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                                const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                                return (
+                                  <text 
+                                    x={x} 
+                                    y={y} 
+                                    fill="white" 
+                                    textAnchor="middle" 
+                                    dominantBaseline="central"
+                                    className="text-[11px] font-black notranslate pointer-events-none drop-shadow-md" 
+                                    translate="no"
+                                  >
+                                    {`${(percent * 100).toFixed(0)}%`}
+                                  </text>
+                                );
+                              }}
+                            >
+                              {stats.statusData.map((entry: any, index: number) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip />
+                            <Legend 
+                              verticalAlign="bottom" 
+                              height={25} 
+                              formatter={(value) => <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">{value}</span>}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      )
                     ) : (
                       <div className="w-full h-full flex items-center justify-center opacity-20">
                          <p className="text-[10px] font-black">CHƯA CÓ DỮ LIỆU</p>
@@ -985,28 +1386,48 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
 
             if (item.id === 'RADAR_CHART') {
               return (
-                <div key={item.id} style={{ gridColumn: `span ${item.span || 4} / span ${item.span || 4}`, minHeight: `${item.height || 350}px` }} className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex flex-col gap-2 relative">
+                <div id="card-RADAR_CHART" key={item.id} style={{ gridColumn: `span ${calculatedSpan} / span ${calculatedSpan}`, minHeight: isPrintMode ? '250px' : `${item.height || 350}px` }} className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex flex-col gap-2 relative">
                   <h3 translate="no" className="notranslate text-[12px] font-black text-slate-800 flex items-center gap-2 uppercase tracking-[0.1em] px-2 pt-2">
                     <Target size={16} className="text-purple-600" />
                     NĂNG LỰC QCD
                     <span className="text-[8px] text-slate-400 font-bold ml-auto">(TỪ LÃNH ĐẠO)</span>
                   </h3>
-                  <div className="flex-1 w-full min-h-[250px]" style={{ minHeight: `${(item.height || 370) - 100}px`, position: 'relative' }}>
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                      <RadarChart cx="50%" cy="50%" outerRadius="80%" data={stats.radarData}>
-                        <PolarGrid />
-                        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 'black', fill: '#64748b' }} />
-                        <PolarRadiusAxis angle={30} domain={[0, 5]} tick={{ fontSize: 9 }} />
-                        <Radar name="Phòng" dataKey="department" stroke="#cbd5e1" fill="#cbd5e1" fillOpacity={0.5} />
-                        <Radar name="Cá nhân" dataKey="personal" stroke="#2563eb" fill="#2563eb" fillOpacity={0.6} />
-                        <Tooltip />
-                        <Legend 
-                          verticalAlign="bottom" 
-                          height={25} 
-                          formatter={(value) => <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">{value}</span>}
-                        />
-                      </RadarChart>
-                    </ResponsiveContainer>
+                  <div className="flex-1 w-full" style={{ width: '100%', height: isPrintMode ? '190px' : '250px', minHeight: isPrintMode ? '190px' : '250px', position: 'relative' }}>
+                    {isClient && (
+                      isPrintMode ? (
+                        <div className="flex justify-center items-center h-full w-full" style={{ width: '100%', height: '190px', margin: '0 auto' }}>
+                          <RadarChart cx="50%" cy="50%" outerRadius="55%" data={stats.radarData} width={240} height={190}>
+                            <PolarGrid />
+                            <PolarAngleAxis dataKey="subject" tick={{ fontSize: 9, fontWeight: 'black', fill: '#64748b' }} />
+                            <PolarRadiusAxis angle={30} domain={[0, 5]} tick={{ fontSize: 8 }} />
+                            <Radar name="Phòng" dataKey="department" stroke="#cbd5e1" fill="#cbd5e1" fillOpacity={0.5} isAnimationActive={false} />
+                            <Radar name="Cá nhân" dataKey="personal" stroke="#2563eb" fill="#2563eb" fillOpacity={0.6} isAnimationActive={false} />
+                            <Tooltip />
+                            <Legend 
+                              verticalAlign="bottom" 
+                              height={20} 
+                              formatter={(value) => <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">{value}</span>}
+                            />
+                          </RadarChart>
+                        </div>
+                      ) : (
+                        <ResponsiveContainer width="99%" height="100%" minWidth={0} minHeight={0} debounce={50} id="chart-qcd" key={isClient ? 'ready' : 'loading'}>
+                          <RadarChart cx="50%" cy="50%" outerRadius="80%" data={stats.radarData}>
+                            <PolarGrid />
+                            <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 'black', fill: '#64748b' }} />
+                            <PolarRadiusAxis angle={30} domain={[0, 5]} tick={{ fontSize: 9 }} />
+                            <Radar name="Phòng" dataKey="department" stroke="#cbd5e1" fill="#cbd5e1" fillOpacity={0.5} isAnimationActive={false} />
+                            <Radar name="Cá nhân" dataKey="personal" stroke="#2563eb" fill="#2563eb" fillOpacity={0.6} isAnimationActive={false} />
+                            <Tooltip />
+                            <Legend 
+                              verticalAlign="bottom" 
+                              height={25} 
+                              formatter={(value) => <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">{value}</span>}
+                            />
+                          </RadarChart>
+                        </ResponsiveContainer>
+                      )
+                    )}
                   </div>
                 </div>
               );
@@ -1014,68 +1435,130 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
 
             if (item.id === 'RANKING_CHART') {
               return (
-                <div key={item.id} style={{ gridColumn: `span ${item.span || 4} / span ${item.span || 4}`, minHeight: `${item.height || 350}px` }} className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex flex-col gap-2 relative">
+                <div id="card-RANKING_CHART" key={item.id} style={{ gridColumn: `span ${calculatedSpan} / span ${calculatedSpan}`, minHeight: isPrintMode ? '250px' : `${item.height || 350}px` }} className="bg-white p-4 rounded-[32px] shadow-sm border border-slate-100 flex flex-col gap-2 relative">
                   <h3 translate="no" className="notranslate text-[12px] font-black text-slate-800 flex items-center gap-2 uppercase tracking-[0.1em] px-2 pt-2">
                     <BarChart3 size={16} className="text-blue-600" />
                     XẾP HẠNG PHÒNG
                     <span className="text-[8px] text-blue-400 font-bold ml-auto">(ĐIỂM LÃNH ĐẠO CHẤM)</span>
                   </h3>
-                  <div className="flex-1 w-full min-h-[250px]" style={{ minHeight: `${(item.height || 370) - 100}px`, position: 'relative' }}>
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                      <BarChart data={stats.rankingData} layout="vertical" margin={{ left: 0, right: 35, top: 10, bottom: 0 }}>
-                        <XAxis type="number" hide domain={[0, 5]} />
-                        <YAxis dataKey="name" type="category" width={60} tick={{ fontSize: 10, fontWeight: 'bold', fill: '#64748b' }} />
-                        <Tooltip 
-                           contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)', padding: '16px' }}
-                           cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }}
-                           content={({ active, payload }) => {
-                             if (active && payload && payload.length && payload[0].payload) {
-                               const data = payload[0].payload;
-                               return (
-                                 <div className="bg-white/95 backdrop-blur-md p-4 rounded-[24px] shadow-2xl border border-slate-100 flex flex-col gap-3 min-w-[220px]">
-                                   <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                                     <span className="text-[11px] font-black text-slate-800 uppercase tracking-widest">{data.name || 'ẨN DANH'}</span>
-                                     <span className="text-sm font-black text-blue-600">{data.score || 0}</span>
-                                   </div>
-                                   <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto custom-scrollbar-slim pr-1">
-                                     {data.details && Array.isArray(data.details) && data.details.map((d: any, idx: number) => (
-                                       <div key={idx} className="flex flex-col gap-1 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
-                                         <div className="flex items-center justify-between">
-                                           <span className="text-[9px] font-black text-blue-600">{d.code || 'N/A'}</span>
-                                           <span className="text-[9px] font-black text-slate-400">TB: {d.avg || 0}</span>
-                                         </div>
-                                         <p translate="no" className="notranslate text-[9px] font-bold text-slate-600 leading-tight border-l-2 border-blue-200 pl-2">
-                                           {d.title || 'Không có tiêu đề'}
-                                         </p>
-                                         <span translate="no" className="notranslate text-[8px] font-black text-slate-500 uppercase tracking-tighter bg-white/50 self-start px-1.5 py-0.5 rounded border border-slate-100">
-                                           {d.qcd || 'Q:0 C:0 D:0'}
-                                         </span>
+                  <div className="flex-1 w-full" style={{ width: '100%', height: isPrintMode ? '190px' : '250px', minHeight: isPrintMode ? '190px' : '250px', position: 'relative' }}>
+                    {isClient && (
+                      isPrintMode ? (
+                        <div className="flex justify-center items-center h-full w-full" style={{ width: '100%', height: '190px', margin: '0 auto' }}>
+                          <BarChart data={stats.rankingData} layout="vertical" margin={{ left: 5, right: 35, top: 10, bottom: 0 }} width={240} height={190}>
+                            <XAxis type="number" hide domain={[0, 5]} />
+                            <YAxis dataKey="name" type="category" width={60} tick={{ fontSize: 9, fontWeight: 'bold', fill: '#64748b' }} />
+                            <Tooltip 
+                               contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)', padding: '16px' }}
+                               cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }}
+                               content={({ active, payload }) => {
+                                 if (active && payload && payload.length && payload[0].payload) {
+                                   const data = payload[0].payload;
+                                   return (
+                                     <div className="bg-white/95 backdrop-blur-md p-4 rounded-[24px] shadow-2xl border border-slate-100 flex flex-col gap-3 min-w-[220px]">
+                                       <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                         <span className="text-[11px] font-black text-slate-800 uppercase tracking-widest">{data.name || 'ẨN DANH'}</span>
+                                         <span className="text-sm font-black text-blue-600">{data.score || 0}</span>
                                        </div>
-                                     ))}
-                                   </div>
-                                   <div className="pt-1 text-center">
-                                     <span className="text-[8px] text-slate-400 font-bold uppercase">TỔNG: {Array.isArray(data.details) ? data.details.length : 0} CÔNG VIỆC</span>
-                                   </div>
-                                 </div>
-                               );
-                             }
-                             return null;
-                           }}
-                        />
-                        <Bar 
-                          dataKey="score" 
-                          radius={[0, 10, 10, 0]} 
-                          label={{ position: 'right', fontSize: 10, fontWeight: 'black', fill: '#64748b' }}
-                        >
-                          {stats.rankingData.map((entry: any, index: number) => (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={entry.id === activeProfileKey ? '#f59e0b' : '#2563eb'} 
+                                       <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto custom-scrollbar-slim pr-1">
+                                         {data.details && Array.isArray(data.details) && data.details.map((d: any, idx: number) => (
+                                           <div key={idx} className="flex flex-col gap-1 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                                             <div className="flex items-center justify-between">
+                                               <span className="text-[9px] font-black text-blue-600">{d.code || 'N/A'}</span>
+                                               <span className="text-[9px] font-black text-slate-400">TB: {d.avg || 0}</span>
+                                             </div>
+                                             <p translate="no" className="notranslate text-[9px] font-bold text-slate-600 leading-tight border-l-2 border-blue-200 pl-2">
+                                               {d.title || 'Không có tiêu đề'}
+                                             </p>
+                                             <span translate="no" className="notranslate text-[8px] font-black text-slate-500 uppercase tracking-tighter bg-white/50 self-start px-1.5 py-0.5 rounded border border-slate-100">
+                                               {d.qcd || 'Q:0 C:0 D:0'}
+                                             </span>
+                                           </div>
+                                         ))}
+                                       </div>
+                                       <div className="pt-1 text-center">
+                                         <span className="text-[8px] text-slate-400 font-bold uppercase">TỔNG: {Array.isArray(data.details) ? data.details.length : 0} CÔNG VIỆC</span>
+                                       </div>
+                                     </div>
+                                   );
+                                 }
+                                 return null;
+                               }}
                             />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                            <Bar 
+                              dataKey="score" 
+                              radius={[0, 10, 10, 0]} 
+                              label={{ position: 'right', fontSize: 10, fontWeight: 'black', fill: '#64748b' }}
+                              isAnimationActive={false}
+                            >
+                              {stats.rankingData.map((entry: any, index: number) => (
+                                <Cell 
+                                  key={`cell-${index}`} 
+                                  fill={entry.id === activeProfileKey ? '#f59e0b' : '#2563eb'} 
+                                />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </div>
+                      ) : (
+                        <ResponsiveContainer width="99%" height="100%" minWidth={0} minHeight={0} debounce={50} id="chart-ranking" key={isClient ? 'ready' : 'loading'}>
+                          <BarChart data={stats.rankingData} layout="vertical" margin={{ left: 0, right: 35, top: 10, bottom: 0 }}>
+                          <XAxis type="number" hide domain={[0, 5]} />
+                          <YAxis dataKey="name" type="category" width={60} tick={{ fontSize: 10, fontWeight: 'bold', fill: '#64748b' }} />
+                          <Tooltip 
+                             contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)', padding: '16px' }}
+                             cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }}
+                             content={({ active, payload }) => {
+                               if (active && payload && payload.length && payload[0].payload) {
+                                 const data = payload[0].payload;
+                                 return (
+                                   <div className="bg-white/95 backdrop-blur-md p-4 rounded-[24px] shadow-2xl border border-slate-100 flex flex-col gap-3 min-w-[220px]">
+                                     <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                       <span className="text-[11px] font-black text-slate-800 uppercase tracking-widest">{data.name || 'ẨN DANH'}</span>
+                                       <span className="text-sm font-black text-blue-600">{data.score || 0}</span>
+                                     </div>
+                                     <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto custom-scrollbar-slim pr-1">
+                                       {data.details && Array.isArray(data.details) && data.details.map((d: any, idx: number) => (
+                                         <div key={idx} className="flex flex-col gap-1 bg-slate-50/50 p-2 rounded-xl border border-slate-100">
+                                           <div className="flex items-center justify-between">
+                                             <span className="text-[9px] font-black text-blue-600">{d.code || 'N/A'}</span>
+                                             <span className="text-[9px] font-black text-slate-400">TB: {d.avg || 0}</span>
+                                           </div>
+                                           <p translate="no" className="notranslate text-[9px] font-bold text-slate-600 leading-tight border-l-2 border-blue-200 pl-2">
+                                             {d.title || 'Không có tiêu đề'}
+                                           </p>
+                                           <span translate="no" className="notranslate text-[8px] font-black text-slate-500 uppercase tracking-tighter bg-white/50 self-start px-1.5 py-0.5 rounded border border-slate-100">
+                                             {d.qcd || 'Q:0 C:0 D:0'}
+                                           </span>
+                                         </div>
+                                       ))}
+                                     </div>
+                                     <div className="pt-1 text-center">
+                                       <span className="text-[8px] text-slate-400 font-bold uppercase">TỔNG: {Array.isArray(data.details) ? data.details.length : 0} CÔNG VIỆC</span>
+                                     </div>
+                                   </div>
+                                 );
+                               }
+                               return null;
+                             }}
+                          />
+                          <Bar 
+                            dataKey="score" 
+                            radius={[0, 10, 10, 0]} 
+                            label={{ position: 'right', fontSize: 10, fontWeight: 'black', fill: '#64748b' }}
+                            isAnimationActive={false}
+                          >
+                            {stats.rankingData.map((entry: any, index: number) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={entry.id === activeProfileKey ? '#f59e0b' : '#2563eb'} 
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                      )
+                    )}
                   </div>
                 </div>
               );
@@ -1083,7 +1566,7 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
 
             if (item.id === 'AI') {
               return (
-                <div key={item.id} style={{ gridColumn: 'span 12 / span 12', minHeight: 'auto' }} className="bg-white p-0 rounded-[28px] shadow-sm border border-slate-100 flex flex-col relative overflow-hidden">
+                <div id="card-AI" key={item.id} style={{ gridColumn: 'span 12 / span 12', minHeight: 'auto' }} className="bg-white p-0 rounded-[28px] shadow-sm border border-slate-100 flex flex-col relative overflow-hidden">
                   
                   <div className="flex flex-col w-full h-full">
                     {/* Header với Icon - Cực kỳ gọn gàng */}
@@ -1100,7 +1583,7 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
                         </div>
 
                         {/* Button Hướng dẫn QCD */}
-                        <div className="flex-1 flex justify-end px-2">
+                        <div className="flex-1 flex justify-end px-2 print:hidden">
                            <button 
                              onClick={() => setShowScoringGuide(!showScoringGuide)}
                              className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-all flex items-center gap-2 group shrink-0 shadow-sm"
@@ -1270,14 +1753,25 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
 
                       {advice ? (
                         <div className="bg-slate-50/40 rounded-[22px] p-4 lg:p-5 h-full border border-slate-100 flex flex-col animate-in fade-in duration-500 flex-1">
-                          <div className="prose prose-sm prose-blue text-[13.5px] leading-relaxed text-slate-700 whitespace-pre-wrap font-medium notranslate translate-no flex-1 max-h-[120px] overflow-y-auto custom-scrollbar-slim pr-1" translate="no">
+                          <div 
+                            className={`prose prose-sm prose-blue text-[13.5px] leading-relaxed text-slate-700 whitespace-pre-wrap font-medium notranslate translate-no flex-1 ${
+                              isPrintMode ? 'max-h-none overflow-y-visible' : 'max-h-[120px] overflow-y-auto custom-scrollbar-slim pr-1'
+                            }`} 
+                            translate="no"
+                          >
                             {advice}
                           </div>
-                          <div className="mt-2 flex justify-end">
-                            <button onClick={getAdvice} className="text-[9px] font-black text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-widest flex items-center gap-2 group">
-                              <span translate="no" className="notranslate underline underline-offset-4 decoration-blue-200">LÀM MỚI PHÂN TÍCH</span>
-                            </button>
-                          </div>
+                          {!isPrintMode && (
+                            <div className="mt-2 flex justify-end">
+                              <button onClick={getAdvice} className="text-[9px] font-black text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-widest flex items-center gap-2 group">
+                                <span translate="no" className="notranslate underline underline-offset-4 decoration-blue-200">LÀM MỚI PHÂN TÍCH</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : isPrintMode ? (
+                        <div className="w-full flex items-center justify-center p-6 border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">CHƯA KÍCH HOẠT PHÂN TÍCH HIỆU SUẤT AI</span>
                         </div>
                       ) : (
                         <div className="w-full flex items-center justify-center p-4 min-h-[80px]">
@@ -1307,6 +1801,108 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
           })}
         </div>
       </div>
+
+      <AnimatePresence>
+        {showPrintModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] animate-in fade-in duration-200">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 relative overflow-hidden text-left"
+            >
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-500 via-pink-500 to-amber-500" />
+              
+              <button 
+                onClick={() => setShowPrintModal(false)}
+                className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X size={16} />
+              </button>
+
+              <div className="flex flex-col items-center text-center mt-2">
+                <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 mb-4 animate-bounce">
+                  <Printer size={24} strokeWidth={2.5} />
+                </div>
+
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight mb-2">
+                  CẤU HÌNH IN FILE PDF
+                </h3>
+                
+                <p className="text-[11px] text-slate-500 font-medium leading-relaxed mb-4 px-1">
+                  Chọn khổ giấy và tỷ lệ để xuất dữ liệu đẹp nhất, không bị lỗi tách đôi hình ảnh biểu đồ:
+                </p>
+
+                {/* Print Layout and Orientation Preferences */}
+                <div className="w-full text-left space-y-3 mb-5">
+                  <div>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">KHỔ GIẤY IN:</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setModalPrintOrient('portrait')}
+                        className={`py-1.5 px-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border ${modalPrintOrient === 'portrait' ? 'bg-rose-50 border-rose-500 text-rose-700 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
+                      >
+                        Khổ Đứng (Portrait)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModalPrintOrient('landscape')}
+                        className={`py-1.5 px-3 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border ${modalPrintOrient === 'landscape' ? 'bg-rose-50 border-rose-500 text-rose-700 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
+                      >
+                        Khổ Ngang (Landscape)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">TỶ LỆ CO GIÃN (CHỐNG TRÀN & LỆCH TRANG):</span>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[100, 95, 90, 85, 80, 75, 70, 60].map((scaleVal) => (
+                        <button
+                          key={scaleVal}
+                          type="button"
+                          onClick={() => setModalPrintScale(scaleVal)}
+                          className={`py-1.5 rounded-xl text-[9px] font-black transition-all border ${modalPrintScale === scaleVal ? 'bg-rose-50 border-rose-500 text-rose-700 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}
+                        >
+                          {scaleVal}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="w-full space-y-2 mb-5 bg-slate-50 p-4 rounded-2xl border border-slate-100 text-[10px] text-left">
+                  <div className="flex gap-2 items-start">
+                    <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[9px] shrink-0 mt-0.5">1</span>
+                    <span className="text-slate-600 font-medium">Bấm <strong className="text-slate-800">MỞ TRANG IN ↗</strong> bên dưới để mở trang biểu đồ sạch ở tab riêng biệt. Giao diện in sẽ tự động kích hoạt chế độ in chất lượng cao nhất sau khi nạp đủ dữ liệu.</span>
+                  </div>
+                  <div className="flex gap-2 items-start">
+                    <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[9px] shrink-0 mt-0.5">2</span>
+                    <span className="text-slate-600 font-medium">Giao diện in sẽ tự động áp dụng khổ giấy {modalPrintOrient === 'portrait' ? 'Dọc' : 'Ngang'} và tỷ lệ {modalPrintScale}% vô cùng xuất sắc.</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 w-full">
+                  <button
+                    onClick={() => setShowPrintModal(false)}
+                    className="flex-1 h-9 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                  >
+                    HỦY
+                  </button>
+                  <button
+                    onClick={handleOpenNewTabToPrint}
+                    className="flex-[2] h-9 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-rose-200 hover:shadow active:scale-95 transition-all"
+                  >
+                    <ExternalLink size={12} strokeWidth={2.5} />
+                    MỞ TRANG IN ↗
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

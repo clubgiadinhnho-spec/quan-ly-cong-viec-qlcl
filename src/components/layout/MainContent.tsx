@@ -35,6 +35,7 @@ export const MainContent: React.FC = () => {
     officialReports, saveReportDraft, saveOfficialReport,
     permanentDeleteTask, restoreTask, setActiveTab, unreadCounts, 
     groupUnreadCount, deleteTasksBulk, trashTasksBulk, 
+    rawTrashTasksBulk, rawDeleteTasksBulk,
     approveTasksBulk, logs, markAsRead, lastReadChatTimestamps,
     adminUnreadCount, onOpenNotifications, createNotification,
     selectedMonth, onMonthChange, sendAiMessage, triggerAiNudge, 
@@ -122,7 +123,7 @@ export const MainContent: React.FC = () => {
       onConfirm: async () => {
         const realIds = getRealDocIds(selectedTaskIds);
         try {
-          await trashTasksBulk(realIds, effectiveUser?.name);
+          await rawTrashTasksBulk(realIds, effectiveUser?.name);
           setSelectedTaskIds([]);
           setConfirmModal((p: any) => p ? { ...p, show: false } : p);
         } catch (error) {
@@ -165,7 +166,7 @@ export const MainContent: React.FC = () => {
       onConfirm: async () => {
         const realIds = getRealDocIds(selectedTaskIds);
         try {
-          await deleteTasksBulk(realIds, effectiveUser?.name);
+          await rawDeleteTasksBulk(realIds, effectiveUser?.name);
           setSelectedTaskIds([]);
           setConfirmModal((p: any) => p ? { ...p, show: false } : p);
         } catch (error) {

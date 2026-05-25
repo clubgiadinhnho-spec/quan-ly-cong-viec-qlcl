@@ -34,6 +34,8 @@ interface TaskContextType {
   deleteTasksBulk: (ids: string[], name?: string) => Promise<void>;
   restoreTask: (id: string) => Promise<void>;
   permanentDeleteTask: (id: string) => Promise<void>;
+  rawDeleteTasksBulk: (ids: string[], name?: string) => Promise<void>;
+  rawTrashTasksBulk: (ids: string[], name?: string) => Promise<void>;
   
   addTaskComment: (taskId: string, content: string) => void;
   updateTaskCommentReactions: (taskId: string, commentId: string, emoji: string) => void;
@@ -108,7 +110,17 @@ const TaskContext = createContext<TaskContextType | undefined>(undefined);
 export function TaskProvider({ children }: { children: ReactNode }) {
   const { effectiveUser, currentUser, allUsers, isAdmin, authReady } = useAuthContext();
   
-  const [activeTab, setActiveTab] = useState("tasks");
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlTab = params.get("tab");
+      if (urlTab) return urlTab;
+      if (params.get("print") === "true") {
+        return "profile";
+      }
+    }
+    return "tasks";
+  });
   const [viewScope, setViewScope] = useState<"mine" | "all">("all");
   const [search, setSearch] = useState("");
   const [selectedMonth, setSelectedMonth] = useState('all');
@@ -249,12 +261,13 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   }, [firebaseUpdateTask]);
 
   const permanentDeleteTask = useCallback((id: string) => {
+    const realId = id.includes('_cycle_') ? id.split('_cycle_')[0] : id;
     setConfirmModal({
       show: true,
       title: "XÁC NHẬN XÓA VĨNH VIỄN",
       message: "Hành động này không thể hoàn tác. Bạn chắc chắn muốn xóa vĩnh viễn công việc này?",
       onConfirm: async () => {
-        await firebaseDeleteTask(id);
+        await firebaseDeleteTask(realId);
         setConfirmModal(p => ({ ...p, show: false }));
       }
     });
@@ -359,7 +372,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const value = {
     tasks, sortedTasks, counts, categories, discussionTopics, discussionMessages, logs, officialReports, aiMessages, presence, loading,
     addTask, updateTask, deleteTask: deleteTaskLocal, approveTaskCompletion, trashTasksBulk: trashTasksBulkLocal, approveTasksBulk,
-    deleteTasksBulk: deleteTasksBulkLocal, restoreTask, permanentDeleteTask, addTaskComment, updateTaskCommentReactions,
+    deleteTasksBulk: deleteTasksBulkLocal,
+    rawTrashTasksBulk: trashTasksBulk,
+    rawDeleteTasksBulk: deleteTasksBulk,
+    restoreTask, permanentDeleteTask, addTaskComment, updateTaskCommentReactions,
     sendDiscussionMessage, updateDiscussionMessageReactions, createTopic, updateTopic, 
     deleteTopic: deleteTopicLocal, deleteTopicsBulk: deleteTopicsBulkLocal, deleteDiscussionMessage: deleteDiscussionMessageLocal,
     saveReportDraft, saveOfficialReport, sendAiMessage, triggerAiNudge, resetTaskAIStatus,

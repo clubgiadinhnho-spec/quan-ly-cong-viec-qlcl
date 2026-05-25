@@ -14,6 +14,7 @@ interface HeaderProps {
   currentUserId?: string;
   adminUnreadCount?: number;
   onOpenNotifications?: () => void;
+  children?: React.ReactNode;
 }
 
 export const Header = ({ 
@@ -27,7 +28,8 @@ export const Header = ({
   onUserClick,
   currentUserId,
   adminUnreadCount = 0,
-  onOpenNotifications
+  onOpenNotifications,
+  children
 }: HeaderProps) => {
   // Combine users from props (legacy logic) and new onlineUsers
   const legacyActiveUsers = users.filter(u => u.id !== currentUserId && u.lastActive && (Date.now() - u.lastActive < 120000));
@@ -64,7 +66,7 @@ export const Header = ({
         
         {/* Online Users Display */}
         {sortedDisplay.length > 0 && (
-          <div className="flex items-center gap-3 border-l border-gray-100 pl-6 ml-2">
+          <div className="flex items-center gap-3 border-l border-gray-100 pl-6 ml-2 print:hidden no-print">
             <div className="flex gap-1.5">
               {sortedDisplay.slice(0, 5).map((u) => {
                 const isMe = u.id === currentUserId;
@@ -103,7 +105,8 @@ export const Header = ({
           </div>
         )}
       </div>
-      <div className="flex gap-3">
+      <div className="flex gap-3 items-center">
+        {children}
         {onOpenNotifications && (
           <button 
             onClick={onOpenNotifications}

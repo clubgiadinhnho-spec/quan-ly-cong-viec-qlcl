@@ -1,25 +1,10 @@
-import { GoogleGenAI } from '@google/genai';
 import { Task, User } from '../types';
-
-let aiInstance: GoogleGenAI | null = null;
-
-const getAi = () => {
-  if (!aiInstance) {
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
-    aiInstance = new GoogleGenAI({ apiKey });
-  }
-  return aiInstance;
-};
 
 // Cache để giảm Quota AI
 const adviceCache: Record<string, { advice: string, timestamp: number }> = {};
 const CACHE_TIMEOUT = 1000 * 60 * 30; // 30 phút
 
 export async function getPerformanceAdvice(user: User, tasks: Task[], viewer: User) {
-  if (!process.env.NEXT_PUBLIC_GEMINI_API_KEY && !process.env.VITE_GEMINI_API_KEY && !process.env.GEMINI_API_KEY) {
-    return "Sếp Trường ơi, JOB chưa được nạp khóa API trên Vercel. Sếp kiểm tra lại nhé!";
-  }
-
   const isSelf = viewer.id === user.id;
   const completedTasks = tasks.filter(t => t.status === 'COMPLETED' && t.assigneeId === user.id);
   const ongoingTasks = tasks.filter(t => t.status === 'IN_PROGRESS' && t.assigneeId === user.id);
@@ -62,13 +47,19 @@ export async function getPerformanceAdvice(user: User, tasks: Task[], viewer: Us
   `;
 
   try {
-    const ai = getAi();
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
+    const response = await fetch('/api/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
     });
-    
-    const result = response.text?.replace(/\*\*/g, '"') || "Không thể nhận câu trả lời từ AI lúc này.";
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || 'Failed to generate content');
+    }
+
+    const data = await response.json();
+    const result = data.text?.replace(/\*\*/g, '"') || "Không thể nhận câu trả lời từ AI lúc này.";
     
     // Lưu vào cache
     if (result && !result.includes("Không thể")) {
@@ -77,7 +68,7 @@ export async function getPerformanceAdvice(user: User, tasks: Task[], viewer: Us
 
     return result;
   } catch (error) {
-    console.error('Gemini Error:', error);
+    console.error('Gemini Proxy Error:', error);
     return "Không thể kết nối với AI lúc này. Hãy thử lại sau.";
   }
 }

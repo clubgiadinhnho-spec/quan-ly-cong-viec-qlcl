@@ -124,3 +124,135 @@
 .custom-scrollbar-slim::-webkit-scrollbar-thumb:hover {
   background: #cbd5e1;
 }
+
+/* Đường kẻ ô rõ ràng (ngang và dọc) cho các bảng theo yêu cầu của người dùng */
+.grid-table-clear {
+  border-collapse: collapse !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.grid-table-clear th {
+  border: 1px solid #cbd5e1 !important;
+}
+
+.grid-table-clear td {
+  border: 1px solid #e2e8f0 !important;
+}
+
+/* CHẾ ĐỘ IN PDF CHUYÊN NGHIỆP */
+@media print {
+  /* Ẩn các thanh điều hướng, sidebar, banners và các nút thao tác tương tác */
+  .print\:hidden,
+  .no-print,
+  #sidebar-container,
+  #toggle-sidebar-1,
+  header,
+  footer,
+  button,
+  input,
+  select,
+  textarea,
+  label,
+  nav,
+  .z-40,
+  .toast,
+  .modal,
+  .holiday-banner-container,
+  .tooltip,
+  .bg-amber-500,
+  [role="dialog"] {
+    display: none !important;
+  }
+
+  /* Khởi tạo lại bố cục chính để dàn đều trên khổ giấy in */
+  body, html {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Kẻ khung bảng sắc nét khi in */
+  .print-table {
+    width: 100% !important;
+    table-layout: auto !important;
+    border-collapse: collapse !important;
+    border: 2px solid #000000 !important;
+  }
+
+  .print-table th {
+    background-color: #f1f5f9 !important;
+    color: #000000 !important;
+    border: 1px solid #000000 !important;
+    font-weight: bold !important;
+    padding: 8px !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .print-table td {
+    border: 1px solid #000000 !important;
+    padding: 8px !important;
+    color: #000000 !important;
+    background-color: transparent !important;
+    overflow: visible !important;
+    white-space: normal !important;
+    font-size: 10px !important;
+  }
+
+  /* Ẩn hoàn toàn cột checkbox đầu tiên và cột Thao Tác cuối cùng */
+  .print-table th:first-child,
+  .print-table td:first-child,
+  .print-table th:last-child,
+  .print-table td:last-child {
+    display: none !important;
+  }
+
+  /* Ẩn các nút chát phụ trợ, bong bóng chat hoặc các icon tương tác bên trong bảng */
+  .print-table button,
+  .print-table .chat-trigger,
+  .print-table .chat-icon-container,
+  .print-table .no-print-element,
+  .print-table input[type="checkbox"] {
+    display: none !important;
+  }
+
+  /* Tránh ngắt dòng dở dang giữa các trang in, áp dụng cho dòng, biểu đồ, phần tử nhỏ */
+  tr,
+  .recharts-wrapper,
+  .print-avoid-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    break-inside: avoid-page !important;
+  }
+
+  /* Bảo toàn nền màu sắc nét khi in */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  /* Cài đặt mặc định của trang in */
+  @page {
+    size: A4 portrait;
+    margin: 0.6cm;
+  }
+}
+

@@ -215,6 +215,11 @@ export interface Task {
   requestEndTracking?: boolean;
   last_ai_content?: string;
   last_ai_response?: string;
+  stage1Done?: boolean;
+  stage1CompletedAt?: string;
+  stage1KpiPassed?: boolean;
+  aiApplied?: boolean | null;
+  aiAppliedDetails?: string | null;
 }
 
 export interface ReportDraft {

@@ -12,6 +12,7 @@ import { Portal } from '../common/Portal';
 import { getUserById, getSafeNameProps, getTaskAssigneeName, isUserTask, checkIsAdmin, checkIsRecurring } from '../../utils/userUtils';
 
 import { Avatar } from '../common/Avatar';
+import { ChatIconSVG } from '../common/ChatIconSVG';
 
 const HIGHLIGHT_COLORS: Record<string, string> = {
   'amber': '!bg-amber-50/50 hover:!bg-amber-100/60 ring-inset ring-1 ring-amber-200/30 text-amber-950',
@@ -33,6 +34,7 @@ interface CompletedTaskRowProps {
   onReact?: (taskId: string, commentId: string, emoji: string) => void;
   onUndo: (id: string) => void;
   onUpdate: (id: string, updates: Partial<Task>) => void;
+  onSetPriority?: (id: string, order: number | null) => void;
   onDelete?: (id: string) => void;
   onEdit?: (task: Task) => void;
   isSelected?: boolean;
@@ -43,7 +45,7 @@ interface CompletedTaskRowProps {
 }
 
 export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ 
-  task, user, users, idx, onViewHistory, onOpenChat, isChatOpen, onSendMessage, onReact, onUndo, onUpdate, onDelete,
+  task, user, users, idx, onViewHistory, onOpenChat, isChatOpen, onSendMessage, onReact, onUndo, onUpdate, onSetPriority, onDelete,
   onEdit, isSelected, onToggleSelect, setConfirmModal, markAsRead, lastReadChatTimestamps
 }) => {
   const chatButtonRef = React.useRef<HTMLButtonElement>(null);
@@ -71,9 +73,11 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
     return processed;
   };
 
-  const handleUpdateProgress = (taskId: string, htmlContent: string) => {
+  const handleUpdateProgress = (taskId: string, htmlContent: string, aiApplied?: boolean, aiAppliedDetails?: string) => {
     onUpdate(taskId, { 
       currentUpdate: htmlContent,
+      aiApplied: aiApplied ?? null,
+      aiAppliedDetails: aiAppliedDetails ?? null,
       isNewUpdate: true,
       lastActionAt: new Date().toISOString(),
       lastUpdatedByRole: user.role,
@@ -150,7 +154,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           )}
         </div>
       </td>
-      <td className={`p-1 border border-gray-300 align-top h-px transition-colors ${task.highlightColor || task.isHighlighted ? 'border-l-4 border-amber-500' : ''}`}>
+      <td className={`p-1 border border-gray-300 align-top h-px relative transition-colors ${task.highlightColor || task.isHighlighted ? 'border-l-4 border-amber-500' : ''}`}>
         <div className="flex flex-col h-full gap-1.5 px-0.5 pt-0.5 pb-4">
           {/* Identity Section */}
           <div className="flex items-center gap-2">
@@ -218,26 +222,28 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
             </div>
           </div>
 
-          {/* Chat Button */}
-          <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+          {/* 3. Chat Button - Floating at the bottom-right of the cell */}
+          <div className="absolute bottom-1.5 right-1.5" onClick={(e) => e.stopPropagation()}>
             <button 
               ref={chatButtonRef}
               onClick={() => onOpenChat(isChatOpen ? '' : task.id)}
-              className={`flex items-center gap-1.5 py-1 px-1 transition-all rounded ${
-                showBadge ? 'animate-bounce text-red-700 font-bold' : (task.comments?.length || 0) > 0 ? 'text-red-800 font-bold' : 'text-gray-400'
+              className={`flex items-center gap-1.5 py-0.5 px-2 transition-all rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:scale-105 active:scale-95 group/chat ${
+                showBadge && isAdmin ? 'bg-red-50 text-red-700 font-bold' : (task.comments?.length || 0) > 0 ? 'bg-red-50 text-red-800 font-bold' : 'bg-white text-gray-500 hover:text-blue-600'
               }`}
             >
-              <div className="relative">
-                <MessageSquare size={16} fill={(task.comments?.length || 0) > 0 ? "currentColor" : "none"} className="opacity-90" />
-                {showBadge && (
-                  <span translate="no" className="notranslate absolute -top-2 -right-2 flex items-center justify-center min-w-[17px] h-[17px] px-1 bg-red-600 text-white text-[10px] font-black rounded-full border border-white shadow-sm">
-                    <span translate="no" className="notranslate font-black">{unreadCount}</span>
-                   </span>
-                )}
+              <div className="flex items-center gap-1.5 relative">
+                <div className="relative">
+                  <ChatIconSVG size={22} className="opacity-100" />
+                  {showBadge && (
+                    <span translate="no" className="notranslate absolute -top-2 -right-2 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 bg-red-600 text-white text-[8px] font-black rounded-full border border-white shadow-sm z-10 animate-bounce">
+                      <span translate="no" className="notranslate font-black">{unreadCount}</span>
+                    </span>
+                  )}
+                </div>
+                <span translate="no" className="notranslate text-[8px] font-black tracking-tight uppercase">
+                  <span translate="no" className="notranslate">CHAT</span>
+                </span>
               </div>
-              <span translate="no" className="notranslate text-[12px] font-black tracking-widest uppercase">
-                <span translate="no" className="notranslate">CHAT</span>
-              </span>
             </button>
 
             {isChatOpen && (
@@ -254,7 +260,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           </div>
         </div>
       </td>
-      <td className="p-1.5 border border-gray-300 relative group align-top h-px">
+      <td className="p-1.5 border border-gray-300 relative group align-top h-px w-[30%]">
         {task.attachmentUrl && (
           <a 
             href={task.attachmentUrl} 
@@ -266,7 +272,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
             <Paperclip size={10} strokeWidth={3} />
           </a>
         )}
-        <div className="flex flex-col h-full font-sans">
+        <div className="flex flex-col h-[180px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 pr-1 font-sans">
           <p className="text-[15px] text-blue-800 font-bold pr-4 uppercase break-words whitespace-normal leading-tight font-sans">
             <span translate="no" className="notranslate">
               [{task.category?.toUpperCase() || 'KHÁC'}] - {task.title}
@@ -290,7 +296,18 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
       >
         <div className="flex flex-col h-full min-h-[60px] relative">
           <div className="flex items-center justify-between px-2 py-0.5 border-b border-gray-50/50 bg-gray-50/20 shrink-0">
-             <span translate="no" className="notranslate text-[9px] font-black text-blue-400 uppercase tracking-widest">Cập nhật</span>
+             <div className="flex items-center gap-1.5">
+               <span translate="no" className="notranslate text-[9px] font-black text-blue-400 uppercase tracking-widest">Cập nhật</span>
+               {task.aiApplied && (
+                 <span 
+                   translate="no" 
+                   className="notranslate text-[9px] font-black px-1.5 py-0.2 bg-rose-600 text-white rounded-sm border border-rose-700 shadow-sm shrink-0 scale-90"
+                   title={task.aiAppliedDetails || "Có ứng dụng AI"}
+                 >
+                   AI
+                 </span>
+               )}
+             </div>
              {(isAdmin || isManager || isOwner) && (
                <button 
                  onClick={(e) => {
@@ -304,22 +321,17 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                </button>
              )}
           </div>
-          <div className="flex-1 flex flex-col p-2 relative overflow-hidden group/cell">
+          <div className="flex-1 flex flex-col p-2 relative group/cell">
             <style dangerouslySetInnerHTML={{ __html: `
               .rich-text-content * { font-style: normal !important; }
             ` }} />
             <div 
               translate="no"
-              className={`notranslate rich-text-content flex-1 w-full text-[15px] font-medium outline-none leading-relaxed text-blue-950 font-sans ${isAdmin || isManager || isOwner ? 'cursor-pointer hover:bg-gray-50/50' : ''}`}
+              className={`notranslate rich-text-content h-[130px] overflow-y-auto scrollbar-thin scrollbar-thumb-blue-200 w-full text-[15px] font-medium outline-none leading-relaxed text-blue-950 font-sans ${isAdmin || isManager || isOwner ? 'cursor-pointer hover:bg-gray-50/50' : ''} pr-1`}
               dangerouslySetInnerHTML={{ __html: toHTML(task.currentUpdate || '') }}
               onClick={() => (isAdmin || isManager || isOwner) && setShowUpdateModal(true)}
               title={isAdmin || isManager || isOwner ? "Bấm để sửa nội dung cập nhật" : "Nội dung cập nhật"}
             />
-            
-            {/* Fallback textarea only for non-HTML plain editing if needed or for legacy? 
-                Actually the user said Admin should edit everything. 
-                Using the toHTML + UpdateModal is better consistency. 
-            */}
           </div>
 
           <UpdateModal 
@@ -358,20 +370,36 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           )}
         </div>
       </td>
-      <td className="p-1 text-center border border-gray-300 align-top pt-1">
-        {task.priorityOrder ? (
-          <span 
-            style={{ 
-              backgroundColor: `rgba(220, 38, 38, ${Math.max(0.05, 0.4 - (task.priorityOrder - 1) * 0.05)})`,
-              color: '#991b1b'
-            }}
-            className="text-[9px] font-black w-5 h-5 rounded-full flex items-center justify-center mx-auto border border-red-100"
-          >
-            {task.priorityOrder}
-          </span>
-        ) : (
-          <span className="text-[9px] font-bold text-gray-300">-</span>
-        )}
+      <td className="p-1 text-center border border-gray-300 align-middle">
+        <div className="relative group/priority w-full flex items-center justify-center max-w-[40px] mx-auto">
+          {task.priorityOrder ? (
+            <>
+              <div 
+                style={{ 
+                  backgroundColor: `rgba(220, 38, 38, ${Math.max(0.05, 0.4 - (task.priorityOrder - 1) * 0.05)})`,
+                  color: '#991b1b'
+                }}
+                className="text-[11px] font-black w-7 h-7 rounded-sm flex items-center justify-center border border-red-100 shadow-sm"
+              >
+                <span translate="no" className="notranslate">{task.priorityOrder}</span>
+              </div>
+              {(isAdmin || isManager) && (
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSetPriority?.(task.id, null);
+                  }}
+                  className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded-full flex items-center justify-center border border-white opacity-0 group-hover/priority:opacity-100 transition-opacity z-10 hover:bg-black hover:scale-110 shadow-sm"
+                  title="Gỡ bỏ ưu tiên"
+                >
+                  <X size={10} strokeWidth={4} />
+                </button>
+              )}
+            </>
+          ) : (
+            <span className="text-[9px] font-bold text-gray-300">-</span>
+          )}
+        </div>
       </td>
       <td className="py-1 px-1 text-center border border-gray-300 align-middle">
         <div className="flex flex-col items-center justify-center gap-1.5 w-full max-w-[44px] mx-auto min-h-full py-0.5">

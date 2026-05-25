@@ -2576,7 +2576,7 @@ export const ReportPage = ({
                             type="number"
                             min={0}
                             max={100}
-                            disabled={personalWeight === 0}
+                            disabled={!isReportManager || personalWeight === 0}
                             placeholder={isNA ? "N/A" : String(displayScore)}
                             value={itemScores[overrideKey] !== undefined ? itemScores[overrideKey] : ''}
                             onChange={(e) => {
@@ -2597,13 +2597,13 @@ export const ReportPage = ({
                         <td className="p-4 space-y-1.5">
                           <textarea
                             rows={2}
-                            disabled={personalWeight === 0}
+                            disabled={!isReportManager || personalWeight === 0}
                             placeholder="Nhận xét chi tiết..."
                             value={itemComments[overrideKey] || ''}
                             onChange={(e) => setItemComments(prev => ({ ...prev, [overrideKey]: e.target.value }))}
                             className="w-full text-[11px] border rounded p-1 border-slate-200 bg-slate-50 focus:bg-white"
                           />
-                          {personalWeight > 0 && (
+                          {isReportManager && personalWeight > 0 && (
                             <button
                               onClick={() => triggerAutoFeedback(item, selectedStaffId)}
                               className="text-[9px] text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded font-black uppercase inline-block shadow-sm"
@@ -2633,6 +2633,7 @@ export const ReportPage = ({
                 className="w-full border rounded p-4 text-xs h-36 bg-slate-50/50"
                 placeholder="Nhập phản hồi tự đánh giá, thuận lợi, khó khăn trong kỳ..."
                 value={staffExplanation}
+                disabled={!isReportManager && selectedStaffId !== currentUser.id}
                 onChange={(e) => setStaffExplanation(e.target.value)}
               />
             </div>
@@ -2645,6 +2646,7 @@ export const ReportPage = ({
                 className="w-full border rounded p-4 text-xs h-36 bg-slate-50/50"
                 placeholder="Trưởng phòng cho ý kiến, đánh giá năng lực và thái độ làm việc..."
                 value={leaderEvaluation}
+                disabled={!isReportManager}
                 onChange={(e) => setLeaderEvaluation(e.target.value)}
               />
             </div>

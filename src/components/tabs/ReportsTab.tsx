@@ -21,23 +21,26 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
   effectiveUser, tasks, allUsers, updateTask, officialReports,
   firebaseSaveReportDraft, firebaseSaveOfficialReport, presence
 }) => {
-  const [activeTab, setActiveTab ] = useState<'dept' | 'staff' | 'config'>(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const urlTab = params.get('report_tab');
-      if (urlTab === 'dept' || urlTab === 'staff' || urlTab === 'config') {
-        return urlTab as 'dept' | 'staff' | 'config';
-      }
-    }
-    return 'dept';
-  });
-
   const isLNT = effectiveUser.name === 'Lê Nhật Trường';
   const isReportManager = effectiveUser.role === 'Admin' || 
                           isLNT || 
                           (effectiveUser.title || '').toUpperCase().includes('TRƯỞNG PHÒNG') ||
                           effectiveUser.personalEmail === 'lenhattruong.tpp@gmail.com' ||
                           effectiveUser.personalEmail === 'lenhattruong.caphef1@gmail.com';
+
+  const [activeTab, setActiveTab ] = useState<'dept' | 'staff' | 'config'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlTab = params.get('report_tab');
+      if (urlTab === 'dept' || urlTab === 'staff' || urlTab === 'config') {
+        if (!isReportManager && urlTab !== 'staff') {
+          return 'staff';
+        }
+        return urlTab as 'dept' | 'staff' | 'config';
+      }
+    }
+    return isReportManager ? 'dept' : 'staff';
+  });
 
   return (
     <motion.div key="reports" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>

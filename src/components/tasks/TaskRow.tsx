@@ -1125,7 +1125,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                             <CheckCircle2 size={18} strokeWidth={3} />
                           </button>
                         ) : (
-                          isAdmin ? (
+                          (isAdmin || isOwner) ? (
                             <button 
                               onClick={async (e) => {
                                 e.stopPropagation();

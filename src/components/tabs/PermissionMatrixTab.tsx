@@ -131,6 +131,9 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'office_registerCalendar', label: 'ĐĂNG KÝ HÀM CHẤM CÔNG VÀ NGHỈ CA', description: 'Tự khai báo thời ca chấm công biểu và nộp xin phép hằng ngày', defaultStaff: true, defaultAdmin: true },
       { key: 'office_approveLeave', label: 'DUYỆT ĐƠN NGHỈ PHÉP NHÂN SỰ', description: 'Được quyền duyệt phép, tích lũy bảo lưu ngày phép cho các chuyên viên', defaultStaff: false, defaultAdmin: true },
       { key: 'office_manageHr', label: 'QUẢN LÝ THÔNG TIN NHÂN SỰ', description: 'Chỉnh sửa thông tin thành viên, tạo sơ yếu lý bạ phòng chất lượng', defaultStaff: false, defaultAdmin: true },
+      { key: 'office_syncLeaveQuota', label: 'ĐỒNG BỘ NGHỈ PHÉP & QUỸ PHÉP (Lưu/Sync)', description: 'Cho phép nhấn Lưu & Đồng bộ quỹ phép và Lưu & Đồng bộ chủ động', defaultStaff: false, defaultAdmin: true },
+      { key: 'office_manageAttendanceSheet', label: 'QUẢN LÝ BẢNG CHẤM CÔNG (Lưu/Reset)', description: 'Cho phép Lưu bảng công và Đặt lại mặc định', defaultStaff: false, defaultAdmin: true },
+      { key: 'office_manageBirthdayWishes', label: 'GỬI & LƯU LỜI CHÚC SINH NHẬT', description: 'Cho phép điền, gửi và Lưu lời chúc sinh nhật', defaultStaff: false, defaultAdmin: true },
     ]
   },
   {
@@ -144,6 +147,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     items: [
       { key: 'reports_viewPage', label: 'TRUY CẬP XEM BÁO CÁO KPI PHÒNG', description: 'Theo dõi kết quả hoàn tất biểu đồ & năng suất phòng QLCL', defaultStaff: false, defaultAdmin: true },
       { key: 'reports_configPage', label: 'THIẾT LẬP KPI PHÒNG BAN', description: 'Điều phối điều kiện các chỉ mục cân đo, cài đặt trọng số cốt quy định', defaultStaff: false, defaultAdmin: true },
+      { key: 'reports_saveEvaluation', label: 'LƯU ĐÁNH GIÁ THÁNG (KPI)', description: 'Cho phép quản lý bấm nút Lưu Đánh Giá Tháng', defaultStaff: false, defaultAdmin: true },
     ]
   },
   {
@@ -223,9 +227,13 @@ export const getUserDefaultPermissions = (user: User): UserPermissions => {
     office_registerCalendar: true,
     office_approveLeave: !isStaffDefault,
     office_manageHr: false,
+    office_syncLeaveQuota: !isStaffDefault,
+    office_manageAttendanceSheet: !isStaffDefault,
+    office_manageBirthdayWishes: !isStaffDefault,
 
     reports_viewPage: !isStaffDefault,
     reports_configPage: !isStaffDefault,
+    reports_saveEvaluation: !isStaffDefault,
 
     system_viewLogPage: !isStaffDefault,
     system_backupPage: false,

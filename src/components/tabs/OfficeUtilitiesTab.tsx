@@ -4,6 +4,7 @@ import { Calendar, Clock, CheckCircle2, MapPin, Sparkles, Gift, Send, FileText, 
 import { User } from '../../types';
 import { Header } from '../layout/Header';
 import { HolidayBanner } from '../layout/HolidayBanner';
+import { getUserPermissionsOf } from './PermissionMatrixTab';
 
 // Global holder for historical defaults
 let defaultHistoricalEdits: { [key: string]: string } = {};
@@ -107,6 +108,8 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
   setConfirmModal,
   setActiveTab,
 }) => {
+  const userPermissions = getUserPermissionsOf(effectiveUser);
+
   // ---- LỊCH CÔNG TÁC STATES ----
   const [calendarEvents, setCalendarEvents] = useState<{ id: number; title: string; date: string; time: string; location: string; host: string; status: string; type: string; reason: string }[]>(() => {
     const saved = localStorage.getItem('office_calendar_events');
@@ -3052,24 +3055,28 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                       </span>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={handleSaveMonthlyAttendance}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-[9.5px] font-black text-white uppercase transition-all shadow-md active:scale-95 cursor-pointer"
-                        title="Lưu trữ và ghi nhận toàn bộ chỉnh sửa trên bảng chấm công học phần"
-                      >
-                        <Save size={10} strokeWidth={2.5} />
-                        Lưu bảng công
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleResetToSystemDefaults}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-150 hover:border-rose-250 rounded-xl text-[9px] font-black text-rose-500 hover:text-rose-600 uppercase transition-all shadow-sm active:scale-95 cursor-pointer"
-                        title="Phục hồi bảng chấm công về cấu hình mặc định gốc và xóa dữ liệu chỉnh tay"
-                      >
-                        <RotateCcw size={10} strokeWidth={2.5} />
-                        Đặt lại mặc định
-                      </button>
+                      {userPermissions.office_manageAttendanceSheet && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleSaveMonthlyAttendance}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 rounded-xl text-[9.5px] font-black text-white uppercase transition-all shadow-md active:scale-95 cursor-pointer"
+                            title="Lưu trữ và ghi nhận toàn bộ chỉnh sửa trên bảng chấm công học phần"
+                          >
+                            <Save size={10} strokeWidth={2.5} />
+                            Lưu bảng công
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleResetToSystemDefaults}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-150 hover:border-rose-250 rounded-xl text-[9px] font-black text-rose-500 hover:text-rose-600 uppercase transition-all shadow-sm active:scale-95 cursor-pointer"
+                            title="Phục hồi bảng chấm công về cấu hình mặc định gốc và xóa dữ liệu chỉnh tay"
+                          >
+                            <RotateCcw size={10} strokeWidth={2.5} />
+                            Đặt lại mặc định
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -3599,15 +3606,17 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                   <span className="text-[10px] font-black text-rose-500 bg-rose-50 border border-rose-100 px-3 py-1.5 rounded-full uppercase tracking-wider">
                     Hạn dùng phép cũ dồn toa: ĐƯỢC KÉO DÀI ĐẾN 30/06/2026
                   </span>
-                  <button
-                    type="button"
-                    onClick={handleSaveLeaveAllowances}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-md active:scale-95 cursor-pointer animate-none"
-                    title="Lưu trữ vĩnh viễn quỹ phép năm đã điều chỉnh để không bị mất khi tải lại trang"
-                  >
-                    <Save size={12} className="stroke-[2.5]" />
-                    Lưu & Đồng bộ quỹ phép
-                  </button>
+                  {userPermissions.office_syncLeaveQuota && (
+                    <button
+                      type="button"
+                      onClick={handleSaveLeaveAllowances}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-md active:scale-95 cursor-pointer animate-none"
+                      title="Lưu trữ vĩnh viễn quỹ phép năm đã điều chỉnh để không bị mất khi tải lại trang"
+                    >
+                      <Save size={12} className="stroke-[2.5]" />
+                      Lưu & Đồng bộ quỹ phép
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -3877,15 +3886,17 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                   <span translate="no" className="notranslate text-sm font-black text-slate-800 uppercase tracking-widest block font-sans">
                     Theo dõi tình trạng đơn xin nghỉ phép của phòng
                   </span>
-                  <button
-                    type="button"
-                    onClick={handleSaveAndSyncLeaveRequests}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-md active:scale-95 cursor-pointer animate-none"
-                    title="Chủ động lưu trữ và đồng bộ toàn bộ đơn xin phép đã chọn sang bảng chấm công tháng"
-                  >
-                    <Save size={12} className="stroke-[2.5]" />
-                    Lưu & Đồng bộ chủ động
-                  </button>
+                  {userPermissions.office_syncLeaveQuota && (
+                    <button
+                      type="button"
+                      onClick={handleSaveAndSyncLeaveRequests}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-md active:scale-95 cursor-pointer animate-none"
+                      title="Chủ động lưu trữ và đồng bộ toàn bộ đơn xin phép đã chọn sang bảng chấm công tháng"
+                    >
+                      <Save size={12} className="stroke-[2.5]" />
+                      Lưu & Đồng bộ chủ động
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-6 max-h-[640px] overflow-y-auto pr-2">
@@ -4546,18 +4557,20 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                       <span translate="no" className="notranslate text-sm font-black text-slate-800 uppercase tracking-tight font-sans">
                         Bảng tổng hợp lời chúc tuổi mới hân hoan
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          localStorage.setItem('office_birthday_wishes_initialized', 'true');
-                          localStorage.setItem('office_birthday_wishes', JSON.stringify(wishes));
-                          alert('Đã lưu và đồng bộ danh sách lời chúc mừng sinh nhật thành công!');
-                        }}
-                        className="px-3 py-1 bg-pink-50 hover:bg-pink-100 text-pink-700 hover:text-pink-850 font-black text-[9.5px] uppercase tracking-wide rounded-xl border border-pink-100 transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-xs font-sans"
-                      >
-                        <Save size={11} />
-                        <span translate="no" className="notranslate">LƯU LỜI CHÚC</span>
-                      </button>
+                      {userPermissions.office_manageBirthdayWishes && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            localStorage.setItem('office_birthday_wishes_initialized', 'true');
+                            localStorage.setItem('office_birthday_wishes', JSON.stringify(wishes));
+                            alert('Đã lưu và đồng bộ danh sách lời chúc mừng sinh nhật thành công!');
+                          }}
+                          className="px-3 py-1 bg-pink-50 hover:bg-pink-100 text-pink-700 hover:text-pink-850 font-black text-[9.5px] uppercase tracking-wide rounded-xl border border-pink-100 transition-all flex items-center gap-1 cursor-pointer active:scale-95 shadow-xs font-sans"
+                        >
+                          <Save size={11} />
+                          <span translate="no" className="notranslate">LƯU LỜI CHÚC</span>
+                        </button>
+                      )}
                     </div>
                     <div className="space-y-3.5 max-h-[360px] overflow-y-auto no-scrollbar pr-1">
                       {wishes.map((w) => (

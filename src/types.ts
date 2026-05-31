@@ -87,12 +87,16 @@ export interface UserPermissions {
   office_registerCalendar?: boolean;
   office_approveLeave?: boolean;
   office_manageHr?: boolean;
+  office_syncLeaveQuota?: boolean;
+  office_manageAttendanceSheet?: boolean;
+  office_manageBirthdayWishes?: boolean;
 
   // -------------------------------------------------------------
   // BÁO CÁO THÁNG & KPI - FINE-GRAINED PERMISSIONS
   // -------------------------------------------------------------
   reports_viewPage?: boolean;
   reports_configPage?: boolean;
+  reports_saveEvaluation?: boolean;
 
   // -------------------------------------------------------------
   // PHÂN KHU DỮ LIỆU & HỆ THỐNG - FINE-GRAINED PERMISSIONS

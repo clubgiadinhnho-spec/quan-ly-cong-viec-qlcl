@@ -13,7 +13,14 @@ import { AppModals } from "./components/layout/AppModals";
 import { useAuthContext } from "./contexts/AuthContext";
 import { useTaskContext } from "./contexts/TaskContext";
 import { isTaskDeleted } from "./utils/userUtils";
-import { ClipboardList, Sparkles, BarChart3, MessageSquare } from "lucide-react";
+import { 
+  ClipboardList, Sparkles, BarChart3, MessageSquare, 
+  Menu, X, ShieldAlert, CheckCheck, Trash2, Users, Calendar, 
+  Clock, FileText, Award, User as UserIcon, Settings, UserCheck, 
+  Database, LogOut, Workflow
+} from "lucide-react";
+import { Avatar } from "./components/common/Avatar";
+import { motion, AnimatePresence } from "motion/react";
 
 export default function App() {
   const { 
@@ -36,6 +43,7 @@ export default function App() {
   } = useTaskContext();
 
   const [isMainSidebarCollapsed, setIsMainSidebarCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const lastReminderTime = useRef<number>(Date.now());
 
   const { unreadNotifications, lastReadChatTimestamps, markAsRead, markSectionAsViewed } = appNotifications || { unreadNotifications: [], lastReadChatTimestamps: {}, markAsRead: () => {}, markSectionAsViewed: () => {} };
@@ -94,6 +102,45 @@ export default function App() {
     }).length;
   }, [discussionMessages, effectiveUser, lastReadChatTimestamps]);
 
+  const groupedSections = useMemo(() => [
+    {
+      label: "TÁC NGHIỆP",
+      items: [
+        { id: 'pending_confirmation', label: 'Đề Xuất Mới', icon: Sparkles, count: counts.pending, badgeColor: 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]', permissionKey: 'newProposals_view' },
+        { id: 'tasks', label: 'Bảng Công Việc', icon: ClipboardList, count: counts.active, badgeColor: 'bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.5)]', permissionKey: 'tasks_view' },
+        { id: 'pending_approval', label: 'Trình Duyệt', icon: ShieldAlert, count: counts.pendingApprovalTotal, badgeColor: 'bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]', permissionKey: 'pendingApproval_view' },
+        { id: 'completed_tasks', label: 'Hoàn Thành', icon: CheckCheck, count: counts.completedTotal, badgeColor: 'bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.5)]', permissionKey: 'completedTasks_view' },
+        { id: 'trash', label: 'Trung Tâm Xóa', icon: Trash2, count: counts.trash, badgeColor: 'bg-gray-600 shadow-[0_0_10px_rgba(75,85,99,0.5)]', permissionKey: 'trash_view' },
+      ]
+    },
+    {
+      label: "VĂN PHÒNG",
+      items: [
+        { id: 'office_calendar', label: 'Lịch Công Tác', icon: Calendar },
+        { id: 'attendance', label: 'Bảng Chấm Công', icon: Clock },
+        { id: 'leave_request', label: 'Đơn Xin Nghỉ Phép', icon: FileText },
+        { id: 'birthday', label: 'Tiệc Sinh Nhật', icon: Award },
+        { id: 'staff_list', label: 'Quản Lý Nhân Sự', icon: Users, permissionKey: 'canManageStaff' },
+      ]
+    },
+    {
+      label: "TIỆN ÍCH & BÁO CÁO",
+      items: [
+        { id: 'reports', label: 'Báo Cáo Tháng', icon: BarChart3, permissionKey: 'reports_viewPage' },
+        { id: 'profile', label: 'Trang Cá Nhân', icon: UserIcon },
+        { id: 'group_chat', label: 'Thảo Luận QLCL', icon: MessageSquare, count: groupUnreadCount, badgeColor: 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' },
+      ]
+    },
+    {
+      label: "QUẢN TRỊ HỆ THỐNG",
+      items: [
+        { id: 'category_management', label: 'Cấu Hình Danh Mục', icon: Settings, permissionKey: 'canManageCategories' },
+        { id: 'permission_matrix', label: 'Ma Trận Quyền Hạn', icon: UserCheck, permissionKey: 'canManageStaff' },
+        { id: 'system_history', label: 'Phân Khu Dữ Liệu', icon: Database, permissionKey: 'canViewSystemHistory' },
+      ]
+    }
+  ], [counts, groupUnreadCount]);
+
   if (!authReady || staffLoading) return (
     <div className="min-h-screen flex items-center justify-center font-black text-blue-600 uppercase bg-white animate-pulse">
       <span translate="no" className="notranslate">ĐANG TẢI DỮ LIỆU...</span>
@@ -145,18 +192,26 @@ export default function App() {
           { id: 'tasks', label: 'Việc làm', icon: ClipboardList, count: counts.active, badgeColor: 'bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.5)]' },
           { id: 'pending_confirmation', label: 'Đề xuất', icon: Sparkles, count: counts.pending, badgeColor: 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' },
           { id: 'reports', label: 'Báo cáo', icon: BarChart3 },
-          { id: 'group_chat', label: 'Chat', icon: MessageSquare, count: groupUnreadCount, badgeColor: 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' }
+          { id: 'group_chat', label: 'Chat', icon: MessageSquare, count: groupUnreadCount, badgeColor: 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' },
+          { id: 'menu', label: 'Menu', icon: Menu }
         ].map((item) => {
           const isActive = activeTab === item.id;
           const Icon = item.icon;
           return (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`flex-1 flex flex-col items-center justify-center h-full relative transition-all active:scale-95 ${isActive ? 'text-blue-600 font-bold' : 'text-gray-400'}`}
+              onClick={() => {
+                if (item.id === 'menu') {
+                  setIsMobileMenuOpen(true);
+                } else {
+                  setActiveTab(item.id);
+                  setIsMobileMenuOpen(false);
+                }
+              }}
+              className={`flex-1 flex flex-col items-center justify-center h-full relative transition-all active:scale-95 ${isActive || (item.id === 'menu' && isMobileMenuOpen) ? 'text-blue-600 font-bold' : 'text-gray-400'}`}
             >
               <div className="relative p-1">
-                <Icon size={20} className={isActive ? 'stroke-[2.5]' : 'stroke-[2]'} />
+                <Icon size={20} className={isActive || (item.id === 'menu' && isMobileMenuOpen) ? 'stroke-[2.5]' : 'stroke-[2]'} />
                 {item.count !== undefined && item.count > 0 && (
                   <span translate="no" className={`notranslate absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-black text-white border border-white leading-none z-10 ${item.badgeColor}`}>
                     {item.count}
@@ -170,6 +225,152 @@ export default function App() {
           );
         })}
       </div>
+
+      {/* Mobile Menu Drawer Overlay */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black z-[90] md:hidden"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+
+            {/* Drawer Sheet */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[2.5rem] z-[100] md:hidden shadow-[0_-12px_40px_rgba(0,0,0,0.12)] flex flex-col max-h-[85vh] overflow-hidden border-t border-gray-100"
+            >
+              {/* Grab handle bar */}
+              <div className="shrink-0 pt-4 pb-2 flex flex-col items-center bg-white">
+                <div className="w-12 h-1 bg-gray-200 rounded-full mb-3" />
+                <div className="w-full px-6 flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">🌸</span>
+                    <span translate="no" className="notranslate text-xs font-black uppercase tracking-widest text-[#2d4263]">
+                      Menu Tác Nghiệp
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="p-1.5 px-3 rounded-xl border border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 transition-all text-[11px] font-black uppercase tracking-widest active:scale-95 shadow-sm bg-white"
+                  >
+                    <X size={14} strokeWidth={3} />
+                    <span>Đóng</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Scroll Container */}
+              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6 pb-8">
+                {/* Header Group */}
+                <div className="flex items-center gap-2.5 px-1 text-blue-500">
+                  <Workflow size={20} className="stroke-[2.5]" />
+                  <span translate="no" className="notranslate text-xs font-black uppercase tracking-widest text-[#2d4263]">
+                    QUY TRÌNH TÁC NGHIỆP
+                  </span>
+                </div>
+
+                {/* List Container with centered gray connector line */}
+                <div className="relative flex flex-col gap-3">
+                  {/* Vertical gray line passing exactly behind icon centers */}
+                  <div className="absolute left-[32px] top-6 bottom-6 w-[1.5px] bg-slate-200/80 pointer-events-none z-0" />
+
+                  {[
+                    { id: 'pending_confirmation', label: 'ĐỀ XUẤT MỚI', icon: Sparkles, count: counts.pending, badgeColor: 'bg-[#10b981] shadow-[0_4px_10px_rgba(16,185,129,0.35)]' },
+                    { id: 'tasks', label: 'BẢNG CÔNG VIỆC', icon: ClipboardList, count: counts.active, badgeColor: 'bg-[#dc2626] shadow-[0_4px_10px_rgba(220,38,38,0.4)]' },
+                    { id: 'pending_approval', label: 'TRÌNH DUYỆT', icon: ShieldAlert, count: counts.pendingApprovalTotal, badgeColor: 'bg-[#f97316] shadow-[0_4px_10px_rgba(249,115,22,0.35)]' },
+                    { id: 'completed_tasks', label: 'CÔNG VIỆC HOÀN THÀNH', icon: CheckCheck, count: counts.completedTotal, badgeColor: 'bg-[#2563eb] shadow-[0_4px_10px_rgba(37,99,235,0.4)]' },
+                    { id: 'trash', label: 'TRUNG TÂM XÓA', icon: Trash2, count: counts.trash, badgeColor: 'bg-[#dc2626] shadow-[0_4px_10px_rgba(220,38,38,0.4)]' }
+                  ].filter((item) => {
+                    const perms = (effectiveUser?.delegatedPermissions || {}) as any;
+                    if (effectiveUser?.role === 'Admin') return true;
+                    if (item.id === 'pending_confirmation' && perms.newProposals_view === false) return false;
+                    if (item.id === 'tasks' && perms.tasks_view === false) return false;
+                    if (item.id === 'pending_approval' && perms.pendingApproval_view === false) return false;
+                    if (item.id === 'completed_tasks' && perms.completedTasks_view === false) return false;
+                    if (item.id === 'trash' && effectiveUser?.role !== 'Staff') return false;
+                    return true;
+                  }).map((item) => {
+                    const isActive = activeTab === item.id;
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          setActiveTab(item.id);
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between py-3.5 px-4 rounded-2xl transition-all duration-200 relative active:scale-[0.98] z-10 ${
+                          isActive
+                            ? "bg-[#edf4ff] text-blue-600 font-bold"
+                            : "text-slate-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3.5 z-10">
+                          {/* Inner Circle wrapper */}
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border transition-all ${
+                            isActive
+                              ? "bg-white border-blue-200 text-blue-600 shadow-sm"
+                              : "bg-white border-gray-100 text-[#8a99ad]"
+                          }`}>
+                            <Icon size={14} className={isActive ? "stroke-[2.5]" : "stroke-[2]"} />
+                          </div>
+                          <span translate="no" className={`notranslate text-[11px] font-black uppercase tracking-tight ${
+                            isActive ? "text-blue-600" : "text-[#4b5e78]"
+                          }`}>
+                            {item.label}
+                          </span>
+                        </div>
+                        {/* Status Badge */}
+                        {item.count !== undefined && item.count >= 0 && (
+                          <span translate="no" className={`notranslate min-w-[24px] h-5 px-1.5 rounded-full flex items-center justify-center text-[10px] font-black text-white ${item.badgeColor}`}>
+                            {item.count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Simulated/Current User capsule */}
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 flex items-center justify-between gap-3 relative overflow-hidden mt-4">
+                  <div className="flex items-center gap-2.5">
+                    <Avatar src={effectiveUser?.avatar} name={effectiveUser?.name || ""} size="sm" className="ring-2 ring-blue-500/10 shadow-sm" />
+                    <div>
+                      <p translate="no" className="notranslate text-[10px] font-black text-slate-800 uppercase leading-none tracking-tight">
+                        {effectiveUser?.name}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[8px] font-bold text-blue-500 uppercase tracking-widest leading-none">
+                          {effectiveUser?.role}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      handleLogout();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-500 bg-rose-50/50 hover:bg-rose-50 hover:text-rose-600 flex items-center gap-1 transition-all text-[9px] font-black uppercase tracking-wider active:scale-95 shadow-sm shrink-0"
+                  >
+                    <LogOut size={11} strokeWidth={3} />
+                    <span>ĐĂNG XUẤT</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
       
       <AppModals 
         showTaskModal={showTaskModal}

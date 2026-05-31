@@ -12,6 +12,7 @@ import { db } from '../lib/firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { isTaskDeleted } from '../utils/userUtils';
 import { cleanModernColors, oklchToRgbOrHex } from '../lib/colorUtils';
+import { getUserPermissionsOf } from '../components/tabs/PermissionMatrixTab';
 
 interface ReportPageProps {
   tasks: Task[];
@@ -213,6 +214,7 @@ export const ReportPage = ({
   activeTab,
   setActiveTab
 }: ReportPageProps) => {
+  const userPermissions = getUserPermissionsOf(currentUser);
   const [reportPeriod, setReportPeriod] = useState(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -3048,12 +3050,14 @@ export const ReportPage = ({
                   <FileText size={12} strokeWidth={2.5} />
                   Trích Xuất Excel
                 </button>
-                <button
-                  onClick={handleSaveDraft}
-                  className="bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 rounded text-[10px] font-black uppercase text-white shadow transition-colors"
-                >
-                  Lưu Đánh Giá Tháng
-                </button>
+                {userPermissions.reports_saveEvaluation && (
+                  <button
+                    onClick={handleSaveDraft}
+                    className="bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 rounded text-[10px] font-black uppercase text-white shadow transition-colors"
+                  >
+                    Lưu Đánh Giá Tháng
+                  </button>
+                )}
               </div>
             </div>
             

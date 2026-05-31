@@ -23,11 +23,18 @@ interface ProfilePageProps {
 
 // GIÁ TRỊ BẤT BIẾN - AI KHÔNG ĐƯỢC TỰ Ý THAY ĐỔI DANH SÁCH CHỨC DANH NÀY
 const getDisplayNameTitle = (user: User) => {
-  if (user.title && user.title !== 'CHUYÊN VIÊN QC' && user.title !== 'CHỜ CẬP NHẬT') return user.title.toUpperCase();
-  
   const normName = user.name.trim();
   if (normName === 'Lê Nhật Trường' || normName === 'Quản Trị Viên') return 'ADMIN';
-  return user.title || 'CHUYÊN VIÊN QC';
+
+  const rawTitle = (user.title || '').trim().toUpperCase();
+  if (rawTitle && rawTitle !== 'CHUYÊN VIÊN QC' && rawTitle !== 'CHỜ CẬP NHẬT' && rawTitle !== 'NHÂN VIÊN') {
+    return rawTitle;
+  }
+  
+  if (user.role === 'Admin') return 'QUẢN TRỊ VIÊN';
+  if (user.role === 'Trưởng Phòng') return 'TRƯỞNG PHÒNG QLCL';
+  if (user.role === 'Leader') return 'TRƯỞNG NHÓM QLCL';
+  return 'NHÂN VIÊN QLCL';
 };
 
 const getUserRoleTitle = (u: any): string => {
@@ -43,10 +50,13 @@ const getUserRoleTitle = (u: any): string => {
   if (normName === 'Bành Nhựt Hùng' || normName.includes('Nhựt Hùng') || normName === 'Nguyễn Kiều Phan Tú' || normName.includes('Phan Tú') || normName.endsWith('Tú')) {
     return 'Nhân viên';
   }
-  if (u.title && u.title !== 'CHUYÊN VIÊN QC' && u.title !== 'CHỜ CẬP NHẬT') {
+  if (u.title && u.title !== 'CHUYÊN VIÊN QC' && u.title !== 'CHỜ CẬP NHẬT' && u.title !== 'NHÂN VIÊN') {
     return u.title;
   }
-  return u.role === 'Staff' ? 'Nhân viên' : 'Quản lý';
+  if (u.role === 'Admin') return 'Quản trị viên';
+  if (u.role === 'Trưởng Phòng') return 'Trưởng Phòng QLCL';
+  if (u.role === 'Leader') return 'Trưởng nhóm QLCL';
+  return 'Nhân viên QLCL';
 };
 
 export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdateProfile }: ProfilePageProps) => {
@@ -73,12 +83,25 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
            adminEmails.includes((currentUser.personalEmail || '').toLowerCase());
   }, [currentUser]);
 
-  const [filterScope, setFilterScope] = useState<'mine' | 'department' | string>('mine');
+  const [filterScope, setFilterScope] = useState<'mine' | 'department' | string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlScope = params.get("scope");
+      if (urlScope) return urlScope;
+    }
+    return 'mine';
+  });
   
   const initialScopeSet = React.useRef(false);
   useEffect(() => {
     if (currentUser && !initialScopeSet.current) {
-      setFilterScope(isAdmin ? 'department' : (currentUser.uniqueKey || 'mine'));
+      const params = new URLSearchParams(window.location.search);
+      const urlScope = params.get("scope");
+      if (urlScope) {
+        setFilterScope(urlScope);
+      } else {
+        setFilterScope(isAdmin ? 'department' : (currentUser.uniqueKey || 'mine'));
+      }
       initialScopeSet.current = true;
     }
   }, [currentUser, isAdmin]);
@@ -115,7 +138,14 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlMonth = params.get("month");
+      if (urlMonth) return urlMonth;
+    }
+    return 'all';
+  });
   const [topN, setTopN] = useState<number>(0); // 0 means All
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [modalPrintOrient, setModalPrintOrient] = useState<'portrait' | 'landscape'>('portrait');
@@ -142,10 +172,17 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
   };
 
   const handleOpenNewTabToPrint = () => {
-    const printUrl = new URL(window.location.href);
+    const printUrl = new URL(window.location.origin + window.location.pathname);
+    printUrl.searchParams.set('tab', 'profile');
     printUrl.searchParams.set('print', 'true');
     printUrl.searchParams.set('layout_orient', modalPrintOrient);
     printUrl.searchParams.set('print_scale', modalPrintScale.toString());
+    if (selectedMonth) {
+      printUrl.searchParams.set('month', selectedMonth);
+    }
+    if (filterScope) {
+      printUrl.searchParams.set('scope', filterScope);
+    }
     window.open(printUrl.toString(), '_blank');
     setShowPrintModal(false);
   };
@@ -159,7 +196,8 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
     companyEmail: user?.companyEmail || '',
     personalEmail: user?.personalEmail || 'CHỜ CẬP NHẬT',
     title: user?.title || '',
-    avatar: user?.avatar || ''
+    avatar: user?.avatar || '',
+    birthDate: user?.birthDate || ''
   });
 
   useEffect(() => {
@@ -170,10 +208,11 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
         companyEmail: user.companyEmail || '',
         personalEmail: user.personalEmail || 'CHỜ CẬP NHẬT',
         title: user.title || '',
-        avatar: user.avatar || ''
+        avatar: user.avatar || '',
+        birthDate: user.birthDate || ''
       });
     }
-  }, [user?.id, user?.name, user?.phone, user?.companyEmail, user?.personalEmail, user?.avatar, isEditing]);
+  }, [user?.id, user?.name, user?.phone, user?.companyEmail, user?.personalEmail, user?.avatar, user?.birthDate, isEditing]);
 
   const [passwordData, setPasswordData] = useState({
     newPassword: '',
@@ -525,6 +564,7 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
         title: formData.title,
         avatar: formData.avatar,
         password: currentPassword,
+        birthDate: formData.birthDate,
         uniqueKey: profileKey, // Đảm bảo ghi lại key
         layoutConfig: layoutConfig, // LƯU BỐ CỤC TÙY CHỈNH
         updatedAt: new Date().toISOString()
@@ -930,7 +970,7 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
 
               <div className="flex-1 flex flex-col justify-center">
                 <div className="grid grid-cols-12 gap-4 profile-info-grid">
-                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-2">
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-3">
                     <div className="flex items-center gap-2 mb-2 opacity-50">
                       <Shield size={12} className="text-slate-400" />
                       <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">CHỨC DANH <span className="text-red-500">*</span></span>
@@ -956,7 +996,7 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
                     )}
                   </div>
 
-                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-2">
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-3">
                     <div className="flex items-center gap-2 mb-2 opacity-50">
                       <Phone size={12} className="text-slate-400" />
                       <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">SỐ ĐIỆN THOẠI <span className="text-red-500">*</span></span>
@@ -976,41 +1016,32 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
                     )}
                   </div>
 
-                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-5">
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-3">
                     <div className="flex items-center gap-2 mb-2 opacity-50">
-                      <Mail size={12} className="text-slate-400" />
-                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">EMAIL CÔNG TY <span className="text-red-500">*</span></span>
+                      <Calendar size={12} className="text-slate-400" />
+                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">NGÀY SINH NHẬT <span className="text-red-500">*</span></span>
                     </div>
                     {!isEditing ? (
-                      <div translate="no" className="notranslate space-y-1 text-slate-900 w-full">
-                        <div className="flex items-start gap-2 text-[13px] font-bold min-w-0 leading-tight">
-                          <span className="text-[9px] font-black text-slate-400 w-16 shrink-0 tracking-tighter uppercase pt-0.5">CÔNG TY:</span>
-                          <span className="lowercase break-all min-w-0 flex-1 leading-normal select-all">{user.companyEmail || 'CHỜ CẬP NHẬT'}</span>
-                        </div>
-                        <div className={`flex items-start gap-2 text-[13px] font-bold min-w-0 leading-tight ${user.personalEmail === 'CHỜ CẬP NHẬT' ? 'text-gray-400' : 'text-[#1e3a8a]'}`}>
-                          <span className="text-[9px] font-black text-slate-400 w-16 shrink-0 tracking-tighter uppercase pt-0.5">CÁ NHÂN:</span>
-                          <span className="lowercase break-all min-w-0 flex-1 leading-normal select-all">{user.personalEmail || 'CHỜ CẬP NHẬT'}</span>
-                        </div>
+                      <div className="h-5 flex items-center">
+                        <p translate="no" className={`notranslate font-sans font-bold tracking-tight leading-none ${!user.birthDate ? 'text-gray-400 text-[10px] tracking-normal' : 'text-slate-900 text-[13px]'}`}>
+                          {(() => {
+                            if (!user.birthDate) return 'CẬP NHẬT NGAY';
+                            const parts = user.birthDate.split('-');
+                            if (parts.length === 3) {
+                              const yearShort = parts[0].substring(2);
+                              return `${parts[2]}/${parts[1]}/${yearShort}`;
+                            }
+                            return user.birthDate;
+                          })()}
+                        </p>
                       </div>
                     ) : (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-1">
-                          <span className="text-[8px] font-black text-slate-400 w-10 shrink-0 uppercase">Công ty:</span>
-                          <input 
-                            type="email" value={formData.companyEmail}
-                            onChange={e => setFormData({...formData, companyEmail: e.target.value})}
-                            className="flex-1 text-[13px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-1 py-0.5 lowercase"
-                          />
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[8px] font-black text-slate-400 w-10 shrink-0 uppercase">Cá nhân:</span>
-                          <input 
-                            type="email" value={formData.personalEmail}
-                            onChange={e => setFormData({...formData, personalEmail: e.target.value})}
-                            className="flex-1 text-[13px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-1 py-0.5 lowercase"
-                          />
-                        </div>
-                      </div>
+                      <input 
+                        type="date" 
+                        value={formData.birthDate || ''}
+                        onChange={e => setFormData({...formData, birthDate: e.target.value})}
+                        className="w-full text-xs font-black text-blue-600 outline-none bg-blue-50/30 rounded-lg px-2 py-1 cursor-pointer"
+                      />
                     )}
                   </div>
 
@@ -1046,6 +1077,44 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[85px] col-span-12">
+                    <div className="flex items-center gap-2 mb-2 opacity-50">
+                      <Mail size={12} className="text-slate-400" />
+                      <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest">EMAIL CÔNG TY & CÁ NHÂN <span className="text-red-500">*</span></span>
+                    </div>
+                    {!isEditing ? (
+                      <div translate="no" className="notranslate space-y-1 text-slate-900 w-full flex flex-col sm:flex-row sm:gap-6 justify-start items-start">
+                        <div className="flex items-start gap-2 text-[13px] font-bold min-w-0 leading-tight">
+                          <span className="text-[9px] font-black text-slate-400 w-16 shrink-0 tracking-tighter uppercase pt-0.5">CÔNG TY:</span>
+                          <span className="lowercase break-all min-w-0 flex-1 leading-normal select-all">{user.companyEmail || 'CHỜ CẬP NHẬT'}</span>
+                        </div>
+                        <div className={`flex items-start gap-2 text-[13px] font-bold min-w-0 leading-tight ${user.personalEmail === 'CHỜ CẬP NHẬT' ? 'text-gray-400' : 'text-[#1e3a8a]'}`}>
+                          <span className="text-[9px] font-black text-slate-400 w-16 shrink-0 tracking-tighter uppercase pt-0.5">CÁ NHÂN:</span>
+                          <span className="lowercase break-all min-w-0 flex-1 leading-normal select-all">{user.personalEmail || 'CHỜ CẬP NHẬT'}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[8px] font-black text-slate-400 w-10 shrink-0 uppercase">Công ty:</span>
+                          <input 
+                            type="email" value={formData.companyEmail}
+                            onChange={e => setFormData({...formData, companyEmail: e.target.value})}
+                            className="flex-1 text-[13px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-1 py-0.5 lowercase"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[8px] font-black text-slate-400 w-10 shrink-0 uppercase">Cá nhân:</span>
+                          <input 
+                            type="email" value={formData.personalEmail}
+                            onChange={e => setFormData({...formData, personalEmail: e.target.value})}
+                            className="flex-1 text-[13px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-1 py-0.5 lowercase"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

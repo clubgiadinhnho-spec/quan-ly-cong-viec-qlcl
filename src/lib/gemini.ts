@@ -36,11 +36,11 @@ export async function getPerformanceAdvice(user: User, tasks: Task[], viewer: Us
     - Số lượng việc trễ hạn: ${lateTasks.length}
     
     YÊU CẦU NGHIÊM NGẶT:
-    1. Lời khuyên cực kỳ ngắn gọn (tối đa 3-4 dòng), trọng tâm vào công việc.
+    1. Lời khuyên cực kỳ ngắn gọn, súc tích (tối đa 2 dòng, dưới 30 từ), chỉ ra hướng hành động trực tiếp.
     2. TUYỆT ĐỐI KHÔNG dùng "**". Dùng dấu ngoặc kép " " để nhấn mạnh các con số hoặc từ khóa quan trọng.
     3. ${isSelf 
         ? "Xưng hô 'Bạn' - 'Tôi'. Tập trung vào tự quản lý." 
-        : `Xưng hô 'Sếp' - 'Nhân sự' (hoặc gọi tên nhân viên "${user.name}"). Phân tích cho Sếp thấy nhân sự này đang làm tốt hay tệ ở điểm nào dựa trên con số thực tế.`}
+        : `Xưng hô 'Sếp' - 'Nhân sự' (hoặc gọi tên nhân viên "${user.name}"). Phân tích cho Sếp thấy điểm mấu chốt nhất dựa trên con số.`}
     4. Phải phân biệt rõ: Nếu là Sếp đang xem, hãy dùng giọng điệu quyết đoán, góp ý quản trị. Nếu là cá nhân tự xem, dùng giọng điệu hỗ trợ, nhắc nhở.
     5. Không mở đầu rườm rà. Vào thẳng vấn đề.
     6. Ngôn ngữ: Tiếng Việt.

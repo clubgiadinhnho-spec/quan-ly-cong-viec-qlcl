@@ -27,5 +27,6 @@
    - **Mã hóa công việc**: Đã di chuyển vào `NewProposalsPage`, không đưa ngược lại Sidebar.
    - **Sidebar Layout**: Giữ nguyên cụm Bottom (Color + Profile) và cơ chế hiển thị Icon khi thu nhỏ.
    - **Logo Q**: Giữ nguyên tỉ lệ và hiệu ứng trong cả hai chế độ.
+   - **Định dạng ngày tháng (Date Format Guide)**: Tuyệt đối rà soát và hiển thị tất cả các mốc ngày tháng trong phân khu văn phòng dưới định dạng `dd/mm/yy` chuẩn Việt Nam thay vì định dạng máy tính `yyyy-mm-dd` thô kệch.
 
 8. **KẾT THÚC PHIÊN LÀM VIỆC**: Khi người dùng yêu cầu "đóng gói" hoặc "nghỉ ngơi", hãy tổng hợp lại các thay đổi quan trọng và đảm bảo các file cấu hình luôn ổn định.

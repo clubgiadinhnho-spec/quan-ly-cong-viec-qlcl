@@ -37,6 +37,7 @@ interface KPIItem {
   code: string;
   defaultAlloc: { tan: number; tu: number; hung: number };
   coEval?: boolean;
+  focus?: string;
 }
 
 const DEFAULT_KPI_ITEMS: KPIItem[] = [
@@ -134,13 +135,27 @@ const DEFAULT_KPI_ITEMS: KPIItem[] = [
 
 const sanitizeBchKpiItems = (items: KPIItem[]): KPIItem[] => {
   return items.map(item => {
+    let cleanKpis = item.kpis || '';
+    let cleanKpisLeader = item.kpisLeader || '';
+
+    // Standardize STAFF and LEADER text labels inside the KPI targets to NV: and QL:
+    cleanKpis = cleanKpis
+      .replace(/\bSTAFF\s*:?/gi, 'NV:')
+      .replace(/\bLEADER\s*:?/gi, 'QL:')
+      .replace(/NV:\s*:/gi, 'NV:')
+      .replace(/QL:\s*:/gi, 'QL:');
+
+    cleanKpisLeader = cleanKpisLeader
+      .replace(/\bSTAFF\s*:?/gi, 'NV:')
+      .replace(/\bLEADER\s*:?/gi, 'QL:')
+      .replace(/NV:\s*:/gi, 'NV:')
+      .replace(/QL:\s*:/gi, 'QL:');
+
     if (item.code === 'BCH') {
-      let cleanKpis = item.kpis || '';
       cleanKpis = cleanKpis.replace(/Bán chéo Bảo hiểm\s*:?\s*/gi, '')
                             .replace(/Bán chéo bảo hiểm\s*:?\s*/gi, '')
                             .trim();
       
-      let cleanKpisLeader = item.kpisLeader || '';
       cleanKpisLeader = cleanKpisLeader.replace(/Bán chéo Bảo hiểm\s*:?\s*/gi, '')
                                         .replace(/Bán chéo bảo hiểm\s*:?\s*/gi, '')
                                         .trim();
@@ -151,15 +166,21 @@ const sanitizeBchKpiItems = (items: KPIItem[]): KPIItem[] => {
       if (cleanKpisLeader && /^[a-z]/.test(cleanKpisLeader)) {
         cleanKpisLeader = cleanKpisLeader.charAt(0).toUpperCase() + cleanKpisLeader.slice(1);
       }
-
-      return {
-        ...item,
-        kpis: cleanKpis,
-        kpisLeader: cleanKpisLeader || undefined
-      };
     }
-    return item;
+
+    return {
+      ...item,
+      kpis: cleanKpis,
+      kpisLeader: cleanKpisLeader || undefined
+    };
   });
+};
+
+const sanitizeForFirestore = (data: any): any => {
+  if (data === undefined) return null;
+  return JSON.parse(JSON.stringify(data, (key, value) => {
+    return value === undefined ? null : value;
+  }));
 };
 
 const getUserRoleTitle = (u: any): string => {
@@ -175,10 +196,13 @@ const getUserRoleTitle = (u: any): string => {
   if (normName === 'Bành Nhựt Hùng' || normName.includes('Nhựt Hùng') || normName === 'Nguyễn Kiều Phan Tú' || normName.includes('Phan Tú') || normName.endsWith('Tú')) {
     return 'Nhân viên';
   }
-  if (u.title && u.title !== 'CHUYÊN VIÊN QC' && u.title !== 'CHỜ CẬP NHẬT') {
+  if (u.title && u.title !== 'CHUYÊN VIÊN QC' && u.title !== 'CHỜ CẬP NHẬT' && u.title !== 'NHÂN VIÊN') {
     return u.title;
   }
-  return u.role === 'Staff' ? 'Nhân viên' : 'Quản lý';
+  if (u.role === 'Admin') return 'Quản trị viên';
+  if (u.role === 'Trưởng Phòng') return 'Trưởng Phòng QLCL';
+  if (u.role === 'Leader') return 'Trưởng nhóm QLCL';
+  return 'Nhân viên QLCL';
 };
 
 export const ReportPage = ({ 
@@ -200,6 +224,8 @@ export const ReportPage = ({
     const d = new Date();
     return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   });
+
+  const [bchViewMode, setBchViewMode] = useState<'ytd' | 'annual'>('ytd');
 
   const handlePrevMonth = () => {
     const parts = reportPeriod.split('/');
@@ -234,6 +260,25 @@ export const ReportPage = ({
     const d = new Date();
     return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   });
+
+  // Default to next month relative to reportPeriod when entering config tab
+  useEffect(() => {
+    if (activeTab === 'config') {
+      const parts = reportPeriod.split('/');
+      if (parts.length === 2) {
+        let month = parseInt(parts[0], 10);
+        let year = parseInt(parts[1], 10);
+        if (!isNaN(month) && !isNaN(year)) {
+          month += 1;
+          if (month === 13) {
+            month = 1;
+            year += 1;
+          }
+          setConfigPeriod(`${String(month).padStart(2, '0')}/${year}`);
+        }
+      }
+    }
+  }, [activeTab]);
 
   const handlePrevConfigMonth = () => {
     const parts = configPeriod.split('/');
@@ -310,7 +355,7 @@ export const ReportPage = ({
   }, [urlParams, modalPrintScale]);
 
   const handleOpenNewTabToPrint = () => {
-    const printUrl = new URL(window.location.href);
+    const printUrl = new URL(window.location.origin + window.location.pathname);
     printUrl.searchParams.set('print', 'true');
     printUrl.searchParams.set('tab', 'reports');
     printUrl.searchParams.set('report_tab', activeTab);
@@ -326,9 +371,92 @@ export const ReportPage = ({
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [allocations, setAllocations] = useState<Record<string, Record<string, number>>>({});
   const [itemScores, setItemScores] = useState<Record<string, number>>({});
+  const [itemApprovedScores, setItemApprovedScores] = useState<Record<string, number>>({});
   const [itemComments, setItemComments] = useState<Record<string, string>>({});
+  const [deptResultSource, setDeptResultSource] = useState<'kpi' | 'qltt' | 'approved'>('qltt');
   const [selectedDetailCategory, setSelectedDetailCategory] = useState<{ code: string; label: string } | null>(null);
   const [taskCategories, setTaskCategories] = useState<any[]>([]);
+  const [acknowledgements, setAcknowledgements] = useState<Record<string, { confirmed: boolean; confirmedAt: string }>>({});
+  const [isSavingAcknowledgement, setIsSavingAcknowledgement] = useState(false);
+
+  const [savedConfigPeriods, setSavedConfigPeriods] = useState<string[]>([]);
+  const [selectedPastMonthToCopy, setSelectedPastMonthToCopy] = useState<string>('');
+
+  useEffect(() => {
+    const fetchSavedPeriods = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'kpi_configs'));
+        const periods = snap.docs.map(doc => doc.id.replace(/-/g, '/'));
+        const sortedPeriods = periods
+          .filter(p => /^\d{2}\/\d{4}$/.test(p))
+          .sort((a, b) => {
+            const [mA, yA] = a.split('/').map(Number);
+            const [mB, yB] = b.split('/').map(Number);
+            if (yA !== yB) return yB - yA;
+            return mB - mA;
+          });
+        setSavedConfigPeriods(sortedPeriods);
+      } catch (err) {
+        console.warn("Lỗi tải danh sách cấu hình cũ từ Firebase:", err);
+      }
+    };
+    if (activeTab === 'config') {
+      fetchSavedPeriods();
+    }
+  }, [activeTab, configPeriod]);
+
+  const handleCopyConfigFromPastMonth = async (pastPeriodMMYY: string) => {
+    if (!pastPeriodMMYY) return;
+    try {
+      const docId = pastPeriodMMYY.replace(/\//g, '-');
+      const docRef = doc(db, 'kpi_configs', docId);
+      const configDoc = await getDoc(docRef);
+      if (configDoc.exists()) {
+        const data = configDoc.data();
+        if (data.weights) setWeights(data.weights);
+        if (data.allocations) setAllocations(data.allocations);
+        if (data.kpiItems && Array.isArray(data.kpiItems)) {
+          setKpiItems(sortKpiItems(sanitizeBchKpiItems(data.kpiItems)));
+        }
+        if (data.allocatedUserIds && Array.isArray(data.allocatedUserIds)) {
+          setAllocatedUserIds(sortUserIds(data.allocatedUserIds));
+        }
+        showToast(`Đã tải và áp dụng tạm thời cấu hình từ tháng ${pastPeriodMMYY}! Hãy rà soát lại và nhấn "LƯU CẤU HÌNH" để đồng bộ cho tháng ${configPeriod}.`, "success");
+      } else {
+        showToast(`Không tìm thấy cấu hình đã lưu cho tháng ${pastPeriodMMYY}!`, "error");
+      }
+    } catch (err) {
+      console.error("Lỗi sao chép cấu hình:", err);
+      showToast("Không thể sao chép cấu hình từ tháng đã chọn.", "error");
+    }
+  };
+
+  const handleAcknowledgeKPI = async () => {
+    if (!currentUser) return;
+    setIsSavingAcknowledgement(true);
+    try {
+      const targetPeriod = activeTab === 'config' ? configPeriod : reportPeriod;
+      const docId = targetPeriod.replace(/\//g, '-');
+      const docRef = doc(db, 'kpi_configs', docId);
+      
+      const updatedAck = {
+        ...acknowledgements,
+        [currentUser.id]: {
+          confirmed: true,
+          confirmedAt: new Date().toISOString()
+        }
+      };
+
+      await setDoc(docRef, { acknowledgements: updatedAck }, { merge: true });
+      setAcknowledgements(updatedAck);
+      showToast("Xác nhận đã nhận KPI tháng thành công!", "success");
+    } catch (e: any) {
+      console.error(e);
+      showToast(`Xác nhận thất bại: ${e.message}`, "error");
+    } finally {
+      setIsSavingAcknowledgement(false);
+    }
+  };
 
   // Dynamic KPI list management states
   const [kpiItems, setKpiItems] = useState<KPIItem[]>(() => sanitizeBchKpiItems(DEFAULT_KPI_ITEMS));
@@ -625,41 +753,6 @@ export const ReportPage = ({
       const hung = users.find(u => u.name.toLowerCase().includes('hùng') || u.name.toLowerCase().includes('hung'));
       const defaultList = [tan, tu, hung].filter((u): u is User => !!u).map(u => u.id);
 
-      // Nếu không phải Trưởng Phòng/Admin, tự động áp dụng cấu hình mặc định cục bộ và không gọi Firestore kpi_configs để bảo mật tuyệt đối
-      if (!isReportManager) {
-        setKpiItems(sortKpiItems(sanitizeBchKpiItems(DEFAULT_KPI_ITEMS)));
-        const defaultWeights: Record<string, number> = {};
-        DEFAULT_KPI_ITEMS.forEach(item => { 
-          defaultWeights[item.id] = item.weight;
-          if (item.weightLeader !== undefined) {
-            defaultWeights[item.id + '_leader'] = item.weightLeader;
-          }
-        });
-        setWeights(defaultWeights);
-
-        const defaultAlloc: Record<string, Record<string, number>> = {};
-        DEFAULT_KPI_ITEMS.forEach(item => {
-          defaultAlloc[item.id] = {};
-          users.forEach(u => { defaultAlloc[item.id][u.id] = 0; });
-          
-          if (tan) defaultAlloc[item.id][tan.id] = item.defaultAlloc.tan || 0;
-          if (tu) defaultAlloc[item.id][tu.id] = item.defaultAlloc.tu || 0;
-          if (hung) defaultAlloc[item.id][hung.id] = item.defaultAlloc.hung || 0;
-
-          const allocatedCount = [tan, tu, hung].filter(Boolean).length;
-          if (allocatedCount === 0 && activeStaff.length > 0) {
-            const sliceCount = Math.min(3, activeStaff.length);
-            const sharesNum = Math.floor(100 / sliceCount);
-            for (let i = 0; i < sliceCount; i++) {
-              defaultAlloc[item.id][activeStaff[i].id] = i === sliceCount - 1 ? 100 - (sharesNum * (sliceCount - 1)) : sharesNum;
-            }
-          }
-        });
-        setAllocations(defaultAlloc);
-        setAllocatedUserIds(sortUserIds(defaultList.length > 0 ? defaultList : activeStaff.map(u => u.id)));
-        return;
-      }
-
       try {
         const targetPeriod = activeTab === 'config' ? configPeriod : reportPeriod;
         let configDoc = await getDoc(doc(db, 'kpi_configs', targetPeriod.replace(/\//g, '-')));
@@ -691,6 +784,11 @@ export const ReportPage = ({
           const data = configDoc.data();
           if (data.weights) setWeights(data.weights);
           if (data.allocations) setAllocations(data.allocations);
+          if (data.acknowledgements) {
+            setAcknowledgements(data.acknowledgements);
+          } else {
+            setAcknowledgements({});
+          }
           
           if (data.kpiItems && Array.isArray(data.kpiItems)) {
             setKpiItems(sortKpiItems(sanitizeBchKpiItems(data.kpiItems)));
@@ -750,6 +848,7 @@ export const ReportPage = ({
           });
           setAllocations(defaultAlloc);
           setAllocatedUserIds(sortUserIds(defaultList.length > 0 ? defaultList : activeStaff.map(u => u.id)));
+          setAcknowledgements({});
         }
       } catch (err) {
         console.warn("Lỗi tải cấu hình:", err);
@@ -769,11 +868,13 @@ export const ReportPage = ({
           setStaffExplanation(data.staffExplanation || '');
           setLeaderEvaluation(data.leaderEvaluation || '');
           setItemScores(data.itemScores || {});
+          setItemApprovedScores(data.itemApprovedScores || {});
           setItemComments(data.itemComments || {});
         } else {
           setStaffExplanation('');
           setLeaderEvaluation('');
           setItemScores({});
+          setItemApprovedScores({});
           setItemComments({});
         }
       } catch (err) {
@@ -794,6 +895,7 @@ export const ReportPage = ({
         staffExplanation,
         leaderEvaluation,
         itemScores,
+        itemApprovedScores,
         itemComments,
         updatedAt: new Date().toISOString()
       });
@@ -875,12 +977,12 @@ export const ReportPage = ({
         existingData = docSnap.data();
       }
 
-      await setDoc(docRef, {
+      await setDoc(docRef, sanitizeForFirestore({
         ...existingData,
         kpiItems,
         weights,
         updatedAt: new Date().toISOString()
-      });
+      }));
 
       await syncKpiToTaskCategories(kpiItems);
       showToast(`Đã lưu riêng danh mục KPI & Trọng số phòng ban tháng ${configPeriod} thành công!`, "success");
@@ -909,13 +1011,13 @@ export const ReportPage = ({
         existingData = docSnap.data();
       }
 
-      await setDoc(docRef, {
+      await setDoc(docRef, sanitizeForFirestore({
         ...existingData,
         weights,
         allocations,
         allocatedUserIds,
         updatedAt: new Date().toISOString()
-      });
+      }));
 
       showToast(`Đã lưu riêng Ma trận phân bổ tỷ lệ nhân sự tháng ${configPeriod} thành công!`, "success");
     } catch (e: any) {
@@ -932,21 +1034,31 @@ export const ReportPage = ({
       showToast("Bạn không có quyền lưu cấu hình phân bổ trọng số tháng.", "error");
       return;
     }
+    const activeConfigPeriod = activeTab === 'config' ? configPeriod : reportPeriod;
     setIsSavingConfig(true);
     try {
-      // 1. Lưu cấu hình mẫu KPI tháng
-      await setDoc(doc(db, 'kpi_configs', configPeriod.replace(/\//g, '-')), {
+      const docRef = doc(db, 'kpi_configs', activeConfigPeriod.replace(/\//g, '-'));
+      const docSnap = await getDoc(docRef);
+      
+      let existingData: any = {};
+      if (docSnap.exists()) {
+        existingData = docSnap.data();
+      }
+
+      // 1. Lưu cấu hình mẫu KPI tháng (gộp chung an toàn tránh mất chữ ký acknowledgements)
+      await setDoc(docRef, sanitizeForFirestore({
+        ...existingData,
         weights,
         allocations,
         allocatedUserIds,
         kpiItems,
         updatedAt: new Date().toISOString()
-      });
+      }));
 
       // 2. Đồng bộ tự động danh mục KPI sang collection 'task_categories'
       await syncKpiToTaskCategories(kpiItems);
 
-      showToast(`Đã đồng bộ và lưu toàn bộ cấu hình tháng ${configPeriod} thành công!`, "success");
+      showToast(`Đã đồng bộ và lưu toàn bộ cấu hình tháng ${activeConfigPeriod} thành công!`, "success");
     } catch (e: any) {
       console.error("Lưu cấu hình thất bại:", e);
       const errMsg = e instanceof Error ? e.message : String(e);
@@ -1058,6 +1170,60 @@ export const ReportPage = ({
     });
   };
 
+  // Helper to extract specific quantity counts from text for both Cumulative & Annual BCH metrics
+  const parseInsuranceCounts = (text: string) => {
+    const counts = { cuuHo: 0, tnds: 0, khac: 0 };
+    if (!text) return counts;
+
+    const lower = text.toLowerCase();
+    const matchedIndices = new Set<number>();
+
+    const processRegex = (regex: RegExp, type: 'cuuHo' | 'tnds') => {
+      let match;
+      regex.lastIndex = 0;
+      while ((match = regex.exec(lower)) !== null) {
+        const start = match.index;
+        const end = start + match[0].length;
+        
+        let hasOverlap = false;
+        for (let i = start; i < end; i++) {
+          if (matchedIndices.has(i)) {
+            hasOverlap = true;
+            break;
+          }
+        }
+        
+        if (!hasOverlap) {
+          const val = parseInt(match[1], 10);
+          if (!isNaN(val)) {
+            counts[type] += val;
+            for (let i = start; i < end; i++) {
+              matchedIndices.add(i);
+            }
+          }
+        }
+      }
+    };
+
+    // 1. Cứu hộ A: e.g. "3 cứu hộ", "3 ch", "3cuuho"
+    const chRegexA = /(\d+)\s*(?:cái|chiếc|bộ|bản|lần)?\s*(?:cứu\s*hộ|cuu\s*ho|\bch\b)/g;
+    processRegex(chRegexA, 'cuuHo');
+
+    // 2. TNDS A: e.g. "1 tnds", "1 trách nhiệm dân sự"
+    const tndsRegexA = /(\d+)\s*(?:cái|chiếc|bộ|bản|lần)?\s*(?:tnds|trách\s*nhiệm\s*dân\s*sự|trach\s*nhiem\s*dan\s*su|bắt\s*buộc|bat\s*buoc)/g;
+    processRegex(tndsRegexA, 'tnds');
+
+    // 3. Cứu hộ B: e.g. "cứu hộ: 3", "ch: 3"
+    const chRegexB = /(?:cứu\s*hộ|cuu\s*ho|\bch\b)\s*[:=-]?\s*(\d+)/g;
+    processRegex(chRegexB, 'cuuHo');
+
+    // 4. TNDS B: e.g. "tnds: 3"
+    const tndsRegexB = /(?:tnds|trách\s*nhiệm\s*dân\s*sự|trach\s*nhiem\s*dan\s*su|bắt\s*buộc|bat\s*buoc)\s*[:=-]?\s*(\d+)/g;
+    processRegex(tndsRegexB, 'tnds');
+
+    return counts;
+  };
+
   const getBchCumulativeMetrics = (userId: string) => {
     const [monthStr, yearStr] = reportPeriod.split('/');
     const month = parseInt(monthStr, 10) || 5;
@@ -1123,16 +1289,37 @@ export const ReportPage = ({
       if (isCompleted) {
         const titleLower = (t.title || '').toLowerCase();
         
-        const isCH = titleLower.includes('cứu hộ') || titleLower.includes('cuu ho') || titleLower.includes('ch');
+        // Extract counts from title & currentUpdate, then take the max
+        const countsFromTitle = parseInsuranceCounts(t.title || '');
+        const countsFromUpdate = parseInsuranceCounts(t.currentUpdate || '');
+        
+        const taskCuuHo = Math.max(countsFromTitle.cuuHo, countsFromUpdate.cuuHo);
+        const taskTnds = Math.max(countsFromTitle.tnds, countsFromUpdate.tnds);
+        const taskKhac = Math.max(countsFromTitle.khac, countsFromUpdate.khac);
+        
+        let finalCuuHo = taskCuuHo;
+        let finalTnds = taskTnds;
+        let finalKhac = taskKhac;
+        
+        // Preserve backward compatibility / default counting
+        const isCH = titleLower.includes('cứu hộ') || titleLower.includes('cuu ho') || /\bch\b/i.test(titleLower);
         const isTS = titleLower.includes('tnds') || titleLower.includes('trách nhiệm dân sự') || titleLower.includes('trach nhiem dan su') || titleLower.includes('bắt buộc') || titleLower.includes('bat buoc');
-
-        if (isCH) {
-          actualCuuHo += 1;
-        } else if (isTS) {
-          actualTnds += 1;
-        } else {
-          actualKhac += 1;
+        
+        if (finalCuuHo === 0 && finalTnds === 0 && finalKhac === 0) {
+          if (isCH) {
+            finalCuuHo = 1;
+          } else if (isTS) {
+            finalTnds = 1;
+          } else if (titleLower.includes('ch')) {
+            finalCuuHo = 1; // Fallback to preserve the very old behavior where [BCH] text default-counted as Cứu Hộ
+          } else {
+            finalKhac = 1;
+          }
         }
+        
+        actualCuuHo += finalCuuHo;
+        actualTnds += finalTnds;
+        actualKhac += finalKhac;
       }
     });
 
@@ -1157,66 +1344,295 @@ export const ReportPage = ({
     };
   };
 
+  const getBchAnnualMetrics = (userId: string) => {
+    const [_, yearStr] = reportPeriod.split('/');
+    const year = parseInt(yearStr, 10) || 2026;
+
+    // Get list of active user IDs to calculate
+    const targetUserIds = userId === 'ALL' ? allocatedUserIds : [userId];
+
+    // Compute annual active months based on when the policy started
+    // Campaign begins in May 2026 (05/2026). So 8 months in 2026, 12 months for subsequent years.
+    const annualMonths = year === 2026 ? 8 : 12;
+
+    // Compute annual targets
+    let targetCuuHo = 0;
+    let targetTnds = 0;
+    
+    targetUserIds.forEach(uid => {
+      const isLd = isLeaderRole(uid, 'BCH');
+      if (isLd) {
+        // Leader: 1/month each
+        targetCuuHo += annualMonths * 1;
+        targetTnds += annualMonths * 1;
+      } else {
+        // Staff: 0.5/month each (1 policy per 2 months)
+        targetCuuHo += annualMonths * 0.5;
+        targetTnds += annualMonths * 0.5;
+      }
+    });
+
+    const totalTarget = targetCuuHo + targetTnds;
+
+    // Filter BCH tasks for the entire selected year
+    const bchTasks = tasks.filter(t => {
+      if (isTaskDeleted(t)) return false;
+      if (t.category !== 'BCH') return false;
+      
+      const date = new Date(t.issueDate);
+      const tMonth = date.getMonth() + 1;
+      const tYear = date.getFullYear();
+
+      const userMatch = targetUserIds.includes(t.assigneeId);
+      
+      let isDateValid = false;
+      if (tYear > 2026) {
+        isDateValid = true; // All months for future years
+      } else if (tYear === 2026) {
+        isDateValid = tMonth >= 5; // Starts from May 2026
+      }
+      return tYear === year && isDateValid && userMatch;
+    });
+
+    // Count actuals (Approved or Completed)
+    let actualCuuHo = 0;
+    let actualTnds = 0;
+    let actualKhac = 0;
+
+    bchTasks.forEach(t => {
+      const isCompleted = t.status === 'APPROVED' || t.status === 'COMPLETED';
+      if (isCompleted) {
+        const titleLower = (t.title || '').toLowerCase();
+        
+        const countsFromTitle = parseInsuranceCounts(t.title || '');
+        const countsFromUpdate = parseInsuranceCounts(t.currentUpdate || '');
+        
+        const taskCuuHo = Math.max(countsFromTitle.cuuHo, countsFromUpdate.cuuHo);
+        const taskTnds = Math.max(countsFromTitle.tnds, countsFromUpdate.tnds);
+        const taskKhac = Math.max(countsFromTitle.khac, countsFromUpdate.khac);
+        
+        let finalCuuHo = taskCuuHo;
+        let finalTnds = taskTnds;
+        let finalKhac = taskKhac;
+        
+        const isCH = titleLower.includes('cứu hộ') || titleLower.includes('cuu ho') || /\bch\b/i.test(titleLower);
+        const isTS = titleLower.includes('tnds') || titleLower.includes('trách nhiệm dân sự') || titleLower.includes('trach nhiem dan su') || titleLower.includes('bắt buộc') || titleLower.includes('bat buoc');
+        
+        if (finalCuuHo === 0 && finalTnds === 0 && finalKhac === 0) {
+          if (isCH) {
+            finalCuuHo = 1;
+          } else if (isTS) {
+            finalTnds = 1;
+          } else if (titleLower.includes('ch')) {
+            finalCuuHo = 1;
+          } else {
+            finalKhac = 1;
+          }
+        }
+        
+        actualCuuHo += finalCuuHo;
+        actualTnds += finalTnds;
+        actualKhac += finalKhac;
+      }
+    });
+
+    const totalActual = actualCuuHo + actualTnds + actualKhac;
+    const finalRate = totalTarget > 0 ? Math.min(100, Math.round((totalActual / totalTarget) * 100)) : 100;
+
+    return {
+      year,
+      annualMonths,
+      targetCuuHo,
+      targetTnds,
+      totalTarget,
+      actualCuuHo,
+      actualTnds,
+      actualKhac,
+      totalActual,
+      completionRate: finalRate,
+      tasks: bchTasks
+    };
+  };
+
   const renderCumulativeInsuranceDashboard = () => {
     const [monthStr, yearStr] = reportPeriod.split('/');
     const month = parseInt(monthStr, 10) || 5;
     const year = parseInt(yearStr, 10) || 2026;
     const elapsedMonths = year > 2026 ? month : (year === 2026 ? Math.max(0, month - 4) : 0);
+    const annualWeeksObj = getBchAnnualMetrics('ALL');
+    const annualMonths = annualWeeksObj.annualMonths;
 
     return (
-      <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-md space-y-4 print:hidden" id="cumulative-insurance-dashboard">
-        <div className="flex items-center justify-between border-b pb-3 border-slate-200">
+      <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-md space-y-4 print:border-none print:shadow-none print:p-0 print:pt-6" id="cumulative-insurance-dashboard">
+        {/* INTEGRATED HEADER WITH MODE SWITCHER */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b pb-3 border-slate-200 gap-3">
           <div className="flex items-center gap-2">
-            <span className="p-1 px-2.5 bg-blue-50 text-blue-600 rounded text-base">📊</span>
+            <span className="p-1 px-2.5 bg-blue-50 text-blue-600 rounded text-base print:hidden">📊</span>
             <div>
-              <h4 className="font-extrabold text-slate-800 text-sm">
-                BẢNG THEO DÕI LŨY KẾ BÁN CHÉO BẢO HIỂM (CỨU HỘ & TNDS) NĂM {year}
+              <h4 className="font-extrabold text-slate-800 text-sm uppercase">
+                {bchViewMode === 'ytd' 
+                  ? `BẢNG THEO DÕI LŨY KẾ BÁN CHÉO BẢO HIỂM (CỨU HỘ & TNDS) NĂM ${year}`
+                  : `BẢNG THEO DÕI LŨY KẾ BÁN CHÉO BẢO HIỂM CẢ NĂM ${year}`
+                }
               </h4>
               <p className="text-[10px] text-slate-500 font-semibold uppercase mt-0.5">
-                Cơ chế cộng dồn lũy kế đến Tháng {monthStr} / Quyết định tập đoàn QLCL
+                {bchViewMode === 'ytd'
+                  ? `Cơ chế cộng dồn lũy kế đến Tháng ${monthStr} / Quyết định tập đoàn QLCL`
+                  : `Kế hoạch tích lũy cả năm ${year} / Chỉ tiêu cam kết hoàn thành đến 12/${year}`
+                }
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] bg-indigo-50 text-indigo-700 font-extrabold px-2.5 py-1 rounded-full uppercase border border-indigo-100 animate-pulse border-dashed">
-              Triển khai từ tháng 05/2026 (YTD)
-            </span>
+          
+          {/* TAB SWITCHER WITH DEDICATED PRINT BUTTON */}
+          <div className="flex items-center self-start sm:self-center gap-2 print:hidden no-print">
+            <button
+              type="button"
+              onClick={() => {
+                const printContents = document.getElementById('cumulative-insurance-dashboard')?.outerHTML;
+                if (printContents) {
+                  const printWindow = window.open('', '_blank');
+                  if (printWindow) {
+                    printWindow.document.write(`
+                      <html>
+                        <head>
+                          <title>BẢNG THEO DÕI LŨY KẾ BÁN CHÉO BẢO HIỂM NĂM ${year}</title>
+                          <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+                          <style>
+                            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+                            body {
+                              font-family: 'Inter', sans-serif;
+                              padding: 24px;
+                              background-color: white;
+                              color: #1e293b;
+                            }
+                            .notranslate { translate: no; }
+                            .print\\:hidden, button, .no-print { display: none !important; }
+                            table { page-break-inside: avoid; }
+                            tr { page-break-inside: avoid; page-break-after: auto; }
+                          </style>
+                        </head>
+                        <body>
+                          <div class="space-y-4">
+                            ${printContents}
+                          </div>
+                          <script>
+                            setTimeout(() => {
+                              window.print();
+                              window.close();
+                            }, 500);
+                          </script>
+                        </body>
+                      </html>
+                    `);
+                    printWindow.document.close();
+                  }
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg shadow-sm cursor-pointer hover:text-blue-600 transition-colors"
+              title="In riêng bảng bảo hiểm này"
+            >
+              <Printer size={13} strokeWidth={2.5} />
+              In bảng này
+            </button>
+
+            <div className="inline-flex p-0.5 bg-slate-100 rounded-lg border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setBchViewMode('ytd')}
+                className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all duration-150 ${
+                  bchViewMode === 'ytd'
+                    ? 'bg-white text-blue-600 shadow-sm border border-slate-200/50'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Theo Tháng (YTD: {monthStr})
+              </button>
+              <button
+                type="button"
+                onClick={() => setBchViewMode('annual')}
+                className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all duration-150 ${
+                  bchViewMode === 'annual'
+                    ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/50'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Cả Năm {year}
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="bg-slate-50 p-4 rounded border border-slate-200 text-xs text-slate-700 leading-relaxed text-left">
-          <strong className="text-slate-900 font-extrabold flex items-center gap-1">
-            <Sparkles size={11} className="text-amber-500 animate-spin-slow" /> Hướng dẫn kiểm soát Chỉ tiêu lũy kế (YTD):
-          </strong>
-          <span className="block mt-1">
-             - <strong>Nhân viên (Staff)</strong>: Cứu Hộ: 1 cái/ 2 tháng (TB 0.5 cái/tháng); TNDS: 1 cái/ 2 tháng (TB 0.5 cái/tháng). Tổng lũy kế cần đạt <strong className="text-blue-700">{elapsedMonths} bảo hiểm</strong> đến tháng {monthStr} là đạt.
-          </span>
-          <span className="block mt-0.5">
-             - <strong>Quản lý (Leader)</strong>: Cứu Hộ: 1 cái/tháng (TB 1.0 cái/tháng); TNDS: 1 cái/tháng (TB 1.0 cái/tháng). Tổng lũy kế cần đạt <strong className="text-purple-700">{elapsedMonths * 2} bảo hiểm</strong> đến tháng {monthStr} là đạt.
-          </span>
-          <span className="block mt-1 text-[10px] text-rose-600 font-extrabold bg-rose-50 border border-rose-100 p-1.5 rounded inline-block">
-             💡 KPI được Tập đoàn triển khai bắt đầu từ tháng 5/2026. Chỉ tiêu trước tháng 5 không tính. Số tháng tích lũy từ tháng 5 tính đến tháng {monthStr}/{year} là <strong className="underline text-rose-700">{elapsedMonths} tháng</strong>.
-          </span>
-        </div>
+        {/* GUIDES BASED ON VIEW MODE */}
+        {bchViewMode === 'ytd' ? (
+          <div className="bg-slate-50 p-4 rounded border border-slate-200 text-xs text-slate-700 leading-relaxed text-left print:hidden">
+            <strong className="text-slate-900 font-extrabold flex items-center gap-1">
+              <Sparkles size={11} className="text-amber-500 animate-spin-slow" /> Hướng dẫn kiểm soát Chỉ tiêu lũy kế (YTD):
+            </strong>
+            <span className="block mt-1">
+               - <strong>Nhân viên (Staff)</strong>: Cứu Hộ: 1 cái/ 2 tháng (TB 0.5 cái/tháng); TNDS: 1 cái/ 2 tháng (TB 0.5 cái/tháng). Tổng lũy kế cần đạt <strong className="text-blue-700">{elapsedMonths} bảo hiểm</strong> đến tháng {monthStr} là đạt.
+            </span>
+            <span className="block mt-0.5">
+               - <strong>Quản lý (Leader)</strong>: Cứu Hộ: 1 cái/tháng (TB 1.0 cái/tháng); TNDS: 1 cái/tháng (TB 1.0 cái/tháng). Tổng lũy kế cần đạt <strong className="text-purple-700">{elapsedMonths * 2} bảo hiểm</strong> đến tháng {monthStr} là đạt.
+            </span>
+            <span className="block mt-1 text-[10px] text-rose-600 font-extrabold bg-rose-50 border border-rose-100 p-1.5 rounded inline-block">
+               💡 KPI được Tập đoàn triển khai bắt đầu từ tháng 5/2026. Chỉ tiêu trước tháng 5 không tính. Số tháng tích lũy từ tháng 5 tính đến tháng {monthStr}/{year} là <strong className="underline text-rose-700">{elapsedMonths} tháng</strong>.
+            </span>
+          </div>
+        ) : (
+          <div className="bg-indigo-50/40 p-4 rounded border border-indigo-100/70 text-xs text-slate-700 leading-relaxed text-left print:hidden">
+            <strong className="text-indigo-900 font-extrabold flex items-center gap-1">
+              <Sparkles size={11} className="text-indigo-500 animate-spin-slow" /> Hướng dẫn kiểm soát Chỉ tiêu lũy kế Cả năm (Annual Target):
+            </strong>
+            <span className="block mt-1">
+               - <strong>Nhân viên (Staff)</strong>: Kế hoạch bán <strong className="text-blue-700">{annualMonths} cái cả năm</strong> (Cứu Hộ: {annualMonths * 0.5} cái; TNDS: {annualMonths * 0.5} cái).
+            </span>
+            <span className="block mt-0.5">
+               - <strong>Quản lý (Leader)</strong>: Kế hoạch bán <strong className="text-purple-700">{annualMonths * 2} cái cả năm</strong> (Cứu Hộ: {annualMonths} cái; TNDS: {annualMonths} cái).
+            </span>
+            <span className="block mt-1.5 text-[10px] text-slate-500 font-bold bg-white border border-slate-200 p-1.5 rounded inline-block">
+               🔒 Bảng thống kê tiến độ tích lũy thực tế của từng nhân sự đối chiếu với chỉ tiêu cam kết của toàn bộ năm tài chính {year}.
+            </span>
+          </div>
+        )}
 
+        {/* INTEGRATED DATA TABLE */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+          <table className="w-full text-left text-xs border-collapse border border-slate-300">
             <thead>
-              <tr className="bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider border-b border-slate-800">
-                <th className="p-3">Họ và tên</th>
-                <th className="p-3 text-center">Chức danh</th>
-                <th className="p-3 text-center bg-sky-950/20">Mục tiêu C.Hộ YTD</th>
-                <th className="p-3 text-center bg-emerald-950/20">Mục tiêu TNDS YTD</th>
-                <th className="p-3 text-center bg-slate-950/25">Tổng Chỉ tiêu YTD</th>
-                <th className="p-3 text-center bg-sky-50/10 text-sky-400">Đã bán C.Hộ YTD</th>
-                <th className="p-3 text-center bg-emerald-50/10 text-emerald-400">Đã bán TNDS YTD</th>
-                <th className="p-3 text-center bg-indigo-50/10 text-indigo-400">Đã bán Khác</th>
-                <th className="p-3 text-center font-black text-amber-400 bg-yellow-950/25">Tổng đã bán YTD</th>
-                <th className="p-3 text-center">Tiến độ lũy kế</th>
-                <th className="p-3 text-center">Đánh giá kiểm duyệt</th>
+              <tr className="bg-slate-900 text-white text-[9px] font-black uppercase tracking-wider border-b border-slate-850 text-center">
+                <th className="p-3 border border-slate-700 text-left min-w-[160px] w-[160px]">Họ và tên</th>
+                <th className="p-3 text-center border border-slate-700 w-[80px] min-w-[80px]">Chức danh</th>
+                <th className={`py-2 px-1 text-center border border-slate-700 w-[65px] min-w-[65px] max-w-[65px] leading-tight ${bchViewMode === 'ytd' ? 'bg-sky-950/40' : 'bg-indigo-950/40'}`}>
+                  {bchViewMode === 'ytd' ? <>Mục tiêu<br/>C.Hộ YTD</> : <>Mục tiêu<br/>C.Hộ Năm</>}
+                </th>
+                <th className={`py-2 px-1 text-center border border-slate-700 w-[65px] min-w-[65px] max-w-[65px] leading-tight ${bchViewMode === 'ytd' ? 'bg-emerald-950/40' : 'bg-purple-950/40'}`}>
+                  {bchViewMode === 'ytd' ? <>Mục tiêu<br/>TNDS YTD</> : <>Mục tiêu<br/>TNDS Năm</>}
+                </th>
+                <th className="py-2 px-1 text-center border border-slate-700 w-[65px] min-w-[65px] max-w-[65px] leading-tight bg-slate-950/45">
+                  {bchViewMode === 'ytd' ? <>Tổng<br/>C.Tiêu YTD</> : <>Tổng<br/>C.Tiêu Năm</>}
+                </th>
+                <th className="py-2 px-1 text-center border border-slate-700 w-[65px] min-w-[65px] max-w-[65px] leading-tight bg-sky-900/40 text-sky-400">
+                  Đã bán<br/>C.Hộ YTD
+                </th>
+                <th className="py-2 px-1 text-center border border-slate-700 w-[65px] min-w-[65px] max-w-[65px] leading-tight bg-emerald-900/40 text-emerald-400">
+                  Đã bán<br/>TNDS YTD
+                </th>
+                <th className="py-2 px-1 text-center border border-slate-700 w-[55px] min-w-[55px] max-w-[55px] leading-tight bg-indigo-900/40 text-indigo-400">
+                  Đã bán<br/>Khác
+                </th>
+                <th className="py-2 px-1 text-center border border-slate-700 w-[65px] min-w-[65px] max-w-[65px] leading-tight font-black text-amber-400 bg-yellow-950/45">
+                  Tổng đã<br/>bán YTD
+                </th>
+                <th className="p-3 text-center border border-slate-700 min-w-[210px] w-[210px]">
+                  {bchViewMode === 'ytd' ? 'Tiến độ lũy kế' : 'Tiến độ cả năm'}
+                </th>
+                <th className="p-3 text-center border border-slate-700 w-[130px] min-w-[130px] max-w-[130px]">
+                  {bchViewMode === 'ytd' ? 'Đánh giá kiểm duyệt' : `Đánh giá năm ${year}`}
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-slate-300">
               {allocatedUserIds.map(uid => {
                 const u = users.find(usr => usr.id === uid);
                 if (!u) return null;
@@ -1224,52 +1640,95 @@ export const ReportPage = ({
                 const isLd = isLeaderRole(uid, 'BCH');
                 const roleTitle = isLd ? 'Leader/QL' : 'Staff/NV';
                 
-                const res = getBchCumulativeMetrics(uid);
+                const res = bchViewMode === 'ytd' ? getBchCumulativeMetrics(uid) : getBchAnnualMetrics(uid);
                 const diff = res.totalTarget - res.totalActual;
                 const isPassed = diff <= 0;
 
                 const percentRate = res.totalTarget > 0 ? Math.round((res.totalActual / res.totalTarget) * 100) : 100;
+                const dotColor = bchViewMode === 'ytd' ? 'bg-indigo-500' : 'bg-violet-500';
 
                 return (
                   <tr key={uid} className={`hover:bg-slate-50 transition-colors ${selectedStaffId === uid ? 'bg-indigo-50/40 font-semibold' : ''}`}>
-                    <td className="p-3 font-bold text-slate-800 notranslate" translate="no">
+                    <td className="p-3 font-bold text-slate-800 notranslate border border-slate-300 min-w-[160px] w-[160px]" translate="no">
                       <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                        <span className={`w-2 h-2 rounded-full ${dotColor}`}></span>
                         {u.name}
                       </div>
                     </td>
-                    <td className="p-3 text-center font-semibold text-slate-600">{roleTitle}</td>
-                    <td className="p-3 text-center font-medium bg-sky-500/5 text-sky-800">{res.targetCuuHo} cái</td>
-                    <td className="p-3 text-center font-medium bg-emerald-500/5 text-emerald-800">{res.targetTnds} cái</td>
-                    <td className="p-3 text-center font-black bg-slate-100 text-slate-800">{res.totalTarget} cái</td>
-                    <td className="p-3 text-center font-bold text-sky-600 bg-sky-50">{res.actualCuuHo} cái</td>
-                    <td className="p-3 text-center font-bold text-emerald-600 bg-emerald-50">{res.actualTnds} cái</td>
-                    <td className="p-3 text-center font-bold text-indigo-600 bg-indigo-50">{res.actualKhac} cái</td>
-                    <td className="p-3 text-center font-extrabold text-[#004b87] bg-yellow-50">{res.totalActual} cái</td>
-                    <td className="p-3 text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <span className={`text-[10px] font-black leading-none ${percentRate >= 100 ? 'text-emerald-700' : 'text-amber-700'}`}>
-                          {percentRate}%
-                        </span>
-                        <div className="w-20 bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full ${percentRate >= 100 ? 'bg-emerald-500' : 'bg-amber-500'}`} 
-                            style={{ width: `${Math.min(100, percentRate)}%` }}
-                          ></div>
+                    <td className="p-3 text-center font-semibold text-slate-600 border border-slate-300 w-[80px] min-w-[80px]">{roleTitle}</td>
+                    <td className="py-2.5 px-1 text-center font-medium bg-sky-500/5 text-sky-800 border border-slate-300 w-[65px] min-w-[65px] max-w-[65px] whitespace-nowrap">{res.targetCuuHo} cái</td>
+                    <td className="py-2.5 px-1 text-center font-medium bg-emerald-500/5 text-emerald-800 border border-slate-300 w-[65px] min-w-[65px] max-w-[65px] whitespace-nowrap">{res.targetTnds} cái</td>
+                    <td className="py-2.5 px-1 text-center font-black bg-slate-100 text-slate-800 border border-slate-300 w-[65px] min-w-[65px] max-w-[65px] whitespace-nowrap">{res.totalTarget} cái</td>
+                    <td className="py-2.5 px-1 text-center font-bold text-sky-600 bg-sky-50 border border-slate-300 w-[65px] min-w-[65px] max-w-[65px] whitespace-nowrap">{res.actualCuuHo} cái</td>
+                    <td className="py-2.5 px-1 text-center font-bold text-emerald-600 bg-emerald-50 border border-slate-300 w-[65px] min-w-[65px] max-w-[65px] whitespace-nowrap">{res.actualTnds} cái</td>
+                    <td className="py-2.5 px-1 text-center font-bold text-indigo-600 bg-indigo-50 border border-slate-300 w-[55px] min-w-[55px] max-w-[55px] whitespace-nowrap">{res.actualKhac} cái</td>
+                    <td className="py-2.5 px-1 text-center font-extrabold text-[#004b87] bg-yellow-50 border border-slate-300 w-[65px] min-w-[65px] max-w-[65px] whitespace-nowrap">{res.totalActual} cái</td>
+                    <td className="p-3 border border-slate-300 min-w-[210px] w-[210px]">
+                      <div className="flex flex-col gap-1.5 w-full text-left">
+                        {/* Cứu hộ metrics */}
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex justify-between text-[9.5px] font-bold text-slate-500 uppercase">
+                            <span>CH: <span className="text-slate-700 font-extrabold">{res.actualCuuHo}/{res.targetCuuHo}</span></span>
+                            <span className={res.targetCuuHo > 0 && res.actualCuuHo >= res.targetCuuHo ? "text-emerald-600 font-black" : "text-amber-600 font-black"}>
+                              {res.targetCuuHo > 0 ? Math.round((res.actualCuuHo / res.targetCuuHo) * 100) : 100}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-200 h-1 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full ${res.targetCuuHo > 0 && res.actualCuuHo >= res.targetCuuHo ? 'bg-sky-500' : 'bg-sky-400'}`} 
+                              style={{ width: `${res.targetCuuHo > 0 ? Math.min(100, Math.round((res.actualCuuHo / res.targetCuuHo) * 100)) : 100}%` }}
+                            ></div>
+                          </div>
+                        </div>
+
+                        {/* TNDS metrics */}
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex justify-between text-[9.5px] font-bold text-slate-500 uppercase">
+                            <span>TNDS: <span className="text-slate-700 font-extrabold">{res.actualTnds}/{res.targetTnds}</span></span>
+                            <span className={res.targetTnds > 0 && res.actualTnds >= res.targetTnds ? "text-emerald-600 font-black" : "text-amber-600 font-black"}>
+                              {res.targetTnds > 0 ? Math.round((res.actualTnds / res.targetTnds) * 100) : 100}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-200 h-1 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full ${res.targetTnds > 0 && res.actualTnds >= res.targetTnds ? 'bg-emerald-500' : 'bg-emerald-400'}`} 
+                              style={{ width: `${res.targetTnds > 0 ? Math.min(100, Math.round((res.actualTnds / res.targetTnds) * 100)) : 100}%` }}
+                            ></div>
+                          </div>
+                        </div>
+
+                        {/* Overall badge */}
+                        <div className="flex justify-between items-center pt-1 border-t border-slate-100 text-[10.5px] font-extrabold text-slate-500">
+                          <span className="uppercase text-[8.5px] text-slate-400 font-bold">Tổng đạt:</span>
+                          <span className={percentRate >= 100 ? "text-emerald-700 font-black" : "text-blue-700 font-black"}>
+                            {percentRate}%
+                          </span>
                         </div>
                       </div>
                     </td>
-                    <td className="p-3 text-center">
+                    <td className="p-3 text-center border border-slate-300 w-[130px] min-w-[130px] max-w-[130px]">
                       {isPassed ? (
                         <span className="inline-flex items-center gap-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-1 rounded">
-                          <CheckCircle2 size={10} className="stroke-[3]" /> Đạt lũy kế
+                          <CheckCircle2 size={10} className="stroke-[3]" /> {bchViewMode === 'ytd' ? 'Đạt lũy kế' : 'Hoàn thành kế hoạch'}
                         </span>
                       ) : (
                         <div className="flex flex-col items-center gap-0.5">
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-black uppercase tracking-wider text-rose-700 bg-rose-100 border border-rose-200 px-2 py-1 rounded">
-                            <AlertCircle size={10} className="stroke-[3]" /> Cần thêm {diff} cái
+                          <span className={`inline-flex items-center gap-0.5 text-[9px] font-black uppercase tracking-wider ${
+                            bchViewMode === 'ytd' ? 'text-rose-700 bg-rose-100 border border-rose-200' : 'text-indigo-700 bg-indigo-50 border border-indigo-200'
+                          } px-2 py-1 rounded`}>
+                            {bchViewMode === 'ytd' ? (
+                              <>
+                                <AlertCircle size={10} className="stroke-[3]" /> Cần thêm {diff} cái
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles size={10} className="stroke-[3]" /> Cần thêm {diff} cái
+                              </>
+                            )}
                           </span>
-                          <span className="text-[8px] text-slate-400 font-bold italic">chỉ tiêu TB cuối năm</span>
+                          <span className="text-[8px] text-slate-400 font-bold italic">
+                            {bchViewMode === 'ytd' ? 'chỉ tiêu TB cuối năm' : 'chỉ tiêu trọn năm'}
+                          </span>
                         </div>
                       )}
                     </td>
@@ -1282,6 +1741,7 @@ export const ReportPage = ({
       </div>
     );
   };
+
 
   // Smart Recurrence Aggregator
   const getCategoryMetrics = (code: string, userId: string) => {
@@ -1305,14 +1765,41 @@ export const ReportPage = ({
 
     if (code === 'AIU') {
       const [month, year] = reportPeriod.split('/');
+      if (userId === 'ALL') {
+        let totalRate = 0;
+        let validCount = 0;
+        const allTasks: any[] = [];
+        const allGroups: any[] = [];
+
+        allocatedUserIds.forEach(uid => {
+          const sub = getCategoryMetrics('AIU', uid);
+          if (sub.completionRate !== null) {
+            totalRate += sub.completionRate;
+            validCount++;
+          }
+          if (sub.items) {
+            allTasks.push(...sub.items);
+          }
+          if (sub.groups) {
+            allGroups.push(...sub.groups);
+          }
+        });
+
+        const completionRate = validCount > 0 ? Math.round(totalRate / validCount) : null;
+        return {
+          completionRate,
+          groupedCount: allTasks.length,
+          items: allTasks,
+          groups: allGroups
+        };
+      }
+
       const allTasksInPeriod = tasks.filter(t => {
         if (isTaskDeleted(t)) return false;
         const date = new Date(t.issueDate);
         const m = String(date.getMonth() + 1).padStart(2, '0');
         const y = String(date.getFullYear());
-        const userMatch = userId === 'ALL' 
-          ? allocatedUserIds.includes(t.assigneeId) 
-          : t.assigneeId === userId;
+        const userMatch = t.assigneeId === userId;
         return m === month && y === year && userMatch;
       });
 
@@ -1322,7 +1809,21 @@ export const ReportPage = ({
 
       const aiAppliedTasks = allTasksInPeriod.filter(t => t.aiApplied === true);
       const rawRatio = aiAppliedTasks.length / allTasksInPeriod.length;
-      const completionRate = Math.min(100, Math.round((rawRatio / 0.6) * 100));
+
+      // Determine target ratio dynamically based on KPI item description
+      let targetRatio = 0.6; // Default to 60%
+      const aiuItem = kpiItems.find(item => item.code === 'AIU');
+      if (aiuItem) {
+        const isLd = isLeaderRole(userId, 'AIU');
+        const kpisText = isLd && aiuItem.kpisLeader ? aiuItem.kpisLeader : aiuItem.kpis;
+        const match = (kpisText || '').match(/(\d+)%/);
+        if (match) {
+          targetRatio = parseInt(match[1], 10) / 100;
+        }
+      }
+
+      const divisor = targetRatio > 0 ? targetRatio : 0.6;
+      const completionRate = Math.min(100, Math.round((rawRatio / divisor) * 100));
 
       const groups = allTasksInPeriod.map(t => ({
         title: `${t.aiApplied ? '✅ [ỨNG DỤNG AI]' : '❌ [CHƯA ỨNG DỤNG]'} ${t.title || 'Công việc không tên'}`,
@@ -1403,55 +1904,101 @@ export const ReportPage = ({
     
     const personalWeight = (itemDeptWeight * personalAlloc) / 100;
     
-    const { completionRate } = getCategoryMetrics(item.code, userId);
-    
-    // Check manual leader override from saved draft
-    const overrideKey = `${userId}_${item.id}`;
-    const overriddenScore = itemScores[overrideKey];
-    
-    let displayScore = 100; // Defaults to perfect 100 if no task was assigned
     let isNA = false;
-
-    const targetUser = users.find(u => u.id === userId);
-    const isLNTUser = targetUser?.name === 'Lê Nhật Trường';
-
-    if (overriddenScore !== undefined) {
-      displayScore = overriddenScore;
-    } else if (isLNTUser && item.coEval) {
-      let weightedScoreSum = 0;
-      let totalAlloc = 0;
-      let hasAnyAllocated = false;
-
-      users.forEach(u => {
-        if (u.name !== 'Lê Nhật Trường' && u.id !== userId) {
-          const uAlloc = allocations[item.id]?.[u.id] || 0;
-          if (uAlloc > 0) {
-            hasAnyAllocated = true;
-            const otherScoreInfo = getItemScoreInfo(item, u.id);
-            const otherScore = otherScoreInfo.isNA ? 100 : otherScoreInfo.displayScore;
-            weightedScoreSum += otherScore * uAlloc;
-            totalAlloc += uAlloc;
-          }
+    let displayScore = 100; // Automatic score
+    let qlttScore = 100;    // Evaluation score
+    let finalApprovedScore = 100; // Board of Leaders final approved score
+    
+    if (userId === 'ALL') {
+      const { completionRate } = getCategoryMetrics(item.code, 'ALL');
+      displayScore = completionRate !== null ? completionRate : 100;
+      isNA = completionRate === null;
+      
+      // Average the qlttScore of all allocated staff members
+      let totalQltt = 0;
+      let validCount = 0;
+      allocatedUserIds.forEach(uid => {
+        const alloc = allocations[item.id]?.[uid] || 0;
+        if (alloc > 0) {
+          const subInfo = getItemScoreInfo(item, uid);
+          totalQltt += subInfo.qlttScore;
+          validCount++;
         }
       });
+      qlttScore = validCount > 0 ? Math.round(totalQltt / validCount) : 100;
 
-      if (hasAnyAllocated && totalAlloc > 0) {
-        displayScore = Math.round(weightedScoreSum / totalAlloc);
+      // Average final approved scores of allocated staff
+      let totalApproved = 0;
+      let validCountApp = 0;
+      allocatedUserIds.forEach(uid => {
+        const alloc = allocations[item.id]?.[uid] || 0;
+        if (alloc > 0) {
+          const subInfo = getItemScoreInfo(item, uid);
+          totalApproved += subInfo.finalApprovedScore;
+          validCountApp++;
+        }
+      });
+      finalApprovedScore = validCountApp > 0 ? Math.round(totalApproved / validCountApp) : 100;
+    } else {
+      const { completionRate } = getCategoryMetrics(item.code, userId);
+      const targetUser = users.find(u => u.id === userId);
+      const isLNTUser = targetUser?.name === 'Lê Nhật Trường';
+      
+      // Calculate automatic score
+      if (isLNTUser && item.coEval) {
+        let weightedScoreSum = 0;
+        let totalAlloc = 0;
+        let hasAnyAllocated = false;
+        
+        users.forEach(u => {
+          if (u.name !== 'Lê Nhật Trường' && u.id !== userId) {
+            const uAlloc = allocations[item.id]?.[u.id] || 0;
+            if (uAlloc > 0) {
+              hasAnyAllocated = true;
+              const otherScoreInfo = getItemScoreInfo(item, u.id);
+              weightedScoreSum += otherScoreInfo.displayScore * uAlloc;
+              totalAlloc += uAlloc;
+            }
+          }
+        });
+        
+        if (hasAnyAllocated && totalAlloc > 0) {
+          displayScore = Math.round(weightedScoreSum / totalAlloc);
+          isNA = false;
+        } else {
+          displayScore = 100;
+          isNA = false;
+        }
+      } else if (completionRate !== null) {
+        displayScore = completionRate;
         isNA = false;
       } else {
         displayScore = 100;
-        isNA = false;
+        isNA = true;
       }
-    } else if (completionRate !== null) {
-      displayScore = completionRate;
-    } else {
-      isNA = true;
-    }
+      
+      // Calculate qlttScore (Line manager evaluation, default is 100% or 100)
+      const overrideKey = `${userId}_${item.id}`;
+      if (itemScores[overrideKey] !== undefined) {
+        qlttScore = itemScores[overrideKey];
+      } else {
+        qlttScore = 100; // Default score
+      }
 
+      // Calculate finalApprovedScore (Defaults to line manager evaluated score)
+      if (itemApprovedScores[overrideKey] !== undefined) {
+        finalApprovedScore = itemApprovedScores[overrideKey];
+      } else {
+        finalApprovedScore = qlttScore;
+      }
+    }
+    
     return {
       isNA,
       personalWeight,
-      displayScore,
+      displayScore,          // Automatic data-driven KPI score
+      qlttScore,             // QLCL evaluated score
+      finalApprovedScore,    // Final Approved score
       deptWeight: itemDeptWeight,
       alloc: personalAlloc
     };
@@ -1462,14 +2009,18 @@ export const ReportPage = ({
     let weightedSum = 0;
     let weightTotal = 0;
     kpiItems.forEach(item => {
-      const { displayScore, deptWeight, isNA } = getItemScoreInfo(item, 'ALL');
+      const scoreInfo = getItemScoreInfo(item, 'ALL');
+      const deptWeight = scoreInfo.deptWeight;
+      const activeScore = deptResultSource === 'kpi' ? scoreInfo.displayScore :
+                          deptResultSource === 'approved' ? scoreInfo.finalApprovedScore :
+                          scoreInfo.qlttScore;
       if (deptWeight > 0) {
-        weightedSum += (isNA ? 100 : displayScore) * deptWeight;
+        weightedSum += activeScore * deptWeight;
         weightTotal += deptWeight;
       }
     });
     return weightTotal > 0 ? Math.round(weightedSum / weightTotal) : 0;
-  }, [weights, allocations, itemScores, reportPeriod, tasks, kpiItems]);
+  }, [weights, allocations, itemScores, itemApprovedScores, reportPeriod, tasks, kpiItems, deptResultSource]);
 
   // Employee personal aggregate score
   const staffTotalKPI = useMemo(() => {
@@ -1477,14 +2028,18 @@ export const ReportPage = ({
     let weightedSum = 0;
     let weightTotal = 0;
     kpiItems.forEach(item => {
-      const { displayScore, personalWeight, isNA } = getItemScoreInfo(item, selectedStaffId);
+      const scoreInfo = getItemScoreInfo(item, selectedStaffId);
+      const personalWeight = scoreInfo.personalWeight;
+      const activeScore = deptResultSource === 'kpi' ? scoreInfo.displayScore :
+                          deptResultSource === 'approved' ? scoreInfo.finalApprovedScore :
+                          scoreInfo.qlttScore;
       if (personalWeight > 0) {
-        weightedSum += (isNA ? 100 : displayScore) * personalWeight;
+        weightedSum += activeScore * personalWeight;
         weightTotal += personalWeight;
       }
     });
     return weightTotal > 0 ? Math.round(weightedSum / weightTotal) : 100;
-  }, [selectedStaffId, weights, allocations, itemScores, reportPeriod, tasks, kpiItems]);
+  }, [selectedStaffId, weights, allocations, itemScores, itemApprovedScores, reportPeriod, tasks, kpiItems, deptResultSource]);
 
   // Automatic feedback generation utilizing smart task parsing
   const triggerAutoFeedback = (item: KPIItem, userId: string) => {
@@ -1501,10 +2056,21 @@ export const ReportPage = ({
       return;
     }
     
-    const feedbackParts = (groups || []).map(g => 
-      `Hoàn thành ${g.completed}/${g.total} phiên [${g.title}] (${g.percent}%)`
-    );
-    const feedbackText = feedbackParts.join("; ") + ". Hoàn thành tốt chỉ tiêu chuyên môn đề ra.";
+    let feedbackText = "";
+    if (groups && groups.length > 0) {
+      if (groups.length === 1) {
+        const titleClean = groups[0].title.replace(/^✅\s*\[ĐẠT YTD\]\s*/i, '').replace(/^❌\s*\[CHƯA ĐẠT\]\s*/i, '');
+        feedbackText = `Hoàn thành ${groups[0].completed}/${groups[0].total} phiên [${titleClean}] (${groups[0].percent}%). Đạt chỉ tiêu đề ra.`;
+      } else {
+        const totalCompleted = groups.reduce((sum, g) => sum + g.completed, 0);
+        const totalTotal = groups.reduce((sum, g) => sum + g.total, 0);
+        const overallRate = metricsSource.completionRate ?? Math.round((totalCompleted / totalTotal) * 100);
+        feedbackText = `Hoàn thành ${totalCompleted}/${totalTotal} phiên thuộc ${groups.length} nhóm việc liên quan (đạt ${overallRate}%). Đảm bảo tiến độ chỉ tiêu chuyên môn.`;
+      }
+    } else {
+      feedbackText = "Đã hoàn thành tốt các mục tiêu chuyên môn được giao.";
+    }
+
     setItemComments(prev => ({
       ...prev,
       [`${userId}_${item.id}`]: feedbackText
@@ -1548,7 +2114,7 @@ export const ReportPage = ({
       F: 'ĐO LƯỜNG',
       G: 'K.QUẢ THỰC TẾ',
       H: 'ĐIỂM KPI',
-      I: 'QLTT ĐÁNH GIÁ',
+      I: 'QLCL ĐÁNH GIÁ',
       J: 'NHẬN XÉT & GHI NHẬN',
       K: 'KQ PHÊ DUYỆT CUỐI CÙNG'
     });
@@ -1569,10 +2135,9 @@ export const ReportPage = ({
     });
 
     kpiItems.filter(i => i.section === 'A').forEach(item => {
-      const { personalWeight, displayScore, alloc, isNA } = getItemScoreInfo(item, selectedStaffId);
+      const { personalWeight, displayScore, qlttScore, alloc, isNA } = getItemScoreInfo(item, selectedStaffId);
       if (personalWeight === 0) return;
       const overrideKey = `${selectedStaffId}_${item.id}`;
-      const qlttScore = itemScores[overrideKey] !== undefined ? `${itemScores[overrideKey]}%` : (isNA ? 'N/A' : `${displayScore}%`);
       const commentText = itemComments[overrideKey] || '';
       const kpiVal = (isLntSelected && item.coEval)
         ? getCategoryMetrics(item.code, 'ALL')
@@ -1595,9 +2160,9 @@ export const ReportPage = ({
         F: isLeaderRole(selectedStaffId, item.code) && item.kpisLeader ? item.kpisLeader : item.kpis,
         G: actualResultText,
         H: isNA ? 'N/A' : `${displayScore}%`,
-        I: qlttScore,
+        I: isNA ? 'N/A' : `${qlttScore}%`,
         J: commentText,
-        K: itemScores[overrideKey] !== undefined ? `${itemScores[overrideKey]}%` : ''
+        K: itemApprovedScores[overrideKey] !== undefined ? `${itemApprovedScores[overrideKey]}%` : ''
       });
     });
 
@@ -1617,10 +2182,9 @@ export const ReportPage = ({
     });
 
     kpiItems.filter(i => i.section === 'B').forEach(item => {
-      const { personalWeight, displayScore, alloc, isNA } = getItemScoreInfo(item, selectedStaffId);
+      const { personalWeight, displayScore, qlttScore, alloc, isNA } = getItemScoreInfo(item, selectedStaffId);
       if (personalWeight === 0) return;
       const overrideKey = `${selectedStaffId}_${item.id}`;
-      const qlttScore = itemScores[overrideKey] !== undefined ? `${itemScores[overrideKey]}%` : (isNA ? 'N/A' : `${displayScore}%`);
       const commentText = itemComments[overrideKey] || '';
       const kpiVal = (isLntSelected && item.coEval)
         ? getCategoryMetrics(item.code, 'ALL')
@@ -1643,9 +2207,9 @@ export const ReportPage = ({
         F: isLeaderRole(selectedStaffId, item.code) && item.kpisLeader ? item.kpisLeader : item.kpis,
         G: actualResultText,
         H: isNA ? 'N/A' : `${displayScore}%`,
-        I: qlttScore,
+        I: isNA ? 'N/A' : `${qlttScore}%`,
         J: commentText,
-        K: itemScores[overrideKey] !== undefined ? `${itemScores[overrideKey]}%` : ''
+        K: itemApprovedScores[overrideKey] !== undefined ? `${itemApprovedScores[overrideKey]}%` : ''
       });
     });
 
@@ -1665,10 +2229,9 @@ export const ReportPage = ({
     });
 
     kpiItems.filter(i => i.section === 'C').forEach(item => {
-      const { personalWeight, displayScore, alloc, isNA } = getItemScoreInfo(item, selectedStaffId);
+      const { personalWeight, displayScore, qlttScore, alloc, isNA } = getItemScoreInfo(item, selectedStaffId);
       if (personalWeight === 0) return;
       const overrideKey = `${selectedStaffId}_${item.id}`;
-      const qlttScore = itemScores[overrideKey] !== undefined ? `${itemScores[overrideKey]}%` : (isNA ? 'N/A' : `${displayScore}%`);
       const commentText = itemComments[overrideKey] || '';
       const kpiVal = (isLntSelected && item.coEval)
         ? getCategoryMetrics(item.code, 'ALL')
@@ -1691,14 +2254,39 @@ export const ReportPage = ({
         F: isLeaderRole(selectedStaffId, item.code) && item.kpisLeader ? item.kpisLeader : item.kpis,
         G: actualResultText,
         H: isNA ? 'N/A' : `${displayScore}%`,
-        I: qlttScore,
+        I: isNA ? 'N/A' : `${qlttScore}%`,
         J: commentText,
-        K: itemScores[overrideKey] !== undefined ? `${itemScores[overrideKey]}%` : ''
+        K: itemApprovedScores[overrideKey] !== undefined ? `${itemApprovedScores[overrideKey]}%` : ''
       });
     });
 
     // TOTALS Row
     const totalW = getWeightSum('A', selectedStaffId) + getWeightSum('B', selectedStaffId) + getWeightSum('C', selectedStaffId);
+    
+    // Calculate objective total score sum
+    let objWeightedSum = 0;
+    let objWeightTotal = 0;
+    kpiItems.forEach(item => {
+      const { personalWeight, displayScore } = getItemScoreInfo(item, selectedStaffId);
+      if (personalWeight > 0) {
+        objWeightedSum += displayScore * personalWeight;
+        objWeightTotal += personalWeight;
+      }
+    });
+    const staffObjectiveTotal = objWeightTotal > 0 ? Math.round(objWeightedSum / objWeightTotal) : 100;
+
+    // Calculate approved total score sum
+    let approvedWeightedSum = 0;
+    let approvedWeightTotal = 0;
+    kpiItems.forEach(item => {
+      const { personalWeight, finalApprovedScore } = getItemScoreInfo(item, selectedStaffId);
+      if (personalWeight > 0) {
+        approvedWeightedSum += finalApprovedScore * personalWeight;
+        approvedWeightTotal += personalWeight;
+      }
+    });
+    const staffApprovedTotal = approvedWeightTotal > 0 ? Math.round(approvedWeightedSum / approvedWeightTotal) : 100;
+
     dataRows.push({
       A: 'TỔNG ĐIỂM HOÀN THÀNH',
       B: '',
@@ -1707,10 +2295,10 @@ export const ReportPage = ({
       E: '',
       F: '',
       G: '',
-      H: `${staffTotalKPI}%`,
+      H: `${staffObjectiveTotal}%`,
       I: `${staffTotalKPI}%`,
       J: '',
-      K: `${staffTotalKPI}%`
+      K: `${staffApprovedTotal}%`
     });
 
     const worksheet = XLSX.utils.json_to_sheet(dataRows, { skipHeader: true });
@@ -1725,7 +2313,7 @@ export const ReportPage = ({
       { wch: 45 },  // ĐO LƯỜNG
       { wch: 22 },  // K.QUẢ THỰC TẾ
       { wch: 15 },  // ĐIỂM KPI
-      { wch: 15 },  // QLTT ĐÁNH GIÁ
+      { wch: 15 },  // QLCL ĐÁNH GIÁ
       { wch: 40 },  // NHẬN XÉT & GHI NHẬN
       { wch: 22 }   // KQ PHÊ DUYỆT CUỐI CÙNG
     ];
@@ -1953,9 +2541,71 @@ export const ReportPage = ({
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-              <h3 className="text-xs font-black uppercase text-slate-700">KPI PHÒNG BAN QUẢN LÝ CHẤT LƯỢNG</h3>
-              <p className="text-[10px] bg-blue-100 text-blue-700 font-black px-2.5 py-1 rounded-full uppercase">Tháng {reportPeriod} Template Quy Chuẩn</p>
+            <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col xl:flex-row gap-3 justify-between items-start xl:items-center">
+              <div className="shrink-0">
+                <h3 className="text-xs font-black uppercase text-slate-700">KPI PHÒNG BAN QUẢN LÝ CHẤT LƯỢNG</h3>
+              </div>
+
+              {/* Robust 3-position selector styled beautifully in the red-rectangle area */}
+              <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1 rounded-lg border border-slate-200 shadow-inner">
+                <span className="text-[9px] text-slate-500 font-extrabold uppercase px-1.5">CHỌN NGUỒN KẾT QUẢ:</span>
+                
+                <button
+                  type="button"
+                  onClick={() => setDeptResultSource('kpi')}
+                  className={`px-2.5 py-1 text-[10px] font-black uppercase rounded transition-all flex items-center gap-1.5 cursor-pointer border ${
+                    deptResultSource === 'kpi'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <input 
+                    type="radio" 
+                    checked={deptResultSource === 'kpi'} 
+                    onChange={() => setDeptResultSource('kpi')}
+                    className="accent-blue-600 pointer-events-none w-3 h-3 cursor-pointer shrink-0" 
+                  />
+                  <span>1. Cột ĐIỂM KPI</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDeptResultSource('qltt')}
+                  className={`px-2.5 py-1 text-[10px] font-black uppercase rounded transition-all flex items-center gap-1.5 cursor-pointer border ${
+                    deptResultSource === 'qltt'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <input 
+                    type="radio" 
+                    checked={deptResultSource === 'qltt'} 
+                    onChange={() => setDeptResultSource('qltt')}
+                    className="accent-blue-600 pointer-events-none w-3 h-3 cursor-pointer shrink-0" 
+                  />
+                  <span>2. Cột QLCL đánh giá</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDeptResultSource('approved')}
+                  className={`px-2.5 py-1 text-[10px] font-black uppercase rounded transition-all flex items-center gap-1.5 cursor-pointer border ${
+                    deptResultSource === 'approved'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <input 
+                    type="radio" 
+                    checked={deptResultSource === 'approved'} 
+                    onChange={() => setDeptResultSource('approved')}
+                    className="accent-blue-600 pointer-events-none w-3 h-3 cursor-pointer shrink-0" 
+                  />
+                  <span>3. Cột KQ phê duyệt cuối cùng</span>
+                </button>
+              </div>
+
+              <p className="text-[10px] bg-blue-100 text-blue-700 font-black px-2.5 py-1 rounded-full uppercase shrink-0">Tháng {reportPeriod} Template Quy Chuẩn</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse grid-table-clear" style={{ minWidth: '1120px', tableLayout: 'fixed' }}>
@@ -1984,21 +2634,29 @@ export const ReportPage = ({
                   </tr>
                   {kpiItems.filter(i => i.section === 'A').map(item => {
                     const metrics = getCategoryMetrics(item.code, 'ALL');
+                    const scoreInfo = getItemScoreInfo(item, 'ALL');
                     return (
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         <td className="p-3 text-center font-bold text-slate-400" style={{ width: '50px' }}>{item.stt}</td>
                         <td className="p-3 font-semibold text-slate-800 leading-relaxed relative group" style={{ width: '320px' }}>
-                          <div className="flex items-start justify-between gap-1.5 w-full">
-                            <span>{item.label}</span>
-                            {isReportManager && (
-                              <button
-                                id={`edit-kpi-btn-dept-A-${item.id}`}
-                                onClick={() => handleStartEditKpiItemFull(item)}
-                                className="p-1 bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded border border-transparent hover:border-blue-100 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0 cursor-pointer shadow-sm"
-                                title="Chỉnh sửa chỉ tiêu nhanh"
-                              >
-                                <Edit size={11} strokeWidth={2.5} />
-                              </button>
+                          <div className="flex flex-col gap-1 w-full">
+                            <div className="flex items-start justify-between gap-1.5 w-full">
+                              <span>{item.label}</span>
+                              {isReportManager && (
+                                <button
+                                  id={`edit-kpi-btn-dept-A-${item.id}`}
+                                  onClick={() => handleStartEditKpiItemFull(item)}
+                                  className="p-1 bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded border border-transparent hover:border-blue-100 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0 cursor-pointer shadow-sm"
+                                  title="Chỉnh sửa chỉ tiêu nhanh"
+                                >
+                                  <Edit size={11} strokeWidth={2.5} />
+                                </button>
+                              )}
+                            </div>
+                            {item.focus && (
+                              <p className="text-[10px] text-blue-600 font-medium italic bg-blue-50/50 border-l-2 border-blue-400 pl-1.5 py-0.5 rounded-r">
+                                Trọng tâm: {item.focus}
+                              </p>
                             )}
                           </div>
                         </td>
@@ -2024,17 +2682,24 @@ export const ReportPage = ({
                         <td className="p-4 font-medium text-slate-600" style={{ width: '180px' }}>
                           {item.kpisLeader && item.kpisLeader !== item.kpis ? (
                             <div className="space-y-1 text-[11px] leading-tight">
-                              <div className="flex items-start gap-1"><span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-black uppercase shrink-0">Staff</span> <span>{item.kpis}</span></div>
-                              <div className="flex items-start gap-1"><span className="text-[9px] bg-blue-50 text-blue-700 px-1 py-0.5 rounded font-black uppercase shrink-0">Leader</span> <span className="text-blue-900 font-bold">{item.kpisLeader}</span></div>
+                              <div className="flex items-start gap-1"><span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-black uppercase shrink-0">NV:</span> <span>{item.kpis}</span></div>
+                              <div className="flex items-start gap-1"><span className="text-[9px] bg-blue-50 text-blue-700 px-1 py-0.5 rounded font-black uppercase shrink-0">QL:</span> <span className="text-blue-900 font-bold">{item.kpisLeader}</span></div>
                             </div>
                           ) : (
                             item.kpis
                           )}
                         </td>
                         <td className="p-4 text-center font-black whitespace-normal break-words" style={{ width: '100px' }}>
-                          <span className={metrics.completionRate !== null ? (metrics.completionRate >= 100 ? "text-emerald-600" : "text-amber-600") : "text-slate-400 italic"}>
-                            {metrics.completionRate !== null ? `${metrics.completionRate}%` : "100% (Mặc định)"}
-                          </span>
+                          {(() => {
+                            const activeScore = deptResultSource === 'kpi' ? scoreInfo.displayScore :
+                                                deptResultSource === 'approved' ? scoreInfo.finalApprovedScore :
+                                                scoreInfo.qlttScore;
+                            return (
+                              <span className={activeScore >= 100 ? "text-emerald-600" : "text-amber-600"}>
+                                {activeScore}%
+                              </span>
+                            );
+                          })()}
                         </td>
                       </tr>
                     );
@@ -2051,17 +2716,24 @@ export const ReportPage = ({
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         <td className="p-3 text-center font-bold text-slate-400" style={{ width: '50px' }}>{item.stt}</td>
                         <td className="p-3 font-semibold text-slate-800 leading-relaxed relative group" style={{ width: '320px' }}>
-                          <div className="flex items-start justify-between gap-1.5 w-full">
-                            <span>{item.label}</span>
-                            {isReportManager && (
-                              <button
-                                id={`edit-kpi-btn-dept-B-${item.id}`}
-                                onClick={() => handleStartEditKpiItemFull(item)}
-                                className="p-1 bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded border border-transparent hover:border-blue-100 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0 cursor-pointer shadow-sm"
-                                title="Chỉnh sửa chỉ tiêu nhanh"
-                              >
-                                <Edit size={11} strokeWidth={2.5} />
-                              </button>
+                          <div className="flex flex-col gap-1 w-full">
+                            <div className="flex items-start justify-between gap-1.5 w-full">
+                              <span>{item.label}</span>
+                              {isReportManager && (
+                                <button
+                                  id={`edit-kpi-btn-dept-B-${item.id}`}
+                                  onClick={() => handleStartEditKpiItemFull(item)}
+                                  className="p-1 bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded border border-transparent hover:border-blue-100 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0 cursor-pointer shadow-sm"
+                                  title="Chỉnh sửa chỉ tiêu nhanh"
+                                >
+                                  <Edit size={11} strokeWidth={2.5} />
+                                </button>
+                              )}
+                            </div>
+                            {item.focus && (
+                              <p className="text-[10px] text-blue-600 font-medium italic bg-blue-50/50 border-l-2 border-blue-400 pl-1.5 py-0.5 rounded-r">
+                                Trọng tâm: {item.focus}
+                              </p>
                             )}
                           </div>
                         </td>
@@ -2082,21 +2754,29 @@ export const ReportPage = ({
                   </tr>
                   {kpiItems.filter(i => i.section === 'C').map(item => {
                     const metrics = getCategoryMetrics(item.code, 'ALL');
+                    const scoreInfo = getItemScoreInfo(item, 'ALL');
                     return (
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         <td className="p-3 text-center font-bold text-slate-400" style={{ width: '50px' }}>{item.stt}</td>
                         <td className="p-3 font-semibold text-slate-800 leading-relaxed relative group" style={{ width: '320px' }}>
-                          <div className="flex items-start justify-between gap-1.5 w-full">
-                            <span>{item.label}</span>
-                            {isReportManager && (
-                              <button
-                                id={`edit-kpi-btn-dept-C-${item.id}`}
-                                onClick={() => handleStartEditKpiItemFull(item)}
-                                className="p-1 bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded border border-transparent hover:border-blue-100 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0 cursor-pointer shadow-sm"
-                                title="Chỉnh sửa chỉ tiêu nhanh"
-                              >
-                                <Edit size={11} strokeWidth={2.5} />
-                              </button>
+                          <div className="flex flex-col gap-1 w-full">
+                            <div className="flex items-start justify-between gap-1.5 w-full">
+                              <span>{item.label}</span>
+                              {isReportManager && (
+                                <button
+                                  id={`edit-kpi-btn-dept-C-${item.id}`}
+                                  onClick={() => handleStartEditKpiItemFull(item)}
+                                  className="p-1 bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded border border-transparent hover:border-blue-100 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0 cursor-pointer shadow-sm"
+                                  title="Chỉnh sửa chỉ tiêu nhanh"
+                                >
+                                  <Edit size={11} strokeWidth={2.5} />
+                                </button>
+                              )}
+                            </div>
+                            {item.focus && (
+                              <p className="text-[10px] text-blue-600 font-medium italic bg-blue-50/50 border-l-2 border-blue-400 pl-1.5 py-0.5 rounded-r">
+                                Trọng tâm: {item.focus}
+                              </p>
                             )}
                           </div>
                         </td>
@@ -2122,39 +2802,125 @@ export const ReportPage = ({
                         <td className="p-4 font-medium text-slate-600" style={{ width: '180px' }}>
                           {item.kpisLeader && item.kpisLeader !== item.kpis ? (
                             <div className="space-y-1 text-[11px] leading-tight">
-                              <div className="flex items-start gap-1"><span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-black uppercase shrink-0">Staff</span> <span>{item.kpis}</span></div>
-                              <div className="flex items-start gap-1"><span className="text-[9px] bg-purple-50 text-purple-700 px-1 py-0.5 rounded font-black uppercase shrink-0">Leader</span> <span className="text-purple-900 font-bold">{item.kpisLeader}</span></div>
+                              <div className="flex items-start gap-1"><span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-black uppercase shrink-0">NV:</span> <span>{item.kpis}</span></div>
+                              <div className="flex items-start gap-1"><span className="text-[9px] bg-purple-50 text-purple-700 px-1 py-0.5 rounded font-black uppercase shrink-0">QL:</span> <span className="text-purple-900 font-bold">{item.kpisLeader}</span></div>
                             </div>
                           ) : (
                             item.kpis
                           )}
                         </td>
                         <td className="p-4 text-center font-black whitespace-normal break-words" style={{ width: '100px' }}>
-                          {item.code === 'BCH' ? (
-                            <div className="flex flex-col items-center gap-0.5">
-                              <span className={metrics.completionRate !== null ? (metrics.completionRate >= 100 ? "text-emerald-600" : "text-amber-600") : "text-slate-400 italic"}>
-                                {metrics.completionRate !== null ? `${metrics.completionRate}%` : "100% (Mặc định)"}
-                              </span>
-                              {(() => {
-                                const bchM = getBchCumulativeMetrics('ALL');
-                                return (
-                                  <span className="text-[9px] text-[#004b87] font-extrabold bg-blue-50 border border-blue-200 px-1 py-0.5 rounded block whitespace-nowrap animate-bounce-short" title={`Cứu Hộ: ${bchM.actualCuuHo}/${bchM.targetCuuHo}, TNDS: ${bchM.actualTnds}/${bchM.targetTnds}`}>
-                                    Lũy kế: {bchM.totalActual}/{bchM.totalTarget} BH
+                          {(() => {
+                            const activeScore = deptResultSource === 'kpi' ? scoreInfo.displayScore :
+                                                deptResultSource === 'approved' ? scoreInfo.finalApprovedScore :
+                                                scoreInfo.qlttScore;
+                            
+                            if (item.code === 'BCH') {
+                              return (
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span className="text-[#004b87]">
+                                    {activeScore}%
                                   </span>
-                                );
-                              })()}
-                            </div>
-                          ) : (
-                            <span className={metrics.completionRate !== null ? (metrics.completionRate >= 100 ? "text-emerald-600" : "text-amber-600") : "text-slate-400 italic"}>
-                              {metrics.completionRate !== null ? `${metrics.completionRate}%` : "100% (Mặc định)"}
-                            </span>
-                          )}
+                                  {(() => {
+                                    const bchM = getBchCumulativeMetrics('ALL');
+                                    return (
+                                      <span className="text-[9px] text-[#004b87] font-extrabold bg-blue-50 border border-blue-200 px-1 py-0.5 rounded block whitespace-nowrap animate-bounce-short" title={`Cứu Hộ: ${bchM.actualCuuHo}/${bchM.targetCuuHo}, TNDS: ${bchM.actualTnds}/${bchM.targetTnds}`}>
+                                        Lũy kế: {bchM.totalActual}/{bchM.totalTarget} BH
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
+                              );
+                            }
+                            
+                            return (
+                              <span className={activeScore >= 100 ? "text-emerald-600" : "text-amber-600"}>
+                                {activeScore}%
+                              </span>
+                            );
+                          })()}
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {renderCumulativeInsuranceDashboard()}
+
+            {/* Employee Acknowledgement List - DKPI Confirmation */}
+            <div className="bg-slate-50 border-b border-t border-slate-200 p-5 mt-6 rounded-md print:border print:bg-white print:rounded-none">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                <div>
+                  <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider flex items-center gap-1.5">
+                    <CheckCircle2 size={13} strokeWidth={2.5} className="text-[#004b87]" />
+                    XÁC NHẬN CỦA NHÂN SỰ ĐÃ NHẬN PHÂN BỔ KPI THÁNG {reportPeriod}
+                  </h4>
+                  <p className="text-[10px] text-slate-500 font-semibold leading-relaxed">Bảo đảm tính đồng thuận và truyền thông chỉ tiêu minh bạch đến từng nhân sự</p>
+                </div>
+                {currentUser && allocatedUserIds.includes(currentUser.id) && (
+                  <div className="flex items-center gap-2 print:hidden no-print">
+                    {acknowledgements[currentUser.id]?.confirmed ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase shadow-sm">
+                        <Check size={12} strokeWidth={4} /> Bạn đã xác nhận
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleAcknowledgeKPI}
+                        disabled={isSavingAcknowledgement}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase shadow-md cursor-pointer active:scale-95 transition-all disabled:opacity-50"
+                      >
+                        {isSavingAcknowledgement ? "Đang xử lý..." : "Xác nhận nhận KPI"}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {allocatedUserIds.map(uid => {
+                  const staffUser = users.find(u => u.id === uid);
+                  if (!staffUser) return null;
+                  const ack = acknowledgements[uid];
+                  return (
+                    <div 
+                      key={uid} 
+                      className={`flex items-center gap-2.5 p-2.5 rounded border text-left transition-all ${
+                        ack?.confirmed
+                          ? 'bg-emerald-50/50 border-emerald-200' 
+                          : 'bg-white border-slate-200'
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs uppercase shrink-0 ${
+                        ack?.confirmed 
+                          ? 'bg-emerald-600 text-white shadow-sm' 
+                          : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        {staffUser.name.slice(0, 1)}
+                      </div>
+                      <div className="overflow-hidden min-w-0 flex-1">
+                        <p className="text-[11px] font-extrabold text-slate-800 truncate leading-tight">{staffUser.name}</p>
+                        <p className="text-[9px] text-slate-400 font-bold leading-none truncate mt-0.5">{getUserRoleTitle(staffUser)}</p>
+                        <div className="mt-1 flex items-center gap-1">
+                          {ack?.confirmed ? (
+                            <span className="inline-flex items-center text-[9px] text-emerald-700 font-extrabold gap-0.5 leading-none">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                              Đã ký ({new Date(ack.confirmedAt).toLocaleDateString('vi-VN', {hour: '2-digit', minute:'2-digit'})})
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center text-[9px] text-slate-400 font-bold gap-0.5 leading-none">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+                              Chờ nhận KPI
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* 3-position Signature layout for Department print view - PRINT COMPLIANCE */}
@@ -2181,7 +2947,6 @@ export const ReportPage = ({
               </div>
             </div>
           </div>
-          {renderCumulativeInsuranceDashboard()}
         </motion.div>
       )}
 
@@ -2210,7 +2975,11 @@ export const ReportPage = ({
             </div>
             {selectedStaffId !== 'ALL' && (
               <div className="text-right">
-                <span className="text-[10px] font-black text-slate-400 uppercase block">ĐIỂM KPI CÁ NHÂN TÍNH TOÁN</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase block">
+                  {deptResultSource === 'kpi' ? 'ĐIỂM KPI CÁ NHÂN TỰ ĐỘNG' :
+                   deptResultSource === 'approved' ? 'DIỂM PHÊ DUYỆT CUỐI CÙNG' :
+                   'KẾT QUẢ QLCL ĐÁNH GIÁ TỔNG'}
+                </span>
                 <span className="text-2xl font-black text-emerald-600">{staffTotalKPI}%</span>
               </div>
             )}
@@ -2250,7 +3019,11 @@ export const ReportPage = ({
               </div>
               
               <div className="mt-3 flex justify-between items-center bg-emerald-50/50 p-2.5 rounded-md border border-emerald-100 text-[10px] font-black text-left">
-                <span className="text-emerald-800 uppercase tracking-wider">ĐIỂM KPI CÁ NHÂN TÍNH TOÁN TOÀN KỲ:</span>
+                <span className="text-emerald-800 uppercase tracking-wider">
+                  {deptResultSource === 'kpi' ? 'ĐIỂM KPI CÁ NHÂN TỰ ĐỘNG TOÀN KỲ:' :
+                   deptResultSource === 'approved' ? 'DIỂM PHÊ DUYỆT CUỐI CÙNG TOÀN KỲ:' :
+                   'KẾT QUẢ QLCL ĐÁNH GIÁ TOÀN KỲ:'}
+                </span>
                 <span className="text-sm text-emerald-700 bg-white border border-emerald-200 px-3 py-0.5 rounded shadow-sm">{staffTotalKPI}%</span>
               </div>
             </div>
@@ -2296,9 +3069,9 @@ export const ReportPage = ({
                     <th className="p-4 text-center" style={{ width: '130px' }}>Đo lường</th>
                     <th className="p-4 text-center w-24">K.Quả thực tế</th>
                     <th className="p-4 text-center w-20">Điểm KPI</th>
-                    <th className="p-4 text-center w-24">QLTT đánh giá</th>
+                    <th className="p-4 text-center w-24">QLCL đánh giá</th>
                     <th className="p-4 text-center w-40">Nhận xét & Ghi nhận</th>
-                    <th className="p-4 text-center w-24 text-emerald-700 bg-emerald-50/30 font-black">KQ phê duyệt cuối cùng</th>
+                    <th className="p-4 text-center w-24 text-emerald-700 bg-emerald-50/30 font-black print:hidden">KQ phê duyệt cuối cùng</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-xs">
@@ -2320,6 +3093,11 @@ export const ReportPage = ({
                         <td className="p-4 max-w-sm leading-relaxed" style={{ width: '306px' }}>
                           <p className="font-bold text-slate-800">{item.label}</p>
                           <span className="text-[9px] font-black text-slate-400 uppercase bg-slate-100 px-2.5 py-0.5 rounded mt-1.5 inline-block">Mã: {item.code}</span>
+                          {item.focus && (
+                            <p className="text-[10px] text-blue-600 font-medium italic bg-blue-50/50 border-l-2 border-blue-400 pl-1.5 py-0.5 rounded-r mt-1.5 text-left">
+                              Trọng tâm: {item.focus}
+                            </p>
+                          )}
                         </td>
                         <td className="p-4 text-center font-semibold">
                           {(() => {
@@ -2336,12 +3114,17 @@ export const ReportPage = ({
                         </td>
                         <td className="p-4 text-center">
                           {kpiVal.items && kpiVal.items.length > 0 ? (
-                            <button
-                              onClick={() => setSelectedDetailCategory({ code: item.code, label: item.label })}
-                              className="text-[10px] bg-slate-100 font-bold px-2 py-1.5 rounded hover:bg-blue-50 text-blue-700 block mx-auto underline shadow-sm"
-                            >
-                              Gộp {kpiVal.groupedCount} việc ({kpiVal.items.length} lượt)
-                            </button>
+                            <>
+                              <button
+                                onClick={() => setSelectedDetailCategory({ code: item.code, label: item.label })}
+                                className="text-[10px] bg-slate-100 font-bold px-2 py-1.5 rounded hover:bg-blue-50 text-blue-700 block mx-auto underline shadow-sm print:hidden"
+                              >
+                                Gộp {kpiVal.groupedCount} việc ({kpiVal.items.length} lượt)
+                              </button>
+                              <span className="hidden print:inline font-semibold text-[10px] text-slate-700">
+                                Gộp {kpiVal.groupedCount} việc ({kpiVal.items.length} lượt)
+                              </span>
+                            </>
                           ) : (
                             <span className="text-slate-400 italic text-[10px]">N/A</span>
                           )}
@@ -2356,7 +3139,7 @@ export const ReportPage = ({
                             max={100}
                             disabled={!isReportManager || personalWeight === 0}
                             placeholder={isNA ? "N/A" : String(displayScore)}
-                            value={itemScores[overrideKey] !== undefined ? itemScores[overrideKey] : ''}
+                            value={itemScores[overrideKey] !== undefined ? itemScores[overrideKey] : (personalWeight > 0 ? 100 : '')}
                             onChange={(e) => {
                               const val = e.target.value === '' ? undefined : parseInt(e.target.value);
                               setItemScores(prev => {
@@ -2369,29 +3152,62 @@ export const ReportPage = ({
                                 return next;
                               });
                             }}
-                            className="w-16 border rounded p-1.5 text-center font-bold border-slate-300 bg-slate-50 focus:bg-white"
+                            className="w-16 border rounded p-1.5 text-center font-bold border-slate-300 bg-slate-50 focus:bg-white print:hidden mx-auto block"
                           />
+                          <span className="hidden print:inline font-black text-slate-800">
+                            {isNA ? "N/A" : `${itemScores[overrideKey] !== undefined ? itemScores[overrideKey] : (personalWeight > 0 ? 100 : 0)}%`}
+                          </span>
                         </td>
                         <td className="p-4 space-y-1.5">
-                          <textarea
-                            rows={2}
-                            disabled={!isReportManager || personalWeight === 0}
-                            placeholder="Nhận xét chi tiết..."
-                            value={itemComments[overrideKey] || ''}
-                            onChange={(e) => setItemComments(prev => ({ ...prev, [overrideKey]: e.target.value }))}
-                            className="w-full text-[11px] border rounded p-1 border-slate-200 bg-slate-50 focus:bg-white"
-                          />
-                          {isReportManager && personalWeight > 0 && (
-                            <button
-                              onClick={() => triggerAutoFeedback(item, selectedStaffId)}
-                              className="text-[9px] text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded font-black uppercase inline-block shadow-sm"
-                            >
-                              Nhận xét tự động
-                            </button>
+                          <div className="print:hidden space-y-1.5">
+                            <textarea
+                              rows={2}
+                              disabled={!isReportManager || personalWeight === 0}
+                              placeholder="Nhận xét chi tiết..."
+                              value={itemComments[overrideKey] || ''}
+                              onChange={(e) => setItemComments(prev => ({ ...prev, [overrideKey]: e.target.value }))}
+                              className="w-full text-[11px] border rounded p-1 border-slate-200 bg-slate-50 focus:bg-white"
+                            />
+                            {isReportManager && personalWeight > 0 && (
+                              <button
+                                onClick={() => triggerAutoFeedback(item, selectedStaffId)}
+                                className="text-[9px] text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded font-black uppercase inline-block shadow-sm"
+                              >
+                                Nhận xét tự động
+                              </button>
+                            )}
+                          </div>
+                          {itemComments[overrideKey] && (
+                            <p className="hidden print:block text-[11px] text-slate-750 text-left leading-relaxed whitespace-pre-wrap">
+                              {itemComments[overrideKey]}
+                            </p>
                           )}
                         </td>
-                        <td className="p-4 text-center font-black text-slate-800 bg-emerald-50/10">
-                          {itemScores[overrideKey] !== undefined ? `${itemScores[overrideKey]}%` : ''}
+                        <td className="p-4 text-center font-black text-slate-800 bg-emerald-50/10 print:hidden">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            disabled={!isReportManager || personalWeight === 0}
+                            placeholder={isNA ? "N/A" : String(itemScores[overrideKey] !== undefined ? itemScores[overrideKey] : 100)}
+                            value={itemApprovedScores[overrideKey] !== undefined ? itemApprovedScores[overrideKey] : ''}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? undefined : parseInt(e.target.value);
+                              setItemApprovedScores(prev => {
+                                const next = { ...prev };
+                                if (val === undefined) {
+                                  delete next[overrideKey];
+                                } else {
+                                  next[overrideKey] = val;
+                                }
+                                return next;
+                              });
+                            }}
+                            className="w-16 border rounded p-1.5 text-center font-bold border-emerald-300 bg-emerald-50/30 text-emerald-800 placeholder-emerald-400 focus:bg-white print:hidden mx-auto block"
+                          />
+                          <span className="hidden print:inline text-emerald-700">
+                            {itemApprovedScores[overrideKey] !== undefined ? `${itemApprovedScores[overrideKey]}%` : ''}
+                          </span>
                         </td>
                       </tr>
                     );
@@ -2415,6 +3231,11 @@ export const ReportPage = ({
                         <td className="p-4 max-w-sm leading-relaxed" style={{ width: '306px' }}>
                           <p className="font-bold text-slate-800">{item.label}</p>
                           <span className="text-[9px] font-black text-slate-400 uppercase bg-slate-100 px-2.5 py-0.5 rounded mt-1.5 inline-block">Mã: {item.code}</span>
+                          {item.focus && (
+                            <p className="text-[10px] text-blue-600 font-medium italic bg-blue-50/50 border-l-2 border-blue-400 pl-1.5 py-0.5 rounded-r mt-1.5 text-left">
+                              Trọng tâm: {item.focus}
+                            </p>
+                          )}
                         </td>
                         <td className="p-4 text-center font-semibold">
                           {(() => {
@@ -2431,12 +3252,17 @@ export const ReportPage = ({
                         </td>
                         <td className="p-4 text-center">
                           {kpiVal.items && kpiVal.items.length > 0 ? (
-                            <button
-                              onClick={() => setSelectedDetailCategory({ code: item.code, label: item.label })}
-                              className="text-[10px] bg-slate-100 font-bold px-2 py-1.5 rounded hover:bg-blue-50 text-blue-700 block mx-auto underline shadow-sm"
-                            >
-                              Gộp {kpiVal.groupedCount} việc ({kpiVal.items.length} lượt)
-                            </button>
+                            <>
+                              <button
+                                onClick={() => setSelectedDetailCategory({ code: item.code, label: item.label })}
+                                className="text-[10px] bg-slate-100 font-bold px-2 py-1.5 rounded hover:bg-blue-50 text-blue-700 block mx-auto underline shadow-sm print:hidden"
+                              >
+                                Gộp {kpiVal.groupedCount} việc ({kpiVal.items.length} lượt)
+                              </button>
+                              <span className="hidden print:inline font-semibold text-[10px] text-slate-700">
+                                Gộp {kpiVal.groupedCount} việc ({kpiVal.items.length} lượt)
+                              </span>
+                            </>
                           ) : (
                             <span className="text-slate-400 italic text-[10px]">N/A</span>
                           )}
@@ -2451,7 +3277,7 @@ export const ReportPage = ({
                             max={100}
                             disabled={!isReportManager || personalWeight === 0}
                             placeholder={isNA ? "N/A" : String(displayScore)}
-                            value={itemScores[overrideKey] !== undefined ? itemScores[overrideKey] : ''}
+                            value={itemScores[overrideKey] !== undefined ? itemScores[overrideKey] : (personalWeight > 0 ? 100 : '')}
                             onChange={(e) => {
                               const val = e.target.value === '' ? undefined : parseInt(e.target.value);
                               setItemScores(prev => {
@@ -2464,29 +3290,62 @@ export const ReportPage = ({
                                 return next;
                               });
                             }}
-                            className="w-16 border rounded p-1.5 text-center font-bold border-slate-300 bg-slate-50 focus:bg-white"
+                            className="w-16 border rounded p-1.5 text-center font-bold border-slate-300 bg-slate-50 focus:bg-white print:hidden mx-auto block"
                           />
+                          <span className="hidden print:inline font-black text-slate-800">
+                            {isNA ? "N/A" : `${itemScores[overrideKey] !== undefined ? itemScores[overrideKey] : (personalWeight > 0 ? 100 : 0)}%`}
+                          </span>
                         </td>
                         <td className="p-4 space-y-1.5">
-                          <textarea
-                            rows={2}
-                            disabled={!isReportManager || personalWeight === 0}
-                            placeholder="Nhận xét chi tiết..."
-                            value={itemComments[overrideKey] || ''}
-                            onChange={(e) => setItemComments(prev => ({ ...prev, [overrideKey]: e.target.value }))}
-                            className="w-full text-[11px] border rounded p-1 border-slate-200 bg-slate-50 focus:bg-white"
-                          />
-                          {isReportManager && personalWeight > 0 && (
-                            <button
-                              onClick={() => triggerAutoFeedback(item, selectedStaffId)}
-                              className="text-[9px] text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded font-black uppercase inline-block shadow-sm"
-                            >
-                              Nhận xét tự động
-                            </button>
+                          <div className="print:hidden space-y-1.5">
+                            <textarea
+                              rows={2}
+                              disabled={!isReportManager || personalWeight === 0}
+                              placeholder="Nhận xét chi tiết..."
+                              value={itemComments[overrideKey] || ''}
+                              onChange={(e) => setItemComments(prev => ({ ...prev, [overrideKey]: e.target.value }))}
+                              className="w-full text-[11px] border rounded p-1 border-slate-200 bg-slate-50 focus:bg-white"
+                            />
+                            {isReportManager && personalWeight > 0 && (
+                              <button
+                                onClick={() => triggerAutoFeedback(item, selectedStaffId)}
+                                className="text-[9px] text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded font-black uppercase inline-block shadow-sm"
+                              >
+                                Nhận xét tự động
+                              </button>
+                            )}
+                          </div>
+                          {itemComments[overrideKey] && (
+                            <p className="hidden print:block text-[11px] text-slate-750 text-left leading-relaxed whitespace-pre-wrap">
+                              {itemComments[overrideKey]}
+                            </p>
                           )}
                         </td>
-                        <td className="p-4 text-center font-black text-slate-800 bg-emerald-50/10">
-                          {itemScores[overrideKey] !== undefined ? `${itemScores[overrideKey]}%` : ''}
+                        <td className="p-4 text-center font-black text-slate-800 bg-emerald-50/10 print:hidden">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            disabled={!isReportManager || personalWeight === 0}
+                            placeholder={isNA ? "N/A" : String(itemScores[overrideKey] !== undefined ? itemScores[overrideKey] : 100)}
+                            value={itemApprovedScores[overrideKey] !== undefined ? itemApprovedScores[overrideKey] : ''}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? undefined : parseInt(e.target.value);
+                              setItemApprovedScores(prev => {
+                                const next = { ...prev };
+                                if (val === undefined) {
+                                  delete next[overrideKey];
+                                } else {
+                                  next[overrideKey] = val;
+                                }
+                                return next;
+                              });
+                            }}
+                            className="w-16 border rounded p-1.5 text-center font-bold border-emerald-300 bg-emerald-50/30 text-emerald-800 placeholder-emerald-400 focus:bg-white print:hidden mx-auto block"
+                          />
+                          <span className="hidden print:inline text-emerald-700">
+                            {itemApprovedScores[overrideKey] !== undefined ? `${itemApprovedScores[overrideKey]}%` : ''}
+                          </span>
                         </td>
                       </tr>
                     );
@@ -2510,6 +3369,11 @@ export const ReportPage = ({
                         <td className="p-4 max-w-sm leading-relaxed" style={{ width: '306px' }}>
                           <p className="font-bold text-slate-800">{item.label}</p>
                           <span className="text-[9px] font-black text-slate-400 uppercase bg-slate-100 px-2.5 py-0.5 rounded mt-1.5 inline-block">Mã: {item.code}</span>
+                          {item.focus && (
+                            <p className="text-[10px] text-blue-600 font-medium italic bg-blue-50/50 border-l-2 border-blue-400 pl-1.5 py-0.5 rounded-r mt-1.5 text-left">
+                              Trọng tâm: {item.focus}
+                            </p>
+                          )}
                         </td>
                         <td className="p-4 text-center font-semibold">
                           {(() => {
@@ -2532,23 +3396,26 @@ export const ReportPage = ({
                                 <div className="space-y-1 block mx-auto text-left max-w-[150px]">
                                   <button
                                     onClick={() => setSelectedDetailCategory({ code: item.code, label: item.label })}
-                                    className="text-[10px] w-full text-center bg-indigo-50 border border-indigo-200 font-extrabold px-2 py-1 rounded hover:bg-indigo-100 text-indigo-700 block underline shadow-sm cursor-pointer"
+                                    className="text-[10px] w-full text-center bg-indigo-50 border border-indigo-200 font-extrabold px-2 py-1 rounded hover:bg-indigo-100 text-indigo-700 block underline shadow-sm cursor-pointer print:hidden"
                                   >
                                     Lũy kế: {bchMetrics.totalActual}/{bchMetrics.totalTarget} BH
                                   </button>
-                                  <div className="text-[9px] text-slate-500 font-extrabold flex flex-col gap-0.5 justify-center pl-1 bg-slate-50 border border-slate-200 p-1.5 rounded shadow-inner">
+                                  <span className="hidden print:inline font-extrabold text-[10px] text-indigo-800 text-center w-full">
+                                    Lũy kế: {bchMetrics.totalActual}/{bchMetrics.totalTarget} BH
+                                  </span>
+                                  <div className="text-[9px] text-slate-500 font-extrabold flex flex-col gap-0.5 justify-center pl-1 bg-slate-50 border border-slate-200 p-1.5 rounded shadow-inner print:bg-white print:border-none print:shadow-none print:p-0">
                                     <span className="flex justify-between gap-1.5">
                                       <span>🚑 Cứu Hộ:</span>
-                                      <span className="font-black text-slate-700 bg-indigo-50 px-1 py-0.25 rounded">{bchMetrics.actualCuuHo}/{bchMetrics.targetCuuHo}</span>
+                                      <span className="font-black text-slate-700 bg-indigo-50 px-1 py-0.25 rounded print:bg-transparent">{bchMetrics.actualCuuHo}/{bchMetrics.targetCuuHo}</span>
                                     </span>
                                     <span className="flex justify-between gap-1.5">
                                       <span>🛡️ TNDS:</span>
-                                      <span className="font-black text-slate-700 bg-indigo-50 px-1 py-0.25 rounded">{bchMetrics.actualTnds}/{bchMetrics.targetTnds}</span>
+                                      <span className="font-black text-slate-700 bg-indigo-50 px-1 py-0.25 rounded print:bg-transparent">{bchMetrics.actualTnds}/{bchMetrics.targetTnds}</span>
                                     </span>
                                     {bchMetrics.actualKhac > 0 && (
                                       <span className="flex justify-between gap-1.5 text-blue-600">
                                         <span>📝 Khác:</span>
-                                        <span className="font-black bg-blue-50 px-1 py-0.25 rounded">+{bchMetrics.actualKhac}</span>
+                                        <span className="font-black bg-blue-50 px-1 py-0.25 rounded print:bg-transparent">+{bchMetrics.actualKhac}</span>
                                       </span>
                                     )}
                                   </div>
@@ -2557,12 +3424,17 @@ export const ReportPage = ({
                             })()
                           ) : (
                             kpiVal.items && kpiVal.items.length > 0 ? (
-                              <button
-                                onClick={() => setSelectedDetailCategory({ code: item.code, label: item.label })}
-                                className="text-[10px] bg-slate-100 font-bold px-2 py-1.5 rounded hover:bg-blue-50 text-blue-700 block mx-auto underline shadow-sm"
-                              >
-                                Gộp {kpiVal.groupedCount} việc ({kpiVal.items.length} lượt)
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => setSelectedDetailCategory({ code: item.code, label: item.label })}
+                                  className="text-[10px] bg-slate-100 font-bold px-2 py-1.5 rounded hover:bg-blue-50 text-blue-700 block mx-auto underline shadow-sm print:hidden"
+                                >
+                                  Gộp {kpiVal.groupedCount} việc ({kpiVal.items.length} lượt)
+                                </button>
+                                <span className="hidden print:inline font-semibold text-[10px] text-slate-700">
+                                  Gộp {kpiVal.groupedCount} việc ({kpiVal.items.length} lượt)
+                                </span>
+                              </>
                             ) : (
                               <span className="text-slate-400 italic text-[10px]">N/A</span>
                             )
@@ -2578,7 +3450,7 @@ export const ReportPage = ({
                             max={100}
                             disabled={!isReportManager || personalWeight === 0}
                             placeholder={isNA ? "N/A" : String(displayScore)}
-                            value={itemScores[overrideKey] !== undefined ? itemScores[overrideKey] : ''}
+                            value={itemScores[overrideKey] !== undefined ? itemScores[overrideKey] : (personalWeight > 0 ? 100 : '')}
                             onChange={(e) => {
                               const val = e.target.value === '' ? undefined : parseInt(e.target.value);
                               setItemScores(prev => {
@@ -2591,29 +3463,62 @@ export const ReportPage = ({
                                 return next;
                               });
                             }}
-                            className="w-16 border rounded p-1.5 text-center font-bold border-slate-300 bg-slate-50 focus:bg-white"
+                            className="w-16 border rounded p-1.5 text-center font-bold border-slate-300 bg-slate-50 focus:bg-white print:hidden mx-auto block"
                           />
+                          <span className="hidden print:inline font-black text-slate-800">
+                            {isNA ? "N/A" : `${itemScores[overrideKey] !== undefined ? itemScores[overrideKey] : (personalWeight > 0 ? 100 : 0)}%`}
+                          </span>
                         </td>
                         <td className="p-4 space-y-1.5">
-                          <textarea
-                            rows={2}
-                            disabled={!isReportManager || personalWeight === 0}
-                            placeholder="Nhận xét chi tiết..."
-                            value={itemComments[overrideKey] || ''}
-                            onChange={(e) => setItemComments(prev => ({ ...prev, [overrideKey]: e.target.value }))}
-                            className="w-full text-[11px] border rounded p-1 border-slate-200 bg-slate-50 focus:bg-white"
-                          />
-                          {isReportManager && personalWeight > 0 && (
-                            <button
-                              onClick={() => triggerAutoFeedback(item, selectedStaffId)}
-                              className="text-[9px] text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded font-black uppercase inline-block shadow-sm"
-                            >
-                              Nhận xét tự động
-                            </button>
+                          <div className="print:hidden space-y-1.5">
+                            <textarea
+                              rows={2}
+                              disabled={!isReportManager || personalWeight === 0}
+                              placeholder="Nhận xét chi tiết..."
+                              value={itemComments[overrideKey] || ''}
+                              onChange={(e) => setItemComments(prev => ({ ...prev, [overrideKey]: e.target.value }))}
+                              className="w-full text-[11px] border rounded p-1 border-slate-200 bg-slate-50 focus:bg-white"
+                            />
+                            {isReportManager && personalWeight > 0 && (
+                              <button
+                                onClick={() => triggerAutoFeedback(item, selectedStaffId)}
+                                className="text-[9px] text-white bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded font-black uppercase inline-block shadow-sm"
+                              >
+                                Nhận xét tự động
+                              </button>
+                            )}
+                          </div>
+                          {itemComments[overrideKey] && (
+                            <p className="hidden print:block text-[11px] text-slate-750 text-left leading-relaxed whitespace-pre-wrap">
+                              {itemComments[overrideKey]}
+                            </p>
                           )}
                         </td>
-                        <td className="p-4 text-center font-black text-slate-800 bg-emerald-50/10">
-                          {itemScores[overrideKey] !== undefined ? `${itemScores[overrideKey]}%` : ''}
+                        <td className="p-4 text-center font-black text-slate-800 bg-emerald-50/10 print:hidden">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            disabled={!isReportManager || personalWeight === 0}
+                            placeholder={isNA ? "N/A" : String(itemScores[overrideKey] !== undefined ? itemScores[overrideKey] : 100)}
+                            value={itemApprovedScores[overrideKey] !== undefined ? itemApprovedScores[overrideKey] : ''}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? undefined : parseInt(e.target.value);
+                              setItemApprovedScores(prev => {
+                                const next = { ...prev };
+                                if (val === undefined) {
+                                  delete next[overrideKey];
+                                } else {
+                                  next[overrideKey] = val;
+                                }
+                                return next;
+                              });
+                            }}
+                            className="w-16 border rounded p-1.5 text-center font-bold border-emerald-300 bg-emerald-50/30 text-emerald-800 placeholder-emerald-400 focus:bg-white print:hidden mx-auto block"
+                          />
+                          <span className="hidden print:inline text-emerald-700">
+                            {itemApprovedScores[overrideKey] !== undefined ? `${itemApprovedScores[overrideKey]}%` : ''}
+                          </span>
                         </td>
                       </tr>
                     );
@@ -2640,7 +3545,7 @@ export const ReportPage = ({
             <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200 space-y-4">
               <h4 className="font-black text-xs text-slate-800 uppercase tracking-wider flex items-center gap-2">
                 <Sparkles size={16} />
-                QLTT CHỈ ĐẠO & ĐÁNH GIÁ TỔNG QUAN
+                QLCL CHỈ ĐẠO & ĐÁNH GIÁ TỔNG QUAN
               </h4>
               <textarea
                 className="w-full border rounded p-4 text-xs h-36 bg-slate-50/50"
@@ -2690,13 +3595,13 @@ export const ReportPage = ({
 
       {activeTab === 'config' && isReportManager && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-          <div className="bg-slate-900 text-white p-6 rounded-lg shadow-lg flex justify-between items-center bg-radial-at-t from-slate-900 via-slate-950 to-slate-900">
+          <div className="bg-slate-900 text-white p-6 rounded-lg shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-radial-at-t from-slate-900 via-slate-950 to-slate-900">
             <div>
               <h2 className="text-xs font-black uppercase tracking-widest opacity-80 mb-1 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-blue-500 inline-block animate-pulse"></span>
                 XÁC LẬP MA TRẬN CẤU HÌNH
               </h2>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <h3 className="text-xl font-black uppercase tracking-tight">CƠ CẤU PHÂN BỔ THÁNG</h3>
                 <div className="flex items-center bg-slate-800 border border-slate-700 rounded-md overflow-hidden shadow-sm">
                   <button
@@ -2726,47 +3631,89 @@ export const ReportPage = ({
               </div>
               <p className="text-xs opacity-70 mt-1.5">Sử dụng để chỉnh sửa trọng số của phòng của từng KPI và chia trực tiếp cho các bạn hàng tháng.</p>
             </div>
-            <div className="flex gap-2.5 flex-wrap md:flex-nowrap">
-              <button
-                type="button"
-                onClick={() => { setActiveTab('dept'); setIsEditingKpiList(false); }}
-                className="bg-transparent hover:bg-slate-800 text-slate-300 hover:text-white h-11 px-3.5 rounded font-black text-[10px] tracking-wider transition-all flex items-center gap-2 border border-slate-700 cursor-pointer whitespace-nowrap"
-              >
-                <ChevronLeft size={18} strokeWidth={3} />
-                QUAY LẠI
-              </button>
-              <button
-                onClick={() => setIsEditingKpiList(!isEditingKpiList)}
-                className={`h-11 px-4 rounded font-black text-[10px] tracking-wider shadow-md transition-all flex items-center gap-2 border cursor-pointer whitespace-nowrap ${
-                  isEditingKpiList 
-                    ? 'bg-amber-600 border-amber-600 text-white hover:bg-amber-700' 
-                    : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
-                }`}
-              >
-                <Settings size={18} />
-                {isEditingKpiList ? 'ĐÓNG KPI' : 'DANH MỤC KPI'}
-              </button>
-              <button
-                onClick={handleSaveConfig}
-                disabled={isSavingConfig}
-                className={`text-white h-11 px-4 rounded font-black text-[10px] tracking-wider shadow-md transition-all flex items-center gap-2 select-none cursor-pointer whitespace-nowrap ${
-                  isSavingConfig 
-                    ? 'bg-blue-800 opacity-80 cursor-not-allowed' 
-                    : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
-                }`}
-              >
-                {isSavingConfig ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
-                    <span>ĐANG LƯU...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save size={18} />
-                    <span>LƯU CẤU HÌNH</span>
-                  </>
-                )}
-              </button>
+            <div className="flex flex-col gap-3 items-end w-full md:w-auto shrink-0">
+              {/* Bộ chọn sao chép dữ liệu KPI cũ - Đã chuyển lên trên */}
+              <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 px-3.5 h-11 rounded-md text-xs shadow-md">
+                <span className="text-slate-300 font-extrabold whitespace-nowrap text-[10px] uppercase tracking-wider">SAO CHÉP TỪ THÁNG:</span>
+                <select
+                  value={selectedPastMonthToCopy}
+                  onChange={(e) => setSelectedPastMonthToCopy(e.target.value)}
+                  className="bg-slate-900 text-white font-extrabold border border-slate-700 rounded px-2 h-8 text-xs outline-none focus:border-blue-500 cursor-pointer min-w-[110px] max-w-[130px]"
+                >
+                  <option value="">-- Chọn tháng --</option>
+                  {savedConfigPeriods.map((period) => (
+                    <option key={period} value={period}>
+                      Tháng {period}
+                    </option>
+                  ))}
+                  {savedConfigPeriods.length === 0 && Array.from({ length: 12 }).map((_, idx) => {
+                    const now = new Date();
+                    now.setMonth(now.getMonth() - (idx + 1));
+                    const mStr = String(now.getMonth() + 1).padStart(2, '0');
+                    const yStr = String(now.getFullYear());
+                    const formatP = `${mStr}/${yStr}`;
+                    return <option key={formatP} value={formatP}>Tháng {formatP}</option>;
+                  })}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => handleCopyConfigFromPastMonth(selectedPastMonthToCopy)}
+                  disabled={!selectedPastMonthToCopy}
+                  className={`px-4 rounded font-black uppercase text-[10px] tracking-wider transition-all h-8 flex items-center justify-center cursor-pointer select-none shadow-sm ${
+                    selectedPastMonthToCopy
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95'
+                      : 'bg-blue-800/60 text-blue-200/50 cursor-not-allowed'
+                  }`}
+                >
+                  ÁP DỤNG
+                </button>
+              </div>
+
+              {/* Nhóm 3 nút bấm ở dưới */}
+              <div className="flex gap-2.5 flex-wrap md:flex-nowrap items-center">
+                <button
+                  type="button"
+                  onClick={() => { setActiveTab('dept'); setIsEditingKpiList(false); }}
+                  className="bg-transparent hover:bg-slate-800 text-slate-300 hover:text-white h-11 px-3.5 rounded font-black text-[10px] tracking-wider transition-all flex items-center gap-2 border border-slate-700 cursor-pointer whitespace-nowrap"
+                >
+                  <ChevronLeft size={18} strokeWidth={3} />
+                  QUAY LẠI
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingKpiList(!isEditingKpiList)}
+                  className={`h-11 px-4 rounded font-black text-[10px] tracking-wider shadow-md transition-all flex items-center gap-2 border cursor-pointer whitespace-nowrap ${
+                    isEditingKpiList 
+                      ? 'bg-amber-600 border-amber-600 text-white hover:bg-amber-700' 
+                      : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700'
+                  }`}
+                >
+                  <Settings size={18} />
+                  {isEditingKpiList ? 'ĐÓNG KPI' : 'DANH MỤC KPI'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveConfig}
+                  disabled={isSavingConfig}
+                  className={`text-white h-11 px-4 rounded font-black text-[10px] tracking-wider shadow-md transition-all flex items-center gap-2 select-none cursor-pointer whitespace-nowrap ${
+                    isSavingConfig 
+                      ? 'bg-blue-800 opacity-80 cursor-not-allowed' 
+                      : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+                  }`}
+                >
+                  {isSavingConfig ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                      <span>ĐANG LƯU...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save size={18} />
+                      <span>LƯU CẤU HÌNH</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -2959,7 +3906,7 @@ export const ReportPage = ({
                             {isEditing ? (
                               <>
                                 <div className="flex items-start gap-1.5">
-                                  <span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-1 rounded font-black uppercase shrink-0 mt-1 select-none">NV</span>
+                                  <span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-1 rounded font-black uppercase shrink-0 mt-1 select-none">NV:</span>
                                   <textarea 
                                     value={item.kpis}
                                     onChange={(e) => handleEditKpiField(item.id, 'kpis', e.target.value)}
@@ -2968,7 +3915,7 @@ export const ReportPage = ({
                                   />
                                 </div>
                                 <div className="flex items-start gap-1.5">
-                                  <span className="text-[9px] bg-blue-50 text-blue-700 px-1 py-1 rounded font-black uppercase shrink-0 mt-1 select-none">QL</span>
+                                  <span className="text-[9px] bg-blue-50 text-blue-700 px-1 py-1 rounded font-black uppercase shrink-0 mt-1 select-none">QL:</span>
                                   <textarea 
                                     placeholder="Trùng với Nhân viên"
                                     value={item.kpisLeader || ''}
@@ -2981,12 +3928,12 @@ export const ReportPage = ({
                             ) : (
                               <div className="text-xs space-y-1 text-slate-600 font-medium">
                                 <div className="flex items-start gap-1">
-                                  <span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-black uppercase shrink-0 mt-0.5">NV</span>
+                                  <span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-black uppercase shrink-0 mt-0.5">NV:</span>
                                   <span>{item.kpis}</span>
                                 </div>
                                 {item.kpisLeader && (
                                   <div className="flex items-start gap-1">
-                                    <span className="text-[9px] bg-blue-50 text-blue-700 px-1 py-0.5 rounded font-black uppercase shrink-0 mt-0.5">QL</span>
+                                    <span className="text-[9px] bg-blue-50 text-blue-700 px-1 py-0.5 rounded font-black uppercase shrink-0 mt-0.5">QL:</span>
                                     <span>{item.kpisLeader}</span>
                                   </div>
                                 )}
@@ -3230,18 +4177,31 @@ export const ReportPage = ({
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-2 py-4 text-center font-bold text-slate-400">{item.stt}</td>
                         <td className="p-4 font-bold text-slate-800 leading-snug min-w-[360px] lg:min-w-[420px] relative group">
-                          <div className="flex items-start justify-between gap-1.5 w-full">
-                            <span>{item.label}</span>
-                            {isReportManager && (
-                              <button
-                                id={`edit-kpi-btn-config-${item.id}`}
-                                onClick={() => handleStartEditKpiItemFull(item)}
-                                className="p-1.5 bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded border border-transparent hover:border-blue-100 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0 cursor-pointer shadow-sm animate-in fade-in zoom-in-95 duration-100"
-                                title="Chỉnh sửa chỉ tiêu nhanh"
-                              >
-                                <Edit size={11} strokeWidth={2.5} />
-                              </button>
-                            )}
+                          <div className="flex flex-col gap-2.5 w-full">
+                            <div className="flex items-start justify-between gap-1.5 w-full">
+                              <span>{item.label}</span>
+                              {isReportManager && (
+                                <button
+                                  id={`edit-kpi-btn-config-${item.id}`}
+                                  onClick={() => handleStartEditKpiItemFull(item)}
+                                  className="p-1.5 bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded border border-transparent hover:border-blue-100 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0 cursor-pointer shadow-sm animate-in fade-in zoom-in-95 duration-100"
+                                  title="Chỉnh sửa chỉ tiêu nhanh"
+                                >
+                                  <Edit size={11} strokeWidth={2.5} />
+                                </button>
+                              )}
+                            </div>
+                            
+                            {/* Ô nhập trọng tâm công việc */}
+                            <div className="w-full">
+                              <textarea
+                                value={item.focus || ''}
+                                onChange={(e) => handleEditKpiField(item.id, 'focus', e.target.value)}
+                                placeholder="Nhập trọng tâm công việc tháng này..."
+                                className="w-full p-2 text-xs font-medium text-slate-700 bg-slate-50/80 border border-slate-200 focus:border-blue-500 rounded outline-none focus:ring-1 focus:ring-blue-500 transition-all resize-y shadow-inner font-sans min-h-[48px] max-h-[160px]"
+                                rows={2}
+                              />
+                            </div>
                           </div>
                         </td>
                         <td className="px-2 py-4 text-center">

@@ -235,7 +235,7 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
             task.comments
               .filter(comment => {
                 const content = comment.content || '';
-                return !/(?:🤖|\[JOB|JOB Assist|JOB Assistant|JOB Update|JOB:|\bJOB\b|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content);
+                return !/(?:🤖|\[JOB\]|\[JOB\s|JOB Assist|JOB Assistant|JOB Update|JOB:)/gi.test(content);
               })
               .map((comment, i) => {
                 const isMe = comment.authorId === currentUser.id || comment.authorId === currentUser.uniqueKey;

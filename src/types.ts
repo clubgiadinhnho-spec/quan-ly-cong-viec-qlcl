@@ -9,12 +9,96 @@ export interface HealthReminder {
 }
 
 export interface UserPermissions {
+  // QUẢN LÝ CÔNG VIỆC (MACRO CONTROLS FROM PREVIOUS VERSION)
   canCreateTask: boolean;
+  canEditTask?: boolean;
   canApproveTask: boolean;
   canDeleteTask: boolean;
+  
+  // DỮ LIỆU & BÁO CÁO EXCEL (MACRO CONTROLS FROM PREVIOUS VERSION)
   canExportExcel: boolean;
   canImportExcel: boolean;
+
+  // BÁO CÁO THÁNG & KPI
+  canViewReports?: boolean;
+  canConfigReportKpi?: boolean;
+
+  // TIỆN ÍCH VĂN PHÒNG
+  canViewOfficeCalendar?: boolean;
+  canRegisterCalendar?: boolean;
+  canApproveLeaveRequest?: boolean;
+
+  // QUẢN TRỊ HỆ THỐNG
   canManageStaff: boolean;
+  canManageCategories?: boolean;
+  canViewSystemHistory?: boolean;
+  canAccessSuperBackup?: boolean;
+
+  // -------------------------------------------------------------
+  // TRANG ĐỀ XUẤT MỚI (NEW PROPOSALS) - FINE-GRAINED PERMISSIONS
+  // -------------------------------------------------------------
+  newProposals_view?: boolean;
+  newProposals_create?: boolean;
+  newProposals_attach?: boolean;
+  newProposals_print?: boolean;
+  newProposals_search?: boolean;
+  newProposals_edit?: boolean;
+  newProposals_delete?: boolean;
+  newProposals_color?: boolean;
+  newProposals_encode?: boolean;
+  newProposals_importExcel?: boolean;
+  newProposals_exportExcel?: boolean;
+
+  // -------------------------------------------------------------
+  // TRANG BẢNG CÔNG VIỆC (ACTIVE TASKS) - FINE-GRAINED PERMISSIONS
+  // -------------------------------------------------------------
+  tasks_view?: boolean;
+  tasks_edit?: boolean;
+  tasks_delete?: boolean;
+  tasks_color?: boolean;
+  tasks_search?: boolean;
+  tasks_print?: boolean;
+  tasks_comment?: boolean;
+
+  // -------------------------------------------------------------
+  // TRANG TRÌNH DUYỆT (PENDING APPROVAL) - FINE-GRAINED PERMISSIONS
+  // -------------------------------------------------------------
+  pendingApproval_view?: boolean;
+  pendingApproval_approve?: boolean;
+  pendingApproval_reject?: boolean;
+
+  // -------------------------------------------------------------
+  // TRANG CÔNG VIỆC HOÀN THÀNH - FINE-GRAINED PERMISSIONS
+  // -------------------------------------------------------------
+  completedTasks_view?: boolean;
+  completedTasks_undo?: boolean;
+
+  // -------------------------------------------------------------
+  // TRUNG TÂM XÓA (TRASH) - FINE-GRAINED PERMISSIONS
+  // -------------------------------------------------------------
+  trash_view?: boolean;
+  trash_restore?: boolean;
+  trash_purge?: boolean;
+
+  // -------------------------------------------------------------
+  // PHÂN KHU VĂN PHÒNG (STAFF / UTILITIES) - FINE-GRAINED PERMISSIONS
+  // -------------------------------------------------------------
+  office_viewCalendar?: boolean;
+  office_registerCalendar?: boolean;
+  office_approveLeave?: boolean;
+  office_manageHr?: boolean;
+
+  // -------------------------------------------------------------
+  // BÁO CÁO THÁNG & KPI - FINE-GRAINED PERMISSIONS
+  // -------------------------------------------------------------
+  reports_viewPage?: boolean;
+  reports_configPage?: boolean;
+
+  // -------------------------------------------------------------
+  // PHÂN KHU DỮ LIỆU & HỆ THỐNG - FINE-GRAINED PERMISSIONS
+  // -------------------------------------------------------------
+  system_viewLogPage?: boolean;
+  system_backupPage?: boolean;
 }
 
 export interface LogEntry {
@@ -52,6 +136,7 @@ export interface User {
   code: string;
   title?: string; // e.g. Chuyên viên QC, Quản lý
   password?: string; // Optional field to store/display password on ID card
+  birthDate?: string; // Date of birth (format: YYYY-MM-DD or standard)
   uniqueKey: string;
   abbreviation: string;
   personalNote?: string;
@@ -201,6 +286,7 @@ export interface Task {
   isCycleRecord?: boolean;
   lastUpdateAt?: string;
   waitingApproval?: boolean;
+  waitingApprovalAt?: string;
   staffQCD?: QCDEvaluation;
   leaderQCD?: QCDEvaluation;
   leader_Q?: number;
@@ -212,6 +298,10 @@ export interface Task {
   lastActionAt?: string;
   aiReminderResponded?: boolean;
   aiReminderLastDate?: string;
+  aiReminderCreatedAt?: string;
+  patrolReviewedByAdmin?: boolean;
+  lastPatrolTime?: string;
+  patrolStatus?: string;
   requestEndTracking?: boolean;
   last_ai_content?: string;
   last_ai_response?: string;
@@ -220,6 +310,12 @@ export interface Task {
   stage1KpiPassed?: boolean;
   aiApplied?: boolean | null;
   aiAppliedDetails?: string | null;
+  lastPatrolResult?: {
+    assistantReply?: string;
+    supervisorClosing?: string;
+    nextAction?: string;
+    patrolledAt?: string;
+  };
 }
 
 export interface ReportDraft {

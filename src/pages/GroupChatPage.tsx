@@ -955,7 +955,7 @@ const handleCreateTopic = () => {
                 {filteredMessages
                   .filter(msg => {
                     const content = msg.content || '';
-                    return !/(?:🤖|\[JOB|JOB Assist|JOB Assistant|JOB Update|JOB:|\bJOB\b|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content);
+                    return !/(?:🤖|\[JOB\]|\[JOB\s|JOB Assist|JOB Assistant|JOB Update|JOB:)/gi.test(content);
                   })
                   .map((msg, idx) => {
                     const author = getAuthor(msg.authorId);

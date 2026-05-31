@@ -23,6 +23,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
 }) => {
   const isLNT = effectiveUser.name === 'Lê Nhật Trường';
   const isReportManager = effectiveUser.role === 'Admin' || 
+                          !!effectiveUser.delegatedPermissions?.canViewReports ||
                           isLNT || 
                           (effectiveUser.title || '').toUpperCase().includes('TRƯỞNG PHÒNG') ||
                           effectiveUser.personalEmail === 'lenhattruong.tpp@gmail.com' ||

@@ -63,7 +63,12 @@ export const useStaff = () => {
     const unsubSnapshot = onSnapshot(collection(db, 'user_profiles'), (snapshot) => {
       const p: Record<string, User> = {};
       snapshot.docs.forEach(doc => {
-        p[doc.id] = { ...doc.data(), id: doc.id } as User;
+        const data = doc.data();
+        p[doc.id] = { 
+          ...data, 
+          uid: data.id || null, // Preserve firebase uid as uid
+          id: doc.id 
+        } as unknown as User;
       });
       setFirestoreProfiles(p);
       setLoading(false);

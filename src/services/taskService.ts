@@ -1,4 +1,5 @@
 import { Task, User, ProgressUpdate, TaskComment, RecurrenceType, CycleHistoryEntry } from '../types';
+import { formatDate } from '../lib/dateUtils';
 
 export const calculateNextDueDate = (currentDateStr: string, recurrence: RecurrenceType): string => {
   const current = new Date(currentDateStr);
@@ -85,15 +86,15 @@ export const prepareTaskUpdates = (
 
   // Track date changes
   if (updates.startDate !== undefined && updates.startDate !== task.startDate) {
-    changes.push(`Thay đổi ngày bắt đầu từ [${task.startDate}] sang [${updates.startDate}]`);
+    changes.push(`Thay đổi ngày bắt đầu từ [${formatDate(task.startDate)}] sang [${formatDate(updates.startDate)}]`);
   }
   if (updates.expectedEndDate !== undefined && updates.expectedEndDate !== task.expectedEndDate) {
-    changes.push(`Gia hạn từ [${task.expectedEndDate}] sang [${updates.expectedEndDate}]`);
+    changes.push(`Gia hạn từ [${formatDate(task.expectedEndDate)}] sang [${formatDate(updates.expectedEndDate)}]`);
   }
   if (updates.extensionDate !== undefined && updates.extensionDate !== task.extensionDate) {
     changes.push(updates.extensionDate 
-      ? `Gia hạn công việc từ [${task.extensionDate || 'Chưa có'}] sang [${updates.extensionDate}]` 
-      : `Hủy bỏ gia hạn công việc (Trước đó: ${task.extensionDate})`);
+      ? `Gia hạn công việc từ [${task.extensionDate ? formatDate(task.extensionDate) : 'Chưa có'}] sang [${formatDate(updates.extensionDate)}]` 
+      : `Hủy bỏ gia hạn công việc (Trước đó: ${formatDate(task.extensionDate)})`);
   }
 
   // Track status changes

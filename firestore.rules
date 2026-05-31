@@ -112,7 +112,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     match /kpi_configs/{configId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isSignedIn();
     }
 
     // 9. System

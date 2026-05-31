@@ -20,7 +20,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, task,
     if (!content) return '';
     
     // Hide content completely if it's from any JOB/Robot source
-    if (/(?:🤖|\[JOB|JOB Assist|JOB Assistant|JOB Update|JOB:|\bJOB\b|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content)) {
+    if (/(?:🤖|\[JOB\]|\[JOB\s|JOB Assist|JOB Assistant|JOB Update|JOB:)/gi.test(content)) {
       return '';
     }
 
@@ -108,12 +108,12 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, task,
     <AnimatePresence>
       {isOpen && (
         <Portal>
-          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 z-[300] flex items-center justify-center md:p-4 p-0 bg-black/60 backdrop-blur-sm" onClick={(e) => e.stopPropagation()}>
             <motion.div 
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="relative bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col border border-gray-100 overflow-hidden"
+              className="relative bg-white md:w-full md:max-w-2xl md:rounded-2xl shadow-2xl flex flex-col border border-gray-100 overflow-hidden h-full md:h-auto w-full max-w-none rounded-none"
             >
               {/* Header */}
               <div className="p-4 bg-blue-700 flex justify-between items-center shadow-md">
@@ -251,14 +251,14 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, task,
               <div className="p-4 border-t border-gray-100 bg-white flex justify-end items-center gap-3">
                 <button 
                   onClick={onClose}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-slate-400 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-500 active:scale-95 transition-all shadow-lg shadow-gray-100 border-2 border-slate-300/50"
+                  className="flex items-center justify-center gap-2 px-5 py-3 md:py-2.5 bg-slate-400 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-500 active:scale-95 transition-all shadow-lg shadow-gray-100 border-2 border-slate-300/50 min-h-[44px]"
                 >
                   <CornerUpLeft size={16} strokeWidth={3} />
                   <span translate="no" className="notranslate">HỦY</span>
                 </button>
                 <button 
                   onClick={handleSave}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-100 border-2 border-blue-500/50"
+                  className="flex items-center justify-center gap-2 px-6 py-3 md:py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-100 border-2 border-blue-500/50 min-h-[44px]"
                 >
                   <Save size={16} strokeWidth={3} />
                   <span translate="no" className="notranslate font-black">LƯU CẬP NHẬT</span>

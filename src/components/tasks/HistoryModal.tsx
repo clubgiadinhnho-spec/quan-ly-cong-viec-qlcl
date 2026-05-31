@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { History, X, Clock, User as UserIcon } from 'lucide-react';
 import { Task, User } from '../../types';
+import { formatAllDatesInString } from '../../lib/dateUtils';
 import { 
   format, 
   startOfWeek, 
@@ -23,31 +24,56 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
   const task = tasks.find((t) => t.id === taskId);
   if (!task) return null;
 
+  // Safe parser for various timestamp formats
+  const parseDateSafely = (timestamp: any): Date => {
+    if (!timestamp) return new Date();
+    if (timestamp instanceof Date) return timestamp;
+    if (typeof timestamp.toDate === 'function') {
+      try {
+        return timestamp.toDate();
+      } catch (e) {}
+    }
+    if (typeof timestamp === 'string') {
+      try {
+        const parsed = parseISO(timestamp);
+        if (!isNaN(parsed.getTime())) return parsed;
+      } catch (e) {}
+      try {
+        const parsed = new Date(timestamp);
+        if (!isNaN(parsed.getTime())) return parsed;
+      } catch (e) {}
+    }
+    if (typeof timestamp === 'number') {
+      return new Date(timestamp);
+    }
+    return new Date();
+  };
+
   // Process history to include daily versioning
   const processedHistory = (task.history || [])
     .filter((h: any) => {
       const content = h.content || '';
-      return !/(?:🤖|\[JOB|JOB Assist|JOB Assistant|JOB Update|JOB:|\bJOB\b|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content);
+      return !/(?:🤖|\[JOB\]|\[JOB\s|JOB Assist|JOB Assistant|JOB Update|JOB:)/gi.test(content);
     })
     .sort((a: any, b: any) => {
-    const aTime = typeof a.timestamp === 'string' ? parseISO(a.timestamp).getTime() : (a.timestamp as any).toDate().getTime();
-    const bTime = typeof b.timestamp === 'string' ? parseISO(b.timestamp).getTime() : (b.timestamp as any).toDate().getTime();
-    return aTime - bTime;
-  }).reduce((acc: any[], h: any) => {
-    const hDate = typeof h.timestamp === 'string' ? parseISO(h.timestamp) : (h.timestamp as any).toDate();
-    let dailyV = undefined;
-    
-    if (h.content?.startsWith('Cập nhật tiến độ:')) {
-      const updatesToday = acc.filter(prev => {
-        const prevDate = typeof prev.timestamp === 'string' ? parseISO(prev.timestamp) : (prev.timestamp as any).toDate();
-        return isSameDay(prevDate, hDate) && prev.content?.startsWith('Cập nhật tiến độ:');
-      });
-      dailyV = updatesToday.length + 1;
-    }
-    
-    acc.push({ ...h, dailyVersion: dailyV, type: 'history' });
-    return acc;
-  }, []);
+      const aTime = parseDateSafely(a.timestamp).getTime();
+      const bTime = parseDateSafely(b.timestamp).getTime();
+      return aTime - bTime;
+    }).reduce((acc: any[], h: any) => {
+      const hDate = parseDateSafely(h.timestamp);
+      let dailyV = undefined;
+      
+      if (h.content?.startsWith('Cập nhật tiến độ:')) {
+        const updatesToday = acc.filter(prev => {
+          const prevDate = parseDateSafely(prev.timestamp);
+          return isSameDay(prevDate, hDate) && prev.content?.startsWith('Cập nhật tiến độ:');
+        });
+        dailyV = updatesToday.length + 1;
+      }
+      
+      acc.push({ ...h, dailyVersion: dailyV, type: 'history' });
+      return acc;
+    }, []);
 
   // Merge history and comments into a single timeline
   const combinedTimeline = [
@@ -55,7 +81,7 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
     ...(task.comments || [])
       .filter((c: any) => {
         const content = c.content || '';
-        return !/(?:🤖|\[JOB|JOB Assist|JOB Assistant|JOB Update|JOB:|\bJOB\b|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content);
+        return !/(?:🤖|\[JOB\]|\[JOB\s|JOB Assist|JOB Assistant|JOB Update|JOB:)/gi.test(content);
       })
       .map(c => ({ ...c, type: 'chat', version: undefined }))
   ];
@@ -65,7 +91,7 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
     const timestamp = h.timestamp;
     if (!timestamp) return acc;
 
-    const date = typeof timestamp === 'string' ? parseISO(timestamp) : (timestamp as any).toDate();
+    const date = parseDateSafely(timestamp);
     const weekNumber = getWeek(date, { weekStartsOn: 1 });
     const weekStart = startOfWeek(date, { weekStartsOn: 1, locale: vi });
     const weekEnd = endOfWeek(date, { weekStartsOn: 1, locale: vi });
@@ -75,7 +101,7 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
     if (!acc[weekKey]) {
       acc[weekKey] = {
         weekNumber,
-        range: `${format(weekStart, 'dd/MM')} - ${format(weekEnd, 'dd/MM/yy')}`,
+        range: `${format(weekStart, 'dd/MM/yy')} - ${format(weekEnd, 'dd/MM/yy')}`,
         items: []
       };
     }
@@ -100,7 +126,7 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
     if (!content) return null;
     
     // Convert old tags to HTML classes for consistent rendering
-    let processed = content;
+    let processed = formatAllDatesInString(content);
 
     processed = processed.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
     processed = processed.replace(/__(.*?)__/g, '<u>$1</u>');

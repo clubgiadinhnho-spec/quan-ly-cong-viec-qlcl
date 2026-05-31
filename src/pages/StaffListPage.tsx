@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { QRCodeSVG } from 'qrcode.react'; 
 import { generateUniqueKey } from '../utils/stringUtils';
 import { updateAuthPassword } from '../lib/firebase';
+import { useTaskContext } from '../contexts/TaskContext';
 
 interface StaffListPageProps {
   onNavigate?: (tab: string) => void;
@@ -26,13 +27,18 @@ interface StaffListPageProps {
 
 // GIÁ TRỊ BẤT BIẾN - AI KHÔNG ĐƯỢC TỰ Ý THAY ĐỔI DANH SÁCH CHỨC DANH NÀY
 const getDisplayNameTitle = (user: User) => {
-  // Ưu tiên hiển thị chức danh do người dùng chọn hoặc được admin cập nhật
-  if (user.title && user.title !== 'CHUYÊN VIÊN QC' && user.title !== 'CHỜ CẬP NHẬT') return user.title.toUpperCase();
-  
   const normName = user.name.trim();
   if (normName === 'Lê Nhật Trường' || normName === 'Quản Trị Viên') return 'ADMIN';
-  // Nếu không có title và không phải các tên đặc biệt, mới trả về mặc định
-  return user.title || 'CHUYÊN VIÊN QC';
+
+  const rawTitle = (user.title || '').trim().toUpperCase();
+  if (rawTitle && rawTitle !== 'CHUYÊN VIÊN QC' && rawTitle !== 'CHỜ CẬP NHẬT' && rawTitle !== 'NHÂN VIÊN') {
+    return rawTitle;
+  }
+  
+  if (user.role === 'Admin') return 'QUẢN TRỊ VIÊN';
+  if (user.role === 'Trưởng Phòng') return 'TRƯỞNG PHÒNG QLCL';
+  if (user.role === 'Leader') return 'TRƯỞNG NHÓM QLCL';
+  return 'NHÂN VIÊN QLCL';
 };
 
 const getRoleBgColor = (user: User) => {
@@ -64,6 +70,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
   onUpdateStaff,
   onDeleteStaff
 }) => {
+  const { setSelectedPermissionUserId } = useTaskContext();
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState<'All' | UserRoleType | 'PENDING'>('All');
   const [delegationLetterUser, setDelegationLetterUser] = useState<User | null>(null);
@@ -440,12 +447,17 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                       value={formData.role} 
                       onChange={e => {
                         const val = e.target.value as any;
-                        setFormData({...formData, role: val, title: val === 'Leader' ? 'Trưởng nhóm' : (val === 'Admin' ? 'Quản trị viên' : 'Nhân viên')});
+                        setFormData({
+                          ...formData, 
+                          role: val, 
+                          title: val === 'Leader' ? 'Trưởng nhóm QLCL' : (val === 'Trưởng Phòng' ? 'Trưởng Phòng QLCL' : (val === 'Admin' ? 'Quản trị viên QLCL' : 'Nhân viên QLCL'))
+                        });
                       }}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm appearance-none notranslate"
                     >
                       <option value="Staff" translate="no" className="notranslate">Nhân viên</option>
                       <option value="Leader" translate="no" className="notranslate">Trưởng nhóm</option>
+                      <option value="Trưởng Phòng" translate="no" className="notranslate">Trưởng phòng</option>
                       <option value="Admin" translate="no" className="notranslate">Quản trị viên</option>
                     </select>
                   </div>
@@ -456,7 +468,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                     <input 
                       type="text" required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm placeholder:notranslate"
-                      placeholder="VD: Nhân viên QC"
+                      placeholder="VD: Nhân viên QLCL"
                     />
                   </div>
                   <div className="space-y-1">
@@ -609,7 +621,7 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
       >
         {filteredStaff.map((staff) => {
           const isVisible = visiblePasswords[staff.id];
-          const isTruong = currentUser.role === 'Admin' || currentUser.personalEmail === 'lenhattruong.tpp@gmail.com';
+          const isTruong = currentUser.role === 'Admin' || currentUser.personalEmail === 'lenhattruong.tpp@gmail.com' || currentUser.delegatedPermissions?.canManageStaff || false;
           const permissionsCount = (staff.delegatedPermissions && typeof staff.delegatedPermissions === 'object') ? Object.values(staff.delegatedPermissions).filter(Boolean).length : 0;
           const starCount = permissionsCount >= 5 ? 3 : (permissionsCount >= 3 ? 2 : (permissionsCount >= 1 ? 1 : 0));
 
@@ -785,13 +797,18 @@ export const StaffListPage: React.FC<StaffListPageProps> = ({
                   </button>
                 )}
 
-                <button 
-                  onClick={() => setPermissionMatrixUser(staff)}
-                  className="w-16 h-16 rounded-full bg-white text-[#132d6b] flex flex-col items-center justify-center hover:bg-slate-50 transition-all shadow-xl group/btn flex-none"
-                >
-                  <Shield size={24} strokeWidth={2.5} className="group-hover/btn:scale-110 transition-transform mb-0.5" />
-                  <span className="text-[9px] font-black uppercase tracking-tighter">QUYỀN</span>
-                </button>
+                {isTruong && (
+                  <button 
+                    onClick={() => {
+                      setSelectedPermissionUserId(staff.id || staff.uniqueKey);
+                      onNavigate?.('permission_matrix');
+                    }}
+                    className="w-16 h-16 rounded-full bg-white text-[#132d6b] flex flex-col items-center justify-center hover:bg-slate-50 transition-all shadow-xl group/btn flex-none"
+                  >
+                    <Shield size={24} strokeWidth={2.5} className="group-hover/btn:scale-110 transition-transform mb-0.5" />
+                    <span className="text-[9px] font-black uppercase tracking-tighter">QUYỀN</span>
+                  </button>
+                )}
 
                 
                 {onSimulateStaff && staff.id !== (originalUser?.id || currentUser.id) && isTruong && (

@@ -86,7 +86,8 @@ export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
   const handleOpenNewTabToPrint = () => {
     const isIframe = window.self !== window.top;
     if (isIframe) {
-      const printUrl = new URL(window.location.href);
+      const printUrl = new URL(window.location.origin + window.location.pathname);
+      printUrl.searchParams.set('tab', 'pending_approval');
       printUrl.searchParams.set('print', 'true');
       printUrl.searchParams.set('layout_orient', modalPrintOrient);
       printUrl.searchParams.set('print_scale', modalPrintScale.toString());

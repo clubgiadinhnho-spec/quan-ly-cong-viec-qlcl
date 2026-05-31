@@ -86,7 +86,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
   const isAdmin = currentUser.role === 'Admin' || isLNT;
   const isDeptHead = currentUser.role === 'Trưởng Phòng';
   const canAssignOthers = isAdmin || currentUser.role === 'Leader' || isDeptHead;
-  const canAttach = isAdmin || isDeptHead;
+  const canAttach = isAdmin || currentUser.delegatedPermissions?.newProposals_attach === true;
 
   // Helper for +7 days logic
   const getSevenDaysLater = (dateStr: string) => {
@@ -152,12 +152,12 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
   }, [recurrence, startDate, isEdit, isManualEdit]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center md:p-4 p-0">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <motion.div 
-        initial={{ scale: 0.9, opacity: 0 }}
+        initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="relative bg-white w-full max-w-xl rounded-2xl border border-gray-200 flex flex-col h-[calc(100vh-100px)] max-h-[calc(100vh-100px)] shadow-2xl overflow-hidden"
+        className="relative bg-white md:w-full md:max-w-xl md:rounded-2xl border border-gray-200 flex flex-col h-full md:h-[calc(100vh-100px)] md:max-h-[calc(100vh-100px)] w-full max-w-none rounded-none shadow-2xl overflow-hidden"
       >
         <div className="flex justify-between items-center py-3 px-4 border-b border-gray-100 bg-gray-50/30 shrink-0">
           <h2 className="text-base font-black flex items-center gap-2">
@@ -224,7 +224,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                 </label>
                 {canAssignOthers ? (
                   <select 
-                    className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold transition-all appearance-none"
+                    className="w-full px-3 py-3 md:py-1.5 min-h-[44px] md:min-h-0 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold transition-all appearance-none"
                     value={assigneeId}
                     onChange={(e) => setAssigneeId(e.target.value)}
                   >
@@ -236,7 +236,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                     ))}
                   </select>
                 ) : (
-                  <div className="w-full px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 text-sm font-bold flex items-center cursor-not-allowed opacity-80">
+                  <div className="w-full px-3 py-3 md:py-1.5 min-h-[44px] md:min-h-0 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 text-sm font-bold flex items-center cursor-not-allowed opacity-80">
                     <span translate="no" className="notranslate">{currentUser.name}</span>
                   </div>
                 )}
@@ -247,7 +247,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                 <label className="block text-[10px] font-black text-gray-500 mb-1 uppercase tracking-wider">
                   <span translate="no" className="notranslate">KHỞI TẠO <span className="text-red-500">*</span></span>
                 </label>
-                <div className="w-full px-3 py-1.5 bg-slate-100 border border-gray-200 rounded-xl text-sm font-bold text-gray-500 cursor-not-allowed opacity-70">
+                <div className="w-full px-3 py-3 md:py-1.5 min-h-[44px] md:min-h-0 bg-slate-100 border border-gray-200 rounded-xl text-sm font-bold text-gray-500 flex items-center cursor-not-allowed opacity-70">
                   <span translate="no" className="notranslate">{formatToDisplayDate(issueDate)}</span>
                 </div>
               </div>
@@ -259,7 +259,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                   <input 
                     type="text"
                     placeholder="dd/mm/yy"
-                    className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold pr-10 transition-all"
+                    className="w-full px-3 py-3 md:py-1.5 min-h-[44px] md:min-h-0 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold pr-10 transition-all"
                     value={formatToDisplayDate(startDate)}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -287,7 +287,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                   <span translate="no" className="notranslate">CHU KỲ LẶP <span className="text-red-500">*</span></span>
                 </label>
                 <select 
-                  className="w-full px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold text-blue-700 shadow-sm appearance-none transition-all"
+                  className="w-full px-3 py-3 md:py-1.5 min-h-[44px] md:min-h-0 bg-blue-50 border border-blue-100 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold text-blue-700 shadow-sm appearance-none transition-all"
                   value={recurrence}
                   onChange={(e) => setRecurrence(e.target.value as RecurrenceType)}
                 >
@@ -308,7 +308,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                   <input 
                     type="text"
                     placeholder="dd/mm/yy"
-                    className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold text-blue-600 pr-10 transition-all"
+                    className="w-full px-3 py-3 md:py-1.5 min-h-[44px] md:min-h-0 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold text-blue-600 pr-10 transition-all"
                     value={formatToDisplayDate(expectedDate)}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -345,7 +345,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                     <input 
                       type="text"
                       placeholder="dd/mm/yy"
-                      className="w-full px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-sm font-bold text-orange-700 pr-10 transition-all placeholder:text-orange-300"
+                      className="w-full px-3 py-3 md:py-1.5 min-h-[44px] md:min-h-0 bg-orange-50 border border-orange-200 rounded-xl outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-sm font-bold text-orange-700 pr-10 transition-all placeholder:text-orange-300"
                       value={formatToDisplayDate(extensionDate)}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -382,7 +382,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                     <input 
                       type="text"
                       placeholder="dd/mm/yy"
-                      className="w-full px-3 py-1.5 bg-green-50 border border-green-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 text-sm font-bold text-green-700 pr-10 transition-all placeholder:text-green-300"
+                      className="w-full px-3 py-3 md:py-1.5 min-h-[44px] md:min-h-0 bg-green-50 border border-green-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 text-sm font-bold text-green-700 pr-10 transition-all placeholder:text-green-300"
                       value={formatToDisplayDate(actualEndDate)}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -411,7 +411,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                   <span translate="no" className="notranslate">PHÂN LOẠI CÔNG VIỆC <span className="text-red-500">*</span></span>
                 </label>
                 <select 
-                  className="w-full px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold appearance-none transition-all"
+                  className="w-full px-3 py-3 md:py-1.5 min-h-[44px] md:min-h-0 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold appearance-none transition-all"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                 >
@@ -431,7 +431,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                 </label>
                 <textarea 
                   ref={titleInputRef}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-[50px] resize-none font-bold text-sm leading-snug notranslate"
+                  className="w-full px-3 py-3 md:py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 min-h-[50px] h-[55px] resize-none font-bold text-sm leading-snug notranslate"
                   placeholder="Nhập tên công việc..."
                   value={title}
                   translate="no"
@@ -445,7 +445,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                   <span translate="no" className="notranslate">MỤC TIÊU ĐẠT ĐƯỢC <span className="text-red-500">*</span></span>
                 </label>
                 <textarea 
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-[50px] resize-none font-bold text-sm leading-snug notranslate"
+                  className="w-full px-3 py-3 md:py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 min-h-[50px] h-[55px] resize-none font-bold text-sm leading-snug notranslate"
                   placeholder="Mục tiêu cụ thể cho công việc này..."
                   value={objective}
                   translate="no"
@@ -507,7 +507,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                         />
                         <label 
                           htmlFor="task-attachment"
-                          className={`flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 border-dashed rounded-xl cursor-pointer hover:bg-blue-50 transition-all text-[10px] font-bold text-gray-500 overflow-hidden flex-1 ${isProcessingFile ? 'opacity-50 cursor-wait' : ''}`}
+                          className={`flex items-center gap-2 px-3 py-3 md:py-1.5 min-h-[44px] md:min-h-0 bg-gray-50 border border-gray-200 border-dashed rounded-xl cursor-pointer hover:bg-blue-50 transition-all text-[10px] font-bold text-gray-500 overflow-hidden flex-1 ${isProcessingFile ? 'opacity-50 cursor-wait' : ''}`}
                         >
                           <Paperclip size={14} />
                           <span className="truncate max-w-[200px]">
@@ -549,7 +549,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
             )}
           </AnimatePresence>
 
-          <button onClick={onClose} className="flex-1 py-2.5 text-gray-500 text-[10px] font-black hover:bg-gray-200 rounded-xl transition-all uppercase tracking-widest bg-gray-100 shadow-sm border border-gray-200">
+          <button onClick={onClose} className="flex-1 py-2.5 text-gray-500 text-[10px] font-black hover:bg-gray-200 rounded-xl transition-all uppercase tracking-widest bg-gray-100 shadow-sm border border-gray-200 min-h-[44px]">
             <span translate="no" className="notranslate">HỦY</span>
           </button>
           <button 
@@ -608,7 +608,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                 setIsSaving(false);
               }
             }}
-            className={`flex-[2.2] py-2.5 bg-blue-600 text-white rounded-xl font-black text-[10px] hover:bg-blue-700 transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:cursor-wait uppercase tracking-widest flex items-center justify-center gap-2 border-b-4 border-blue-800 ${isSaving ? 'animate-pulse' : ''}`}
+            className={`flex-[2.2] py-2.5 bg-blue-600 text-white rounded-xl font-black text-[10px] hover:bg-blue-700 transition-all shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:cursor-wait uppercase tracking-widest flex items-center justify-center gap-2 border-b-4 border-blue-800 min-h-[44px] ${isSaving ? 'animate-pulse' : ''}`}
           >
             {isSaving ? (
               <span translate="no" className="notranslate">ĐANG LƯU...</span>

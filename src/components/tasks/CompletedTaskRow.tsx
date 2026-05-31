@@ -42,11 +42,13 @@ interface CompletedTaskRowProps {
   setConfirmModal: (modal: any) => void;
   markAsRead: (id: string) => void;
   lastReadChatTimestamps: Record<string, number>;
+  isMobileCard?: boolean;
 }
 
 export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({ 
   task, user, users, idx, onViewHistory, onOpenChat, isChatOpen, onSendMessage, onReact, onUndo, onUpdate, onSetPriority, onDelete,
-  onEdit, isSelected, onToggleSelect, setConfirmModal, markAsRead, lastReadChatTimestamps
+  onEdit, isSelected, onToggleSelect, setConfirmModal, markAsRead, lastReadChatTimestamps,
+  isMobileCard = false
 }) => {
   const chatButtonRef = React.useRef<HTMLButtonElement>(null);
 
@@ -63,7 +65,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
 
   const toHTML = (content: string) => {
     if (!content) return '';
-    if (/(?:🤖|\[JOB|JOB Assist|JOB Assistant|JOB Update|JOB:|\bJOB\b|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(content)) {
+    if (/(?:🤖|\[JOB\]|\[JOB\s|JOB Assist|JOB Assistant|JOB Update|JOB:)/gi.test(content)) {
       return '';
     }
     let processed = content;
@@ -122,6 +124,434 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
 
   const highlightClass = task.highlightColor ? HIGHLIGHT_COLORS[task.highlightColor] : (task.isHighlighted ? HIGHLIGHT_COLORS['amber'] : '');
 
+  if (isMobileCard) {
+    const isHighlight = task.highlightColor || task.isHighlighted;
+    const highlightMobileClass = task.highlightColor ? HIGHLIGHT_COLORS[task.highlightColor] : (task.isHighlighted ? HIGHLIGHT_COLORS['amber'] : '');
+    const mobileBg = highlightMobileClass || 'bg-white';
+
+    const formatVietnameseDateMobile = (dateStr: string | undefined): string => {
+      if (!dateStr) return '—';
+      try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) {
+          return dateStr;
+        }
+        const day = d.getDate().toString().padStart(2, '0');
+        const month = (d.getMonth() + 1).toString().padStart(2, '0');
+        const year = d.getFullYear().toString().substring(2);
+        return `${day}/${month}/${year}`;
+      } catch (e) {
+        return dateStr || '—';
+      }
+    };
+
+    return (
+      <div 
+        id={`task-card-${task.id}`}
+        className={`rounded-xl border-2 border-gray-250 shadow-md p-4 transition-all space-y-4 font-sans relative ${mobileBg} ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+      >
+        {/* TOP: TÊN NHÂN SỰ */}
+        <div className="flex items-start justify-between border-b border-gray-100 pb-3" id={`mobile-top-${task.id}`}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <input 
+              type="checkbox" 
+              checked={isSelected}
+              onChange={() => onToggleSelect?.(task.id)}
+              className="w-4 h-4 rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all shrink-0"
+            />
+            <Avatar src={assignee?.avatar} name={assigneeName} size="md" className="ring-[0.5px] ring-black shrink-0" />
+            <div className="min-w-0">
+              <div className="text-[14px] font-black text-gray-900 leading-tight notranslate truncate">
+                <span translate="no" className="notranslate">{assigneeName}</span>
+              </div>
+              <div className="mt-1 flex items-center gap-1 flex-wrap">
+                <span translate="no" className="notranslate text-[10px] font-black text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                  {(() => {
+                    if (!assignee) return "Nhân viên QLCL";
+                    const val = (assignee.title || assignee.role || '').trim().toUpperCase();
+                    if (val === 'STAFF' || val === 'NHÂN VIÊN' || val === 'CHUYÊN VIÊN QC' || val === '') {
+                      return "Nhân viên QLCL";
+                    }
+                    if (val === 'LEADER') {
+                      return "Trưởng nhóm QLCL";
+                    }
+                    if (val === 'TRƯỞNG PHÒNG') {
+                      return "Trưởng Phòng QLCL";
+                    }
+                    if (val === 'ADMIN') {
+                      return "Quản trị viên";
+                    }
+                    return assignee.title || assignee.role;
+                  })()}
+                </span>
+                
+                {isRecurringTask && (
+                  <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                    <RotateCcw size={10} className="animate-spin-slow" />
+                    <span>ĐỊNH KỲ</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <div translate="no" className="notranslate text-[12px] font-mono font-black text-blue-700 bg-blue-50/70 px-2 py-0.5 rounded border border-blue-100 leading-none">
+              <span translate="no" className="notranslate">{task.code}</span>
+            </div>
+            
+            {task.priorityOrder && (
+              <span className="text-[9px] font-black px-1.5 py-0.5 bg-red-50 text-red-700 rounded border border-red-200 leading-none">
+                UT: {task.priorityOrder}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* BODY: NỘI DUNG */}
+        <div className="space-y-3 font-sans" id={`mobile-body-${task.id}`}>
+          {/* Title / Category */}
+          <div className="text-[14.5px] font-black text-blue-900 leading-snug">
+            <span translate="no" className="notranslate uppercase">
+              [{task.category?.toUpperCase() || 'KHÁC'}] - {task.title}
+            </span>
+          </div>
+
+          {/* Objective */}
+          <div className="text-[13.5px] text-gray-800 leading-relaxed pr-1 text-justify">
+            <span className="font-extrabold text-blue-950">MỤC TIÊU: </span>
+            <span translate="no" className="notranslate">{task.objective}</span>
+          </div>
+
+          {/* Timeline Dates */}
+          <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/60 font-sans">
+            <div className="flex items-center gap-1">
+              <span className="text-gray-500 font-medium">📝 KHỞI TẠO: {formatVietnameseDateMobile(task.issueDate)}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-blue-600 font-medium">🚀 BẮT ĐẦU: {formatVietnameseDateMobile(task.startDate || task.issueDate)}</span>
+            </div>
+            <div className="flex items-center gap-1 col-span-2 border-t border-gray-150/40 pt-1.5">
+              <span className="font-bold text-red-600 uppercase">🏁 HẠN: {formatVietnameseDateMobile(task.expectedEndDate || task.dueDate)}</span>
+            </div>
+            <div className="flex items-center gap-1 col-span-2 border-t border-gray-150/40 pt-1.5">
+              {(isAdmin || isManager) ? (
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <span className="text-[12px] font-black text-green-700 uppercase">XONG:</span>
+                  <input 
+                    type="date"
+                    value={task.actualEndDate || ''}
+                    onChange={(e) => onUpdate(task.id, { actualEndDate: e.target.value })}
+                    className="bg-green-50 border border-green-200 rounded px-2 py-0.5 text-xs font-black text-green-700 outline-none focus:ring-1 focus:ring-green-400"
+                  />
+                </div>
+              ) : (
+                <span className="font-bold text-green-700 uppercase">✅ XONG: {formatVietnameseDateMobile(task.actualEndDate)}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Progress Section */}
+          <div className="bg-white border border-gray-150 rounded-lg overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-2 bg-slate-50 border-b border-gray-100">
+              <div className="flex items-center gap-1.5">
+                <span translate="no" className="notranslate text-[9px] font-black uppercase tracking-widest text-blue-500">Cập nhật</span>
+                {task.aiApplied && (
+                  <span translate="no" className="notranslate text-[9px] font-black px-1.5 py-0.5 bg-rose-600 text-white rounded border border-rose-700 shadow-sm shrink-0">
+                    AI
+                  </span>
+                )}
+              </div>
+
+              {(isAdmin || isManager || isOwner) && (
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setShowUpdateModal(true);
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-black text-blue-600 bg-blue-50 border border-blue-100 rounded uppercase"
+                >
+                  <Edit3 size={10} strokeWidth={3} />
+                  <span>Sửa</span>
+                </button>
+              )}
+            </div>
+
+            <div className="p-2.5 bg-white">
+              <style dangerouslySetInnerHTML={{ __html: `
+                .notranslate.rich-text-content, 
+                .notranslate.rich-text-content * {
+                  font-style: normal !important;
+                }
+              ` }} />
+              <div 
+                translate="no"
+                className="notranslate rich-text-content text-[13px] font-medium leading-relaxed text-slate-700 max-h-[140px] overflow-y-auto"
+                dangerouslySetInnerHTML={{ __html: toHTML(task.currentUpdate || '') }}
+              />
+              {!task.currentUpdate && (
+                <div className="text-[12px] text-gray-400 italic">Chưa có thông tin tiến độ.</div>
+              )}
+            </div>
+
+            {/* Evaluation Result */}
+            {task.leaderQCD && (
+              <div className="p-2.5 bg-slate-50 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
+                <button 
+                  onClick={() => setShowAuditModal(true)}
+                  className="w-full text-left flex items-center justify-between hover:bg-slate-100 p-1.5 rounded transition-all"
+                >
+                  {(() => {
+                    const { percentage, label, colorClass } = calculateKPI(task.leaderQCD!.q, task.leaderQCD!.c, task.leaderQCD!.d);
+                    return (
+                      <>
+                        <span translate="no" className={`notranslate font-black text-xs uppercase tracking-tight ${colorClass}`}>
+                          KẾT QUẢ: {percentage}% - {label}
+                        </span>
+                        <div className="flex items-center gap-1 text-slate-400">
+                          <span className="text-[9px] font-bold uppercase">Chi tiết</span>
+                          <Info size={11} />
+                        </div>
+                      </>
+                    );
+                  })()}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* BOTTOM: NÚT THAO TÁC */}
+        <div className="flex flex-col gap-2 pt-3 border-t border-gray-100 font-sans" id={`mobile-bottom-${task.id}`} onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between w-full">
+            {/* Left buttons group */}
+            <div className="flex items-center gap-2">
+              {/* Chat action */}
+              <button 
+                ref={chatButtonRef}
+                onClick={() => onOpenChat(isChatOpen ? '' : task.id)}
+                className={`flex items-center gap-1 py-1 px-2.5 border border-gray-200 rounded-lg shadow-2xs text-[11px] font-black uppercase ${
+                  showBadge && isAdmin ? 'bg-red-50 text-red-700' : (task.comments?.length || 0) > 0 ? 'bg-red-50 text-red-800' : 'bg-white text-gray-600'
+                }`}
+              >
+                <div className="relative">
+                  <MessageSquare size={14} />
+                  {showBadge && (
+                    <span translate="no" className="notranslate absolute -top-1.5 -right-1.5 flex items-center justify-center min-w-[12px] h-[12px] px-0.5 bg-red-600 text-white text-[7px] font-black rounded-full border border-white">
+                      {unreadCount}
+                    </span>
+                  )}
+                </div>
+                <span>Chat ({task.comments?.length || 0})</span>
+              </button>
+            </div>
+
+            {/* Right actions group */}
+            <div className="flex items-center gap-1.5">
+              {/* EDIT BUTTON */}
+              {(isAdmin || isOwner || isManager) && (
+                <button 
+                  onClick={() => onEdit?.(task)}
+                  className="w-7 h-7 flex items-center justify-center bg-emerald-500 text-white rounded-lg border border-emerald-400 shadow-sm active:scale-95"
+                  title="SỬA"
+                >
+                  <Edit3 size={11} strokeWidth={3} />
+                </button>
+              )}
+
+              {/* History view */}
+              <button 
+                onClick={() => onViewHistory(task.id)}
+                className="w-7 h-7 flex items-center justify-center bg-blue-500 text-white rounded-lg border border-blue-400 shadow-sm active:scale-95"
+                title="LỊCH SỬ"
+              >
+                <History size={13} strokeWidth={3} />
+              </button>
+
+              {/* Color tag picker */}
+              {((user.role === 'Admin' || user.delegatedPermissions?.completedTasks_color !== false)) && (
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowColorPicker(!showColorPicker)}
+                    className={`w-7 h-7 flex items-center justify-center rounded-lg border ${
+                      isHighlight ? 'bg-purple-600 text-white border-purple-400' : 'bg-white text-purple-600 border-purple-400 hover:bg-purple-50'
+                    } active:scale-95`}
+                  >
+                    <Tag size={12} strokeWidth={2.5} />
+                  </button>
+                  
+                  <AnimatePresence>
+                    {showColorPicker && (
+                      <>
+                        <div className="fixed inset-0 z-[100]" onClick={() => setShowColorPicker(false)} />
+                        <motion.div 
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          className="absolute right-0 bottom-full mb-2 bg-white border border-gray-200 rounded-md p-1.5 flex gap-1 shadow-xl z-[101]"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {(Object.keys(HIGHLIGHT_COLORS)).map(color => (
+                            <button
+                              key={color}
+                              onClick={() => {
+                                onUpdate(task.id, { highlightColor: color, isHighlighted: true });
+                                setShowColorPicker(false);
+                              }}
+                              className={`w-5 h-5 rounded border border-gray-200 transition-transform hover:scale-110 ${HIGHLIGHT_COLORS[color].split(' ')[0]}`}
+                            />
+                          ))}
+                          <button
+                            onClick={() => {
+                              onUpdate(task.id, { highlightColor: null, isHighlighted: false });
+                              setShowColorPicker(false);
+                            }}
+                            className="w-5 h-5 rounded border border-gray-300 flex items-center justify-center text-gray-400 hover:text-red-500 bg-white"
+                          >
+                            <Eraser size={10} strokeWidth={3} />
+                          </button>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
+              {/* Undo action */}
+              {(isAdmin || isOwner) && (
+                <>
+                  {isAdmin ? (
+                    task.requestUndo === 'PENDING' ? (
+                      <div className="flex gap-1">
+                        <button 
+                          disabled={isProcessing}
+                          onClick={async () => {
+                            if (isProcessing) return;
+                            if (isRecurringTask) {
+                              showRedAlert();
+                              return;
+                            }
+                            setIsProcessing(true);
+                            try {
+                              await onUndo(task.id);
+                            } finally {
+                              setIsProcessing(false);
+                            }
+                          }} 
+                          className="w-7 h-7 flex items-center justify-center bg-green-600 text-white rounded-lg border border-green-500 shadow-sm active:scale-95"
+                          title="DUYỆT HOÀN TÁC"
+                        >
+                          <Check size={14} strokeWidth={4} />
+                        </button>
+                        <button 
+                          disabled={isProcessing}
+                          onClick={async () => {
+                            if (isProcessing) return;
+                            setIsProcessing(true);
+                            try {
+                              await onUpdate(task.id, { requestUndo: null });
+                            } finally {
+                              setIsProcessing(false);
+                            }
+                          }} 
+                          className="w-7 h-7 flex items-center justify-center bg-red-600 text-white rounded-lg border border-red-500 shadow-sm active:scale-95"
+                          title="TỪ CHỐI HOÀN TÁC"
+                        >
+                          <X size={14} strokeWidth={4} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button 
+                        disabled={isProcessing}
+                        onClick={async () => {
+                          if (isProcessing) return;
+                          if (isRecurringTask) {
+                            showRedAlert();
+                            return;
+                          }
+                          setIsProcessing(true);
+                          try {
+                            await onUndo(task.id);
+                          } finally {
+                            setIsProcessing(false);
+                          }
+                        }} 
+                        className="w-7 h-7 flex items-center justify-center bg-orange-500 text-white rounded-lg border border-orange-400 shadow-sm active:scale-95"
+                        title="HOÀN TÁC"
+                      >
+                        <RotateCcw size={12} strokeWidth={3} />
+                      </button>
+                    )
+                  ) : (
+                    task.requestUndo !== 'PENDING' && (
+                      <button 
+                        disabled={isProcessing}
+                        onClick={async () => {
+                          if (isProcessing) return;
+                          setIsProcessing(true);
+                          try {
+                            await onUpdate(task.id, { requestUndo: 'PENDING', requestUndoAt: new Date().toISOString() });
+                          } finally {
+                            setIsProcessing(false);
+                          }
+                        }} 
+                        className="w-7 h-7 flex items-center justify-center bg-amber-500 text-white rounded-lg border border-amber-400 shadow-sm active:scale-95"
+                        title="YÊU CẦU HOÀN TÁC"
+                      >
+                        <RotateCcw size={12} strokeWidth={3} />
+                      </button>
+                    )
+                  )}
+                </>
+              )}
+
+              {/* DELETE BUTTON */}
+              {((isAdmin || user?.delegatedPermissions?.completedTasks_delete === true) && (isOwner || isManager)) && (
+                <button 
+                  onClick={() => onDelete?.(task.id)}
+                  className="w-7 h-7 flex items-center justify-center bg-red-600 text-white rounded-lg border border-red-400 shadow-sm active:scale-95"
+                  title="XÓA"
+                >
+                  <Trash2 size={12} strokeWidth={2.5} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Popovers / Modals overlays */}
+        {isChatOpen && (
+          <TaskChat 
+            task={task}
+            currentUser={user}
+            users={users}
+            onSendMessage={onSendMessage}
+            onReact={onReact}
+            onClose={() => onOpenChat('')}
+            anchorRef={chatButtonRef}
+          />
+        )}
+
+        <UpdateModal 
+          isOpen={showUpdateModal}
+          onClose={() => setShowUpdateModal(false)}
+          task={task}
+          onSave={handleUpdateProgress}
+        />
+
+        <AnimatePresence>
+          {showAuditModal && task.leaderQCD && (
+            <AuditModal 
+              task={task}
+              onClose={() => setShowAuditModal(false)}
+              users={users}
+            />
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
   return (
     <tr id={`task-${task.id}`} className={`hover:bg-gray-50/50 transition-all ${isSelected ? 'bg-blue-50/50' : ''} ${highlightClass}`}>
       <td className="p-1 text-center border border-gray-300 align-middle">
@@ -164,8 +594,24 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                 <span translate="no" className="notranslate">{assigneeName}</span>
               </p>
               <div className="mt-1.5">
-                <span translate="no" className="notranslate text-[11px] font-medium text-gray-400 uppercase tracking-tighter bg-gray-50 px-1 py-0.5 rounded-sm border border-gray-100">
-                  {assignee ? <span translate="no" className="notranslate">{assignee.title || assignee.role}</span> : <span translate="no" className="notranslate">NHÂN SỰ</span>}
+                <span translate="no" className="notranslate text-[11px] font-bold text-slate-500 bg-gray-50 px-1.5 py-0.5 rounded-sm border border-gray-200">
+                  {(() => {
+                    if (!assignee) return "NHÂN SỰ";
+                    const val = (assignee.title || assignee.role || '').trim().toUpperCase();
+                    if (val === 'STAFF' || val === 'NHÂN VIÊN' || val === 'CHUYÊN VIÊN QC' || val === '') {
+                      return "Nhân viên QLCL";
+                    }
+                    if (val === 'LEADER') {
+                      return "Trưởng nhóm QLCL";
+                    }
+                    if (val === 'TRƯỞNG PHÒNG') {
+                      return "Trưởng Phòng QLCL";
+                    }
+                    if (val === 'ADMIN') {
+                      return "Quản trị viên";
+                    }
+                    return assignee.title || assignee.role;
+                  })()}
                 </span>
               </div>
             </div>

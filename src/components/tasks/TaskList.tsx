@@ -204,56 +204,271 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   return (
     <div className="border border-gray-300 rounded-md bg-white shadow-sm overflow-visible">
-      <table className="w-full text-left border-collapse table-fixed min-w-full print-table">
-        <thead>
-          <tr className="bg-blue-600 h-12">
-            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[40px] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
-               <input 
-                 type="checkbox"
-                 className="w-3.5 h-3.5 rounded-sm border-blue-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                 checked={tasks.length > 0 && selectedIds.length === tasks.length}
-                 onChange={(e) => {
-                   if (onBulkSelect) {
-                     onBulkSelect(tasks.map(t => t.id), e.target.checked);
-                   } else {
-                     if (e.target.checked) {
-                       tasks.forEach(t => {
-                         if (!selectedIds.includes(t.id)) onToggleSelect?.(t.id);
-                       });
+      {/* DESKTOP TABLE VIEW */}
+      <div className="hidden md:block">
+        <table className="w-full text-left border-collapse table-fixed min-w-full print-table">
+          <thead>
+            <tr className="bg-blue-600 h-12">
+              <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[40px] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[50] align-middle">
+                 <input 
+                   type="checkbox"
+                   className="w-3.5 h-3.5 rounded-sm border-blue-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                   checked={tasks.length > 0 && selectedIds.length === tasks.length}
+                   onChange={(e) => {
+                     if (onBulkSelect) {
+                       onBulkSelect(tasks.map(t => t.id), e.target.checked);
                      } else {
-                       tasks.forEach(t => {
-                         if (selectedIds.includes(t.id)) onToggleSelect?.(t.id);
-                       });
+                       if (e.target.checked) {
+                         tasks.forEach(t => {
+                           if (!selectedIds.includes(t.id)) onToggleSelect?.(t.id);
+                         });
+                       } else {
+                         tasks.forEach(t => {
+                           if (selectedIds.includes(t.id)) onToggleSelect?.(t.id);
+                         });
+                       }
                      }
-                   }
-                 }}
-               />
-            </th>
-            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[9%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
-              <span translate="no" className="notranslate">Mã</span>
-            </th>
-            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[20%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
-              <span translate="no" className="notranslate">Nhân sự</span>
-            </th>
-            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] w-[35%] align-middle">
-              <span translate="no" className="notranslate">Nội dung & Mục tiêu</span>
-            </th>
-            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[24%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
-              <span translate="no" className="notranslate">Cập nhật</span>
-            </th>
-            <th className="p-3 text-[14px] font-black text-white uppercase tracking-tighter w-[6%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
-              <span translate="no" className="notranslate">ƯU TIÊN</span>
-            </th>
-            <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[6%] text-center border-blue-700 bg-blue-600 sticky top-0 z-[30] align-middle">
-              <span translate="no" className="notranslate">Thao tác</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody className="">
+                   }}
+                 />
+              </th>
+              <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[9%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[50] align-middle">
+                <span translate="no" className="notranslate">Mã</span>
+              </th>
+              <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[20%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[50] align-middle">
+                <span translate="no" className="notranslate">Nhân sự</span>
+              </th>
+              <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[50] w-[35%] align-middle">
+                <span translate="no" className="notranslate">Nội dung & Mục tiêu</span>
+              </th>
+              <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[24%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[50] align-middle">
+                <span translate="no" className="notranslate">Cập nhật</span>
+              </th>
+              <th className="p-3 text-[14px] font-black text-white uppercase tracking-tighter w-[6%] text-center border-r border-white/20 border-blue-700 bg-blue-600 sticky top-0 z-[50] align-middle">
+                <span translate="no" className="notranslate">ƯU TIÊN</span>
+              </th>
+              <th className="p-3 text-[13px] font-black text-white uppercase tracking-wider w-[6%] text-center border-blue-700 bg-blue-600 sticky top-0 z-[50] align-middle">
+                <span translate="no" className="notranslate">Thao tác</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody className="">
+            {sortedTasks.map((task, idx) => (
+              type === 'trash' ? (
+                <TaskRow 
+                  key={task.id} 
+                  task={task} 
+                  tasks={tasks}
+                  user={user} 
+                  users={users} 
+                  idx={idx}
+                  onUpdate={handleUpdateTask}
+                  onDelete={onDelete}
+                  onViewHistory={onViewHistory}
+                  onOpenChat={onOpenChat}
+                  isChatOpen={showChatModal === task.id}
+                  onSendMessage={onSendMessage}
+                  onReact={onReact}
+                  onEdit={onEdit}
+                  onSetPriority={handleSetPriority}
+                  setConfirmModal={setConfirmModal}
+                  onTogglePriority={handleTogglePriority}
+                  isReadOnly={isReadOnly}
+                  isUpdateReadOnly={isUpdateReadOnly}
+                  onRestore={onRestore}
+                  onApprove={onApprove}
+                  approveTaskCompletion={approveTaskCompletion}
+                  onNavigate={onNavigate}
+                  highlightedTaskId={highlightedTaskId}
+                  isSelected={selectedIds.includes(task.id)}
+                  onToggleSelect={onToggleSelect}
+                  createNotification={createNotification}
+                  markAsRead={markAsRead}
+                  lastReadChatTimestamps={lastReadChatTimestamps}
+                  presence={presence}
+                />
+              ) : type === 'active' ? (
+                <TaskRow 
+                  key={task.id} 
+                  task={task} 
+                  tasks={tasks}
+                  user={user} 
+                  users={users} 
+                  idx={idx}
+                  onUpdate={handleUpdateTask}
+                  onDelete={onDelete}
+                  onViewHistory={onViewHistory}
+                  onOpenChat={onOpenChat}
+                  isChatOpen={showChatModal === task.id}
+                  onSendMessage={onSendMessage}
+                  onReact={onReact}
+                  onEdit={onEdit}
+                  onSetPriority={handleSetPriority}
+                  setConfirmModal={setConfirmModal}
+                  onTogglePriority={handleTogglePriority}
+                  onApprove={onApprove}
+                  approveTaskCompletion={approveTaskCompletion}
+                  sendAiMessage={sendAiMessage}
+                  triggerAiNudge={triggerAiNudge}
+                  resetTaskAIStatus={resetTaskAIStatus}
+                  aiMessages={aiMessages}
+                  onNavigate={onNavigate}
+                  isReadOnly={isReadOnly}
+                  isUpdateReadOnly={isUpdateReadOnly}
+                  highlightedTaskId={highlightedTaskId}
+                  isSelected={selectedIds.includes(task.id)}
+                  onToggleSelect={onToggleSelect}
+                  createNotification={createNotification}
+                  markAsRead={markAsRead}
+                  lastReadChatTimestamps={lastReadChatTimestamps}
+                  presence={presence}
+                />
+              ) : (
+                <CompletedTaskRow 
+                  key={task.id}
+                  task={task}
+                  user={user}
+                  users={users}
+                  idx={idx}
+                  onViewHistory={onViewHistory}
+                  onOpenChat={onOpenChat}
+                  isChatOpen={showChatModal === task.id}
+                  onSendMessage={onSendMessage}
+                  onReact={onReact}
+                  onUndo={(id) => {
+                    const isCycle = id.includes('_cycle_');
+                    const taskToUndo = tasks.find(t => t.id === id);
+                    
+                    if (!taskToUndo) return;
+
+                    // Guard for recurring tasks
+                    const isRecurringTask = taskToUndo.recurrence && taskToUndo.recurrence !== 'NONE' && taskToUndo.recurrence !== 'KHÔNG LẶP';
+                    if (isRecurringTask) {
+                      setConfirmModal({
+                        show: true,
+                        title: <span translate="no" className="notranslate">LỖI THAO TÁC</span>,
+                        message: (
+                          <div className="bg-red-600 p-4 rounded-xl text-center border-4 border-red-400 shadow-[0_0_20px_rgba(220,38,38,0.5)]">
+                            <p className="text-white font-black text-lg uppercase leading-tight">
+                              <span translate="no" className="notranslate">ĐÂY LÀ CÔNG VIỆC ĐỊNH KỲ ĐÃ PHÁT SINH KỲ MỚI, KHÔNG THỂ HOÀN TÁC ĐỂ TRÁNH TRÙNG LẶP MÃ SỐ!</span>
+                            </p>
+                          </div>
+                        ),
+                        confirmText: <span translate="no" className="notranslate">ĐÃ HIỂU</span>,
+                        onConfirm: () => setConfirmModal((p: any) => ({ ...p, show: false })),
+                        isAlert: true
+                      });
+                      return;
+                    }
+
+                    const realId = isCycle ? id.split('_cycle_')[0] : id;
+
+                    setConfirmModal({
+                      show: true,
+                      title: <span translate="no" className="notranslate">XÁC NHẬN HOÀN TÁC</span>,
+                      message: (
+                        <span translate="no" className="notranslate">
+                          {isCycle 
+                            ? `Bạn muốn hoàn tác kỳ hoàn thành này? Công việc sẽ quay lại mục TRÌNH DUYỆT HOÀN THÀNH.`
+                            : `Bạn muốn hoàn tác công việc này? Công việc sẽ quay lại mục TRÌNH DUYỆT HOÀN THÀNH.`}
+                        </span>
+                      ),
+                      onConfirm: () => {
+                        const updates: Partial<Task> = { 
+                           status: 'APPROVED', 
+                          waitingApproval: true,
+                          actualEndDate: null as any, 
+                          isLocked: false, 
+                          isNewInBoard: true,
+                          requestUndo: null as any,
+                          lastActionAt: new Date().toISOString(),
+                          waitingApprovalAt: new Date().toISOString(),
+                        };
+
+                        if (isCycle && taskToUndo.cycleHistory) {
+                          const version = parseInt(id.split('_cycle_')[1], 10);
+                          const cycleEntry = taskToUndo.cycleHistory.find(h => h.version === version);
+                          
+                          // Remove this cycle from history
+                          updates.cycleHistory = taskToUndo.cycleHistory.filter(h => h.version !== version);
+                          
+                          // Restore report content, objective and CODE from the cycle being undone
+                          if (cycleEntry) {
+                            updates.currentUpdate = cycleEntry.reportContent;
+                            if (cycleEntry.objective) {
+                              updates.objective = cycleEntry.objective;
+                            }
+                            
+                            // Restore code - no more -K suffix
+                            updates.code = cycleEntry.code || taskToUndo.code;
+                          }
+                        }
+
+                        onUpdate(realId, updates);
+                        setConfirmModal((p: any) => ({ ...p, show: false }));
+                        if (onNavigate) onNavigate('pending_approval');
+                      }
+                    });
+                  }}
+                  onUpdate={(id, updates) => {
+                    const realId = id.includes('_cycle_') ? id.split('_cycle_')[0] : id;
+                    onUpdate(realId, updates);
+                  }}
+                  onSetPriority={handleSetPriority}
+                  onDelete={onDelete}
+                  onEdit={onEdit}
+                  isSelected={selectedIds.includes(task.id)}
+                  onToggleSelect={onToggleSelect}
+                  setConfirmModal={setConfirmModal}
+                  markAsRead={markAsRead}
+                  lastReadChatTimestamps={lastReadChatTimestamps}
+                />
+              )
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* MOBILE CARDS VIEW */}
+      <div className="block md:hidden bg-slate-50/50 p-2 space-y-4">
+        {tasks.length > 0 && (
+          <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200 shadow-xs mb-1">
+            <div className="flex items-center gap-2">
+              <input 
+                type="checkbox"
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                checked={tasks.length > 0 && selectedIds.length === tasks.length}
+                onChange={(e) => {
+                  if (onBulkSelect) {
+                    onBulkSelect(tasks.map(t => t.id), e.target.checked);
+                  } else {
+                    if (e.target.checked) {
+                      tasks.forEach(t => {
+                        if (!selectedIds.includes(t.id)) onToggleSelect?.(t.id);
+                      });
+                    } else {
+                      tasks.forEach(t => {
+                        if (selectedIds.includes(t.id)) onToggleSelect?.(t.id);
+                      });
+                    }
+                  }
+                }}
+              />
+              <span className="text-xs font-bold text-gray-705 uppercase">Chọn tất cả ({tasks.length})</span>
+            </div>
+            {selectedIds.length > 0 && (
+              <span className="text-[11px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                Đã chọn {selectedIds.length}
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3">
           {sortedTasks.map((task, idx) => (
             type === 'trash' ? (
               <TaskRow 
-                key={task.id} 
+                isMobileCard={true}
+                key={`mob-${task.id}`} 
                 task={task} 
                 tasks={tasks}
                 user={user} 
@@ -286,7 +501,8 @@ export const TaskList: React.FC<TaskListProps> = ({
               />
             ) : type === 'active' ? (
               <TaskRow 
-                key={task.id} 
+                isMobileCard={true}
+                key={`mob-${task.id}`} 
                 task={task} 
                 tasks={tasks}
                 user={user} 
@@ -322,7 +538,8 @@ export const TaskList: React.FC<TaskListProps> = ({
               />
             ) : (
               <CompletedTaskRow 
-                key={task.id}
+                isMobileCard={true}
+                key={`mob-${task.id}`}
                 task={task}
                 user={user}
                 users={users}
@@ -379,6 +596,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                         isNewInBoard: true,
                         requestUndo: null as any,
                         lastActionAt: new Date().toISOString(),
+                        waitingApprovalAt: new Date().toISOString(),
                       };
 
                       if (isCycle && taskToUndo.cycleHistory) {
@@ -421,8 +639,9 @@ export const TaskList: React.FC<TaskListProps> = ({
               />
             )
           ))}
-        </tbody>
-      </table>
+        </div>
+      </div>
+
       {sortedTasks.length === 0 && (
         <div className="py-20 text-center text-gray-400 text-sm font-medium">
           <span translate="no" className="notranslate">

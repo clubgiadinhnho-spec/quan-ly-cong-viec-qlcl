@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { collection, getDocs, writeBatch, doc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { User } from '../../types';
-import { ClipboardList, User as UserIcon, CheckCircle2, BarChart3, LogOut, MessageSquare, Users, Database, Sparkles, Trash2, ChevronRight, Tag, Clock, Workflow, LayoutGrid, ShieldAlert, CheckCheck, PlusSquare, Save } from 'lucide-react';
+import { ClipboardList, User as UserIcon, CheckCircle2, BarChart3, LogOut, MessageSquare, Users, Database, Sparkles, Trash2, ChevronRight, Tag, Clock, Workflow, LayoutGrid, ShieldAlert, CheckCheck, PlusSquare, Save, Calendar, Gift, Shield } from 'lucide-react';
 
 import { Avatar } from '../common/Avatar';
 import { GroupChatIcon, GroupDiscussionIcon } from '../common/Icons';
@@ -98,6 +100,132 @@ export const Sidebar = ({
     return localStorage.getItem('qlcl_sidebar_color_l2') || 'white';
   });
 
+  // BẢO TRÌ HỆ THỐNG States
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [confirmInput, setConfirmInput] = useState('');
+  const [selectedFileContent, setSelectedFileContent] = useState<any>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  // LOGIC SAO LƯU (Backup JSON)
+  const handleBackup = async () => {
+    try {
+      const tasksSnap = await getDocs(collection(db, 'tasks'));
+      const tasksData = tasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const profilesSnap = await getDocs(collection(db, 'user_profiles'));
+      const profilesData = profilesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const categoriesSnap = await getDocs(collection(db, 'task_categories'));
+      const categoriesData = categoriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const backupPayload = {
+        tasks: tasksData,
+        user_profiles: profilesData,
+        task_categories: categoriesData,
+        backupAt: new Date().toISOString()
+      };
+
+      const date = new Date();
+      const dd = String(date.getDate()).padStart(2, '0');
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const yy = String(date.getFullYear()).slice(-2);
+      const fileName = `QLCL_HUB_FULL_DATA_${dd}${mm}${yy}.json`;
+
+      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(backupPayload, null, 2))}`;
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', jsonString);
+      downloadAnchor.setAttribute('download', fileName);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    } catch (error) {
+      console.error('Backup failed:', error);
+      alert('Backup thất bại: ' + (error instanceof Error ? error.message : String(error)));
+    }
+  };
+
+  // Upload/parse JSON tệp
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (!parsed.tasks || !parsed.user_profiles || !parsed.task_categories) {
+          alert("Lỗi định dạng tệp: Tệp sao lưu không hợp lệ hoặc thiếu dữ liệu cốt lõi!");
+          return;
+        }
+        setSelectedFileContent(parsed);
+        setShowRestoreModal(true);
+        setConfirmInput('');
+      } catch (err) {
+        alert("Lỗi phân tích cú pháp tệp JSON!");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // xóa input file
+  };
+
+  // LOGIC PHỤC HỒI (Restore JSON - Khóa an toàn)
+  const handleRestoreConfirm = async () => {
+    if (confirmInput !== 'CONFIRM') return;
+    if (!selectedFileContent) return;
+
+    setIsRestoring(true);
+    try {
+      const { tasks, user_profiles, task_categories } = selectedFileContent;
+
+      const tasksSnap = await getDocs(collection(db, 'tasks'));
+      const profilesSnap = await getDocs(collection(db, 'user_profiles'));
+      const categoriesSnap = await getDocs(collection(db, 'task_categories'));
+
+      const deleteOps: any[] = [];
+      tasksSnap.docs.forEach(d => deleteOps.push({ ref: doc(db, 'tasks', d.id), type: 'delete' }));
+      profilesSnap.docs.forEach(d => deleteOps.push({ ref: doc(db, 'user_profiles', d.id), type: 'delete' }));
+      categoriesSnap.docs.forEach(d => deleteOps.push({ ref: doc(db, 'task_categories', d.id), type: 'delete' }));
+
+      const writeOps: any[] = [];
+      tasks.forEach((item: any) => {
+        const { id, ...data } = item;
+        if (id) writeOps.push({ ref: doc(db, 'tasks', id), type: 'set', data });
+      });
+      user_profiles.forEach((item: any) => {
+        const { id, ...data } = item;
+        if (id) writeOps.push({ ref: doc(db, 'user_profiles', id), type: 'set', data });
+      });
+      task_categories.forEach((item: any) => {
+        const { id, ...data } = item;
+        if (id) writeOps.push({ ref: doc(db, 'task_categories', id), type: 'set', data });
+      });
+
+      const allOps = [...deleteOps, ...writeOps];
+      const batchSize = 400;
+      for (let i = 0; i < allOps.length; i += batchSize) {
+        const chunk = allOps.slice(i, i + batchSize);
+        const batch = writeBatch(db);
+        chunk.forEach(op => {
+          if (op.type === 'delete') {
+            batch.delete(op.ref);
+          } else if (op.type === 'set') {
+            batch.set(op.ref, op.data);
+          }
+        });
+        await batch.commit();
+      }
+
+      alert("Hệ thống đã được phục hồi trạng thái cũ!");
+      window.location.reload();
+    } catch (error) {
+      console.error('Restore failed:', error);
+      alert('Khôi phục thất bại: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setIsRestoring(false);
+      setShowRestoreModal(false);
+    }
+  };
+
   const isManager = user.role === 'Admin' || !!user.delegatedPermissions?.canApproveTask;
 
   useEffect(() => {
@@ -149,7 +277,7 @@ export const Sidebar = ({
   const GROUP_MAPPING: Record<string, string[]> = {
     dashboard: ['dashboard'],
     operations: ['pending_confirmation', 'tasks', 'pending_approval', 'completed_tasks', 'trash'],
-    administration: ['staff_list', 'system_history', 'super_backup'],
+    administration: ['staff_list', 'system_history', 'super_backup', 'permission_matrix'],
     user_center: ['profile', 'reports'],
   };
 
@@ -172,19 +300,35 @@ export const Sidebar = ({
     { id: 'pending_approval', label: 'TRÌNH DUYỆT', icon: ShieldAlert, count: pendingApprovalCount, color: 'bg-orange-500', isAlert: bouncingItems['pending_approval'] },
     { id: 'completed_tasks', label: 'CÔNG VIỆC HOÀN THÀNH', icon: CheckCheck, count: completedTasksCount, color: 'bg-blue-600', isAlert: bouncingItems['completed_tasks'] },
     { id: 'trash', label: 'TRUNG TÂM XÓA', icon: Trash2, count: trashTasksCount, color: 'bg-red-600', isAlert: bouncingItems['trash'] },
-    { id: 'staff_list', label: 'QUẢN LÝ NHÂN SỰ', icon: Users, count: totalStaffCount, color: 'bg-orange-500', isAlert: bouncingItems['staff_list'] },
+    { id: 'staff_list', label: 'PHÂN KHU VĂN PHÒNG', icon: Users, count: totalStaffCount, color: 'bg-orange-500', isAlert: bouncingItems['staff_list'] },
     { id: 'profile', label: 'TRANG CÁ NHÂN', icon: UserIcon },
     { id: 'reports', label: 'BÁO CÁO THÁNG', icon: BarChart3 },
-    { id: 'system_history', label: 'NHẬT KÝ HỆ THỐNG', icon: Database, color: 'bg-indigo-600' },
-    { id: 'super_backup', label: 'SIÊU BACKUP', icon: Save, color: 'bg-amber-500', isAction: true },
+    { id: 'system_history', label: 'PHÂN KHU DỮ LIỆU', icon: Database, color: 'bg-indigo-600' },
+    { id: 'super_backup', label: 'SIÊU BACKUP', icon: Save, color: 'bg-slate-600' },
   ];
 
   const getGroupItems = () => {
     const itemIds = GROUP_MAPPING[activeGroup] || [];
     return allMenuItems.filter(item => {
-      if (item.id === 'staff_list' && user.role !== 'Admin') return false;
-      if (item.id === 'system_history' && user.role !== 'Admin') return false;
-      if (item.id === 'super_backup' && user.role !== 'Admin') return false;
+      // Admin has full bypass power
+      if (user.role === 'Admin') return itemIds.includes(item.id);
+
+      // Fetch permissions
+      const perms = (user.delegatedPermissions || {}) as any;
+
+      if (item.id === 'pending_confirmation' && perms.newProposals_view === false) return false;
+      if (item.id === 'tasks' && perms.tasks_view === false) return false;
+      if (item.id === 'pending_approval' && perms.pendingApproval_view === false) return false;
+      if (item.id === 'completed_tasks' && perms.completedTasks_view === false) return false;
+      if (item.id === 'trash' && perms.trash_view === false) return false;
+
+      if (item.id === 'staff_list' && !perms.canManageStaff) return false;
+      if (item.id === 'system_history' && !perms.canViewSystemHistory && !perms.canManageCategories) return false;
+      if (item.id === 'super_backup' && !perms.canAccessSuperBackup) return false;
+      if (item.id === 'permission_matrix' && !perms.canManageStaff) return false;
+
+      if (item.id === 'reports' && perms.reports_viewPage === false) return false;
+
       return itemIds.includes(item.id);
     });
   };
@@ -202,7 +346,7 @@ export const Sidebar = ({
   };
 
   return (
-    <div id="sidebar-container" className="flex h-screen sticky top-0 z-[100] print:hidden">
+    <div id="sidebar-container" className="hidden md:flex h-screen sticky top-0 z-[100] print:hidden">
       {/* LEVEL 1 SIDEBAR */}
       <motion.aside 
         id="sidebar-level-1"
@@ -222,7 +366,7 @@ export const Sidebar = ({
         <div className={`flex flex-col h-full ${isCollapsed ? 'p-3' : 'p-5'} overflow-hidden`}>
           {/* Logo Area */}
           <div className="mb-6 flex flex-col gap-1 items-center">
-            <div className={`${isCollapsed ? 'w-12 h-12' : 'w-full p-3'} flex items-center gap-3 ${isDarkL1 ? 'bg-white/10' : 'bg-white'} rounded-2xl border ${isDarkL1 ? 'border-white/10' : 'border-blue-100/50'} shadow-sm relative overflow-hidden group transition-all`}>
+            <div className={`${isCollapsed ? 'w-12 h-12 justify-center' : 'w-full p-3'} flex items-center gap-3 ${isDarkL1 ? 'bg-white/10' : 'bg-white'} rounded-2xl border ${isDarkL1 ? 'border-white/10' : 'border-blue-100/50'} shadow-sm relative overflow-hidden group transition-all`}>
               <div className="absolute top-0 right-0 w-12 h-12 bg-blue-400/5 rounded-full blur-xl -mr-6 -mt-6" />
               <div className={`${isCollapsed ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'} shrink-0 ${isDarkL1 ? 'bg-white text-gray-900' : 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white'} rounded-xl flex items-center justify-center font-black shadow-lg`}>Q</div>
               {!isCollapsed && (
@@ -251,10 +395,13 @@ export const Sidebar = ({
 
             {allMenuItems.map((item, idx) => {
               const isWorkflowItem = ['pending_confirmation', 'tasks', 'pending_approval', 'completed_tasks', 'trash'].includes(item.id);
-              const isActive = activeTab === item.id;
+              const isActive = activeTab === item.id || 
+                (item.id === 'staff_list' && ['office_calendar', 'attendance', 'leave_request', 'birthday', 'staff_list'].includes(activeTab)) ||
+                (item.id === 'system_history' && ['system_history', 'category_management', 'permission_matrix'].includes(activeTab));
               
               // Only show certain items to Admin
-              if (['staff_list', 'system_history', 'super_backup'].includes(item.id) && user.role !== 'Admin') return null;
+              if (item.id === 'system_history' && user.role !== 'Admin' && !user.delegatedPermissions?.canViewSystemHistory && !user.delegatedPermissions?.canManageCategories) return null;
+              if (item.id === 'super_backup' && user.role !== 'Admin' && !user.delegatedPermissions?.canAccessSuperBackup) return null;
 
               return (
                 <div key={item.id} className="relative group/nav">
@@ -264,7 +411,23 @@ export const Sidebar = ({
                     <div className={`absolute left-[23px] top-8 w-px h-6 ${isDarkL1 ? 'bg-white/10' : 'bg-gray-200'} z-0`} />
                   )}
                   <button
-                    onClick={() => item.isAction ? onSuperBackup?.() : setActiveTab(item.id)}
+                    onClick={() => {
+                      if (item.id === 'super_backup') {
+                        if (onSuperBackup) onSuperBackup();
+                        return;
+                      }
+                      const canManageStaff = user.role === 'Admin' || !!user.delegatedPermissions?.canManageStaff;
+                      if (item.id === 'staff_list' && !canManageStaff) {
+                        setActiveTab('office_calendar');
+                      } else {
+                        setActiveTab(item.id);
+                      }
+                      if (['staff_list', 'system_history', 'super_backup'].includes(item.id)) {
+                        if (!isCollapsed) {
+                          onToggleCollapse();
+                        }
+                      }
+                    }}
                     className={`w-full flex items-center ${isCollapsed ? 'justify-center p-3' : `gap-3 py-2.5 px-3.5 ${isWorkflowItem ? 'pl-6' : ''}`} rounded-xl transition-all relative z-10 ${
                       isActive 
                         ? (isDarkL1 ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-600 shadow-sm')
@@ -355,9 +518,9 @@ export const Sidebar = ({
         </div>
       </motion.aside>
 
-      {/* LEVEL 2 SIDEBAR - EMPTY for now as per user request */}
+      {/* LEVEL 2 SIDEBAR - ADMIN MAINTENANCE OR EMPTY FOR REGULAR USERS */}
       <AnimatePresence>
-        {isCollapsed && (
+        {isCollapsed && ['office_calendar', 'attendance', 'leave_request', 'birthday', 'staff_list', 'system_history', 'category_management', 'permission_matrix'].includes(activeTab) && (
           <motion.aside
             id="sidebar-level-2"
             initial={{ width: 0, opacity: 0, x: -20 }}
@@ -375,16 +538,246 @@ export const Sidebar = ({
               <ChevronRight size={12} strokeWidth={3} className={`transition-transform duration-300 ${isLevel2Collapsed ? '' : 'rotate-180'}`} />
             </button>
 
-            <div className={`flex-1 flex flex-col items-center justify-center ${isDarkL2 ? 'opacity-40' : 'opacity-20'} group overflow-hidden ${isLevel2Collapsed ? 'p-2' : 'p-5'}`}>
-               <div className={`w-16 h-16 rounded-full ${isDarkL2 ? 'bg-white/10' : 'bg-gray-100'} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                  <PlusSquare size={32} className={isDarkL2 ? 'text-white' : 'text-gray-400'} />
-               </div>
-               {!isLevel2Collapsed && (
-                 <p className={`text-[10px] font-black uppercase tracking-widest ${isDarkL2 ? 'text-white' : 'text-gray-400'}`}>Tầng 2 Đang Trống</p>
-               )}
-            </div>
+            {(() => {
+              const isOfficeSection = ['office_calendar', 'attendance', 'leave_request', 'birthday', 'staff_list'].includes(activeTab);
+              const isDbSection = ['system_history', 'category_management', 'permission_matrix'].includes(activeTab);
+              
+              return (
+                <div className="flex-1 flex flex-col min-h-0 overflow-y-auto no-scrollbar p-5">
+                  {isOfficeSection ? (
+                    // OFFICE SECTION (PHÂN KHU VĂN PHÒNG)
+                    !isLevel2Collapsed ? (
+                      <div className="flex-1 flex flex-col h-full min-h-0">
+                        <div className="flex items-center gap-2 mb-4">
+                          <span className="text-sm">🌸</span>
+                          <span translate="no" className="notranslate font-black text-slate-800 uppercase text-[12px] tracking-wider">
+                            Phân Khu Văn Phòng
+                          </span>
+                        </div>
+                        <div className="space-y-1 flex-1">
+                          {(user.role === 'Admin' || user.delegatedPermissions?.canManageStaff) && (
+                            <button
+                              onClick={() => setActiveTab('staff_list')}
+                              className={`w-full flex items-center gap-2.5 py-2 px-3 text-[10.5px] font-black uppercase rounded-xl transition-all whitespace-nowrap text-left ${
+                                activeTab === 'staff_list' 
+                                  ? 'bg-blue-600 text-white shadow-md' 
+                                  : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-800'
+                              }`}
+                            >
+                              <Users size={15} strokeWidth={2.5} className="shrink-0" />
+                              <span translate="no" className="notranslate flex-1">Quản Lý Nhân Sự</span>
+                            </button>
+                          )}
 
-            {/* Color Selector - Moved from Level 1 */}
+                          <button
+                            onClick={() => setActiveTab('office_calendar')}
+                            className={`w-full flex items-center gap-2.5 py-2 px-3 text-[10.5px] font-black uppercase rounded-xl transition-all whitespace-nowrap text-left ${
+                              activeTab === 'office_calendar' 
+                                ? 'bg-blue-600 text-white shadow-md' 
+                                : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-800'
+                            }`}
+                          >
+                            <Calendar size={15} strokeWidth={2.5} className="shrink-0" />
+                            <span translate="no" className="notranslate flex-1">Lịch Công Tác</span>
+                          </button>
+
+                          <button
+                            onClick={() => setActiveTab('leave_request')}
+                            className={`w-full flex items-center gap-2.5 py-2 px-3 text-[10.5px] font-black uppercase rounded-xl transition-all whitespace-nowrap text-left ${
+                              activeTab === 'leave_request' 
+                                ? 'bg-blue-600 text-white shadow-md' 
+                                : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-800'
+                            }`}
+                          >
+                            <ClipboardList size={15} strokeWidth={2.5} className="shrink-0" />
+                            <span translate="no" className="notranslate flex-1">Đơn Xin Nghỉ Phép</span>
+                          </button>
+
+                          <button
+                            onClick={() => setActiveTab('attendance')}
+                            className={`w-full flex items-center gap-2.5 py-2 px-3 text-[10.5px] font-black uppercase rounded-xl transition-all whitespace-nowrap text-left ${
+                              activeTab === 'attendance' 
+                                ? 'bg-blue-600 text-white shadow-md' 
+                                : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-800'
+                            }`}
+                          >
+                            <Clock size={15} strokeWidth={2.5} className="shrink-0" />
+                            <span translate="no" className="notranslate flex-1">Chấm Công Hàng Ngày</span>
+                          </button>
+
+                          <button
+                            onClick={() => setActiveTab('birthday')}
+                            className={`w-full flex items-center gap-2.5 py-2 px-3 text-[10.5px] font-black uppercase rounded-xl transition-all whitespace-nowrap text-left ${
+                              activeTab === 'birthday' 
+                                ? 'bg-blue-600 text-white shadow-md' 
+                                : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-800'
+                            }`}
+                          >
+                            <Gift size={15} strokeWidth={2.5} className="shrink-0" />
+                            <span translate="no" className="notranslate flex-1">Sinh Nhật Thành Viên</span>
+                          </button>
+                        </div>
+                        
+                        {/* Cutest decorative card at the bottom of panel */}
+                        <div className="mt-auto pt-4 border-t border-dashed border-gray-200/40 flex flex-col items-center justify-center text-center pb-2 select-none">
+                          <div className="flex items-center gap-1.5 opacity-85">
+                            <span className="text-base animate-bounce duration-1000">🧸</span>
+                            <span className="text-base animate-bounce duration-1000 delay-150">⭐</span>
+                            <span className="text-base animate-bounce duration-1000 delay-300">🎈</span>
+                          </div>
+                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">
+                            QLCL TÂN PHÚ
+                          </p>
+                          <p className="text-[8.5px] text-slate-400 font-bold mt-0.5">
+                            Chúc một ngày thật tuyệt vời! 💕
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      // Collapsed items
+                      <div className="flex flex-col gap-4 items-center py-4 flex-1">
+                        {(user.role === 'Admin' || user.delegatedPermissions?.canManageStaff) && <button onClick={() => setActiveTab('staff_list')} title="Quản Lý Nhân Sự" className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${activeTab === 'staff_list' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-blue-50/50'}`}><Users size={16} /></button>}
+                        <button onClick={() => setActiveTab('office_calendar')} title="Lịch Công Tác" className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${activeTab === 'office_calendar' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-blue-50/50'}`}><Calendar size={16} /></button>
+                        <button onClick={() => setActiveTab('leave_request')} title="Đơn Xin Nghỉ Phép" className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${activeTab === 'leave_request' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-blue-50/50'}`}><ClipboardList size={16} /></button>
+                        <button onClick={() => setActiveTab('attendance')} title="Chấm Công Hàng Ngày" className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${activeTab === 'attendance' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-blue-50/50'}`}><Clock size={16} /></button>
+                        <button onClick={() => setActiveTab('birthday')} title="Sinh Nhật Thành Viên" className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${activeTab === 'birthday' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-blue-50/50'}`}><Gift size={16} /></button>
+                      </div>
+                    )
+                  ) : isDbSection ? (
+                    // DATABASE SECTION (CƠ SỞ DỮ LIỆU) -> Admins Only
+                    (user.role === 'Admin' || user.delegatedPermissions?.canManageCategories || user.delegatedPermissions?.canViewSystemHistory) ? (
+                      !isLevel2Collapsed ? (
+                        <>
+                          <span translate="no" className="notranslate font-black text-indigo-950 uppercase text-xs mb-4 block tracking-wider">
+                            Cơ Sở Dữ Liệu
+                          </span>
+                          <div className="space-y-1.5 flex-1">
+                            {(user.role === 'Admin' || user.delegatedPermissions?.canManageCategories) && (
+                              <button
+                                onClick={() => setActiveTab('category_management')}
+                                className={`w-full flex items-center gap-2 py-2.5 px-3 text-[10.5px] font-black uppercase rounded-xl transition-all whitespace-nowrap ${
+                                  activeTab === 'category_management' 
+                                    ? 'bg-blue-600 text-white shadow-md' 
+                                    : 'text-slate-600 hover:bg-blue-50/40 hover:text-blue-800'
+                                }`}
+                              >
+                                <Tag size={13} strokeWidth={2.5} className="shrink-0" />
+                                <span translate="no" className="notranslate">Quản Lý Danh Mục</span>
+                              </button>
+                            )}
+
+                            {(user.role === 'Admin' || user.delegatedPermissions?.canViewSystemHistory) && (
+                              <button
+                                onClick={() => setActiveTab('system_history')}
+                                className={`w-full flex items-center gap-2 py-2.5 px-3 text-[10.5px] font-black uppercase rounded-xl transition-all whitespace-nowrap ${
+                                  activeTab === 'system_history' 
+                                    ? 'bg-blue-600 text-white shadow-md' 
+                                    : 'text-slate-600 hover:bg-blue-50/40 hover:text-blue-800'
+                                }`}
+                              >
+                                <Database size={13} strokeWidth={2.5} className="shrink-0" />
+                                <span translate="no" className="notranslate">Nhật Ký Hệ Thống</span>
+                              </button>
+                            )}
+
+                            {(user.role === 'Admin' || user.delegatedPermissions?.canManageStaff) && (
+                              <button
+                                onClick={() => setActiveTab('permission_matrix')}
+                                className={`w-full flex items-center gap-2 py-2.5 px-3 text-[10.5px] font-black uppercase rounded-xl transition-all whitespace-nowrap ${
+                                  activeTab === 'permission_matrix' 
+                                    ? 'bg-blue-600 text-white shadow-md' 
+                                    : 'text-slate-600 hover:bg-blue-50/40 hover:text-blue-800'
+                                }`}
+                              >
+                                <Shield size={13} strokeWidth={2.5} className="shrink-0" />
+                                <span translate="no" className="notranslate">Phân Quyền Ma Trận</span>
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        // Collapsed items
+                        <div className="flex flex-col gap-4 items-center py-4 flex-1">
+                          {(user.role === 'Admin' || user.delegatedPermissions?.canManageCategories) && (
+                            <button onClick={() => setActiveTab('category_management')} title="Quản Lý Danh Mục" className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${activeTab === 'category_management' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-blue-50/50'}`}><Tag size={16} /></button>
+                          )}
+                          {(user.role === 'Admin' || user.delegatedPermissions?.canViewSystemHistory) && (
+                            <button onClick={() => setActiveTab('system_history')} title="Nhật Ký Hệ Thống" className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${activeTab === 'system_history' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-blue-50/50'}`}><Database size={16} /></button>
+                          )}
+                          {(user.role === 'Admin' || user.delegatedPermissions?.canManageStaff) && (
+                            <button onClick={() => setActiveTab('permission_matrix')} title="Phân Quyền Hệ Thống" className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${activeTab === 'permission_matrix' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-blue-50/50'}`}><Shield size={16} /></button>
+                          )}
+                        </div>
+                      )
+                    ) : (
+                      // Non-admin attempting to access restricted DB area
+                      <div className="flex-1 flex flex-col items-center justify-center text-center p-3 opacity-60">
+                        <ShieldAlert size={28} className="text-red-500 mb-2" />
+                        <p translate="no" className="notranslate text-[9px] font-black uppercase leading-relaxed text-red-700">Giới Hạn Truy Cập</p>
+                      </div>
+                    )
+                  ) : null}
+                </div>
+              );
+            })()}
+
+            {/* COMPACT BẢO TRÌ HỆ THỐNG */}
+            {(user.role === 'Admin' || user.delegatedPermissions?.canAccessSuperBackup) && ['system_history', 'category_management'].includes(activeTab) && (
+              <div className={`px-4 py-3 border-t ${isDarkL2 ? 'border-white/10' : 'border-gray-100'} bg-transparent`}>
+                {!isLevel2Collapsed ? (
+                  <div className="bg-gray-50/50 p-2 border border-gray-200/50 rounded-2xl relative overflow-hidden text-slate-800">
+                    <div className="flex items-center justify-between mb-1.5 px-0.5">
+                      <span translate="no" className="notranslate text-[10px] font-black uppercase text-blue-900 tracking-wide">
+                        Bảo Trì Hệ Thống
+                      </span>
+                      <span title="Dự phòng quản trị" className="text-[8px] font-black text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-full select-none">
+                        ADM
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {/* SAO LƯU */}
+                      <button
+                        onClick={handleBackup}
+                        title="Sao lưu hệ thống (Backup JSON)"
+                        className="flex items-center justify-center gap-1.5 py-1.5 px-1.5 bg-gray-100 hover:bg-gray-200 text-black font-black text-[9px] uppercase tracking-tight rounded-md border border-gray-200/60 active:scale-95 transition-all"
+                      >
+                        <Save size={11} strokeWidth={2.5} />
+                        <span translate="no" className="notranslate">SAO LƯU</span>
+                      </button>
+
+                      {/* PHỤC HỒI */}
+                      <label
+                        title="Phục hồi hệ thống (Restore JSON)"
+                        className="flex items-center justify-center gap-1.5 py-1.5 px-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-black text-[9px] uppercase tracking-tight rounded-md border border-red-200/60 cursor-pointer active:scale-95 transition-all"
+                      >
+                        <input type="file" accept=".json" onChange={handleFileChange} className="hidden" />
+                        <Database size={11} strokeWidth={2.5} />
+                        <span translate="no" className="notranslate">PHỤC HỒI</span>
+                      </label>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2 items-center">
+                    <button
+                      onClick={handleBackup}
+                      title="Sao lưu hệ thống (Backup JSON)"
+                      className="w-8 h-8 rounded-md bg-gray-100 hover:bg-gray-200 flex items-center justify-center border border-gray-200 active:scale-95 transition-all text-black"
+                    >
+                      <Save size={13} strokeWidth={2.5} />
+                    </button>
+                    <label
+                      title="Phục hồi hệ thống (Restore JSON)"
+                      className="w-8 h-8 rounded-md bg-red-50 hover:bg-red-100 flex items-center justify-center border border-red-200 cursor-pointer active:scale-95 transition-all text-red-700 hover:animate-pulse"
+                    >
+                      <input type="file" accept=".json" onChange={handleFileChange} className="hidden" />
+                      <Database size={13} strokeWidth={2.5} />
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Color Selector */}
             <div className={`mt-auto border-t ${isDarkL2 ? 'border-white/10' : 'border-gray-100'} ${isLevel2Collapsed ? 'p-3' : 'p-4'}`}>
                {!isLevel2Collapsed ? (
                   <div className={`flex items-center justify-center px-2 ${isDarkL2 ? 'bg-white/5' : 'bg-gray-50/50'} p-2 rounded-2xl border ${isDarkL2 ? 'border-white/10' : 'border-gray-100'} shadow-inner`}>
@@ -401,6 +794,102 @@ export const Sidebar = ({
                 )}
             </div>
           </motion.aside>
+        )}
+      </AnimatePresence>
+
+      {/* RESTORE CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {showRestoreModal && (
+          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isRestoring && setShowRestoreModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            
+            {/* Modal Box */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-white border border-red-200 rounded-2xl shadow-2xl p-6 overflow-hidden z-10 text-slate-800"
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-4 text-red-600">
+                <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+                  <ShieldAlert size={20} strokeWidth={2.5} />
+                </div>
+                <div>
+                  <span translate="no" className="notranslate text-sm font-black uppercase tracking-wider block">
+                    Cảnh Báo Nguy Hiểm!
+                  </span>
+                  <span translate="no" className="notranslate text-[10px] font-black text-red-400 uppercase tracking-widest block">
+                    THIẾT QUÂN LUẬT KHÔI PHỤC
+                  </span>
+                </div>
+              </div>
+
+              {/* Warning Content */}
+              <div className="p-4 bg-red-50 border border-red-100 rounded-xl mb-4">
+                <span translate="no" className="notranslate text-xs font-black uppercase block mb-1.5 text-red-900">
+                  HÀNH ĐỘNG NÀY SẼ:
+                </span>
+                <ul className="text-[11px] font-black uppercase tracking-tight space-y-1.5 text-red-800 list-disc pl-4">
+                  <li>
+                    <span translate="no" className="notranslate">XÓA SẠCH toàn bộ dữ liệu hiện tại trong hệ thống.</span>
+                  </li>
+                  <li>
+                    <span translate="no" className="notranslate">NẠP LẠI chính xác dữ liệu từ tệp sao lưu đã chọn.</span>
+                  </li>
+                  <li>
+                    <span translate="no" className="notranslate">HOẠT ĐỘNG không thể phục hồi hoặc hoàn tác sau khi chạy!</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Prompt Input */}
+              <div className="space-y-2 mb-6">
+                <span translate="no" className="notranslate text-[10px] font-black text-slate-500 uppercase block">
+                  Nhập chữ 'CONFIRM' bên dưới để xác nhận cam kết hành động:
+                </span>
+                <input
+                  type="text"
+                  placeholder="CONFIRM"
+                  value={confirmInput}
+                  onChange={(e) => setConfirmInput(e.target.value)}
+                  disabled={isRestoring}
+                  className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs font-black tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50 disabled:opacity-50 text-slate-900"
+                />
+              </div>
+
+              {/* Footer Buttons */}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  disabled={isRestoring}
+                  onClick={() => setShowRestoreModal(false)}
+                  className="flex-1 h-10 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-50"
+                >
+                  <span translate="no" className="notranslate">HỦY BỎ</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRestoreConfirm}
+                  disabled={confirmInput !== 'CONFIRM' || isRestoring}
+                  className="flex-1 h-10 rounded-md bg-red-600 hover:bg-red-700 text-white text-[11px] font-black uppercase tracking-wider transition-all disabled:opacity-30 disabled:bg-red-600 shadow-md"
+                >
+                  {isRestoring ? (
+                    <span translate="no" className="notranslate">ĐANG NẠP...</span>
+                  ) : (
+                    <span translate="no" className="notranslate">THỰC THI PHỤC HỒI</span>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

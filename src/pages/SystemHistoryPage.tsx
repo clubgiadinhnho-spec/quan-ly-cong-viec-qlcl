@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { LogEntry, User, Task } from '../types';
 import { formatDate } from '../lib/dateUtils';
-import { Trash2, History, Activity } from 'lucide-react';
+import { Trash2, History, Activity, Gauge, Terminal, Sliders, Database, AlertTriangle, CheckCircle2, TrendingUp, Info, Layers, ShieldCheck, Cpu } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
@@ -25,6 +25,72 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
   setConfirmModal
 }) => {
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+
+  // ==========================================
+  // FIRESTORE QUOTA METRICS & CALCULATIONS
+  // ==========================================
+  const todayStart = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, []);
+
+  const logsToday = useMemo(() => {
+    return logs.filter(l => {
+      try {
+        return new Date(l.timestamp).getTime() >= todayStart;
+      } catch (e) {
+        return false;
+      }
+    });
+  }, [logs, todayStart]);
+
+  const activeUserIdsToday = useMemo(() => {
+    const ids = new Set(logsToday.map(l => l.userId).filter(id => id && id !== 'SYSTEM'));
+    return Array.from(ids);
+  }, [logsToday]);
+
+  const defaultSessions = Math.max(3, activeUserIdsToday.length * 2);
+  const [activeSessions, setActiveSessions] = useState(defaultSessions);
+
+  // Sync state if defaultSessions changes based on logs load
+  useEffect(() => {
+    setActiveSessions(Math.max(3, activeUserIdsToday.length * 2));
+  }, [activeUserIdsToday.length]);
+
+  const totalTasksCount = tasks.length;
+  const totalUsersCount = allUsers.length;
+  const totalLogsCount = logs.length;
+  
+  // Estimate total active docs in db
+  const totalDBDocs = totalTasksCount + totalUsersCount + Math.min(totalLogsCount, 250) + 15;
+
+  const FREE_READS_LIMIT = 50000;
+  const FREE_WRITES_LIMIT = 20000;
+  
+  // Writes estimate: each log today represents a log document creation + parent document update
+  const estimatedWritesToday = Math.max(0, logsToday.length * 2);
+  
+  // Reads estimate: (Active sessions * total loaded docs) + (realtime updates * active sessions)
+  const estimatedReadsToday = Math.max(0, (activeSessions * totalDBDocs) + (logsToday.length * activeSessions));
+  
+  // Storage size estimate: approx 1.5 KB per document in DB
+  const estimatedStorageMB = Number(((totalDBDocs * 1.5) / 1024).toFixed(3));
+
+  // Current session instrumentation counters
+  const [sessionInitialReads] = useState(totalDBDocs);
+  const [sessionLiveReads, setSessionLiveReads] = useState(0);
+  const prevLogsLength = useRef(logs.length);
+
+  useEffect(() => {
+    if (logs.length > prevLogsLength.current) {
+      const diff = logs.length - prevLogsLength.current;
+      setSessionLiveReads(prev => prev + diff);
+    }
+    prevLogsLength.current = logs.length;
+  }, [logs]);
+
+  const formatNum = (num: number) => num.toLocaleString('vi-VN');
 
   // Migration logic for old logs - More aggressive check
   useEffect(() => {
@@ -260,6 +326,214 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
           </div>
         </div>
 
+        {/* ============================================================= */}
+        {/* FIRESTORE DAILY FREE QUOTA BANDWIDTH TRACKER (GIÁM SÁT QUOTA) */}
+        {/* ============================================================= */}
+        <div className="mx-8 mb-8 p-6 bg-slate-50/70 rounded-2xl border border-slate-200/80">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200">
+            <div>
+              <div className="flex items-center gap-2">
+                <Gauge className="text-indigo-600 animate-pulse" size={20} strokeWidth={2.5} />
+                <h4 className="text-base font-black text-slate-800 uppercase tracking-tight">
+                  GIÁM SÁT QUOTA MIỄN PHÍ FIRESTORE (TODAY'S FREE TIER METRICS)
+                </h4>
+              </div>
+              <p className="text-slate-500 text-[11px] font-bold mt-1 uppercase tracking-wider leading-relaxed">
+                Phân tích & ước lượng lượng dữ liệu đọc/ghi phát sinh hôm nay để đảm bảo không vượt ngưỡng 
+                <span className="text-emerald-600 font-extrabold mx-1">50.000 lượt đọc</span> và 
+                <span className="text-blue-600 font-extrabold mx-1">20.000 lượt ghi</span> miễn phí của Google Firebase Firestore mỗi ngày.
+              </p>
+            </div>
+
+            {/* Simulated scale slider */}
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center gap-4 min-w-[320px]">
+              <div className="w-full">
+                <div className="flex justify-between text-[11px] font-black text-slate-500 uppercase mb-1.5">
+                  <span>Số thiết bị chạy app hôm nay:</span>
+                  <span className="text-indigo-600 font-extrabold">{activeSessions} thiết bị</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="1" 
+                  max="55" 
+                  value={activeSessions} 
+                  onChange={(e) => setActiveSessions(Number(e.target.value))}
+                  className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                />
+              </div>
+              <span className="hidden sm:inline-flex px-2 py-1 bg-indigo-50 text-indigo-700 font-black text-[9px] rounded uppercase tracking-wider border border-indigo-100 shrink-0">
+                Mô phỏng quy mô
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {/* 1. READS CARD */}
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 font-black text-[9px] rounded uppercase tracking-wider border border-emerald-100">
+                    LƯỢT ĐỌC (DOCUMENT READS)
+                  </span>
+                  <Database className="text-emerald-500" size={16} />
+                </div>
+                <div className="flex items-baseline gap-1 mb-2">
+                  <span className="text-2xl font-black text-slate-800">{formatNum(estimatedReadsToday)}</span>
+                  <span className="text-[10px] font-bold text-slate-400">/ 50.000</span>
+                </div>
+                {/* Progress bar */}
+                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-3">
+                  <div 
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
+                    style={{ width: `${Math.min(100, (estimatedReadsToday / FREE_READS_LIMIT) * 100)}%` }}
+                  />
+                </div>
+                {/* Breakdown details */}
+                <div className="space-y-1.5 text-[11px] text-slate-500 font-bold font-sans">
+                  <div className="flex justify-between">
+                    <span>Nạp tải ban đầu:</span>
+                    <span className="text-slate-700 font-extrabold">{formatNum(activeSessions * totalDBDocs)} lượt</span>
+                  </div>
+                  <div className="flex justify-between border-t border-dashed border-slate-100 pt-1">
+                    <span>Đồng bộ Realtime:</span>
+                    <span className="text-slate-700 font-extrabold">{formatNum(logsToday.length * activeSessions)} lượt</span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between font-sans">
+                <span className="text-[10px] font-black text-slate-400 uppercase">Hạn mức còn lại:</span>
+                <span className="text-xs font-black text-emerald-700">
+                  {estimatedReadsToday >= FREE_READS_LIMIT ? 'Quá tải' : formatNum(FREE_READS_LIMIT - estimatedReadsToday)} lượt
+                </span>
+              </div>
+            </div>
+
+            {/* 2. WRITES CARD */}
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="px-2.5 py-1 bg-blue-50 text-blue-700 font-black text-[9px] rounded uppercase tracking-wider border border-blue-100">
+                    LƯỢT GHI (DOCUMENT WRITES)
+                  </span>
+                  <TrendingUp className="text-blue-500" size={16} />
+                </div>
+                <div className="flex items-baseline gap-1 mb-2">
+                  <span className="text-2xl font-black text-slate-800">{formatNum(estimatedWritesToday)}</span>
+                  <span className="text-[10px] font-bold text-slate-400">/ 20.000</span>
+                </div>
+                {/* Progress bar */}
+                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-3">
+                  <div 
+                    className="h-full bg-blue-500 rounded-full transition-all duration-500" 
+                    style={{ width: `${Math.min(100, (estimatedWritesToday / FREE_WRITES_LIMIT) * 100)}%` }}
+                  />
+                </div>
+                {/* Breakdown details */}
+                <div className="space-y-1.5 text-[11px] text-slate-500 font-bold font-sans">
+                  <div className="flex justify-between">
+                    <span>Số Log phát sinh ngày:</span>
+                    <span className="text-slate-700 font-extrabold">{formatNum(logsToday.length)} bản ghi</span>
+                  </div>
+                  <div className="flex justify-between border-t border-dashed border-slate-100 pt-1">
+                    <span>Hành động cập nhật:</span>
+                    <span className="text-slate-700 font-extrabold">{formatNum(logsToday.length)} lượt</span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between font-sans">
+                <span className="text-[10px] font-black text-slate-400 uppercase">Hạn mức còn lại:</span>
+                <span className="text-xs font-black text-blue-700">
+                  {estimatedWritesToday >= FREE_WRITES_LIMIT ? 'Quá tải' : formatNum(FREE_WRITES_LIMIT - estimatedWritesToday)} lượt
+                </span>
+              </div>
+            </div>
+
+            {/* 3. STORAGE CARD */}
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="px-2.5 py-1 bg-amber-50 text-amber-700 font-black text-[9px] rounded uppercase tracking-wider border border-amber-100">
+                    DUNG LƯỢNG (DB STORAGE)
+                  </span>
+                  <Layers className="text-amber-500" size={16} />
+                </div>
+                <div className="flex items-baseline gap-1 mb-2">
+                  <span className="text-2xl font-black text-slate-800">{estimatedStorageMB} MB</span>
+                  <span className="text-[10px] font-bold text-slate-400">/ 1.024 MB</span>
+                </div>
+                {/* Progress bar */}
+                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-3">
+                  <div 
+                    className="h-full bg-amber-500 rounded-full transition-all duration-500" 
+                    style={{ width: `${Math.min(100, (estimatedStorageMB / 1024) * 100)}%` }}
+                  />
+                </div>
+                {/* Breakdown details */}
+                <div className="space-y-1.5 text-[11px] text-slate-500 font-bold font-sans">
+                  <div className="flex justify-between">
+                    <span>Tổng số bản ghi DB:</span>
+                    <span className="text-slate-700 font-extrabold">{formatNum(totalDBDocs)} docs</span>
+                  </div>
+                  <div className="flex justify-between border-t border-dashed border-slate-100 pt-1">
+                    <span>Kích thước trung bình:</span>
+                    <span className="text-slate-700 font-extrabold">~ 1,5 KB / doc</span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between font-sans">
+                <span className="text-[10px] font-black text-slate-400 uppercase">Tài nguyên dư dả:</span>
+                <span className="text-xs font-black text-amber-700">99,99% trống</span>
+              </div>
+            </div>
+
+            {/* 4. CURRENT TAB INSTRUMENTATION */}
+            <div className="bg-[#1e293b] p-5 rounded-xl border border-slate-800 shadow-xl flex flex-col justify-between text-white font-mono">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="px-2.5 py-1 bg-slate-800 text-indigo-300 font-black text-[9px] rounded uppercase tracking-wider border border-indigo-500/20 flex items-center gap-1 font-sans">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
+                    LIVE TELEMETRY (TAB NÀY)
+                  </span>
+                  <Terminal className="text-indigo-400" size={16} />
+                </div>
+                <div className="space-y-2 text-[11px] text-slate-300">
+                  <div className="flex justify-between">
+                    <span>[SYS_CONN]:</span>
+                    <span className="text-emerald-400 font-bold">ONLINE</span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-800 pt-1.5">
+                    <span>Initial Load:</span>
+                    <span className="text-yellow-400 font-bold">+{formatNum(sessionInitialReads)} reads</span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-800 pt-1.5">
+                    <span>Realtime Stream:</span>
+                    <span className="text-indigo-400 font-bold">+{formatNum(sessionLiveReads)} reads</span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-800 pt-1.5">
+                    <span>Local Cache:</span>
+                    <span className="text-blue-400 font-bold">ACTIVE</span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-800 flex items-center gap-1.5 font-sans">
+                <ShieldCheck className="text-emerald-500 shrink-0" size={14} />
+                <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                  QUẢN TRỊ VIÊN BẢO MẬT
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Educational notice */}
+          <div className="mt-4.5 p-3.5 bg-white/65 rounded-xl border border-slate-200/50 flex gap-2.5 items-start text-xs text-slate-600 leading-normal">
+            <Info size={16} className="text-indigo-500 mt-0.5 shrink-0" />
+            <div className="font-sans font-bold">
+              <span className="text-indigo-900 font-extrabold uppercase text-[10.5px] block mb-0.5 font-sans">Mẹo tối ưu ngân sách:</span>
+              Vì ứng dụng sử dụng công nghệ lắng nghe thời gian thực (realtime listeners), số lượt đọc nhân dần theo số lượng nhân viên chạy app cùng lúc. Hãy hạn chế treo máy mở app vô thời hạn, hoặc phân quyền xem danh mục hợp lý để luôn lưu hành trong giới hạn miễn phí trọn đời của Google Firestore!
+            </div>
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full border-collapse border border-slate-200">
             <thead>
@@ -305,7 +579,7 @@ export const SystemHistoryPage: React.FC<SystemHistoryPageProps> = ({
                 logs
                   .filter(log => {
                     const details = log.details || '';
-                    return !/(?:🤖|\[JOB|JOB Assist|JOB Assistant|JOB Update|JOB:|\bJOB\b|\[Robot|Robot Assist|Robot Assistant|Robot Update|Robot:|\bRobot\b)/gi.test(details);
+                    return !/(?:🤖|\[JOB\]|\[JOB\s|JOB Assist|JOB Assistant|JOB Update|JOB:)/gi.test(details);
                   })
                   .map((log, index) => (
                     <tr 

@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Send, X, User, Loader2, Sparkles } from 'lucide-react';
 import { Task, AIChatMessage, User as UserType } from '../../types';
 import { JobAvatar } from '../common/JobAvatar';
+import { SupIconSVG } from '../common/SupIconSVG';
+import { JobIconSVG } from '../common/JobIconSVG';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
@@ -83,11 +85,74 @@ export const TaskAIChat: React.FC<TaskAIChatProps> = ({
   const taskMessages = messages.filter(m => m.taskId === task.id && m.userId === (currentUser.uniqueKey || currentUser.id))
     .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
+  const messagesLength = taskMessages.length;
+
+  const renderMessageContent = (content: string) => {
+    if (!content) return null;
+    const lines = content.split('\n');
+    return (
+      <div className="space-y-1 text-left text-[12.5px] leading-tight select-none">
+        {lines.map((line, idx) => {
+          const trimmed = line.trim();
+          if (!trimmed) return <div key={idx} className="h-0.5" />;
+
+          // Match S.U.P Boss chỉ thị
+          if (trimmed.includes('S.U.P Boss chỉ thị') || trimmed.includes('S.U.P chỉ thị')) {
+            const cleanText = trimmed.replace(/^[🗣️👥🤖\s*-]+/, '').trim().replace(/^\*\*|\*\*$/g, '').replace(/:$/, '');
+            return (
+              <div key={idx} className="flex items-center gap-1.5 font-extrabold text-orange-600 mt-2 mb-1 bg-orange-100/50 p-1 px-1.5 rounded border border-orange-200/50 w-fit">
+                <SupIconSVG size={13} className="shrink-0" />
+                <span className="text-[10px] uppercase tracking-wide">{cleanText}</span>
+              </div>
+            );
+          }
+
+          // Match JOB phân tích kỹ thuật
+          if (trimmed.includes('JOB phân tích kỹ thuật') || trimmed.includes('JOB phân tích')) {
+            const cleanText = trimmed.replace(/^[🤖👥🗣️\s*-]+/, '').trim().replace(/^\*\*|\*\*$/g, '').replace(/:$/, '');
+            return (
+              <div key={idx} className="flex items-center gap-1.5 font-extrabold text-blue-600 mt-2 mb-1 bg-blue-100/50 p-1 px-1.5 rounded border border-blue-200/50 w-fit">
+                <JobIconSVG size={13} className="shrink-0" />
+                <span className="text-[10px] uppercase tracking-wide">{cleanText}</span>
+              </div>
+            );
+          }
+
+          // Match next action
+          if (trimmed.includes('Đầu ra tiếp theo [LÀM NGAY]') || trimmed.includes('Đầu ra tiếp theo')) {
+            const cleanText = trimmed.replace(/^[✨🎯👉\s*-]+/, '').trim().replace(/^\*\*|\*\*$/g, '').replace(/:$/, '');
+            return (
+              <div key={idx} className="flex items-center gap-1.5 font-extrabold text-rose-700 mt-2 mb-1 bg-rose-50 px-1.5 py-1 rounded border border-rose-200 w-fit">
+                <span className="shrink-0 text-[10.5px]">🎯</span>
+                <span className="text-[10.5px] uppercase tracking-tight">{cleanText}</span>
+              </div>
+            );
+          }
+
+          // Render quote correctly
+          if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+            return (
+              <p key={idx} className="text-gray-700 pl-2.5 border-l-2 border-orange-300 italic my-1 font-medium leading-relaxed text-[12px]">
+                {trimmed}
+              </p>
+            );
+          }
+
+          return (
+            <p key={idx} className="text-gray-800 font-medium leading-normal whitespace-pre-wrap">
+              {line}
+            </p>
+          );
+        })}
+      </div>
+    );
+  };
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [taskMessages, loading]);
+  }, [messagesLength, loading]);
 
   // AUTO-TRIGGER FIRST MESSAGE ON OPEN
   useEffect(() => {
@@ -104,7 +169,35 @@ export const TaskAIChat: React.FC<TaskAIChatProps> = ({
     setLoading(true);
 
     try {
-      // 1. CACHE CHECK: "Nhớ bài - Không hỏi lại"
+      // 1. S.U.P PATROL REPORT CHECK: If this task has been patrolled and has results, present it
+      if (isInitialMode && task.lastPatrolResult) {
+        const { assistantReply, supervisorClosing, nextAction } = task.lastPatrolResult;
+        
+        const reportGreeting = `Chào Sếp, S.U.P đã hoàn thành rà soát trực tiếp công việc này ngày hôm nay. Đây là kết quả cuộc trao đổi:
+
+🗣️ **S.U.P Boss chỉ thị**:
+"${supervisorClosing || "Không có chỉ thị đặc biệt."}"
+
+🤖 **JOB phân tích kỹ thuật**:
+"${assistantReply || "Tiến trình bám sát QCD."}"
+
+🎯 **Đầu ra tiếp theo [LÀM NGAY]**:
+👉 **${nextAction || "Liên tục cập nhật tiến độ."}**
+
+Sếp và Anh Em khẩn trương thực hiện theo đúng chỉ đạo nhé! Sếp có muốn chỉ đạo hoặc hỏi đáp gì thêm với JOB không ạ?`;
+
+        await onSendMessage({
+          taskId: task.id,
+          userId: currentUser.uniqueKey || currentUser.id,
+          role: 'assistant',
+          content: reportGreeting,
+          timestamp: new Date().toISOString()
+        });
+        setLoading(false);
+        return;
+      }
+
+      // 2. CACHE CHECK: "Nhớ bài - Không hỏi lại"
       const currentTaskContent = `${task.title} | ${task.objective} | ${task.expectedEndDate}`;
       if (isInitialMode && task.last_ai_content === currentTaskContent && task.last_ai_response) {
         await onSendMessage({
@@ -136,7 +229,7 @@ export const TaskAIChat: React.FC<TaskAIChatProps> = ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            prompt: `Bạn là JOB, trợ lý AI chuyên nghiệp và thân thiện. 
+prompt: `Bạn là JOB, trợ lý AI chuyên nghiệp và thân thiện. 
 Nhiệm vụ của bạn: Nhắc nhở và hỗ trợ người dùng hoàn thành công việc.
 Công việc hiện tại: "${task.title}"
 Mục tiêu: "${task.objective}"
@@ -148,7 +241,7 @@ Yêu cầu:
 1. Luôn xưng hô lịch sự, thân thiện, xưng "JOB" và gọi người dùng là "Sếp" hoặc "Bạn" tùy vai trò.
 2. Nếu là nhân viên phụ trách: Tập trung vào việc thúc đẩy tiến độ, gợi ý giải pháp.
 3. Nếu là Admin: Hỗ trợ phân tích công việc, gợi ý cách quản lý hoặc kiểm tra.
-4. Trả lời ngắn gọn, súc tích bằng tiếng Việt.
+4. Trả lời cực kỳ ngắn gọn, súc tích (dưới 35 từ), đi thẳng vào vấn đề bằng tiếng Việt, tuyệt đối không dông dài.
 5. Đây là cuộc hội thoại riêng tư chỉ giữa bạn và người này, người khác không thấy nội dung này.`,
             messages: taskMessages.map(m => ({
               role: m.role,
@@ -251,7 +344,7 @@ Yêu cầu:
 
   return (
     <div 
-      className="absolute left-[45px] top-[-10px] z-[500] flex flex-col pointer-events-none"
+      className="absolute left-[45px] top-[-10px] z-[1500] flex flex-col pointer-events-none"
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
@@ -296,7 +389,34 @@ Yêu cầu:
           className="flex-1 overflow-y-auto p-1.5 space-y-1.5 bg-blue-50/5 scrollbar-hide"
           style={{ scrollBehavior: 'smooth' }}
         >
-          {taskMessages.length === 0 && (
+          {task.lastPatrolResult && (
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 rounded-lg p-2 mb-2 shadow-xs text-[11px] text-amber-950 font-medium select-none">
+              <div className="flex items-center gap-1.5 mb-1 bg-amber-500 text-white px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider w-fit">
+                🚨 KẾT QUẢ TUẦN TRA S.U.P
+              </div>
+              <div className="space-y-1.5 text-left leading-relaxed">
+                <div className="flex items-start gap-1.5">
+                  <SupIconSVG size={14} className="shrink-0 mt-0.5" />
+                  <p>
+                    <strong className="text-orange-700 font-black">S.U.P chỉ thị:</strong>{' '}
+                    <span className="italic">"{task.lastPatrolResult.supervisorClosing}"</span>
+                  </p>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <JobIconSVG size={14} className="shrink-0 mt-0.5" />
+                  <p>
+                    <strong className="text-blue-700 font-black">JOB phân tích:</strong>{' '}
+                    <span>{task.lastPatrolResult.assistantReply}</span>
+                  </p>
+                </div>
+                <p className="mt-1.5 text-rose-700 bg-rose-50 px-1.5 py-1 rounded border border-rose-200 font-extrabold block text-[10px]">
+                  📌 [LÀM NGAY] Đầu ra tiếp theo: {task.lastPatrolResult.nextAction}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {taskMessages.length === 0 && !task.lastPatrolResult && (
             <div className="text-center py-2">
               <JobAvatar size={22} className="mx-auto mb-1 opacity-50" />
               <p className="text-[8.5px] text-gray-400 font-bold uppercase tracking-widest leading-none">Lệnh?</p>
@@ -313,7 +433,11 @@ Yêu cầu:
                   ? 'bg-blue-600 text-white rounded-br-none text-right' 
                   : 'bg-white text-gray-800 border border-blue-100 rounded-bl-none text-left'
               }`}>
-                <p className="whitespace-pre-wrap">{msg.content}</p>
+                {msg.role === 'user' ? (
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                ) : (
+                  renderMessageContent(msg.content)
+                )}
                 <div className={`text-[7.5px] mt-0.5 opacity-40 font-bold ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
                   {new Date(msg.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                 </div>

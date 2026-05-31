@@ -92,7 +92,7 @@ export function useAuth(allUsers: UserType[]) {
       ];
       const isSystemAdmin = systemAdmins.includes(userEmail);
       
-      let matchingStaff = allUsers.find(s => s.id === fbUser.uid);
+      let matchingStaff = allUsers.find(s => s.id === fbUser.uid || (s as any).uid === fbUser.uid);
       if (!matchingStaff) {
         matchingStaff = allUsers.find(s => 
           (s.companyEmail || "").toLowerCase() === userEmail || 

@@ -95,7 +95,8 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
   const handleOpenNewTabToPrint = () => {
     const isIframe = window.self !== window.top;
     if (isIframe) {
-      const printUrl = new URL(window.location.href);
+      const printUrl = new URL(window.location.origin + window.location.pathname);
+      printUrl.searchParams.set('tab', 'pending_confirmation');
       printUrl.searchParams.set('print', 'true');
       printUrl.searchParams.set('layout_orient', modalPrintOrient);
       printUrl.searchParams.set('print_scale', modalPrintScale.toString());
@@ -280,7 +281,7 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
         </div>
         
         <div className="flex items-center gap-4">
-          {isAdmin && onOpenCategoryManagement && (
+          {(isAdmin || currentUser.delegatedPermissions?.newProposals_encode === true) && onOpenCategoryManagement && (
             <button
               onClick={onOpenCategoryManagement}
               className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95 border-b-4 border-blue-800"
@@ -306,14 +307,14 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
                  TÌM THẤY: {pendingTasks.length}
                </span>
              )}
-             <div className="relative group mr-2">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+<div className={`relative group mr-2 ${!(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_search !== false) ? "hidden" : ""}`}>
+              {!(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_search !== false) ? null : <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />}
               <input
                 type="text"
-                placeholder="Tìm kiếm mã, nội dung, nhân sự, ngày khởi tạo, ngày bắt đầu, hạn hoàn thành, Gia hạn, chu kỳ lặp lại..."
-                value={search}
+                placeholder={!(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_search !== false) ? "" : "Tìm kiếm mã, nội dung, nhân sự, ngày khởi tạo, ngày bắt đầu, hạn hoàn thành, Gia hạn, chu kỳ lặp lại..."}
+                value={!(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_search !== false) ? "" : search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500 text-xs w-64 placeholder:notranslate transition-all group-focus-within:border-emerald-400 group-focus-within:shadow-sm shadow-sm"
+                className={`pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500 text-xs w-64 placeholder:notranslate transition-all group-focus-within:border-emerald-400 group-focus-within:shadow-sm shadow-sm ${!(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_search !== false) ? "hidden" : ""}`}
               />
             </div>
 
@@ -326,20 +327,24 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
               <span translate="no" className="notranslate">In PDF</span>
             </button>
 
-             {(currentUser.role === "Admin" || currentUser.delegatedPermissions?.canExportExcel) && (
+             {(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_importExcel === true || currentUser.delegatedPermissions?.newProposals_exportExcel === true) && (
                 <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold hover:bg-blue-700 transition-all uppercase shadow-sm cursor-pointer shadow-blue-200">
-                    <FileDown size={12} className="rotate-180" />
-                    <span translate="no" className="notranslate">Nhập Excel</span>
-                    <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
-                  </label>
-                  <button
-                    onClick={() => handleExportExcel(pendingTasks)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-50 transition-all uppercase shadow-sm"
-                  >
-                    <FileDown size={12} />
-                    <span translate="no" className="notranslate">Xuất Excel</span>
-                  </button>
+                  {(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_importExcel === true) && (
+                    <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold hover:bg-blue-700 transition-all uppercase shadow-sm cursor-pointer shadow-blue-200">
+                      <FileDown size={12} className="rotate-180" />
+                      <span translate="no" className="notranslate">Nhập Excel</span>
+                      <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportExcel} />
+                    </label>
+                  )}
+                  {(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_exportExcel === true) && (
+                    <button
+                      onClick={() => handleExportExcel(pendingTasks)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-50 transition-all uppercase shadow-sm"
+                    >
+                      <FileDown size={12} />
+                      <span translate="no" className="notranslate">Xuất Excel</span>
+                    </button>
+                  )}
                 </div>
               )}
              {isManager && selectedIds.length > 0 && (

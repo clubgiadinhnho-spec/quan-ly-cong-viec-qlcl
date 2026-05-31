@@ -298,3 +298,25 @@ export const getTaskDeadlineStatus = (task: any, referenceDate: Date = new Date(
     animate: false
   };
 };
+
+export function formatAllDatesInString(text: string | null | undefined): string {
+  if (!text) return '';
+  
+  // Format ISO timestamps like 2026-05-26T23:48:48.000Z or similar to hh:mm dd/MM/yy
+  let processed = text.replace(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z?/gi, (match, y, m, d, hh, mm) => {
+    return `${hh}:${mm} ${d}/${m}/${y.slice(-2)}`;
+  });
+
+  // Format date-time like "2026-05-26 23:48:48" or "2026-05-26 23:48" to hh:mm dd/MM/yy
+  processed = processed.replace(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::\d{2})?/gi, (match, y, m, d, hh, mm) => {
+    return `${hh}:${mm} ${d}/${m}/${y.slice(-2)}`;
+  });
+
+  // Format simple YYYY-MM-DD, e.g. 2026-05-27 and format them to DD/MM/YY
+  processed = processed.replace(/(\d{4})-(\d{2})-(\d{2})/g, (match, y, m, d) => {
+    return `${d}/${m}/${y.slice(-2)}`;
+  });
+
+  return processed;
+}
+

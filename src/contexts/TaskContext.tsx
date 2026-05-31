@@ -7,6 +7,7 @@ import { useExcelHandlers } from "../hooks/useExcelHandlers";
 import { useNotifications } from "../hooks/useNotifications";
 import { useAppNotifications } from "../hooks/useAppNotifications";
 import { useJobAI } from "../hooks/useJobAI";
+import { useSupervisorPatrol } from "../hooks/useSupervisorPatrol";
 import { useAuthContext } from "./AuthContext";
 import { db } from "../lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -103,6 +104,10 @@ interface TaskContextType {
   setIsNotificationCenterOpen: (s: boolean) => void;
   showHealthReminder: boolean;
   setShowHealthReminder: (s: boolean) => void;
+  selectedPermissionUserId: string | null;
+  setSelectedPermissionUserId: (id: string | null) => void;
+  supState: any;
+  togglePatrol: () => Promise<void>;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -135,6 +140,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const [isChatMinimized, setIsChatMinimized] = useState(false);
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const [showHealthReminder, setShowHealthReminder] = useState(false);
+  const [selectedPermissionUserId, setSelectedPermissionUserId] = useState<string | null>(null);
 
   // Reset search when changing tabs to meet "search on which page only searches... of that page only" requirement
   useEffect(() => {
@@ -176,6 +182,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
   useJobAI({
     tasks, currentUser: effectiveUser, sendAiMessage, aiMessages, users: allUsers
+  });
+
+  const { supState, togglePatrol } = useSupervisorPatrol({
+    tasks, currentUser: effectiveUser, users: allUsers, activeTab
   });
 
   // Presence Heartbeat
@@ -385,7 +395,9 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     setConfirmModal, confirmModal,
     showTaskModal, setShowTaskModal, editingTask, setEditingTask, showHistoryModal, setShowHistoryModal, showChatModal, setShowChatModal,
     highlightedTaskId, setHighlightedTaskId, showDirectChat, setShowDirectChat, isChatMinimized, setIsChatMinimized,
-    isNotificationCenterOpen, setIsNotificationCenterOpen, showHealthReminder, setShowHealthReminder
+    isNotificationCenterOpen, setIsNotificationCenterOpen, showHealthReminder, setShowHealthReminder,
+    selectedPermissionUserId, setSelectedPermissionUserId,
+    supState, togglePatrol
   };
 
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;

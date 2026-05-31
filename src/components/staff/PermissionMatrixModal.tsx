@@ -1,6 +1,6 @@
 import React from 'react';
 import { User, UserPermissions } from '../../types';
-import { X, Shield, CheckCircle2, Briefcase, Database, Settings, Zap, RotateCcw, Award } from 'lucide-react';
+import { X, Shield, CheckCircle2, Briefcase, Database, Settings, Zap, RotateCcw, Award, BarChart3, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface PermissionMatrixModalProps {
@@ -18,11 +18,17 @@ const GROUP_STYLES: Record<string, { activeBg: string; activeText: string; iconB
     iconBg: 'bg-blue-100 text-blue-600',
     iconActiveBg: 'bg-blue-500 text-white shadow-md'
   },
-  data: { 
-    activeBg: 'bg-emerald-600', 
+  reports: { 
+    activeBg: 'bg-[#10b981]', 
     activeText: 'text-white',
     iconBg: 'bg-emerald-100 text-emerald-600',
     iconActiveBg: 'bg-emerald-500 text-white shadow-md'
+  },
+  utilities: { 
+    activeBg: 'bg-[#f59e0b]', 
+    activeText: 'text-white',
+    iconBg: 'bg-amber-100 text-amber-600',
+    iconActiveBg: 'bg-amber-500 text-white shadow-md'
   },
   system: { 
     activeBg: 'bg-purple-600', 
@@ -38,18 +44,31 @@ const PERMISSION_GROUPS = [
     label: 'QUẢN LÝ CÔNG VIỆC',
     icon: <Briefcase size={24} strokeWidth={2.5} />,
     items: [
-      { key: 'canCreateTask', label: 'NHẬP CÔNG VIỆC MỚI', description: 'Cho phép tạo và giao dự án' },
-      { key: 'canApproveTask', label: 'PHÊ DUYỆT HOÀN THÀNH', description: 'Xác nhận báo cáo & chốt số' },
-      { key: 'canDeleteTask', label: 'XÓA HOẶC HỦY DỰ ÁN', description: 'Quyền gỡ bỏ đầu việc' },
+      { key: 'canCreateTask', label: 'NHẬP CÔNG VIỆC MỚI', description: 'Cho phép tạo, phân công và bàn giao công việc/dự án' },
+      { key: 'canEditTask', label: 'SỬA ĐỔI THÔNG TIN', description: 'Cho phép cập nhật mục tiêu, vai trò hoặc hạn chót' },
+      { key: 'canApproveTask', label: 'PHÊ DUYỆT HOÀN THÀNH', description: 'Xác nhận phê duyệt báo cáo hoàn thành & chốt KPI' },
+      { key: 'canDeleteTask', label: 'XÓA ĐẦU VIỆC', description: 'Gỡ bỏ công việc chính thức chuyển vào Thùng rác' },
     ]
   },
   {
-    id: 'data',
-    label: 'DỮ LIỆU & BÁO CÁO',
-    icon: <Database size={24} strokeWidth={2.5} />,
+    id: 'reports',
+    label: 'DỮ LIỆU & BÁO CÁO NHÓM',
+    icon: <BarChart3 size={24} strokeWidth={2.5} />,
     items: [
-      { key: 'canExportExcel', label: 'XUẤT DỮ LIỆU EXCEL', description: 'Tải báo cáo tổng hợp' },
-      { key: 'canImportExcel', label: 'NHẬP DỮ LIỆU MẪU', description: 'Cập nhật từ tệp Excel' },
+      { key: 'canViewReports', label: 'XEM BÁO CÁO TOÀN PHÒNG', description: 'Theo dõi bảng tổng hợp KPI và tiến độ phòng ban' },
+      { key: 'canConfigReportKpi', label: 'CẤU HÌNH KPI PHÒNG BAN', description: 'Thiết lập chỉ số, trọng số & phân bổ tỉ lệ tháng' },
+      { key: 'canExportExcel', label: 'XUẤT BÁO CÁO EXCEL', description: 'Tải các tệp dữ liệu, biểu mẫu thống kê Excel' },
+      { key: 'canImportExcel', label: 'NHẬP EXCEL MẪU', description: 'Cập nhật nhanh đầu việc hàng loạt bằng file Excel' },
+    ]
+  },
+  {
+    id: 'utilities',
+    label: 'TIỆN ÍCH & TRÌNH DUYỆT',
+    icon: <Calendar size={24} strokeWidth={2.5} />,
+    items: [
+      { key: 'canViewOfficeCalendar', label: 'XEM LỊCH CÔNG TÁC', description: 'Theo dõi lịch di chuyển toàn phòng ban' },
+      { key: 'canRegisterCalendar', label: 'ĐĂNG KÝ LỊCH & CHẤM CÔNG', description: 'Yêu cầu đi công tác nội bộ và điểm danh mỗi ngày' },
+      { key: 'canApproveLeaveRequest', label: 'DUYỆT ĐƠN NGHỈ PHÉP', description: 'Xác nhận cho phép nghỉ hoặc tạm hoãn ngày phép nhân viên' },
     ]
   },
   {
@@ -57,22 +76,32 @@ const PERMISSION_GROUPS = [
     label: 'QUẢN TRỊ HỆ THỐNG',
     icon: <Settings size={24} strokeWidth={2.5} />,
     items: [
-      { key: 'canManageStaff', label: 'QUẢN LÝ NHÂN SỰ', description: 'Chỉnh sửa & phân quyền' },
+      { key: 'canManageStaff', label: 'QUẢN LÝ NHÂN SỰ', description: 'Sửa thông tin, khởi tạo nhân tài, kích hoạt phân quyền' },
+      { key: 'canManageCategories', label: 'QUẢN LÝ DANH MỤC KPI GỐC', description: 'Chỉnh sửa danh mục công việc chính thống quy chuẩn' },
+      { key: 'canViewSystemHistory', label: 'SỔ NHẬT KÝ HỆ THỐNG', description: 'Truy vết log lịch sử thời gian thực các thao tác toàn cục' },
+      { key: 'canAccessSuperBackup', label: 'SIÊU BACKUP DỮ LIỆU', description: 'Sao lưu và khôi phục cơ sở dữ liệu hệ thống cục bộ' },
     ]
   }
 ];
 
 export const PermissionMatrixModal: React.FC<PermissionMatrixModalProps> = ({ user, onClose, onSave, onShowDelegationLetter }) => {
-  const [permissions, setPermissions] = React.useState<UserPermissions>(
-    user.delegatedPermissions || {
-      canCreateTask: false,
-      canApproveTask: false,
-      canDeleteTask: false,
-      canExportExcel: false,
-      canImportExcel: false,
-      canManageStaff: false,
-    }
-  );
+  const [permissions, setPermissions] = React.useState<UserPermissions>({
+    canCreateTask: user.delegatedPermissions?.canCreateTask || false,
+    canEditTask: user.delegatedPermissions?.canEditTask || false,
+    canApproveTask: user.delegatedPermissions?.canApproveTask || false,
+    canDeleteTask: user.delegatedPermissions?.canDeleteTask || false,
+    canExportExcel: user.delegatedPermissions?.canExportExcel || false,
+    canImportExcel: user.delegatedPermissions?.canImportExcel || false,
+    canViewReports: user.delegatedPermissions?.canViewReports || false,
+    canConfigReportKpi: user.delegatedPermissions?.canConfigReportKpi || false,
+    canViewOfficeCalendar: user.delegatedPermissions?.canViewOfficeCalendar || false,
+    canRegisterCalendar: user.delegatedPermissions?.canRegisterCalendar || false,
+    canApproveLeaveRequest: user.delegatedPermissions?.canApproveLeaveRequest || false,
+    canManageStaff: user.delegatedPermissions?.canManageStaff || false,
+    canManageCategories: user.delegatedPermissions?.canManageCategories || false,
+    canViewSystemHistory: user.delegatedPermissions?.canViewSystemHistory || false,
+    canAccessSuperBackup: user.delegatedPermissions?.canAccessSuperBackup || false,
+  });
 
   const handleToggle = (key: keyof UserPermissions) => {
     setPermissions(prev => ({ ...prev, [key]: !prev[key] }));
@@ -82,11 +111,20 @@ export const PermissionMatrixModal: React.FC<PermissionMatrixModalProps> = ({ us
     const newVal = type === 'full';
     setPermissions({
       canCreateTask: newVal,
+      canEditTask: newVal,
       canApproveTask: newVal,
       canDeleteTask: newVal,
       canExportExcel: newVal,
       canImportExcel: newVal,
+      canViewReports: newVal,
+      canConfigReportKpi: newVal,
+      canViewOfficeCalendar: newVal,
+      canRegisterCalendar: newVal,
+      canApproveLeaveRequest: newVal,
       canManageStaff: newVal,
+      canManageCategories: newVal,
+      canViewSystemHistory: newVal,
+      canAccessSuperBackup: newVal,
     });
   };
 

@@ -81,7 +81,7 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
       const fbUser = await loginWithEmail(email, password);
       if (fbUser) {
         // THIẾT QUÂN LUẬT: TÌM HỒ SƠ THEO MỌI CÁCH (UID HOẶC EMAIL)
-        let staffMember = users.find(u => u.id === fbUser.uid);
+        let staffMember = users.find(u => u.id === fbUser.uid || (u as any).uid === fbUser.uid);
         let profileDocId = '';
 
         if (!staffMember) {

@@ -11,7 +11,9 @@ import { ReportsTab } from '../tabs/ReportsTab';
 import { TrashTab } from '../tabs/TrashTab';
 import { StaffListTab } from '../tabs/StaffListTab';
 import { SystemHistoryTab } from '../tabs/SystemHistoryTab';
+import { PermissionMatrixTab } from '../tabs/PermissionMatrixTab';
 import { CategoryManagement } from '../tasks/CategoryManagement';
+import { OfficeUtilitiesTab } from '../tabs/OfficeUtilitiesTab';
 
 import { useAuthContext } from '../../contexts/AuthContext';
 import { useTaskContext } from '../../contexts/TaskContext';
@@ -191,7 +193,7 @@ export const MainContent: React.FC = () => {
 
   return (
     <AnimatePresence mode="wait">
-      {activeTab === "pending_confirmation" && (
+      {activeTab === "pending_confirmation" && (effectiveUser?.role === "Admin" || effectiveUser?.delegatedPermissions?.newProposals_view !== false) && (
         <NewProposalsTab 
           {...commonProps}
           tasks={tasks}
@@ -200,7 +202,7 @@ export const MainContent: React.FC = () => {
         />
       )}
 
-      {activeTab === "tasks" && (
+      {activeTab === "tasks" && (effectiveUser?.role === "Admin" || effectiveUser?.delegatedPermissions?.tasks_view !== false) && (
         <TasksTab 
           {...commonProps}
           filteredTasks={filteredTasks}
@@ -217,7 +219,7 @@ export const MainContent: React.FC = () => {
         />
       )}
 
-      {activeTab === "pending_approval" && (
+      {activeTab === "pending_approval" && (effectiveUser?.role === "Admin" || effectiveUser?.delegatedPermissions?.pendingApproval_view !== false) && (
         <PendingApprovalTab 
           {...commonProps}
           sortedTasks={sortedTasks}
@@ -226,7 +228,7 @@ export const MainContent: React.FC = () => {
         />
       )}
 
-      {activeTab === "completed_tasks" && (
+      {activeTab === "completed_tasks" && (effectiveUser?.role === "Admin" || effectiveUser?.delegatedPermissions?.completedTasks_view !== false) && (
         <CompletedTasksTab 
           {...commonProps}
           viewScope={viewScope}
@@ -281,7 +283,7 @@ export const MainContent: React.FC = () => {
         />
       )}
 
-      {activeTab === "category_management" && effectiveUser?.role === "Admin" && (
+      {activeTab === "category_management" && (effectiveUser?.role === "Admin" || effectiveUser?.delegatedPermissions?.canManageCategories) && (
         <motion.div key="category_management" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
           <CategoryManagement tasks={tasks} setConfirmModal={setConfirmModal} />
         </motion.div>
@@ -297,7 +299,7 @@ export const MainContent: React.FC = () => {
         />
       )}
 
-      {activeTab === "staff_list" && (effectiveUser?.role === "Admin") && (
+      {activeTab === "staff_list" && (effectiveUser?.role === "Admin" || effectiveUser?.delegatedPermissions?.canManageStaff) && (
         <StaffListTab 
           effectiveUser={effectiveUser}
           currentUser={currentUser}
@@ -317,7 +319,7 @@ export const MainContent: React.FC = () => {
         />
       )}
 
-      {activeTab === "system_history" && effectiveUser?.role === "Admin" && (
+      {activeTab === "system_history" && (effectiveUser?.role === "Admin" || effectiveUser?.delegatedPermissions?.canViewSystemHistory) && (
         <SystemHistoryTab 
           effectiveUser={effectiveUser}
           presence={presence}
@@ -327,6 +329,27 @@ export const MainContent: React.FC = () => {
           resetSystem={resetSystem}
           deleteLogsBulk={deleteLogsBulk}
           setConfirmModal={setConfirmModal}
+        />
+      )}
+
+      {activeTab === "permission_matrix" && (effectiveUser?.role === "Admin" || effectiveUser?.delegatedPermissions?.canManageStaff) && (
+        <PermissionMatrixTab
+          effectiveUser={effectiveUser}
+          presence={presence}
+          allUsers={allUsers}
+          updateProfile={updateProfile}
+          setConfirmModal={setConfirmModal}
+        />
+      )}
+
+      {["office_calendar", "attendance", "leave_request", "birthday"].includes(activeTab) && (
+        <OfficeUtilitiesTab
+          activeTab={activeTab as any}
+          effectiveUser={effectiveUser}
+          allUsers={allUsers}
+          presence={presence}
+          setConfirmModal={setConfirmModal}
+          setActiveTab={setActiveTab}
         />
       )}
     </AnimatePresence>

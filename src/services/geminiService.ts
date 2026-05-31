@@ -36,8 +36,8 @@ ${chatContext}
 
 YÊU CẦU:
 1. ${role === 'Admin' 
-    ? "Viết lời nhận xét ngắn gọn (dưới 30 từ). Nếu chat không có phàn nàn, hãy dùng: 'Ghi nhận kết quả tốt, khớp với trao đổi trong khung chat.'" 
-    : "Viết 1 câu giải trình (dưới 30 từ) minh bạch, thuyết phục, tập trung vào đóng góp cá nhân hoặc kết quả đạt được dựa trên trao đổi trong chat."}
+    ? "Viết lời nhận xét cực kỳ ngắn gọn, súc tích (dưới 15 từ). Nếu không có vấn đề lớn, hãy dùng: 'Ghi nhận kết quả tốt, khớp trao đổi chat.'" 
+    : "Viết đúng 1 câu giải trình cực kỳ ngắn gọn, súc tích (dưới 15 từ), tập trung duy nhất đóng góp dứt điểm mục tiêu."}
 2. Kết quả trả về CHỈ bao gồm câu văn, không thêm tiền tố hay hậu tố.
 3. Luôn giữ thái độ chuyên nghiệp.`;
 

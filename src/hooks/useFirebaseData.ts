@@ -19,7 +19,7 @@ import {
   runTransaction
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { calculateNextDeadline } from '../lib/dateUtils';
+import { calculateNextDeadline, formatDate } from '../lib/dateUtils';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { User, UserPresence, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport, LogEntry, DiscussionTopic, DiscussionMessage, TaskCategory, CycleHistoryEntry, AIChatMessage } from '../types';
@@ -158,6 +158,36 @@ export const useFirebaseData = (currentUserId?: string) => {
                 }
               } catch (err) {
                 console.error("[AUTO-MIGRATION] Error migrating legacy KNN tasks:", err);
+              }
+            })();
+          }
+
+          // Background Auto-Migration execution for legacy KNB tasks (category is 'KNB', created before 2026-05-29) which do not have stage1Done === true
+          const legacyKNBToMigrate = tasksData.filter(t => 
+            t.category === 'KNB' && 
+            t.stage1Done !== true &&
+            new Date(t.systemCreatedAt || t.issueDate || t.updatedAt || now).getTime() < new Date('2026-05-29T23:59:59').getTime()
+          );
+
+          if (legacyKNBToMigrate.length > 0) {
+            (async () => {
+              try {
+                const batch = writeBatch(db);
+                let count = 0;
+                legacyKNBToMigrate.forEach(t => {
+                  const ref = doc(db, 'tasks', t.id);
+                  batch.update(ref, {
+                    stage1Done: true,
+                    updatedAt: serverTimestamp()
+                  });
+                  count++;
+                });
+                if (count > 0) {
+                  await batch.commit();
+                  console.log(`[AUTO-MIGRATION] Loaded and migrated ${count} legacy KNB tasks to stage1Done: true`);
+                }
+              } catch (err) {
+                console.error("[AUTO-MIGRATION] Error migrating legacy KNB tasks:", err);
               }
             })();
           }
@@ -394,10 +424,14 @@ export const useFirebaseData = (currentUserId?: string) => {
     const profilesUnsubscribe = onSnapshot(
       collection(db, 'user_profiles'),
       (snapshot) => {
-        const usersData = snapshot.docs.map(doc => ({
-          ...doc.data(),
-          id: doc.id
-        } as User));
+        const usersData = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            ...data,
+            uid: data.id || null, // Keep original id field (synced Firebase UID)
+            id: doc.id
+          } as unknown as User;
+        });
         setUserProfiles(usersData);
       },
       (error) => {
@@ -494,6 +528,50 @@ export const useFirebaseData = (currentUserId?: string) => {
       }
     }
   }, [tasks.length, auth.currentUser?.email]);
+
+  useEffect(() => {
+    if (tasks.length > 0) {
+      // Find tasks that have aiApplied but appear to have inherited it by mistake
+      const tasksWithInheritedAI = tasks.filter(t => {
+        if (!t.aiApplied) return false;
+        if (!t.previousTaskId) return false;
+
+        // If the task status isn't completed and currentUpdate is empty, it's 100% inherited
+        if (t.status !== 'COMPLETED' && (!t.currentUpdate || t.currentUpdate.trim() === '')) {
+          return true;
+        }
+
+        // Find the previous task in the list
+        const parent = tasks.find(p => p.id === t.previousTaskId);
+        if (parent && parent.aiAppliedDetails === t.aiAppliedDetails) {
+          // If the progress hasn't been updated, or if the currentUpdate is still empty, or status is draft/approved
+          if (t.status !== 'COMPLETED' && (!t.currentUpdate || t.currentUpdate.trim() === '' || t.currentUpdate === parent.currentUpdate)) {
+            return true;
+          }
+        }
+        return false;
+      });
+
+      if (tasksWithInheritedAI.length > 0) {
+        console.log(`[AI MIGRATION] Found ${tasksWithInheritedAI.length} tasks with inherited AI applied flags. Repairing...`);
+        const batch = writeBatch(db);
+        
+        tasksWithInheritedAI.forEach(t => {
+          batch.update(doc(db, 'tasks', t.id), {
+            aiApplied: null,
+            aiAppliedDetails: null,
+            updatedAt: serverTimestamp()
+          });
+        });
+
+        batch.commit().then(() => {
+          console.log("[AI MIGRATION] Repaired all task records with inherited AI flags successfully.");
+        }).catch(err => {
+          console.warn("[AI MIGRATION] Failed to clear inherited AI flags:", err);
+        });
+      }
+    }
+  }, [tasks.length]);
 
   const lastPresenceData = useRef<{name: string, avatar: string} | null>(null);
   const lastPresenceUpdate = useRef<number>(0);
@@ -626,6 +704,18 @@ export const useFirebaseData = (currentUserId?: string) => {
         delete (cleanBaseData as any).reportExplanation;
         delete (cleanBaseData as any).reportAttachments;
         delete (cleanBaseData as any).requestUndo;
+        // Do not inherit AI application icon and AI reminders of previous cycle
+        delete (cleanBaseData as any).aiApplied;
+        delete (cleanBaseData as any).aiAppliedDetails;
+        delete (cleanBaseData as any).aiReminderResponded;
+        delete (cleanBaseData as any).aiReminderLastDate;
+        delete (cleanBaseData as any).aiReminderCreatedAt;
+        delete (cleanBaseData as any).patrolReviewedByAdmin;
+        delete (cleanBaseData as any).lastPatrolTime;
+        delete (cleanBaseData as any).patrolStatus;
+        delete (cleanBaseData as any).last_ai_content;
+        delete (cleanBaseData as any).last_ai_response;
+        delete (cleanBaseData as any).lastPatrolResult;
 
         const nextTaskData: any = {
           ...cleanBaseData,
@@ -645,7 +735,7 @@ export const useFirebaseData = (currentUserId?: string) => {
           leaderQCD: null,
           history: [{
             version: 1,
-            content: `[TỰ ĐỘNG LUÂN HỒI] MÃ MỚI: ${nextCode}. HẠN: ${nextDeadline}`,
+            content: `[TỰ ĐỘNG LUÂN HỒI] MÃ MỚI: ${nextCode}. HẠN: ${formatDate(nextDeadline)}`,
             timestamp: now,
             authorId: 'system'
           }],
@@ -810,6 +900,18 @@ export const useFirebaseData = (currentUserId?: string) => {
         delete (cleanBaseData as any).requestUndo;
         delete (cleanBaseData as any).undoRequestAt;
         delete (cleanBaseData as any).undoRequestBy;
+        // Do not inherit AI application icon and AI reminders of previous cycle
+        delete (cleanBaseData as any).aiApplied;
+        delete (cleanBaseData as any).aiAppliedDetails;
+        delete (cleanBaseData as any).aiReminderResponded;
+        delete (cleanBaseData as any).aiReminderLastDate;
+        delete (cleanBaseData as any).aiReminderCreatedAt;
+        delete (cleanBaseData as any).patrolReviewedByAdmin;
+        delete (cleanBaseData as any).lastPatrolTime;
+        delete (cleanBaseData as any).patrolStatus;
+        delete (cleanBaseData as any).last_ai_content;
+        delete (cleanBaseData as any).last_ai_response;
+        delete (cleanBaseData as any).lastPatrolResult;
 
         // Cấu trúc mảng lịch sử kế thừa (History Inheritance)
         const inheritedHistory = [...(existingTask.history || [])];
@@ -1438,7 +1540,8 @@ export const useFirebaseData = (currentUserId?: string) => {
       });
       // Reset status so user sees fresh alert
       await updateDoc(doc(db, 'tasks', taskId), {
-        aiReminderResponded: false
+        aiReminderResponded: false,
+        aiReminderCreatedAt: new Date().toISOString()
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'ai_messages');

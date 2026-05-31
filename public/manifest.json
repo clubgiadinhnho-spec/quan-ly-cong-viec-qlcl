@@ -1,0 +1,10 @@
+{
+  "name": "Hệ thống Quản lý Chất lượng QLCL",
+  "short_name": "QLCL",
+  "description": "Bảng tiến độ công tác và quản lý chất lượng chuyên nghiệp",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#4f46e5",
+  "theme_color": "#4f46e5"
+}

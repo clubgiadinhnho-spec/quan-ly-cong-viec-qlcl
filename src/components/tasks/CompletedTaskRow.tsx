@@ -523,6 +523,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
             onReact={onReact}
             onClose={() => onOpenChat('')}
             anchorRef={chatButtonRef}
+            isMobile={true}
           />
         )}
 
@@ -695,6 +696,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                 onReact={onReact}
                 onClose={() => onOpenChat('')}
                 anchorRef={chatButtonRef}
+                isMobile={false}
               />
             )}
           </div>

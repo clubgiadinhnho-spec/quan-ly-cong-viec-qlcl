@@ -155,7 +155,7 @@ export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
         <Header 
           title={<span translate="no" className="notranslate">TRÌNH DUYỆT HOÀN THÀNH</span>} 
           onAction={() => setShowTaskModal(true)}
-          actionLabel={<span translate="no" className="notranslate">NHẬP CÔNG VIỆC MỚI</span>}
+          actionLabel={<span translate="no" className="notranslate">Tạo mới</span>}
           actionIcon={Plus}
           onlineUsers={presence} 
           currentUserId={effectiveUser.id}
@@ -178,10 +178,10 @@ export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
           <div className="ml-auto" />
         </div>
         
-        <div className="flex items-center justify-between gap-4 py-1 px-1">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 py-1 px-1">
           <div />
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 ml-auto md:ml-0">
             {search && (
               <span translate="no" className="notranslate text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-100 animate-in fade-in slide-in-from-right-1">
                 TÌM THẤY: {sortedTasks.filter(t => t.waitingApproval).length}
@@ -191,10 +191,10 @@ export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input
                 type="text"
-                placeholder="Tìm kiếm mã, nội dung, nhân sự, ngày khởi tạo, ngày bắt đầu, hạn hoàn thành, Gia hạn, chu kỳ lặp lại..."
+                placeholder="Tìm nhanh..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-amber-500 text-xs w-72 placeholder:notranslate transition-all group-focus-within:border-amber-400 group-focus-within:shadow-sm shadow-sm"
+                className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-amber-500 text-xs w-44 md:w-56 placeholder:notranslate transition-all group-focus-within:border-amber-400 group-focus-within:shadow-sm shadow-sm"
               />
             </div>
 

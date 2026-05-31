@@ -227,7 +227,7 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
         <Header 
           title={<span translate="no" className="notranslate">CÔNG VIỆC HOÀN THÀNH</span>} 
           onAction={() => setShowTaskModal(true)}
-          actionLabel={<span translate="no" className="notranslate">NHẬP CÔNG VIỆC MỚI</span>}
+          actionLabel={<span translate="no" className="notranslate">Tạo mới</span>}
           actionIcon={Plus}
           onlineUsers={presence} 
           currentUserId={effectiveUser.id}
@@ -257,25 +257,18 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
               <span translate="no" className="notranslate">Phòng QLCL (<span translate="no" className="notranslate">{tasksToDisplay.length}</span>)</span>
             </button>
           </div>
-
-          <div className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full border border-green-100">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            <span translate="no" className="notranslate text-[10px] text-green-700 font-black uppercase tracking-widest">
-              Đang xem: {viewScope === "mine" ? "Lịch sử cá nhân" : "Lịch sử toàn phòng"}
-            </span>
-          </div>
         </div>
         <StatsSummary 
           tasks={tasks} 
           selectedMonth={selectedMonth}
           onMonthChange={onMonthChange}
         />
-        <div className="flex items-center justify-between mb-4 mt-6">
-          <h3 className="text-[14px] font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 mt-6">
+          <h3 className="text-[14px] font-black text-gray-800 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap flex-shrink-0">
             <div className="w-1.5 h-6 bg-green-600 rounded-full" />
             <span translate="no" className="notranslate">KẾT QUẢ CÔNG VIỆC HOÀN THÀNH</span>
           </h3>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 ml-auto md:ml-0">
             {search && (
               <span translate="no" className="notranslate text-[11px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded-md border border-green-100 animate-in fade-in slide-in-from-right-1">
                 TÌM THẤY: {tasksToDisplay.length}
@@ -285,10 +278,10 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input
                 type="text"
-                placeholder="Tìm kiếm mã, nội dung, nhân sự, ngày khởi tạo, ngày bắt đầu, hạn hoàn thành, Gia hạn, chu kỳ lặp lại..."
+                placeholder="Tìm nhanh..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-green-500 text-xs w-72 placeholder:notranslate transition-all group-focus-within:border-green-400 group-focus-within:shadow-sm shadow-sm"
+                className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-green-500 text-xs w-44 md:w-56 placeholder:notranslate transition-all group-focus-within:border-green-400 group-focus-within:shadow-sm shadow-sm"
               />
             </div>
 

@@ -52,7 +52,7 @@ export const NewProposalsTab: React.FC<NewProposalsTabProps> = ({
         <Header 
           title={<span translate="no" className="notranslate">ĐỀ XUẤT MỚI</span>} 
           onAction={() => setShowTaskModal(true)}
-          actionLabel={<span translate="no" className="notranslate">NHẬP CÔNG VIỆC MỚI</span>}
+          actionLabel={<span translate="no" className="notranslate">Tạo mới</span>}
           actionIcon={Plus}
           onlineUsers={presence} 
           currentUserId={effectiveUser.id}

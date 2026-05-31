@@ -18,9 +18,10 @@ interface TaskChatProps {
   onReact?: (taskId: string, commentId: string, emoji: string) => void;
   onClose: () => void;
   anchorRef: React.RefObject<HTMLElement | null>;
+  isMobile?: boolean;
 }
 
-export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onClose, anchorRef }: TaskChatProps) => {
+export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onClose, anchorRef, isMobile = false }: TaskChatProps) => {
   const [newMessage, setNewMessage] = useState('');
   const [showEmojiFor, setShowEmojiFor] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -193,7 +194,7 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
         initial={{ opacity: 0, scale: 0.95, y: -10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: -10 }}
-        className="bg-white rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] z-[99999] flex flex-col border border-blue-600 overflow-visible cursor-default relative"
+        className={`bg-white rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] z-[99999] flex flex-col border border-blue-600 overflow-visible cursor-default relative ${isMobile ? 'md:!hidden flex' : 'hidden md:flex'}`}
       >
         {/* Minimalist Comic Tail SVG */}
         <svg className="absolute inset-0 overflow-visible pointer-events-none z-[-1]">

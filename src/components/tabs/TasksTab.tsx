@@ -160,7 +160,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           title={<span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>}
           badge={<span translate="no" className="notranslate">{effectiveUser.role}</span>}
           onAction={() => setShowTaskModal(true)}
-          actionLabel={<span translate="no" className="notranslate">NHẬP CÔNG VIỆC MỚI</span>}
+          actionLabel={<span translate="no" className="notranslate">Tạo mới</span>}
           actionIcon={Plus}
           onlineUsers={presence}
           currentUserId={effectiveUser.id}
@@ -285,18 +285,11 @@ export const TasksTab: React.FC<TasksTabProps> = ({
               </button>
             </div>
           )}
-
-          <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full border border-blue-100">
-            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-            <span translate="no" className="notranslate text-[10px] text-blue-700 font-black uppercase tracking-widest">
-              Đang xem: {viewScope === "mine" ? "Nhiệm vụ của bạn" : "Toàn bộ phòng"}
-            </span>
-          </div>
         </div>
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h3 className="text-[14px] font-black text-gray-800 uppercase tracking-widest flex items-center gap-2">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-4">
+            <h3 className="text-[14px] font-black text-gray-800 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap flex-shrink-0">
               <div className="w-1.5 h-6 bg-blue-600 rounded-full print:hidden" />
               <span translate="no" className="notranslate uppercase tracking-tighter">DANH SÁCH BẢNG CÔNG VIỆC</span>
             </h3>
@@ -312,10 +305,10 @@ export const TasksTab: React.FC<TasksTabProps> = ({
               </button>
 
               {(effectiveUser.role !== "Staff" || effectiveUser.delegatedPermissions?.canExportExcel || effectiveUser.delegatedPermissions?.canImportExcel) && (
-                <div className="flex items-center gap-2 print:hidden">
+                <div className="flex items-center gap-2 print:hidden overflow-x-auto">
                   <button
                     onClick={downloadSampleExcel}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 text-gray-700 border border-gray-200 rounded-lg text-[10px] font-bold hover:bg-gray-100 transition-all uppercase"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 text-gray-700 border border-gray-200 rounded-lg text-[10px] font-bold hover:bg-gray-100 transition-all uppercase whitespace-nowrap"
                     title="Tải file Excel mẫu"
                   >
                     <FileDown size={12} />
@@ -324,7 +317,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
                   {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canExportExcel) && (
                     <button
                       onClick={() => handleExportExcel(sortedTasks)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-all uppercase"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-all uppercase whitespace-nowrap"
                     >
                       <FileDown size={12} />
                       <span translate="no" className="notranslate">Xuất Excel</span>
@@ -332,7 +325,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
                   )}
                   {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canImportExcel) && (
                     <label 
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-all uppercase cursor-pointer shadow-sm active:scale-95"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-all uppercase cursor-pointer shadow-sm active:scale-95 whitespace-nowrap"
                     >
                       <FileUp size={12} />
                       <span translate="no" className="notranslate">Nhập từ Excel</span>
@@ -343,7 +336,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3 print:hidden">
+          <div className="flex items-center gap-3 print:hidden ml-auto md:ml-0">
             {search && (
               <span translate="no" className="notranslate text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100 animate-in fade-in slide-in-from-right-1">
                 TÌM THẤY: {sortedTasks.length}
@@ -353,10 +346,10 @@ export const TasksTab: React.FC<TasksTabProps> = ({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input
                 type="text"
-                placeholder="Tìm kiếm mã, nội dung, nhân sự, ngày khởi tạo, ngày bắt đầu, hạn hoàn thành, Gia hạn, chu kỳ lặp lại..."
+                placeholder="Tìm nhanh..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 text-xs w-72 placeholder:notranslate transition-all group-focus-within:border-blue-400 group-focus-within:shadow-sm shadow-sm"
+                className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 text-xs w-44 md:w-56 placeholder:notranslate transition-all group-focus-within:border-blue-400 group-focus-within:shadow-sm shadow-sm"
               />
             </div>
           </div>

@@ -75,9 +75,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const chatButtonRef = React.useRef<HTMLButtonElement>(null);
   
   let supState: any = null;
+  let contextTriggerAiNudge: any = null;
   try {
     const taskCtx = useTaskContext();
     supState = taskCtx?.supState;
+    contextTriggerAiNudge = taskCtx?.triggerAiNudge;
   } catch (err) {
     // ignore outside of context provider
   }
@@ -348,7 +350,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
   const handleTickleJob = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!task.assigneeId || !triggerAiNudge) return;
+    const activeTrigger = triggerAiNudge || contextTriggerAiNudge;
+    if (!task.assigneeId || !activeTrigger) return;
     
     // Format the expected deadline
     const deadlineRaw = task.expectedEndDate || task.dueDate || 'chưa định';
@@ -372,7 +375,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     
     const text = messages[hash % messages.length];
     
-    await triggerAiNudge(task.id, task.assigneeId, text);
+    await activeTrigger(task.id, task.assigneeId, text);
   };
 
   const isFreshUpdate = task.isNewUpdate && task.lastUpdatedByRole !== user.role && (
@@ -1001,6 +1004,43 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   <JobAvatar size={14} animate={isPatrolledToday} />
                 </button>
 
+                {/* Speech bubble for mobile */}
+                {(isAiReminding || isPatrolledBySup) && (
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 z-[110] bg-blue-50 border-2 border-indigo-400 rounded-2xl p-2.5 px-3.5 shadow-lg min-w-[220px] max-w-[280px] text-left animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[6px] rotate-45 w-3 h-3 bg-blue-50 border-b-2 border-r-2 border-indigo-400"></div>
+                    <div className="flex items-center justify-between mb-1 leading-none">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[7.5px] font-black text-white bg-indigo-600 px-1 py-0.5 rounded uppercase tracking-wider">
+                          ROBOT JOB
+                        </span>
+                        <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse" />
+                      </div>
+                      {isAiReminding && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onUpdate(task.id, { aiReminderResponded: true });
+                          }}
+                          className="text-indigo-400 hover:text-indigo-700 bg-white/50 hover:bg-indigo-100 rounded-full p-0.5 transition-all shrink-0 cursor-pointer shadow-xs border border-indigo-100"
+                          title="Tắt nhắc nhở"
+                        >
+                          <X size={8} strokeWidth={3} />
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[10px] font-black leading-relaxed text-indigo-950 not-italic" translate="no">
+                      {isPatrolledBySup 
+                        ? (supState?.speechJob || "Ổn định: Mọi mục tiêu đang bám sát chỉ đạo của Sếp.") 
+                        : (() => {
+                            const taskAiMessages = (aiMessages || []).filter(msg => msg.taskId === task.id);
+                            const lastJobMsg = [...taskAiMessages].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+                            return lastJobMsg?.content || `${assigneeName} ơi, hạn ${task.expectedEndDate || task.dueDate || 'chưa định'} sắp đến, mục tiêu "${task.objective || task.title}" tiến hành đến đâu rồi?`;
+                          })()
+                      }
+                    </p>
+                  </div>
+                )}
+
                 <AnimatePresence>
                   {showAIChat && (
                     <TaskAIChat 
@@ -1178,6 +1218,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             onReact={onReact}
             onClose={() => onOpenChat('')}
             anchorRef={chatButtonRef}
+            isMobile={true}
           />
         )}
 
@@ -1525,7 +1566,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               : 'transparent')
       }}
       transition={{ duration: 0.4 }}
-      className={`group transition-all ${finalRowClass} relative ${isAnySpeechActive ? 'z-[30] shadow-xl' : (isRowLiveActivePatrolled ? 'z-10 shadow-md' : '')} ${isSelected ? 'bg-blue-50/50' : ''}`}
+      className={`group transition-all ${finalRowClass} relative ${isAnySpeechActive ? 'z-[100] shadow-xl' : (isRowLiveActivePatrolled ? 'z-10 shadow-md' : '')} ${isSelected ? 'bg-blue-50/50' : ''}`}
     >
       <td className={`p-1 px-1.5 text-center border ${cellBorderColor} align-middle w-[40px] ${isRowLiveActivePatrolled ? 'bg-transparent' : ''}`}>
          <input 
@@ -1571,7 +1612,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   </motion.div>
 
                   {/* Comic Dialogue bubble showing S.U.P speech */}
-                  <div className="absolute bottom-12 left-1/2 -translate-x-[85%] z-[22] bg-yellow-50 border-2 border-orange-400 rounded-2xl p-2.5 px-3.5 shadow-[5px_5px_0px_rgba(249,115,22,0.15)] min-w-[210px] max-w-[280px] text-left animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="absolute bottom-12 left-1/2 -translate-x-[85%] z-[110] bg-yellow-50 border-2 border-orange-400 rounded-2xl p-2.5 px-3.5 shadow-[5px_5px_0px_rgba(249,115,22,0.15)] min-w-[210px] max-w-[280px] text-left animate-in fade-in slide-in-from-bottom-2 duration-300">
                     {/* Speech tail pointing down to S.U.P BOSS avatar */}
                     <div className="absolute bottom-0 left-[80%] -translate-x-1/2 translate-y-[6px] rotate-45 w-3 h-3 bg-yellow-50 border-b-2 border-r-2 border-orange-400"></div>
                     
@@ -1631,7 +1672,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
                   {/* Comic Dialogue bubble showing ROBOT JOB report/nudge when active or during S.U.P patrol */}
                   {(isAiReminding || isPatrolledBySup) && (
-                    <div className="absolute left-12 top-1/2 -translate-y-1/2 z-[22] bg-blue-50 border-2 border-indigo-400 rounded-2xl p-2.5 px-3.5 shadow-[5px_5px_0px_rgba(79,70,229,0.15)] min-w-[210px] max-w-[280px] text-left animate-in fade-in slide-in-from-left-2 duration-300">
+                    <div className="absolute left-12 top-1/2 -translate-y-1/2 z-[110] bg-blue-50 border-2 border-indigo-400 rounded-2xl p-2.5 px-3.5 shadow-[5px_5px_0px_rgba(79,70,229,0.15)] min-w-[210px] max-w-[280px] text-left animate-in fade-in slide-in-from-left-2 duration-300">
                       {/* Speech tail */}
                       <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[7px] rotate-45 w-3 h-3 bg-blue-50 border-l-2 border-b-2 border-indigo-400"></div>
                       
@@ -1891,6 +1932,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 onReact={onReact}
                 onClose={() => onOpenChat('')}
                 anchorRef={chatButtonRef}
+                isMobile={false}
               />
             )}
           </div>

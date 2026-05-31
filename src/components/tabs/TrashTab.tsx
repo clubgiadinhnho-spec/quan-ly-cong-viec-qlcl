@@ -165,12 +165,12 @@ export const TrashTab: React.FC<TrashTabProps> = ({
           
           <div className="ml-auto" />
         </div>
-        <div className="flex items-center justify-between mb-4 mt-6">
-          <h4 className="text-sm font-black text-red-800 uppercase flex items-center gap-2">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4 mt-6">
+          <h4 className="text-sm font-black text-red-800 uppercase flex items-center gap-2 whitespace-nowrap flex-shrink-0">
             <div className="w-1.5 h-6 bg-red-600 rounded-full" />
             <span translate="no" className="notranslate">Danh sách lưu trữ</span>
           </h4>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 ml-auto md:ml-0">
             {search && (
               <span translate="no" className="notranslate text-[11px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-md border border-red-100 animate-in fade-in slide-in-from-right-1">
                 TÌM THẤY: {sortedTasks.length}
@@ -180,10 +180,10 @@ export const TrashTab: React.FC<TrashTabProps> = ({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input
                 type="text"
-                placeholder="Tìm kiếm mã, nội dung, nhân sự, ngày khởi tạo, ngày bắt đầu, hạn hoàn thành, Gia hạn, chu kỳ lặp lại..."
+                placeholder="Tìm nhanh..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-red-500 text-xs w-72 placeholder:notranslate transition-all group-focus-within:border-red-400 group-focus-within:shadow-sm shadow-sm"
+                className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-red-500 text-xs w-44 md:w-56 placeholder:notranslate transition-all group-focus-within:border-red-400 group-focus-within:shadow-sm shadow-sm"
               />
             </div>
 

@@ -296,25 +296,25 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
       </div>
 
       <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
-           <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
+        <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row md:items-center justify-between gap-3">
+           <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2 whitespace-nowrap flex-shrink-0">
              <CheckCircle2 size={14} />
              <span translate="no" className="notranslate">DANH SÁCH {pendingTasks.length} ĐỀ XUẤT</span>
            </h3>
-           <div className="flex items-center gap-2">
+           <div className="flex items-center gap-2 ml-auto md:ml-0">
              {search && (
                <span translate="no" className="notranslate text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100 animate-in fade-in slide-in-from-right-1">
                  TÌM THẤY: {pendingTasks.length}
                </span>
              )}
-<div className={`relative group mr-2 ${!(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_search !== false) ? "hidden" : ""}`}>
+            <div className={`relative group mr-2 ${!(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_search !== false) ? "hidden" : ""}`}>
               {!(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_search !== false) ? null : <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />}
               <input
                 type="text"
-                placeholder={!(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_search !== false) ? "" : "Tìm kiếm mã, nội dung, nhân sự, ngày khởi tạo, ngày bắt đầu, hạn hoàn thành, Gia hạn, chu kỳ lặp lại..."}
+                placeholder={!(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_search !== false) ? "" : "Tìm nhanh..."}
                 value={!(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_search !== false) ? "" : search}
                 onChange={(e) => setSearch(e.target.value)}
-                className={`pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500 text-xs w-64 placeholder:notranslate transition-all group-focus-within:border-emerald-400 group-focus-within:shadow-sm shadow-sm ${!(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_search !== false) ? "hidden" : ""}`}
+                className={`pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500 text-xs w-44 md:w-56 placeholder:notranslate transition-all group-focus-within:border-emerald-400 group-focus-within:shadow-sm shadow-sm ${!(currentUser.role === "Admin" || currentUser.delegatedPermissions?.newProposals_search !== false) ? "hidden" : ""}`}
               />
             </div>
 

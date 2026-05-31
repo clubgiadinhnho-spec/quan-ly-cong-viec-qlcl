@@ -1157,7 +1157,7 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
 
             <button
               onClick={handlePrintClick}
-              className="flex items-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white border border-rose-500 rounded-xl text-[10px] font-black tracking-wider shadow-sm hover:shadow active:scale-95 transition-all uppercase flex-shrink-0 print:hidden"
+              className="hidden md:flex items-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white border border-rose-500 rounded-xl text-[10px] font-black tracking-wider shadow-sm hover:shadow active:scale-95 transition-all uppercase flex-shrink-0 print:hidden"
               title="In/Xuất trang cá nhân ra PDF"
             >
               <Printer size={12} strokeWidth={3} />

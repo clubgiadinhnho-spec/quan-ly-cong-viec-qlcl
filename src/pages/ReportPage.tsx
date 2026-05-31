@@ -1531,7 +1531,7 @@ export const ReportPage = ({
                   }
                 }
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg shadow-sm cursor-pointer hover:text-blue-600 transition-colors"
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg shadow-sm cursor-pointer hover:text-blue-600 transition-colors"
               title="In riêng bảng bảo hiểm này"
             >
               <Printer size={13} strokeWidth={2.5} />
@@ -2512,7 +2512,7 @@ export const ReportPage = ({
             <TrendingUp size={80} className="absolute right-[-10px] bottom-[-10px] opacity-10" />
             <button 
               onClick={() => setShowPrintModal(true)}
-              className="bg-white hover:bg-rose-50 border border-slate-200 text-rose-700 h-11 px-6 rounded-md font-black text-xs uppercase tracking-wider shadow-md transition-all z-10 flex items-center gap-2 cursor-pointer"
+              className="hidden md:flex bg-white hover:bg-rose-50 border border-slate-200 text-rose-700 h-11 px-6 rounded-md font-black text-xs uppercase tracking-wider shadow-md transition-all z-10 items-center gap-2 cursor-pointer"
             >
               <Printer size={16} strokeWidth={3} />
               <span className="notranslate" translate="no">In PDF</span>
@@ -3038,14 +3038,14 @@ export const ReportPage = ({
                 <button
                   type="button"
                   onClick={() => setShowPrintModal(true)}
-                  className="bg-rose-600 hover:bg-rose-700 px-3.5 py-2 rounded text-[10px] font-black uppercase text-white shadow flex items-center gap-1 border border-rose-500 cursor-pointer active:scale-95 transition-all"
+                  className="hidden md:flex bg-rose-600 hover:bg-rose-700 px-3.5 py-2 rounded text-[10px] font-black uppercase text-white shadow items-center gap-1 border border-rose-500 cursor-pointer active:scale-95 transition-all"
                 >
                   <Printer size={12} strokeWidth={3} />
                   <span translate="no" className="notranslate">In PDF</span>
                 </button>
                 <button
                   onClick={handleExportIndividualExcel}
-                  className="bg-teal-600 hover:bg-teal-700 px-3.5 py-2 rounded text-[10px] font-black uppercase text-white shadow flex items-center gap-1 cursor-pointer transition-colors"
+                  className="hidden md:flex bg-teal-600 hover:bg-teal-700 px-3.5 py-2 rounded text-[10px] font-black uppercase text-white shadow items-center gap-1 cursor-pointer transition-colors"
                 >
                   <FileText size={12} strokeWidth={2.5} />
                   Trích Xuất Excel

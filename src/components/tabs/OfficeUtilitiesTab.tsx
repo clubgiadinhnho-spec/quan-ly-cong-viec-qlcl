@@ -3170,7 +3170,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                   <button
                     type="button"
                     onClick={handlePrintTimesheet}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-[10px] font-black text-white hover:shadow-md border border-indigo-500 rounded-xl uppercase tracking-wider transition-all cursor-pointer"
+                    className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-[10px] font-black text-white hover:shadow-md border border-indigo-500 rounded-xl uppercase tracking-wider transition-all cursor-pointer"
                   >
                     <Printer size={12} strokeWidth={2.5} />
                     In bảng chấm công nộp HRD

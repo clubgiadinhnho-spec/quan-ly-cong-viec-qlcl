@@ -161,6 +161,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     items: [
       { key: 'system_viewLogPage', label: 'TRUY VẾT LOG LỊCH SỬ THỜI GIAN THỰC', description: 'Xem và truy vết lịch sử thao tác hệ thống toàn cục chặt chẽ', defaultStaff: false, defaultAdmin: true },
       { key: 'system_backupPage', label: 'SAO LƯU & SAO CHÉP DỮ LIỆU GỐC', description: 'Lưu trữ sao lục JSON hoặc hồi phục nền tảng dữ liệu trực tuyến', defaultStaff: false, defaultAdmin: false },
+      { key: 'system_viewSup', label: 'GIÁM SÁT VIÊN S.U.P ROBOT', description: 'Cho phép nhìn thấy và tương tác với Trợ lý Giám sát S.U.P Robot', defaultStaff: false, defaultAdmin: true },
     ]
   }
 ];
@@ -237,6 +238,7 @@ export const getUserDefaultPermissions = (user: User): UserPermissions => {
 
     system_viewLogPage: !isStaffDefault,
     system_backupPage: false,
+    system_viewSup: !isStaffDefault,
   };
 };
 
@@ -425,7 +427,7 @@ export const PermissionMatrixTab: React.FC<PermissionMatrixTabProps> = ({
         trash_view: true, trash_restore: true, trash_purge: true,
         office_viewCalendar: true, office_registerCalendar: true, office_approveLeave: true, office_manageHr: true,
         reports_viewPage: true, reports_configPage: true,
-        system_viewLogPage: true, system_backupPage: true,
+        system_viewLogPage: true, system_backupPage: true, system_viewSup: true,
       };
     } else if (type === 'clear') {
       updated = {
@@ -445,7 +447,7 @@ export const PermissionMatrixTab: React.FC<PermissionMatrixTabProps> = ({
         trash_view: false, trash_restore: false, trash_purge: false,
         office_viewCalendar: false, office_registerCalendar: false, office_approveLeave: false, office_manageHr: false,
         reports_viewPage: false, reports_configPage: false,
-        system_viewLogPage: false, system_backupPage: false,
+        system_viewLogPage: false, system_backupPage: false, system_viewSup: false,
       };
     } else {
       updated = getUserDefaultPermissions(user);
@@ -481,7 +483,7 @@ export const PermissionMatrixTab: React.FC<PermissionMatrixTabProps> = ({
           trash_view: true, trash_restore: true, trash_purge: true,
           office_viewCalendar: true, office_registerCalendar: true, office_approveLeave: true, office_manageHr: true,
           reports_viewPage: true, reports_configPage: true,
-          system_viewLogPage: true, system_backupPage: true,
+          system_viewLogPage: true, system_backupPage: true, system_viewSup: true,
         };
       } else if (type === 'clear') {
         updated = {
@@ -501,7 +503,7 @@ export const PermissionMatrixTab: React.FC<PermissionMatrixTabProps> = ({
           trash_view: false, trash_restore: false, trash_purge: false,
           office_viewCalendar: false, office_registerCalendar: false, office_approveLeave: false, office_manageHr: false,
           reports_viewPage: false, reports_configPage: false,
-          system_viewLogPage: false, system_backupPage: false,
+          system_viewLogPage: false, system_backupPage: false, system_viewSup: false,
         };
       } else {
         updated = getUserDefaultPermissions(u);

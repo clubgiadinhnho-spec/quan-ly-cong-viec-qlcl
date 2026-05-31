@@ -23,7 +23,6 @@
    - Tuyệt đối không để mất luồng sinh việc tự động cho các công việc hàng ngày/tuần.
 
 7. **BẢO VỆ THIẾT KẾ ĐÃ TỐI ƯU (UI/UX PROTECT)**:
-   - **Sidebar Badge**: Số lượng phải bọc trong `<span translate="no" className="notranslate">`. Badge Sidebar thu nhỏ nằm góc trên bên phải Icon, `z-index` cao, font-black.
    - **Mã hóa công việc**: Đã di chuyển vào `NewProposalsPage`, không đưa ngược lại Sidebar.
    - **Sidebar Layout**: Giữ nguyên cụm Bottom (Color + Profile) và cơ chế hiển thị Icon khi thu nhỏ.
    - **Logo Q**: Giữ nguyên tỉ lệ và hiệu ứng trong cả hai chế độ.

@@ -17,7 +17,7 @@ import {
   ClipboardList, Sparkles, BarChart3, MessageSquare, 
   Menu, X, ShieldAlert, CheckCheck, Trash2, Users, Calendar, 
   Clock, FileText, Award, User as UserIcon, Settings, UserCheck, 
-  Database, LogOut, Workflow
+  Database, LogOut, Workflow, Maximize2, Minimize2, Smartphone
 } from "lucide-react";
 import { Avatar } from "./components/common/Avatar";
 import { motion, AnimatePresence } from "motion/react";
@@ -44,6 +44,30 @@ export default function App() {
 
   const [isMainSidebarCollapsed, setIsMainSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+  }, []);
+
   const lastReminderTime = useRef<number>(Date.now());
 
   const { unreadNotifications, lastReadChatTimestamps, markAsRead, markSectionAsViewed } = appNotifications || { unreadNotifications: [], lastReadChatTimestamps: {}, markAsRead: () => {}, markSectionAsViewed: () => {} };
@@ -189,10 +213,9 @@ export default function App() {
       {/* Bottom Navigation for Mobile (< 768px) */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-200/80 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex items-center justify-around px-3 z-[80] backdrop-blur-md bg-white/95">
         {[
-          { id: 'tasks', label: 'Việc làm', icon: ClipboardList, count: counts.active, badgeColor: 'bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.5)]' },
+          { id: 'tasks', label: 'BẢNG CÔNG VIỆC', icon: ClipboardList, count: counts.active, badgeColor: 'bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.5)]' },
           { id: 'pending_confirmation', label: 'Đề xuất', icon: Sparkles, count: counts.pending, badgeColor: 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' },
           { id: 'reports', label: 'Báo cáo', icon: BarChart3 },
-          { id: 'group_chat', label: 'Chat', icon: MessageSquare, count: groupUnreadCount, badgeColor: 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' },
           { id: 'menu', label: 'Menu', icon: Menu }
         ].map((item) => {
           const isActive = activeTab === item.id;
@@ -337,6 +360,53 @@ export default function App() {
                       </button>
                     );
                   })}
+                </div>
+
+                {/* MOBILE WEB-APP & FULLSCREEN UTILITIES */}
+                <div className="bg-gradient-to-br from-indigo-50/75 to-purple-50/50 border border-indigo-100/80 rounded-2xl p-4.5 space-y-3.5 mt-4">
+                  <div className="flex items-center gap-2">
+                    <Smartphone size={16} className="text-indigo-600 animate-pulse" />
+                    <span className="text-[11px] font-black uppercase tracking-wider text-indigo-900">Tính năng toàn màn hình</span>
+                  </div>
+
+                  {/* Standard browser Fullscreen Toggle button */}
+                  <button
+                    onClick={() => {
+                      toggleFullscreen();
+                      setIsMobileMenuOpen(false); // Close menu drawer to let users enjoy fullscreen immediately
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-750 active:scale-[0.98] transition-all text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm shadow-indigo-100 cursor-pointer"
+                  >
+                    {isFullscreen ? (
+                      <>
+                        <Minimize2 size={14} strokeWidth={3} />
+                        <span>Thoát Toàn Màn Hình</span>
+                      </>
+                    ) : (
+                      <>
+                        <Maximize2 size={14} strokeWidth={3} />
+                        <span>Bật Toàn Màn Hình (Tối ưu)</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Progressive Web App Guidance on Adding to Home Screen */}
+                  <div className="bg-white/80 rounded-xl p-3 border border-indigo-50 text-[11px] text-indigo-950 font-medium space-y-2 leading-relaxed">
+                    <p className="font-extrabold text-indigo-800">
+                      💡 MẸO ẨN THANH TRÌNH DUYỆT 100%:
+                    </p>
+                    <p>
+                      Để chạy ứng dụng dạng App Di Động Native không có thanh địa chỉ thô kệch:
+                    </p>
+                    <ul className="list-disc list-inside space-y-1 text-[10.5px] text-indigo-900 border-t border-indigo-50/50 pt-1.5 font-sans">
+                      <li>
+                        <strong className="text-indigo-950">Safari (iPhone/iPad):</strong> Ấn nút <span className="font-black text-xs text-indigo-600">Chia sẻ 📤</span> ➔ Tìm & chọn <strong className="text-indigo-950">"Thêm vào MH chính"</strong>.
+                      </li>
+                      <li>
+                        <strong className="text-indigo-950">Chrome / Android:</strong> Ấn <span className="font-black text-xs text-indigo-600">3 chấm dọc ➔</span> Chọn <strong className="text-indigo-950">"Thêm vào màn hình chính"</strong> hoặc <strong className="text-indigo-950">"Cài đặt ứng dụng"</strong>.
+                      </li>
+                    </ul>
+                  </div>
                 </div>
 
                 {/* Simulated/Current User capsule */}

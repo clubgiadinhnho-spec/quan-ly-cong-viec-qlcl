@@ -151,21 +151,15 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
         className={`rounded-xl border-2 border-gray-250 shadow-md p-4 transition-all space-y-4 font-sans relative ${mobileBg} ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
       >
         {/* TOP: TÊN NHÂN SỰ */}
-        <div className="flex items-start justify-between border-b border-gray-100 pb-3" id={`mobile-top-${task.id}`}>
+        <div className="flex start justify-between border-b border-gray-100 pb-3" id={`mobile-top-${task.id}`}>
           <div className="flex items-center gap-2.5 min-w-0">
-            <input 
-              type="checkbox" 
-              checked={isSelected}
-              onChange={() => onToggleSelect?.(task.id)}
-              className="w-4 h-4 rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all shrink-0"
-            />
             <Avatar src={assignee?.avatar} name={assigneeName} size="md" className="ring-[0.5px] ring-black shrink-0" />
             <div className="min-w-0">
-              <div className="text-[14px] font-black text-gray-900 leading-tight notranslate truncate">
+              <div className="text-[15px] font-black text-gray-900 leading-tight notranslate truncate">
                 <span translate="no" className="notranslate">{assigneeName}</span>
               </div>
               <div className="mt-1 flex items-center gap-1 flex-wrap">
-                <span translate="no" className="notranslate text-[10px] font-black text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                <span translate="no" className="notranslate text-[11px] font-black text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
                   {(() => {
                     if (!assignee) return "Nhân viên QLCL";
                     const val = (assignee.title || assignee.role || '').trim().toUpperCase();
@@ -186,7 +180,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                 </span>
                 
                 {isRecurringTask && (
-                  <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
                     <RotateCcw size={10} className="animate-spin-slow" />
                     <span>ĐỊNH KỲ</span>
                   </span>
@@ -196,12 +190,12 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           </div>
           
           <div className="flex flex-col items-end gap-1.5 shrink-0">
-            <div translate="no" className="notranslate text-[12px] font-mono font-black text-blue-700 bg-blue-50/70 px-2 py-0.5 rounded border border-blue-100 leading-none">
+            <div translate="no" className="notranslate text-[13px] font-mono font-black text-blue-700 bg-blue-50/70 px-2 py-0.5 rounded border border-blue-100 leading-none">
               <span translate="no" className="notranslate">{task.code}</span>
             </div>
             
             {task.priorityOrder && (
-              <span className="text-[9px] font-black px-1.5 py-0.5 bg-red-50 text-red-700 rounded border border-red-200 leading-none">
+              <span className="text-[10px] font-black px-1.5 py-0.5 bg-red-50 text-red-700 rounded border border-red-200 leading-none">
                 UT: {task.priorityOrder}
               </span>
             )}
@@ -211,20 +205,20 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
         {/* BODY: NỘI DUNG */}
         <div className="space-y-3 font-sans" id={`mobile-body-${task.id}`}>
           {/* Title / Category */}
-          <div className="text-[14.5px] font-black text-blue-900 leading-snug">
+          <div className="text-[15.5px] font-black text-blue-900 leading-snug">
             <span translate="no" className="notranslate uppercase">
               [{task.category?.toUpperCase() || 'KHÁC'}] - {task.title}
             </span>
           </div>
 
           {/* Objective */}
-          <div className="text-[13.5px] text-gray-800 leading-relaxed pr-1 text-justify">
+          <div className="text-[14.5px] text-gray-800 leading-relaxed pr-1 text-justify">
             <span className="font-extrabold text-blue-950">MỤC TIÊU: </span>
             <span translate="no" className="notranslate">{task.objective}</span>
           </div>
 
           {/* Timeline Dates */}
-          <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/60 font-sans">
+          <div className="grid grid-cols-2 gap-2 text-[12px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/60 font-sans">
             <div className="flex items-center gap-1">
               <span className="text-gray-500 font-medium">📝 KHỞI TẠO: {formatVietnameseDateMobile(task.issueDate)}</span>
             </div>
@@ -234,15 +228,15 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
             <div className="flex items-center gap-1 col-span-2 border-t border-gray-150/40 pt-1.5">
               <span className="font-bold text-red-600 uppercase">🏁 HẠN: {formatVietnameseDateMobile(task.expectedEndDate || task.dueDate)}</span>
             </div>
-            <div className="flex items-center gap-1 col-span-2 border-t border-gray-150/40 pt-1.5">
+            <div className="flex items-center gap-1 col-span-2 border-t border-gray-150/40 pt-1.55">
               {(isAdmin || isManager) ? (
                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                  <span className="text-[12px] font-black text-green-700 uppercase">XONG:</span>
+                  <span className="text-[13px] font-black text-green-700 uppercase">XONG:</span>
                   <input 
                     type="date"
                     value={task.actualEndDate || ''}
                     onChange={(e) => onUpdate(task.id, { actualEndDate: e.target.value })}
-                    className="bg-green-50 border border-green-200 rounded px-2 py-0.5 text-xs font-black text-green-700 outline-none focus:ring-1 focus:ring-green-400"
+                    className="bg-green-50 border border-green-200 rounded px-2 py-0.5 text-[13px] font-black text-green-700 outline-none focus:ring-1 focus:ring-green-400"
                   />
                 </div>
               ) : (
@@ -255,9 +249,9 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           <div className="bg-white border border-gray-150 rounded-lg overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-2 bg-slate-50 border-b border-gray-100">
               <div className="flex items-center gap-1.5">
-                <span translate="no" className="notranslate text-[9px] font-black uppercase tracking-widest text-blue-500">Cập nhật</span>
+                <span translate="no" className="notranslate text-[10px] font-black uppercase tracking-widest text-blue-500">Cập nhật</span>
                 {task.aiApplied && (
-                  <span translate="no" className="notranslate text-[9px] font-black px-1.5 py-0.5 bg-rose-600 text-white rounded border border-rose-700 shadow-sm shrink-0">
+                  <span translate="no" className="notranslate text-[10px] font-black px-1.5 py-0.5 bg-rose-600 text-white rounded border border-rose-700 shadow-sm shrink-0">
                     AI
                   </span>
                 )}
@@ -269,7 +263,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                     e.stopPropagation(); 
                     setShowUpdateModal(true);
                   }}
-                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-black text-blue-600 bg-blue-50 border border-blue-100 rounded uppercase"
+                  className="flex items-center gap-1 px-2 py-1 text-[11px] font-black text-blue-600 bg-blue-50 border border-blue-100 rounded uppercase"
                 >
                   <Edit3 size={10} strokeWidth={3} />
                   <span>Sửa</span>
@@ -286,11 +280,11 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
               ` }} />
               <div 
                 translate="no"
-                className="notranslate rich-text-content text-[13px] font-medium leading-relaxed text-slate-700 max-h-[140px] overflow-y-auto"
+                className="notranslate rich-text-content text-[14px] font-medium leading-relaxed text-slate-700 max-h-[140px] overflow-y-auto"
                 dangerouslySetInnerHTML={{ __html: toHTML(task.currentUpdate || '') }}
               />
               {!task.currentUpdate && (
-                <div className="text-[12px] text-gray-400 italic">Chưa có thông tin tiến độ.</div>
+                <div className="text-[13px] text-gray-400 italic">Chưa có thông tin tiến độ.</div>
               )}
             </div>
 

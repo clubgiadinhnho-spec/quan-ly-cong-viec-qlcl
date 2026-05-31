@@ -103,6 +103,7 @@ export interface UserPermissions {
   // -------------------------------------------------------------
   system_viewLogPage?: boolean;
   system_backupPage?: boolean;
+  system_viewSup?: boolean;
 }
 
 export interface LogEntry {

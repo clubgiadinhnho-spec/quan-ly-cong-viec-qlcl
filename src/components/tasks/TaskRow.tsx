@@ -82,8 +82,6 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     // ignore outside of context provider
   }
 
-  const isPatrolledBySup = supState?.isActive && supState?.currentTaskId === task.id;
-
   const assigneeName = getTaskAssigneeName(task, users);
   const assignee = getUserById(assigneeName, users) || getUserById(task.assigneeId, users);
 
@@ -104,6 +102,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const canDelete = isAdmin || !!user.delegatedPermissions?.canDeleteTask;
   const isManager = isAdmin || !!user.delegatedPermissions?.canCreateTask || !!user.delegatedPermissions?.canEditTask;
   const isEmployee = user.role === 'Staff';
+  
+  const canViewSup = isAdmin || user.role === 'Trưởng Phòng' || user.delegatedPermissions?.system_viewSup === true;
+  const isPatrolledBySup = canViewSup && supState?.isActive && supState?.currentTaskId === task.id;
   
   const canSeeAI = isAdmin || user.role === 'Trưởng Phòng';
 
@@ -325,8 +326,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   }, [task.aiReminderResponded, task.aiReminderCreatedAt]);
 
   const isAiReminding = task.aiReminderResponded === false && !localExpired;
-  const isWasPatrolledBySup = !!supState?.patrolledTaskIds?.includes(task.id);
-  const isPatrolledToday = !!(task.lastPatrolTime && !task.patrolReviewedByAdmin && (() => { try { return isSameDay(parseISO(task.lastPatrolTime), new Date()); } catch(e) { return false; } })());
+  const isWasPatrolledBySup = canViewSup && !!supState?.patrolledTaskIds?.includes(task.id);
+  const isPatrolledToday = canViewSup && !!(task.lastPatrolTime && !task.patrolReviewedByAdmin && (() => { try { return isSameDay(parseISO(task.lastPatrolTime), new Date()); } catch(e) { return false; } })());
   const isRowLiveActivePatrolled = isPatrolledBySup || highlightedTaskId === task.id;
   const isAnySpeechActive = isPatrolledBySup || isAiReminding || showAIChat;
   const priorityRowClass = getPriorityRowClass(task.priorityOrder);
@@ -756,19 +757,13 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         {/* TOP: TÊN NHÂN SỰ */}
         <div className="flex items-start justify-between border-b border-gray-100 pb-3" id={`mobile-top-${task.id}`}>
           <div className="flex items-center gap-2.5 min-w-0">
-            <input 
-              type="checkbox" 
-              checked={isSelected}
-              onChange={() => onToggleSelect?.(task.id)}
-              className="w-4 h-4 rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all shrink-0"
-            />
             <Avatar src={assignee?.avatar} name={assigneeName} size="md" className="ring-[0.5px] ring-black shrink-0" />
             <div className="min-w-0">
-              <div className="text-[14px] font-black text-gray-900 leading-tight notranslate truncate">
+              <div className="text-[15px] font-black text-gray-900 leading-tight notranslate truncate">
                 <span translate="no" className="notranslate">{assigneeName}</span>
               </div>
               <div className="mt-1 flex items-center gap-1 flex-wrap">
-                <span translate="no" className="notranslate text-[10px] font-black text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                <span translate="no" className="notranslate text-[11px] font-black text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
                   {(() => {
                     if (!assignee) return "Nhân viên QLCL";
                     const val = (assignee.title || assignee.role || '').trim().toUpperCase();
@@ -789,7 +784,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 </span>
                 
                 {isRecurringTask && (
-                  <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
                     <RefreshCw size={10} className="animate-[spin_4s_linear_infinite]" />
                     <span>ĐỊNH KỲ</span>
                   </span>
@@ -799,12 +794,12 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           </div>
           
           <div className="flex flex-col items-end gap-1.5 shrink-0">
-            <div translate="no" className="notranslate text-[12px] font-mono font-black text-blue-700 bg-blue-50/70 px-2 py-0.5 rounded border border-blue-100 leading-none">
+            <div translate="no" className="notranslate text-[13px] font-mono font-black text-blue-700 bg-blue-50/70 px-2 py-0.5 rounded border border-blue-100 leading-none">
               <span translate="no" className="notranslate">{task.code}</span>
             </div>
             
             {task.priorityOrder && (
-              <span className="text-[9px] font-black px-1.5 py-0.5 bg-red-50 text-red-700 rounded border border-red-200 leading-none">
+              <span className="text-[10px] font-black px-1.5 py-0.5 bg-red-50 text-red-700 rounded border border-red-200 leading-none">
                 UT: {task.priorityOrder}
               </span>
             )}
@@ -814,28 +809,28 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         {/* BODY: NỘI DUNG */}
         <div className="space-y-3 font-sans" id={`mobile-body-${task.id}`}>
           {/* Title / Category */}
-          <div className="text-[14.5px] font-black text-blue-900 leading-snug">
+          <div className="text-[15.5px] font-black text-blue-900 leading-snug">
             <span translate="no" className="notranslate uppercase">
               [{task.category?.toUpperCase() || 'KHÁC'}] - {task.title}
             </span>
           </div>
 
           {/* Objective */}
-          <div className="text-[13.5px] text-gray-800 leading-relaxed pr-1 text-justify">
+          <div className="text-[14.5px] text-gray-800 leading-relaxed pr-1 text-justify">
             <span className="font-extrabold text-blue-950">MỤC TIÊU: </span>
             <span translate="no" className="notranslate">{task.objective}</span>
           </div>
 
           {/* Two Stage */}
           {isTwoStage && (
-            <div className="rounded-lg bg-gray-50 border border-gray-200 p-2 text-xs">
+            <div className="rounded-lg bg-gray-50 border border-gray-200 p-2 text-[13px]">
               {isStage1Done ? (
                 <div className="text-sky-800 font-bold flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
                   <span translate="no" className="notranslate">Giai đoạn 2: Theo dõi diễn tiến</span>
                 </div>
               ) : (
-                <div className="flex items-center justify-between font-bold text-[11px]">
+                <div className="flex items-center justify-between font-bold text-[12px]">
                   <span className="text-gray-500">Giai đoạn 1 (SLA):</span>
                   <span translate="no" className="notranslate font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-150">
                     {formatCountdown(timeLeftMs)}
@@ -846,7 +841,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           )}
 
           {/* Timeline Dates */}
-          <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/60 font-sans">
+          <div className="grid grid-cols-2 gap-2 text-[12px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/60 font-sans">
             <div className="flex items-center gap-1.5">
               <Highlighter size={12} className="text-gray-400" />
               <span className="text-gray-500 font-medium">KHỞI TẠO: {formatVietnameseDateMobile(task.issueDate)}</span>
@@ -861,6 +856,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 HẠN: {deadlineInfo.displayText}
               </span>
             </div>
+            {deadlineInfo.isOverdue && (
+              <div className="flex items-center gap-1.5 col-span-2 text-red-650 bg-red-105 bg-red-100 border border-red-200 animate-pulse text-[12px] font-black uppercase justify-center tracking-tight">
+                <span>⚠️ CẢNH BÁO: CÔNG VIỆC QUÁ HẠN!</span>
+              </div>
+            )}
             {task.extensionDate && (
               <div className="flex items-center gap-1.5 col-span-2 text-orange-600 font-bold">
                 <RotateCcw size={12} />
@@ -881,7 +881,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           {/* Progress Section */}
           <div className="bg-white border border-gray-150 rounded-lg overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-2 bg-slate-50 border-b border-gray-100">
-              <div className="flex items-center gap-1.5">
+               <div className="flex items-center gap-1.5">
                 {((task.version || 0) > 0 || task.currentUpdate) && (() => {
                   const lastUpdate = task.lastActionAt ? new Date(task.lastActionAt) : new Date();
                   const now = new Date();
@@ -896,7 +896,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   else if (diffDays >= 6) bgClass = "bg-red-600 text-white border-red-700";
 
                   return (
-                    <span translate="no" className={`notranslate text-[9px] font-black px-1.5 py-0.5 rounded border shadow-sm ${bgClass}`}>
+                    <span translate="no" className={`notranslate text-[10px] font-black px-1.5 py-0.5 rounded border shadow-sm ${bgClass}`}>
                       V{task.version || 1}
                     </span>
                   );
@@ -908,14 +908,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   if (cycleCount > 6) bgClass = "bg-red-600 text-white border-red-700";
                   else if (cycleCount > 3) bgClass = "bg-orange-500 text-white border-orange-600";
                   return (
-                    <span translate="no" className={`notranslate text-[9px] font-black px-1.5 py-0.5 rounded border shadow-sm ${bgClass}`}>
+                    <span translate="no" className={`notranslate text-[10px] font-black px-1.5 py-0.5 rounded border shadow-sm ${bgClass}`}>
                       CK:{cycleCount}-TD:{elapsedDays}
                     </span>
                   );
                 })()}
 
                 {task.aiApplied && (
-                  <span translate="no" className="notranslate text-[9px] font-black px-1.5 py-0.5 bg-rose-600 text-white rounded border border-rose-700 shadow-sm shrink-0">
+                  <span translate="no" className="notranslate text-[10px] font-black px-1.5 py-0.5 bg-rose-600 text-white rounded border border-rose-700 shadow-sm shrink-0">
                     AI
                   </span>
                 )}
@@ -927,7 +927,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                     e.stopPropagation(); 
                     setShowUpdateModal(true);
                   }}
-                  className="flex items-center gap-1 px-2 py-1 text-[10px] font-black text-blue-600 bg-blue-50 border border-blue-100 rounded uppercase"
+                  className="flex items-center gap-1 px-2 py-1 text-[11px] font-black text-blue-600 bg-blue-50 border border-blue-100 rounded uppercase"
                 >
                   <Edit3 size={10} strokeWidth={3} />
                   <span>Cập nhật</span>
@@ -944,11 +944,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               ` }} />
               <div 
                 translate="no"
-                className="notranslate rich-text-content text-[13px] font-medium leading-relaxed text-slate-700 max-h-[140px] overflow-y-auto"
+                className="notranslate rich-text-content text-[14px] font-medium leading-relaxed text-slate-700 max-h-[140px] overflow-y-auto"
                 dangerouslySetInnerHTML={{ __html: toHTML(task.currentUpdate || '') }}
               />
               {!task.currentUpdate && (
-                <div className="text-[12px] text-gray-400 italic">Chưa có thông tin tiến độ.</div>
+                <div className="text-[13px] text-gray-400 italic">Chưa có thông tin tiến độ.</div>
               )}
             </div>
           </div>
@@ -963,7 +963,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               <button 
                 ref={chatButtonRef}
                 onClick={() => onOpenChat(isChatOpen ? '' : task.id)}
-                className={`flex items-center gap-1 py-1 px-2.5 border border-gray-200 rounded-lg shadow-2xs text-[11px] font-black uppercase ${
+                className={`flex items-center gap-1 py-1 px-2.5 border border-gray-200 rounded-lg shadow-2xs text-[12px] font-black uppercase ${
                   showBadge && isAdmin ? 'bg-red-50 text-red-700' : (task.comments?.length || 0) > 0 ? 'bg-red-50 text-red-800' : 'bg-white text-gray-600'
                 }`}
               >
@@ -1501,6 +1501,14 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             </Portal>
           )}
         </AnimatePresence>
+
+        {/* Progress Update Modal for Mobile */}
+        <UpdateModal 
+          isOpen={showUpdateModal}
+          onClose={() => setShowUpdateModal(false)}
+          task={task}
+          onSave={handleUpdateProgress}
+        />
       </div>
     );
   }
@@ -1799,15 +1807,22 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             </div>
             
             {/* Hàng 3: Hạn */}
-            <div className="flex items-center gap-2 leading-none">
-              <div className="w-5 flex justify-center text-gray-700">
-                <Tag size={13} fill={deadlineInfo.status !== 'NORMAL' ? "currentColor" : "none"} className={deadlineInfo.status === 'CRITICAL' ? 'text-red-600' : deadlineInfo.status === 'URGENT' ? 'text-orange-500' : ''} />
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 leading-none">
+                <div className="w-5 flex justify-center text-gray-700">
+                  <Tag size={13} fill={deadlineInfo.status !== 'NORMAL' ? "currentColor" : "none"} className={deadlineInfo.status === 'CRITICAL' ? 'text-red-600' : deadlineInfo.status === 'URGENT' ? 'text-orange-500' : ''} />
+                </div>
+                <div className={`text-[11px] ${deadlineInfo.status === 'CRITICAL' ? 'text-red-700 font-black' : deadlineInfo.status === 'URGENT' ? 'text-orange-600 font-black' : deadlineInfo.status === 'WARNING' ? 'text-yellow-700 font-bold' : 'text-gray-900 font-bold'} tracking-tight whitespace-nowrap`}>
+                  <span translate="no" className="notranslate uppercase">
+                    {deadlineInfo.displayText}
+                  </span>
+                </div>
               </div>
-              <div className={`text-[11px] ${deadlineInfo.status === 'CRITICAL' ? 'text-red-700 font-black' : deadlineInfo.status === 'URGENT' ? 'text-orange-600 font-black' : deadlineInfo.status === 'WARNING' ? 'text-yellow-700 font-bold' : 'text-gray-900 font-bold'} tracking-tight whitespace-nowrap`}>
-                <span translate="no" className="notranslate uppercase">
-                  {deadlineInfo.displayText}
-                </span>
-              </div>
+              {deadlineInfo.isOverdue && (
+                <div className="ml-7 flex items-center gap-1 bg-red-100 text-red-700 border border-red-200 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tight animate-pulse justify-center max-w-[120px]">
+                  <span>⚠️ QUÁ HẠN!</span>
+                </div>
+              )}
             </div>
 
             {/* Hàng 4: Gia hạn (Nếu có) */}

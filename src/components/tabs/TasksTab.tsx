@@ -201,69 +201,78 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           </div>
           
           {/* SUPERVISOR ROBOT AREA (CON ROBOT CAM CŨ) - KHOANH ĐỎ SLOT */}
-          <div className="flex-1 flex items-center justify-center px-4 max-w-xl">
-            <div className="flex items-center gap-2.5 bg-orange-50/50 border border-orange-200/60 rounded-2xl px-3 py-1.5 shadow-sm max-w-full animate-in fade-in zoom-in-95 duration-200">
-              
-              {/* Pulsing/bouncing Orange Robot Icon */}
-              <button
-                onClick={effectiveUser.role === 'Admin' ? togglePatrol : undefined}
-                disabled={effectiveUser.role !== 'Admin'}
-                className={`flex-shrink-0 w-8 h-8 rounded-full transition-all text-white flex items-center justify-center relative ${
-                  supState.isActive ? 'bg-orange-100 border-2 border-dashed border-orange-300' : 'bg-orange-500 hover:bg-orange-600 active:scale-95 shadow-md'
-                } ${effectiveUser.role === 'Admin' ? 'cursor-pointer' : 'cursor-default'}`}
-                title={effectiveUser.role === 'Admin' ? (supState.isActive ? "Bấm để TẠM DỪNG Tuần Tra" : "Bấm để KÍCH HOẠT Tuần Tra") : "Hệ thống giám sát S.U.P"}
-              >
-                {!supState.isActive ? (
-                  <motion.div
-                    layoutId="sup-robot-avatar"
-                    animate={{ y: [0, -4, 0] }}
-                    transition={{
-                      y: { repeat: Infinity, duration: 2, ease: "easeInOut" },
-                      layout: { type: "tween", duration: 3.5, ease: "easeInOut" }
-                    }}
-                    className="w-full h-full rounded-full bg-orange-500 flex items-center justify-center relative z-[1300] shadow-md"
+          {(() => {
+            const canViewSup = effectiveUser.role === 'Admin' || effectiveUser.role === 'Trưởng Phòng' || effectiveUser.delegatedPermissions?.system_viewSup === true;
+            if (!canViewSup) return null;
+            const canControlSup = effectiveUser.role === 'Admin' || effectiveUser.role === 'Trưởng Phòng' || effectiveUser.delegatedPermissions?.system_viewSup === true;
+            return (
+              <div className="flex-1 flex items-center justify-center px-4 max-w-xl">
+                <div className="flex items-center gap-2.5 bg-orange-50/50 border border-orange-200/60 rounded-2xl px-3 py-1.5 shadow-sm max-w-full animate-in fade-in zoom-in-95 duration-200">
+                  
+                  {/* Pulsing/bouncing Orange Robot Icon */}
+                  <button
+                    onClick={canControlSup ? togglePatrol : undefined}
+                    disabled={!canControlSup}
+                    className={`flex-shrink-0 w-8 h-8 rounded-full transition-all text-white flex items-center justify-center relative ${
+                      supState.isActive ? 'bg-orange-100 border-2 border-dashed border-orange-300' : 'bg-orange-500 hover:bg-orange-600 active:scale-95 shadow-md'
+                    } ${canControlSup ? 'cursor-pointer' : 'cursor-default'}`}
+                    title={canControlSup ? (supState.isActive ? "Bấm để TẠM DỪNG Tuần Tra" : "Bấm để KÍCH HOẠT Tuần Tra") : "Hệ thống giám sát S.U.P"}
                   >
-                    <svg viewBox="0 0 24 24" className="w-4.5 h-4.5 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="11" width="18" height="10" rx="2" />
-                      <circle cx="12" cy="5" r="2" />
-                      <path d="M12 7v4" />
-                      <line x1="8" y1="16" x2="8" y2="16" strokeLinecap="round" />
-                      <line x1="16" y1="16" x2="16" y2="16" strokeLinecap="round" />
-                    </svg>
-                  </motion.div>
-                ) : (
-                  // Elegant placeholder when patrolling
-                  <div className="w-full h-full flex items-center justify-center text-orange-400">
-                    <span className="text-[9px] font-black animate-pulse">S.U.P</span>
+                    {!supState.isActive ? (
+                      <motion.div
+                        layoutId="sup-robot-avatar"
+                        animate={{ y: [0, -4, 0] }}
+                        transition={{
+                          y: { repeat: Infinity, duration: 2, ease: "easeInOut" },
+                          layout: { type: "tween", duration: 3.5, ease: "easeInOut" }
+                        }}
+                        className="w-full h-full rounded-full bg-orange-500 flex items-center justify-center relative z-[1300] shadow-md"
+                      >
+                        <svg viewBox="0 0 24 24" className="w-4.5 h-4.5 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="11" width="18" height="10" rx="2" />
+                          <circle cx="12" cy="5" r="2" />
+                          <path d="M12 7v4" />
+                          <line x1="8" y1="16" x2="8" y2="16" strokeLinecap="round" />
+                          <line x1="16" y1="16" x2="16" y2="16" strokeLinecap="round" />
+                        </svg>
+                      </motion.div>
+                    ) : (
+                      // Elegant placeholder when patrolling
+                      <div className="w-full h-full flex items-center justify-center text-orange-400">
+                        <span className="text-[9px] font-black animate-pulse">S.U.P</span>
+                      </div>
+                    )}
+
+                    {supState.isActive && (
+                      <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border border-white animate-ping" />
+                    )}
+                  </button>
+
+                  {/* Speech Dialogue Bubble */}
+                  <div className="relative flex flex-col min-w-0">
+                    <div className="relative flex flex-col min-w-0">
+                      <div className="flex items-center gap-1.5 leading-none mb-0.5">
+                        <span className="text-[8px] font-black text-white bg-orange-600 px-1 py-0.5 rounded-sm uppercase tracking-wider select-none leading-none">
+                          SUPERVISOR ROBOT
+                        </span>
+                        <span className={`w-1.5 h-1.5 rounded-full ${supState.isActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                        <span className="text-[7.5px] font-bold text-orange-500 uppercase tracking-widest">
+                          {supState.isActive ? 'ĐANG TUẦN TRA' : 'NGHỈ NGƠI'}
+                        </span>
+                      </div>
+                      
+                      <div className="text-[10px] text-orange-955 font-black leading-snug truncate max-w-[280px]">
+                        <span translate="no" className="notranslate">
+                          {supState.speech || 'Hệ thống an ninh giám sát S.U.P sẵn sàng!'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                )}
 
-                {supState.isActive && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border border-white animate-ping" />
-                )}
-              </button>
-
-              {/* Speech Dialogue Bubble */}
-              <div className="relative flex flex-col min-w-0">
-                <div className="flex items-center gap-1.5 leading-none mb-0.5">
-                  <span className="text-[8px] font-black text-white bg-orange-600 px-1 py-0.5 rounded-sm uppercase tracking-wider select-none leading-none">
-                    SUPERVISOR ROBOT
-                  </span>
-                  <span className={`w-1.5 h-1.5 rounded-full ${supState.isActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-                  <span className="text-[7.5px] font-bold text-orange-500 uppercase tracking-widest">
-                    {supState.isActive ? 'ĐANG TUẦN TRA' : 'NGHỈ NGƠI'}
-                  </span>
-                </div>
-                
-                <div className="text-[10px] text-orange-955 font-black leading-snug truncate max-w-[280px]">
-                  <span translate="no" className="notranslate">
-                    {supState.speech || 'Hệ thống an ninh giám sát S.U.P sẵn sàng!'}
-                  </span>
                 </div>
               </div>
-
-            </div>
-          </div>
+            );
+          })()}
 
           {effectiveUser.role === "Admin" && selectedTaskIds.length > 0 && (
             <div className="flex items-center gap-2">
@@ -292,7 +301,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
               <span translate="no" className="notranslate uppercase tracking-tighter">DANH SÁCH BẢNG CÔNG VIỆC</span>
             </h3>
             
-            <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2">
               <button
                 onClick={handlePrintClick}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white border border-rose-500 rounded-lg text-[10px] font-black tracking-wider shadow-sm hover:shadow active:scale-95 transition-all uppercase flex-shrink-0 print:hidden"

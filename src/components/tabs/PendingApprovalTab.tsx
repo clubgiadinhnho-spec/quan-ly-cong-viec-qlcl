@@ -200,7 +200,7 @@ export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
 
             <button
               onClick={handlePrintClick}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white border border-rose-500 rounded-lg text-[10px] font-black tracking-wider shadow-sm hover:shadow active:scale-95 transition-all uppercase flex-shrink-0 print:hidden"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white border border-rose-500 rounded-lg text-[10px] font-black tracking-wider shadow-sm hover:shadow active:scale-95 transition-all uppercase flex-shrink-0 print:hidden"
               title="In/Xuất danh sách công việc ra PDF"
             >
               <Printer size={12} strokeWidth={3} />
@@ -208,7 +208,7 @@ export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
             </button>
 
             {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canExportExcel) && (
-              <div className="flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2">
                 <label className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold hover:bg-blue-700 transition-all uppercase shadow-sm cursor-pointer shadow-blue-200">
                   <FileDown size={12} className="rotate-180" />
                   <span translate="no" className="notranslate">Nhập Excel</span>

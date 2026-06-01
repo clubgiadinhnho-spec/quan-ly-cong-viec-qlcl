@@ -7,6 +7,7 @@ import { sendPasswordResetEmail } from 'firebase/auth';
 import { FcGoogle } from 'react-icons/fc';
 import { generateUniqueKey } from '../utils/stringUtils';
 import { doc, getDoc, enableNetwork } from 'firebase/firestore';
+import { QLogo } from './common/QLogo';
 
 interface LoginProps {
   users: User[];
@@ -337,7 +338,7 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
         className="max-w-md w-full bg-white rounded-2xl border border-gray-200 shadow-xl shadow-gray-200/50 overflow-hidden"
       >
         <div className="p-8 border-b border-gray-50 flex flex-col items-center text-center">
-          <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-xl mb-4 shadow-lg shadow-blue-100 transform -rotate-3">Q</div>
+          <QLogo size="lg" className="mb-4 transform -rotate-3 hover:rotate-3 transition-transform duration-300" />
           <h1 className="text-xl font-black tracking-tight text-gray-900 uppercase">
             <span translate="no" className="notranslate">HỆ THỐNG QUẢN LÝ CHẤT LƯỢNG</span>
           </h1>

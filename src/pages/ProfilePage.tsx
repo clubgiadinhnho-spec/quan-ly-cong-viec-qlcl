@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { JobAvatar } from '../components/common/JobAvatar';
 import { calculateKPI } from '../utils/taskUtils';
 import { User, Task, TaskCategory } from '../types';
-import { User as UserIcon, FileText, MessageSquare, Shield, HelpCircle, CheckCircle2, Clock, Edit3, Save, Lock, Mail, Phone, UserCircle, Key, Eye, EyeOff, CheckCircle, Camera, Printer, ExternalLink, X } from 'lucide-react';
+import { User as UserIcon, FileText, MessageSquare, Shield, HelpCircle, CheckCircle2, Clock, Edit3, Save, Lock, Mail, Phone, UserCircle, Key, Eye, EyeOff, CheckCircle, Camera, Printer, ExternalLink, X, Droplet } from 'lucide-react';
 import { getPerformanceAdvice } from '../lib/gemini';
 import { formatDate, getMonthYear } from '../lib/dateUtils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -197,7 +197,14 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
     personalEmail: user?.personalEmail || 'CHỜ CẬP NHẬT',
     title: user?.title || '',
     avatar: user?.avatar || '',
-    birthDate: user?.birthDate || ''
+    birthDate: user?.birthDate || '',
+    reminderSettings: user?.reminderSettings || {
+      enabled: true,
+      intervalMinutes: 30,
+      message: "Đã 30 phút rồi! Hãy uống một ngụm nước nhé.",
+      autoCloseSeconds: 20,
+      configName: "Cấu hình Mặc định (Đức Mu)"
+    }
   });
 
   useEffect(() => {
@@ -209,10 +216,17 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
         personalEmail: user.personalEmail || 'CHỜ CẬP NHẬT',
         title: user.title || '',
         avatar: user.avatar || '',
-        birthDate: user.birthDate || ''
+        birthDate: user.birthDate || '',
+        reminderSettings: user.reminderSettings || {
+          enabled: true,
+          intervalMinutes: 30,
+          message: "Đã 30 phút rồi! Hãy uống một ngụm nước nhé.",
+          autoCloseSeconds: 20,
+          configName: "Cấu hình Mặc định (Đức Mu)"
+        }
       });
     }
-  }, [user?.id, user?.name, user?.phone, user?.companyEmail, user?.personalEmail, user?.avatar, user?.birthDate, isEditing]);
+  }, [user?.id, user?.name, user?.phone, user?.companyEmail, user?.personalEmail, user?.avatar, user?.birthDate, user?.reminderSettings, isEditing]);
 
   const [passwordData, setPasswordData] = useState({
     newPassword: '',
@@ -567,6 +581,7 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
         birthDate: formData.birthDate,
         uniqueKey: profileKey, // Đảm bảo ghi lại key
         layoutConfig: layoutConfig, // LƯU BỐ CỤC TÙY CHỈNH
+        reminderSettings: formData.reminderSettings,
         updatedAt: new Date().toISOString()
       };
 
@@ -1111,6 +1126,166 @@ export const ProfilePage = ({ currentUser, tasks, users, categories, onUpdatePro
                             type="email" value={formData.personalEmail}
                             onChange={e => setFormData({...formData, personalEmail: e.target.value})}
                             className="flex-1 text-[13px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-1 py-0.5 lowercase"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* CẤU HÌNH NHẮC NHỞ SỨC KHỎE */}
+                  <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-center min-h-[140px] col-span-12">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2 opacity-70">
+                        <Droplet size={14} className="text-blue-500 fill-current" />
+                        <span translate="no" className="notranslate text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                          Cấu hình nhắc nhở sức khỏe & uống nước
+                        </span>
+                      </div>
+                      {!isEditing ? (
+                        <span className={`px-2 py-0.5 text-[9px] font-black rounded uppercase tracking-wider ${
+                          (formData.reminderSettings?.enabled ?? true) 
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' 
+                            : 'bg-slate-100 text-slate-400 border border-slate-200'
+                        }`}>
+                          {(formData.reminderSettings?.enabled ?? true) ? 'Bật nhắc nhở' : 'Đang tắt'}
+                        </span>
+                      ) : (
+                        <label className="relative inline-flex items-center cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={formData.reminderSettings?.enabled ?? true}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              reminderSettings: {
+                                ...(formData.reminderSettings || {
+                                  enabled: true,
+                                  intervalMinutes: 30,
+                                  message: "Đã 30 phút rồi! Hãy uống một ngụm nước nhé.",
+                                  autoCloseSeconds: 20,
+                                  configName: "Cấu hình Mặc định (Đức Mu)"
+                                }),
+                                enabled: e.target.checked
+                              }
+                            })}
+                            className="sr-only peer"
+                          />
+                          <div className="relative w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                          <span className="ml-2 text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                            {(formData.reminderSettings?.enabled ?? true) ? 'Đang bật' : 'Đang tắt'}
+                          </span>
+                        </label>
+                      )}
+                    </div>
+
+                    {!isEditing ? (
+                      <div className="space-y-2 mt-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-slate-700">
+                          <div className="flex flex-col">
+                            <span className="text-[8px] font-black text-slate-400 uppercase">Tần suất nhắc:</span>
+                            <span className="text-xs font-bold text-slate-800">{formData.reminderSettings?.intervalMinutes ?? 30} phút / lần</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[8px] font-black text-slate-400 uppercase">Thời gian hiển thị:</span>
+                            <span className="text-xs font-bold text-slate-800">{formData.reminderSettings?.autoCloseSeconds ?? 20} giây</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[8px] font-black text-slate-400 uppercase">Tên cấu hình:</span>
+                            <span className="text-xs font-bold text-slate-800">{formData.reminderSettings?.configName || "Cấu hình Mặc định (Đức Mu)"}</span>
+                          </div>
+                        </div>
+                        <div className="bg-blue-50/40 p-3 rounded-xl border border-blue-50 flex items-start gap-2.5 mt-2">
+                          <Droplet size={14} className="text-blue-500 mt-0.5 shrink-0" />
+                          <p className="text-[12px] font-bold text-slate-700 leading-relaxed">
+                            {formData.reminderSettings?.message || "Đã 30 phút rồi! Hãy uống một ngụm nước nhé."}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mt-2">
+                        <div className="col-span-12 md:col-span-4 flex flex-col gap-1">
+                          <span className="text-[8px] font-black text-slate-400 uppercase">Tần suất (phút):</span>
+                          <input
+                            type="number"
+                            min="1"
+                            value={formData.reminderSettings?.intervalMinutes ?? 30}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              reminderSettings: {
+                                ...(formData.reminderSettings || {
+                                  enabled: true,
+                                  intervalMinutes: 30,
+                                  message: "Đã 30 phút rồi! Hãy uống một ngụm nước nhé.",
+                                  autoCloseSeconds: 20,
+                                  configName: "Cấu hình Mặc định (Đức Mu)"
+                                }),
+                                intervalMinutes: parseInt(e.target.value) || 30
+                              }
+                            })}
+                            className="w-full text-[13px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-2 py-1.5 border border-blue-100"
+                          />
+                        </div>
+                        <div className="col-span-12 md:col-span-4 flex flex-col gap-1">
+                          <span className="text-[8px] font-black text-slate-400 uppercase">Thời gian tắt (giây):</span>
+                          <input
+                            type="number"
+                            min="5"
+                            value={formData.reminderSettings?.autoCloseSeconds ?? 20}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              reminderSettings: {
+                                ...(formData.reminderSettings || {
+                                  enabled: true,
+                                  intervalMinutes: 30,
+                                  message: "Đã 30 phút rồi! Hãy uống một ngụm nước nhé.",
+                                  autoCloseSeconds: 20,
+                                  configName: "Cấu hình Mặc định (Đức Mu)"
+                                }),
+                                autoCloseSeconds: parseInt(e.target.value) || 20
+                              }
+                            })}
+                            className="w-full text-[13px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-2 py-1.5 border border-blue-100"
+                          />
+                        </div>
+                        <div className="col-span-12 md:col-span-4 flex flex-col gap-1">
+                          <span className="text-[8px] font-black text-slate-400 uppercase">Tiêu đề cấu hình:</span>
+                          <input
+                            type="text"
+                            value={formData.reminderSettings?.configName || "Cấu hình Mặc định (Đức Mu)"}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              reminderSettings: {
+                                ...(formData.reminderSettings || {
+                                  enabled: true,
+                                  intervalMinutes: 30,
+                                  message: "Đã 30 phút rồi! Hãy uống một ngụm nước nhé.",
+                                  autoCloseSeconds: 20,
+                                  configName: "Cấu hình Mặc định (Đức Mu)"
+                                }),
+                                configName: e.target.value
+                              }
+                            })}
+                            className="w-full text-[13px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-2 py-1.5 border border-blue-100"
+                          />
+                        </div>
+                        <div className="col-span-12 flex flex-col gap-1">
+                          <span className="text-[8px] font-black text-slate-400 uppercase">Lời nhắn nhắc nhở:</span>
+                          <textarea
+                            rows={2}
+                            value={formData.reminderSettings?.message || "Đã 30 phút rồi! Hãy uống một ngụm nước nhé."}
+                            onChange={(e) => setFormData({
+                              ...formData,
+                              reminderSettings: {
+                                ...(formData.reminderSettings || {
+                                  enabled: true,
+                                  intervalMinutes: 30,
+                                  message: "Đã 30 phút rồi! Hãy uống một ngụm nước nhé.",
+                                  autoCloseSeconds: 20,
+                                  configName: "Cấu hình Mặc định (Đức Mu)"
+                                }),
+                                message: e.target.value
+                              }
+                            })}
+                            className="w-full text-[13px] font-bold text-blue-600 outline-none bg-blue-50/30 rounded px-2 py-1.5 border border-blue-100 resize-none"
                           />
                         </div>
                       </div>

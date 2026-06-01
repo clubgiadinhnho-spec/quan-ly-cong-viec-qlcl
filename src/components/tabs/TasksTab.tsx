@@ -178,25 +178,25 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           />
         </div>
 
-        <div className="flex items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm transition-all duration-300 print:hidden">
-          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
+        <div className="flex items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm transition-all duration-300 print:hidden overflow-hidden">
+          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl flex-shrink-0">
             <button
               onClick={() => setViewScope("mine")}
-              className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+              className={`px-2 py-1.5 xs:px-4 xs:py-2 rounded-lg text-[9px] xs:text-[10px] font-black uppercase tracking-tight transition-all flex items-center gap-1 shrink-0 whitespace-nowrap outline-none ${
                 viewScope === "mine" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
               }`}
             >
-              <UserIcon size={14} />
-              <span translate="no" className="notranslate">Cá nhân (<span translate="no" className="notranslate">{myActiveCount}</span>)</span>
+              <UserIcon size={12} className="shrink-0" />
+              <span translate="no" className="notranslate">CÁ NHÂN ({myActiveCount})</span>
             </button>
             <button
               onClick={() => setViewScope("all")}
-              className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+              className={`px-2 py-1.5 xs:px-4 xs:py-2 rounded-lg text-[9px] xs:text-[10px] font-black uppercase tracking-tight transition-all flex items-center gap-1 shrink-0 whitespace-nowrap outline-none ${
                 viewScope === "all" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
               }`}
             >
-              <UsersIcon size={14} />
-              <span translate="no" className="notranslate">Phòng QLCL (<span translate="no" className="notranslate">{allActiveCount}</span>)</span>
+              <UsersIcon size={12} className="shrink-0" />
+              <span translate="no" className="notranslate">P.QLCL ({allActiveCount})</span>
             </button>
           </div>
           
@@ -226,7 +226,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
                           y: { repeat: Infinity, duration: 2, ease: "easeInOut" },
                           layout: { type: "tween", duration: 3.5, ease: "easeInOut" }
                         }}
-                        className="w-full h-full rounded-full bg-orange-500 flex items-center justify-center relative z-[1300] shadow-md"
+                        className="w-full h-full rounded-full bg-orange-500 flex items-center justify-center relative z-[10] shadow-md"
                       >
                         <svg viewBox="0 0 24 24" className="w-4 h-4 md:w-4.5 md:h-4.5 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <rect x="3" y="11" width="18" height="10" rx="2" />

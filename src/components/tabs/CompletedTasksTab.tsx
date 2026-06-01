@@ -236,25 +236,25 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
         />
       </div>
       <div className="p-4 space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
-          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl flex-shrink-0">
             <button
               onClick={() => setViewScope("mine")}
-              className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+              className={`px-2 py-1.5 xs:px-4 xs:py-2 rounded-lg text-[9px] xs:text-[10px] font-black uppercase tracking-tight transition-all flex items-center gap-1 shrink-0 whitespace-nowrap outline-none ${
                 viewScope === "mine" ? "bg-white text-green-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
               }`}
             >
-              <UserIcon size={14} />
-              <span translate="no" className="notranslate">Cá nhân (<span translate="no" className="notranslate">{tasksToDisplay.filter(t => isUserTask(t, effectiveUser)).length}</span>)</span>
+              <UserIcon size={12} className="shrink-0" />
+              <span translate="no" className="notranslate">CÁ NHÂN ({tasksToDisplay.filter(t => isUserTask(t, effectiveUser)).length})</span>
             </button>
             <button
               onClick={() => setViewScope("all")}
-              className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+              className={`px-2 py-1.5 xs:px-4 xs:py-2 rounded-lg text-[9px] xs:text-[10px] font-black uppercase tracking-tight transition-all flex items-center gap-1 shrink-0 whitespace-nowrap outline-none ${
                 viewScope === "all" ? "bg-white text-green-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
               }`}
             >
-              <UsersIcon size={14} />
-              <span translate="no" className="notranslate">Phòng QLCL (<span translate="no" className="notranslate">{tasksToDisplay.length}</span>)</span>
+              <UsersIcon size={12} className="shrink-0" />
+              <span translate="no" className="notranslate">P.QLCL ({tasksToDisplay.length})</span>
             </button>
           </div>
         </div>

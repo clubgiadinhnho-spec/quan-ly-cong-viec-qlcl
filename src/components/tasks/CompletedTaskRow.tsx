@@ -350,7 +350,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                     </span>
                   )}
                 </div>
-                <span>Chat ({task.comments?.length || 0})</span>
+                <span>({task.comments?.length || 0})</span>
               </button>
             </div>
 
@@ -695,8 +695,8 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                     </span>
                   )}
                 </div>
-                <span translate="no" className="notranslate text-[8px] font-black tracking-tight uppercase">
-                  <span translate="no" className="notranslate">CHAT</span>
+                <span translate="no" className="notranslate text-[8.5px] font-black tracking-tighter">
+                  <span translate="no" className="notranslate">({task.comments?.length || 0})</span>
                 </span>
               </div>
             </button>

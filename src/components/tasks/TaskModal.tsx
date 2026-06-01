@@ -152,7 +152,7 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
   }, [recurrence, startDate, isEdit, isManualEdit]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center md:p-4 p-0">
+    <div className="fixed inset-0 z-[3000] flex items-center justify-center md:p-4 p-0">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <motion.div 
         initial={{ scale: 0.95, opacity: 0 }}

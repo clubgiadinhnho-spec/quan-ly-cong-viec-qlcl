@@ -342,9 +342,89 @@ Yêu cầu:
     };
   }, [isResizing]);
 
+  const [buttonRefState, setButtonRefState] = useState<Element | null>(null);
+  const [buttonPos, setButtonPos] = useState<{ x: number; y: number } | null>(null);
+
+  const updatePositions = () => {
+    if (!containerRef.current || !buttonRefState) return;
+    const rectContainer = containerRef.current.getBoundingClientRect();
+    const rectBtn = buttonRefState.getBoundingClientRect();
+
+    const bx = rectBtn.left + rectBtn.width / 2 - rectContainer.left;
+    const by = rectBtn.top + rectBtn.height / 2 - rectContainer.top;
+
+    setButtonPos({ x: bx, y: by });
+  };
+
+  useEffect(() => {
+    if (containerRef.current) {
+      const parent = containerRef.current.parentElement?.parentElement;
+      if (parent) {
+        const btn = parent.querySelector('button');
+        if (btn) {
+          setButtonRefState(btn);
+        }
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!buttonRefState) return;
+
+    updatePositions();
+    const timer = setTimeout(updatePositions, 100);
+
+    window.addEventListener('resize', updatePositions);
+    window.addEventListener('scroll', updatePositions, { capture: true });
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', updatePositions);
+      window.removeEventListener('scroll', updatePositions, { capture: true });
+    };
+  }, [buttonRefState]);
+
+  useEffect(() => {
+    updatePositions();
+  }, [dimensions]);
+
+  // Determine closest edge for anchor
+  let side: 'left' | 'right' | 'top' | 'bottom' = 'left';
+  let pathD = 'M -7 24 L 0 16 L 0 32 Z'; // fallback static
+
+  if (buttonPos) {
+    const { x, y } = buttonPos;
+    const w = dimensions.width;
+    const h = dimensions.height;
+    
+    const dLeft = Math.abs(x);
+    const dRight = Math.abs(x - w);
+    const dTop = Math.abs(y);
+    const dBottom = Math.abs(y - h);
+    
+    const minD = Math.min(dLeft, dRight, dTop, dBottom);
+    if (minD === dLeft) side = 'left';
+    else if (minD === dRight) side = 'right';
+    else if (minD === dTop) side = 'top';
+    else side = 'bottom';
+
+    const ax = Math.max(16, Math.min(w - 16, x));
+    const ay = Math.max(16, Math.min(h - 16, y));
+
+    if (side === 'left') {
+      pathD = `M ${x} ${y} L 0 ${ay - 10} L 0 ${ay + 10} Z`;
+    } else if (side === 'right') {
+      pathD = `M ${x} ${y} L ${w} ${ay - 10} L ${w} ${ay + 10} Z`;
+    } else if (side === 'top') {
+      pathD = `M ${x} ${y} L ${ax - 10} 0 L ${ax + 10} 0 Z`;
+    } else {
+      pathD = `M ${x} ${y} L ${ax - 10} ${h} L ${ax + 10} ${h} Z`;
+    }
+  }
+
   return (
     <div 
-      className="absolute left-[45px] top-[-10px] z-[1500] flex flex-col pointer-events-none"
+      className="absolute left-[31px] md:left-[36px] top-[-10px] z-[1500] flex flex-col pointer-events-none"
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
@@ -352,6 +432,7 @@ Yêu cầu:
         ref={containerRef}
         drag
         dragMomentum={false}
+        onDrag={updatePositions}
         initial={{ opacity: 0, scale: 0.9, x: -10 }}
         animate={{ opacity: 1, scale: 1, x: 0 }}
         exit={{ opacity: 0, scale: 0.9, x: -10 }}
@@ -362,17 +443,18 @@ Yêu cầu:
         {/* Minimalist Tip SVG */}
         <svg className="absolute inset-0 overflow-visible pointer-events-none z-[-1]">
           <path 
-            d="M -10 24 L 0 16 L 0 32 Z" 
+            d={pathD} 
             fill="white" 
             stroke="#2563eb" 
             strokeWidth="1.5"
+            strokeLinejoin="round"
           />
         </svg>
 
         {/* Header Compact - Drag handle */}
         <div className="bg-blue-600 px-2 py-1 flex items-center justify-between shadow-sm cursor-grab active:cursor-grabbing rounded-t-xl shrink-0">
           <div className="flex items-center gap-1">
-            <JobAvatar size={14} animate />
+            <JobAvatar size={14} animate className="text-white" />
             <div>
               <h3 className="notranslate text-white text-[9.5px] font-black uppercase tracking-wider leading-none">JOB</h3>
               <p className="notranslate text-blue-100 text-[7.5px] font-bold uppercase tracking-tight mt-0.5 opacity-80">{task.code}</p>

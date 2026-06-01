@@ -7,6 +7,7 @@ import { ClipboardList, User as UserIcon, CheckCircle2, BarChart3, LogOut, Messa
 
 import { Avatar } from '../common/Avatar';
 import { GroupChatIcon, GroupDiscussionIcon } from '../common/Icons';
+import { QLogo } from '../common/QLogo';
 
 interface SidebarProps {
   user: User;
@@ -368,7 +369,7 @@ export const Sidebar = ({
           <div className="mb-6 flex flex-col gap-1 items-center">
             <div className={`${isCollapsed ? 'w-12 h-12 justify-center' : 'w-full p-3'} flex items-center gap-3 ${isDarkL1 ? 'bg-white/10' : 'bg-white'} rounded-2xl border ${isDarkL1 ? 'border-white/10' : 'border-blue-100/50'} shadow-sm relative overflow-hidden group transition-all`}>
               <div className="absolute top-0 right-0 w-12 h-12 bg-blue-400/5 rounded-full blur-xl -mr-6 -mt-6" />
-              <div className={`${isCollapsed ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'} shrink-0 ${isDarkL1 ? 'bg-white text-gray-900' : 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white'} rounded-xl flex items-center justify-center font-black shadow-lg`}>Q</div>
+              <QLogo size={isCollapsed ? "sm" : "md"} />
               {!isCollapsed && (
                 <div className="flex flex-col min-w-0">
                   <span className={`text-[7px] font-black ${isDarkL1 ? 'text-white/60' : 'text-blue-500'} uppercase tracking-[0.3em] leading-none mb-1`}>Tân Phú Việt Nam</span>

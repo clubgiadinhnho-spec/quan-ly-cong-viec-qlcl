@@ -90,7 +90,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   // Auto-scroll when highlighted
   React.useEffect(() => {
     if (highlightedTaskId === task.id) {
-      const element = document.getElementById(`task-${task.id}`);
+      const element = document.getElementById(`task-card-${task.id}`) || 
+                      document.getElementById(`task-${task.id}`);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -828,9 +829,46 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           </div>
 
           {/* Objective */}
-          <div className="text-[14.5px] text-gray-800 leading-relaxed pr-1 text-justify">
-            <span className="font-extrabold text-blue-950">MỤC TIÊU: </span>
-            <span translate="no" className="notranslate">{task.objective}</span>
+          <div className="text-[14.5px] text-gray-805 leading-relaxed pr-1 text-justify relative">
+            <div className="inline-flex items-center gap-1.5 flex-wrap">
+              <span className="font-extrabold text-blue-950 shrink-0">MỤC TIÊU: </span>
+              {isPatrolledBySup && (
+                <div className="inline-block relative align-middle ml-1 mr-1 z-[21]" onClick={(e) => e.stopPropagation()}>
+                  <motion.div 
+                    animate={{ y: [0, -2, 0] }}
+                    transition={{
+                       y: { repeat: Infinity, duration: 1.5, ease: "easeInOut" }
+                    }}
+                    className="inline-flex w-7 h-7 rounded-full bg-gradient-to-br from-orange-500 to-red-600 text-white items-center justify-center shadow-[0_0_8px_rgba(249,115,22,0.5)] ring-1.5 ring-white cursor-pointer relative z-[21]"
+                    title="S.U.P BOSS TUẦN TRA"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="10" rx="2" />
+                      <circle cx="12" cy="5" r="2" />
+                      <path d="M12 7v4" />
+                      <line x1="8" y1="16" x2="8" y2="16" strokeLinecap="round" />
+                      <line x1="16" y1="16" x2="16" y2="16" strokeLinecap="round" />
+                    </svg>
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-white animate-ping" />
+                  </motion.div>
+
+                  {/* Speech bubble for S.U.P Boss near Mục tiêu on mobile */}
+                  <div className="absolute bottom-full left-1/2 -translate-x-[15%] mb-2 z-[110] bg-yellow-50 border-2 border-orange-400 rounded-xl p-2 px-3 shadow-md min-w-[220px] max-w-[280px] text-left animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="absolute bottom-[-6px] left-[15%] rotate-45 w-2.5 h-2.5 bg-yellow-50 border-b-2 border-r-2 border-orange-400"></div>
+                    <div className="flex items-center gap-1 mb-1 leading-none">
+                      <span className="text-[7.5px] font-black text-white bg-orange-500 px-1 py-0.5 rounded uppercase tracking-wider">
+                        S.U.P BOSS
+                      </span>
+                      <span className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
+                    </div>
+                    <p className="text-[10px] font-black leading-relaxed text-orange-950 not-italic" translate="no">
+                      {supState?.speech || "Đang rà soát và kiểm soát an ninh..."}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <span translate="no" className="notranslate ml-1">{task.objective}</span>
           </div>
 
           {/* Two Stage */}
@@ -989,7 +1027,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                     </span>
                   )}
                 </div>
-                <span>Chat ({task.comments?.length || 0})</span>
+                <span>({task.comments?.length || 0})</span>
               </button>
 
               {/* JOB Robot Sparkles */}
@@ -1017,7 +1055,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
                 {/* Speech bubble for mobile */}
                 {(isAiReminding || isPatrolledBySup) && (
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 z-[110] bg-blue-50 border-2 border-indigo-400 rounded-2xl p-2.5 px-3.5 shadow-lg min-w-[220px] max-w-[280px] text-left animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 z-[110] bg-blue-50 border-2 border-indigo-400 rounded-2xl p-2.5 px-3.5 shadow-lg min-w-[210px] max-w-[280px] text-left animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[6px] rotate-45 w-3 h-3 bg-blue-50 border-b-2 border-r-2 border-indigo-400"></div>
                     <div className="flex items-center justify-between mb-1 leading-none">
                       <div className="flex items-center gap-1">
@@ -1039,9 +1077,15 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                         </button>
                       )}
                     </div>
-                    <p className="text-[10px] font-black leading-relaxed text-indigo-950 not-italic" translate="no">
+                    <p className="text-[10px] font-black leading-relaxed text-indigo-950 not-italic whitespace-pre-line" translate="no">
                       {isPatrolledBySup 
-                        ? (supState?.speechJob || "Ổn định: Mọi mục tiêu đang bám sát chỉ đạo của Sếp.") 
+                        ? (() => {
+                            const baseSpeech = supState?.speechJob || "Ổn định: Mọi mục tiêu đang bám sát chỉ đạo của Sếp.";
+                            if (baseSpeech.includes("Sẵn sàng báo cáo") || baseSpeech.includes("quét cảm biến") || baseSpeech.includes("giải nén hồ sơ") || baseSpeech.includes("Gemini")) {
+                              return baseSpeech;
+                            }
+                            return `${baseSpeech}\n\n🤖 [JOB]: "Dạ, Em nhận lệnh. Sẽ nhắc bạn ${assigneeName} làm ngay ạ!"`;
+                          })()
                         : (() => {
                             const taskAiMessages = (aiMessages || []).filter(msg => msg.taskId === task.id);
                             const lastJobMsg = [...taskAiMessages].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
@@ -1710,9 +1754,15 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                       </div>
 
                       {/* Speech text */}
-                      <p className="text-[10px] font-black leading-relaxed text-indigo-950 not-italic" translate="no">
+                      <p className="text-[10px] font-black leading-relaxed text-indigo-950 not-italic whitespace-pre-line" translate="no">
                         {isPatrolledBySup 
-                          ? (supState?.speechJob || "Ổn định: Mọi mục tiêu đang bám sát chỉ đạo của Sếp.") 
+                          ? (() => {
+                              const baseSpeech = supState?.speechJob || "Ổn định: Mọi mục tiêu đang bám sát chỉ đạo của Sếp.";
+                              if (baseSpeech.includes("Sẵn sàng báo cáo") || baseSpeech.includes("quét cảm biến") || baseSpeech.includes("giải nén hồ sơ") || baseSpeech.includes("Gemini")) {
+                                return baseSpeech;
+                              }
+                              return `${baseSpeech}\n\n🤖 [JOB]: "Dạ, Em nhận lệnh. Sẽ nhắc bạn ${assigneeName} làm ngay ạ!"`;
+                            })()
                           : (() => {
                               const taskAiMessages = (aiMessages || []).filter(msg => msg.taskId === task.id);
                               const lastJobMsg = [...taskAiMessages].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
@@ -1928,8 +1978,8 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                     </span>
                   )}
                 </div>
-                <span translate="no" className="notranslate text-[8px] font-black tracking-tight uppercase">
-                  <span translate="no" className="notranslate">CHAT</span>
+                <span translate="no" className="notranslate text-[8.5px] font-black tracking-tighter">
+                  <span translate="no" className="notranslate">({task.comments?.length || 0})</span>
                 </span>
               </div>
             </button>

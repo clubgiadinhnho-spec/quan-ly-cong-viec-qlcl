@@ -61,14 +61,14 @@ export const Header = ({
             {title}
           </h2>
           {effectiveUser ? (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-105/10 rounded-full text-[10px] font-bold text-blue-700 select-none whitespace-nowrap shadow-sm">
+            <div className="flex items-center gap-1 px-1 py-1 xs:gap-1.5 xs:px-2.5 xs:py-1 bg-blue-50 border border-blue-105/10 rounded-full text-[10px] font-bold text-blue-700 select-none whitespace-nowrap shadow-sm">
               <img 
                 src={effectiveUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(effectiveUser.name)}&background=random`} 
                 alt={effectiveUser.name}
                 referrerPolicy="no-referrer"
                 className="w-5.5 h-5.5 rounded-full object-cover border border-blue-200"
               />
-              <span className="truncate uppercase text-[9.5px] tracking-tight text-blue-700 font-extrabold notranslate" translate="no">
+              <span className="hidden xs:inline truncate uppercase text-[9.5px] tracking-tight text-blue-700 font-extrabold notranslate" translate="no">
                 {effectiveUser.role === 'Admin' ? 'Admin' : (effectiveUser.role === 'Trưởng Phòng' ? 'T.Phòng' : effectiveUser.role === 'Leader' ? 'Leader' : 'N.Viên')}
               </span>
             </div>

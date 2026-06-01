@@ -518,9 +518,10 @@ export const useSupervisorPatrol = ({
   useEffect(() => {
     if (!supState.isActive || !supState.currentTaskId || activeTab !== 'tasks') return;
 
-    // Check if the current task row exists visual-wise
+    // Check if the current task row exists visual-wise (both mobile card and desktop table row formats)
     const timer = setTimeout(() => {
-      const element = document.getElementById(`task-${supState.currentTaskId}`);
+      const element = document.getElementById(`task-card-${supState.currentTaskId}`) || 
+                      document.getElementById(`task-${supState.currentTaskId}`);
       if (element) {
         // Beautiful smooth focal jump
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });

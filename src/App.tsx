@@ -91,7 +91,8 @@ export default function App() {
     setTimeout(() => setHighlightedTaskId(null), 10000);
 
     setTimeout(() => {
-      const element = document.getElementById(`task-${taskId}`);
+      const element = document.getElementById(`task-card-${taskId}`) || 
+                      document.getElementById(`task-${taskId}`);
       if (element) {
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }

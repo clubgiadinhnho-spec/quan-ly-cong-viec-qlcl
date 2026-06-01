@@ -227,7 +227,7 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
         <Header 
           title={<span translate="no" className="notranslate">CÔNG VIỆC HOÀN THÀNH</span>} 
           onAction={() => setShowTaskModal(true)}
-          actionLabel={<span translate="no" className="notranslate">Tạo mới</span>}
+          actionLabel={<span translate="no" className="notranslate">TẠO MỚI</span>}
           actionIcon={Plus}
           onlineUsers={presence} 
           currentUserId={effectiveUser.id}

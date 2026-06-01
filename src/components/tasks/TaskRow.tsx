@@ -787,9 +787,18 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 </span>
                 
                 {isRecurringTask && (
-                  <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 uppercase" title="Chu kỳ lặp lại">
                     <RefreshCw size={10} className="animate-[spin_4s_linear_infinite]" />
-                    <span>ĐỊNH KỲ</span>
+                    <span>
+                      ĐỊNH KỲ: {
+                        task.recurrence === 'DAILY' ? 'HÀNG NGÀY' :
+                        task.recurrence === 'TRI_DAILY' ? 'HÀNG 3 NGÀY' :
+                        task.recurrence === 'WEEKLY' ? 'HÀNG TUẦN' :
+                        task.recurrence === 'BI_WEEKLY' ? 'HÀNG 2 TUẦN' :
+                        task.recurrence === 'TRI_WEEKLY' ? 'HÀNG 3 TUẦN' :
+                        task.recurrence === 'MONTHLY' ? 'HÀNG THÁNG' : 'HÀNG TUẦN'
+                      }
+                    </span>
                   </span>
                 )}
               </div>
@@ -844,24 +853,26 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           )}
 
           {/* Timeline Dates */}
-          <div className="grid grid-cols-2 gap-2 text-[12px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/60 font-sans">
-            <div className="flex items-center gap-1.5">
-              <Highlighter size={12} className="text-gray-400" />
-              <span className="text-gray-500 font-medium">KHỞI TẠO: {formatVietnameseDateMobile(task.issueDate)}</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] sm:text-[11px] bg-slate-50/50 p-1.5 px-2.5 rounded-lg border border-slate-100/60 font-sans">
+            <div className="flex items-center gap-1">
+              <Highlighter size={10} className="text-gray-400" />
+              <span className="text-gray-500 font-medium">KHỞI TẠO: <strong className="text-gray-700 font-extrabold">{formatVietnameseDateMobile(task.issueDate)}</strong></span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Zap size={12} className="text-blue-500" fill="currentColor" />
-              <span className="text-blue-600 font-medium">BẮT ĐẦU: {formatVietnameseDateMobile(task.startDate || task.issueDate)}</span>
+            <div className="w-px h-2.5 bg-gray-350" />
+            <div className="flex items-center gap-1">
+              <Zap size={10} className="text-blue-500" fill="currentColor" />
+              <span className="text-blue-600 font-medium">BẮT ĐẦU: <strong className="text-blue-800 font-extrabold">{formatVietnameseDateMobile(task.startDate || task.issueDate)}</strong></span>
             </div>
-            <div className="flex items-center gap-1.5 col-span-2 border-t border-gray-150/40 pt-1.5">
-              <Tag size={12} className={deadlineInfo.status === 'CRITICAL' ? 'text-red-500' : 'text-gray-600'} />
-              <span className={`font-bold uppercase ${deadlineInfo.status === 'CRITICAL' ? 'text-red-600' : 'text-gray-700'}`}>
-                HẠN: {deadlineInfo.displayText}
+            <div className="w-px h-2.5 bg-gray-355" />
+            <div className="flex items-center gap-1">
+              <Tag size={10} className={deadlineInfo.status === 'CRITICAL' ? 'text-red-500' : 'text-gray-600'} />
+              <span className={`font-black uppercase tracking-tight ${deadlineInfo.status === 'CRITICAL' ? 'text-red-600' : 'text-gray-700'}`}>
+                {deadlineInfo.displayText}
               </span>
             </div>
             {deadlineInfo.isOverdue && (
               <div className="flex items-center gap-1.5 col-span-2 text-red-650 bg-red-105 bg-red-100 border border-red-200 animate-pulse text-[12px] font-black uppercase justify-center tracking-tight">
-                <span>⚠️ CẢNH BÁO: CÔNG VIỆC QUÁ HẠN!</span>
+                <span>CẢNH BÁO: CÔNG VIỆC QUÁ HẠN!</span>
               </div>
             )}
             {task.extensionDate && (
@@ -1861,7 +1872,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               </div>
               {deadlineInfo.isOverdue && (
                 <div className="ml-7 flex items-center gap-1 bg-red-100 text-red-700 border border-red-200 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tight animate-pulse justify-center max-w-[120px]">
-                  <span>⚠️ QUÁ HẠN!</span>
+                  <span>QUÁ HẠN!</span>
                 </div>
               )}
             </div>

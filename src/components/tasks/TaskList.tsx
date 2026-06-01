@@ -430,39 +430,6 @@ export const TaskList: React.FC<TaskListProps> = ({
 
       {/* MOBILE CARDS VIEW */}
       <div className="block md:hidden bg-slate-50/50 p-2 space-y-4">
-        {tasks.length > 0 && (
-          <div className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200 shadow-xs mb-1">
-            <div className="flex items-center gap-2">
-              <input 
-                type="checkbox"
-                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                checked={tasks.length > 0 && selectedIds.length === tasks.length}
-                onChange={(e) => {
-                  if (onBulkSelect) {
-                    onBulkSelect(tasks.map(t => t.id), e.target.checked);
-                  } else {
-                    if (e.target.checked) {
-                      tasks.forEach(t => {
-                        if (!selectedIds.includes(t.id)) onToggleSelect?.(t.id);
-                      });
-                    } else {
-                      tasks.forEach(t => {
-                        if (selectedIds.includes(t.id)) onToggleSelect?.(t.id);
-                      });
-                    }
-                  }
-                }}
-              />
-              <span className="text-xs font-bold text-gray-705 uppercase">Chọn tất cả ({tasks.length})</span>
-            </div>
-            {selectedIds.length > 0 && (
-              <span className="text-[11px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                Đã chọn {selectedIds.length}
-              </span>
-            )}
-          </div>
-        )}
-
         <div className="flex flex-col gap-3">
           {sortedTasks.map((task, idx) => (
             type === 'trash' ? (

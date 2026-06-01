@@ -96,6 +96,10 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
   // Click-away logic
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Prevents the hidden (mobile or desktop) component's click-away logic from closing the active chat popover.
+      const isMobileViewport = window.innerWidth < 768;
+      if (isMobile !== isMobileViewport) return;
+
       const isAnchorClick = anchorRef.current?.contains(event.target as Node);
       if (chatRef.current && !chatRef.current.contains(event.target as Node) && !isAnchorClick) {
         onClose();
@@ -103,7 +107,7 @@ export const TaskChat = ({ task, currentUser, users, onSendMessage, onReact, onC
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [onClose]);
+  }, [onClose, isMobile, anchorRef]);
 
   const handleSend = () => {
     if (!newMessage.trim()) return;

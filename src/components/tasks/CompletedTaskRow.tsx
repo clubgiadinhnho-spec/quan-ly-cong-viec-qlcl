@@ -180,9 +180,18 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                 </span>
                 
                 {isRecurringTask && (
-                  <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 uppercase" title="Chu kỳ lặp lại">
                     <RotateCcw size={10} className="animate-spin-slow" />
-                    <span>ĐỊNH KỲ</span>
+                    <span>
+                      ĐỊNH KỲ: {
+                        task.recurrence === 'DAILY' ? 'HÀNG NGÀY' :
+                        task.recurrence === 'TRI_DAILY' ? 'HÀNG 3 NGÀY' :
+                        task.recurrence === 'WEEKLY' ? 'HÀNG TUẦN' :
+                        task.recurrence === 'BI_WEEKLY' ? 'HÀNG 2 TUẦN' :
+                        task.recurrence === 'TRI_WEEKLY' ? 'HÀNG 3 TUẦN' :
+                        task.recurrence === 'MONTHLY' ? 'HÀNG THÁNG' : 'HÀNG TUẦN'
+                      }
+                    </span>
                   </span>
                 )}
               </div>
@@ -218,29 +227,34 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
           </div>
 
           {/* Timeline Dates */}
-          <div className="grid grid-cols-2 gap-2 text-[12px] bg-slate-50/50 p-2.5 rounded-lg border border-slate-100/60 font-sans">
-            <div className="flex items-center gap-1">
-              <span className="text-gray-500 font-medium">📝 KHỞI TẠO: {formatVietnameseDateMobile(task.issueDate)}</span>
+          <div className="flex flex-col gap-2 bg-slate-50/50 p-2 rounded-lg border border-slate-100/60 font-sans">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px]">
+              <div className="flex items-center gap-1">
+                <span className="text-gray-500 font-medium">📝 KHỞI TẠO: <strong className="text-gray-700 font-extrabold">{formatVietnameseDateMobile(task.issueDate)}</strong></span>
+              </div>
+              <div className="w-px h-2.5 bg-gray-300" />
+              <div className="flex items-center gap-1">
+                <span className="text-blue-600 font-medium">🚀 BẮT ĐẦU: <strong className="text-blue-800 font-extrabold">{formatVietnameseDateMobile(task.startDate || task.issueDate)}</strong></span>
+              </div>
+              <div className="w-px h-2.5 bg-gray-300" />
+              <div className="flex items-center gap-1">
+                <span className="font-extrabold text-red-650 uppercase">🏁 HẠN: <strong className="text-red-700 font-black">{formatVietnameseDateMobile(task.expectedEndDate || task.dueDate)}</strong></span>
+              </div>
             </div>
-            <div className="flex items-center gap-1">
-              <span className="text-blue-600 font-medium">🚀 BẮT ĐẦU: {formatVietnameseDateMobile(task.startDate || task.issueDate)}</span>
-            </div>
-            <div className="flex items-center gap-1 col-span-2 border-t border-gray-150/40 pt-1.5">
-              <span className="font-bold text-red-600 uppercase">🏁 HẠN: {formatVietnameseDateMobile(task.expectedEndDate || task.dueDate)}</span>
-            </div>
-            <div className="flex items-center gap-1 col-span-2 border-t border-gray-150/40 pt-1.55">
+            
+            <div className="flex items-center gap-1.5 border-t border-gray-150/40 pt-2 text-[11px]">
               {(isAdmin || isManager) ? (
                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                  <span className="text-[13px] font-black text-green-700 uppercase">XONG:</span>
+                  <span className="text-[11px] font-black text-green-700 uppercase">XONG:</span>
                   <input 
                     type="date"
                     value={task.actualEndDate || ''}
                     onChange={(e) => onUpdate(task.id, { actualEndDate: e.target.value })}
-                    className="bg-green-50 border border-green-200 rounded px-2 py-0.5 text-[13px] font-black text-green-700 outline-none focus:ring-1 focus:ring-green-400"
+                    className="bg-green-50 border border-green-200 rounded px-1.5 py-0.5 text-[11px] font-bold text-green-700 outline-none focus:ring-1 focus:ring-green-400"
                   />
                 </div>
               ) : (
-                <span className="font-bold text-green-700 uppercase">✅ XONG: {formatVietnameseDateMobile(task.actualEndDate)}</span>
+                <span className="font-black text-green-750 uppercase text-[11px]">✅ XONG: {formatVietnameseDateMobile(task.actualEndDate)}</span>
               )}
             </div>
           </div>

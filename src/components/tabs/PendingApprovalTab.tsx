@@ -155,7 +155,7 @@ export const PendingApprovalTab: React.FC<PendingApprovalTabProps> = ({
         <Header 
           title={<span translate="no" className="notranslate">TRÌNH DUYỆT HOÀN THÀNH</span>} 
           onAction={() => setShowTaskModal(true)}
-          actionLabel={<span translate="no" className="notranslate">Tạo mới</span>}
+          actionLabel={<span translate="no" className="notranslate">TẠO MỚI</span>}
           actionIcon={Plus}
           onlineUsers={presence} 
           currentUserId={effectiveUser.id}

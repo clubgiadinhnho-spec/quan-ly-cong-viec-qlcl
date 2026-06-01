@@ -160,7 +160,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           title={<span translate="no" className="notranslate">BẢNG CÔNG VIỆC</span>}
           badge={<span translate="no" className="notranslate">{effectiveUser.role}</span>}
           onAction={() => setShowTaskModal(true)}
-          actionLabel={<span translate="no" className="notranslate">Tạo mới</span>}
+          actionLabel={<span translate="no" className="notranslate">TẠO MỚI</span>}
           actionIcon={Plus}
           onlineUsers={presence}
           currentUserId={effectiveUser.id}
@@ -206,14 +206,14 @@ export const TasksTab: React.FC<TasksTabProps> = ({
             if (!canViewSup) return null;
             const canControlSup = effectiveUser.role === 'Admin' || effectiveUser.role === 'Trưởng Phòng' || effectiveUser.delegatedPermissions?.system_viewSup === true;
             return (
-              <div className="flex-1 flex items-center justify-center px-4 max-w-xl">
-                <div className="flex items-center gap-2.5 bg-orange-50/50 border border-orange-200/60 rounded-2xl px-3 py-1.5 shadow-sm max-w-full animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex-shrink-0 md:flex-1 flex items-center justify-center px-1 md:px-4 max-w-xs md:max-w-xl">
+                <div className="flex items-center gap-1.5 md:gap-2.5 bg-orange-50/55 border border-orange-200/60 rounded-2xl px-2 md:px-3 py-1 md:py-1.5 shadow-sm max-w-full animate-in fade-in zoom-in-95 duration-200">
                   
                   {/* Pulsing/bouncing Orange Robot Icon */}
                   <button
                     onClick={canControlSup ? togglePatrol : undefined}
                     disabled={!canControlSup}
-                    className={`flex-shrink-0 w-8 h-8 rounded-full transition-all text-white flex items-center justify-center relative ${
+                    className={`flex-shrink-0 w-7 h-7 md:w-8 md:h-8 rounded-full transition-all text-white flex items-center justify-center relative ${
                       supState.isActive ? 'bg-orange-100 border-2 border-dashed border-orange-300' : 'bg-orange-500 hover:bg-orange-600 active:scale-95 shadow-md'
                     } ${canControlSup ? 'cursor-pointer' : 'cursor-default'}`}
                     title={canControlSup ? (supState.isActive ? "Bấm để TẠM DỪNG Tuần Tra" : "Bấm để KÍCH HOẠT Tuần Tra") : "Hệ thống giám sát S.U.P"}
@@ -228,7 +228,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
                         }}
                         className="w-full h-full rounded-full bg-orange-500 flex items-center justify-center relative z-[1300] shadow-md"
                       >
-                        <svg viewBox="0 0 24 24" className="w-4.5 h-4.5 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg viewBox="0 0 24 24" className="w-4 h-4 md:w-4.5 md:h-4.5 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <rect x="3" y="11" width="18" height="10" rx="2" />
                           <circle cx="12" cy="5" r="2" />
                           <path d="M12 7v4" />
@@ -239,7 +239,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
                     ) : (
                       // Elegant placeholder when patrolling
                       <div className="w-full h-full flex items-center justify-center text-orange-400">
-                        <span className="text-[9px] font-black animate-pulse">S.U.P</span>
+                        <span className="text-[8px] md:text-[9px] font-black animate-pulse">S.U.P</span>
                       </div>
                     )}
 
@@ -248,8 +248,16 @@ export const TasksTab: React.FC<TasksTabProps> = ({
                     )}
                   </button>
 
-                  {/* Speech Dialogue Bubble */}
-                  <div className="relative flex flex-col min-w-0">
+                  {/* Mobile-only Compact Label */}
+                  <div className="flex md:hidden flex-col select-none">
+                    <span className="text-[10px] font-black text-orange-600 leading-none">SUP</span>
+                    {supState.isActive && (
+                      <span className="text-[6px] font-black text-green-500 mt-0.5 animate-pulse">LIVE</span>
+                    )}
+                  </div>
+
+                  {/* Speech Dialogue Bubble - Desktop only */}
+                  <div className="hidden md:flex relative flex-col min-w-0">
                     <div className="relative flex flex-col min-w-0">
                       <div className="flex items-center gap-1.5 leading-none mb-0.5">
                         <span className="text-[8px] font-black text-white bg-orange-600 px-1 py-0.5 rounded-sm uppercase tracking-wider select-none leading-none">
@@ -288,11 +296,30 @@ export const TasksTab: React.FC<TasksTabProps> = ({
         </div>
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-4">
-            <h3 className="text-[14px] font-black text-gray-800 uppercase tracking-widest flex items-center gap-2 whitespace-nowrap flex-shrink-0">
-              <div className="w-1.5 h-6 bg-blue-600 rounded-full print:hidden" />
+          <div className="flex flex-row items-center justify-between w-full md:w-auto md:justify-start gap-3 md:gap-4">
+            <h3 className="text-[12px] md:text-[14px] font-black text-gray-800 uppercase tracking-widest flex items-center gap-1.5 md:gap-2 whitespace-nowrap flex-shrink-0">
+              <div className="w-1.5 h-5 md:h-6 bg-blue-600 rounded-full print:hidden" />
               <span translate="no" className="notranslate uppercase tracking-tighter">DANH SÁCH BẢNG CÔNG VIỆC</span>
             </h3>
+            
+            {/* Quick search input side-by-side with title on mobile */}
+            <div className="flex md:hidden items-center gap-1.5 print:hidden">
+              {search && (
+                <span translate="no" className="notranslate text-[9px] font-bold text-blue-600 bg-blue-50 px-1 py-0.5 rounded border border-blue-105/20 min-w-fit">
+                  {sortedTasks.length}
+                </span>
+              )}
+              <div className="relative group">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" size={11} />
+                <input
+                  type="text"
+                  placeholder="Tìm nhanh..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-6 pr-1.5 py-1 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 text-[10px] w-24 xs:w-28 placeholder:notranslate transition-all group-focus-within:border-blue-400 group-focus-within:shadow-sm shadow-sm"
+                />
+              </div>
+            </div>
             
             <div className="hidden md:flex items-center gap-2">
               <button
@@ -336,7 +363,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3 print:hidden ml-auto md:ml-0">
+          <div className="hidden md:flex items-center gap-3 print:hidden ml-auto md:ml-0">
             {search && (
               <span translate="no" className="notranslate text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100 animate-in fade-in slide-in-from-right-1">
                 TÌM THẤY: {sortedTasks.length}

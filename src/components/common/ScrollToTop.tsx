@@ -30,7 +30,7 @@ export const ScrollToTop: React.FC = () => {
   }, []);
 
   return (
-    <div className={`fixed bottom-8 right-8 z-[70] transition-all duration-300 transform ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
+    <div className={`fixed bottom-20 right-4 md:bottom-8 md:right-8 z-[75] transition-all duration-300 transform ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>
       <button
         onClick={scrollToTop}
         className="group relative flex items-center justify-center w-12 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 active:scale-95"

@@ -90,9 +90,33 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   // Auto-scroll when highlighted
   React.useEffect(() => {
     if (highlightedTaskId === task.id) {
-      const element = document.getElementById(`task-card-${task.id}`) || 
-                      document.getElementById(`task-${task.id}`);
+      const idToMatch = task.id;
+      const baseIdToMatch = idToMatch.split('_cycle_')[0];
+
+      let element = document.getElementById(`task-card-${idToMatch}`) || 
+                    document.getElementById(`task-${idToMatch}`);
+      
+      if (!element) {
+        element = document.getElementById(`task-card-${baseIdToMatch}`) || 
+                  document.getElementById(`task-${baseIdToMatch}`);
+      }
+
+      if (!element) {
+        element = document.querySelector(`[id^="task-card-${idToMatch}"]`) ||
+                  document.querySelector(`[id^="task-${idToMatch}"]`) ||
+                  document.querySelector(`[id^="task-card-${baseIdToMatch}"]`) ||
+                  document.querySelector(`[id^="task-${baseIdToMatch}"]`) ||
+                  document.querySelector(`[id*="${baseIdToMatch}"]`);
+      }
+
       if (element) {
+        if (element.tagName === 'TR') {
+          const firstCell = element.querySelector('td');
+          if (firstCell) {
+            firstCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+          }
+        }
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
@@ -108,6 +132,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   
   const canViewSup = isAdmin || user.role === 'Trưởng Phòng' || user.delegatedPermissions?.system_viewSup === true;
   const isPatrolledBySup = canViewSup && supState?.isActive && supState?.currentTaskId === task.id;
+  const isCheckInBySup = isPatrolledBySup && supState?.isCheckIn === true;
   
   const canSeeAI = isAdmin || user.role === 'Trưởng Phòng';
 
@@ -231,38 +256,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     return now;
   });
 
-  // Auto-open AI Chat if there's a new reminder or task is in reminding state (yellow)
-  // New logic: Only open if user is online, 1 minute passed since login, and it's the first reminder auto-open
-  React.useEffect(() => {
-    if (!isOwner || task.aiReminderResponded !== false) return;
-
-    const checkAutoOpen = () => {
-      // 1. Check if user is online
-      const isOnline = presence?.some(p => p.uniqueKey === user.uniqueKey || p.id === user.id);
-      if (!isOnline) return;
-
-      // 2. Check if 1 minute has passed since login (session start)
-      const now = Date.now();
-      if (now - sessionStartTime < 60000) return;
-
-      // 3. Check if we already auto-opened one in this session
-      const alreadyOpened = sessionStorage.getItem('ai_chat_auto_opened');
-      if (!alreadyOpened) {
-        setShowAIChat(true);
-        sessionStorage.setItem('ai_chat_auto_opened', 'true');
-      }
-    };
-
-    const now = Date.now();
-    const timeToWait = 60000 - (now - sessionStartTime);
-
-    if (timeToWait <= 0) {
-      checkAutoOpen();
-    } else {
-      const timer = setTimeout(checkAutoOpen, timeToWait);
-      return () => clearTimeout(timer);
-    }
-  }, [task.id, task.aiReminderResponded, isOwner, presence, sessionStartTime, user.id, user.uniqueKey]);
+  // Removed auto-open AI Chat effect so that only the comic dialogue bubble/reminder shows up first when the task is in reminding state or tickled.
 
   // QCD Local State for Staff
   const [staffQ, setStaffQ] = React.useState(task.staffQCD?.q || 3);
@@ -1045,16 +1039,16 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                     }
                   }}
                   className={`p-1.5 rounded-full transition-all hover:scale-115 active:scale-90 ${
-                    isPatrolledToday 
+                    isCheckInBySup 
                       ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 animate-bounce' 
                       : 'bg-indigo-600 text-white shadow-md shadow-indigo-100'
                   }`}
                 >
-                  <JobAvatar size={14} animate={isPatrolledToday} />
+                  <JobAvatar size={14} animate={isCheckInBySup} />
                 </button>
 
                 {/* Speech bubble for mobile */}
-                {(isAiReminding || isPatrolledBySup) && (
+                {(isAiReminding || isCheckInBySup) && !showAIChat && (
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 z-[110] bg-blue-50 border-2 border-indigo-400 rounded-2xl p-2.5 px-3.5 shadow-lg min-w-[210px] max-w-[280px] text-left animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[6px] rotate-45 w-3 h-3 bg-blue-50 border-b-2 border-r-2 border-indigo-400"></div>
                     <div className="flex items-center justify-between mb-1 leading-none">
@@ -1711,7 +1705,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                       }
                     }}
                     className={`group/job p-1.5 rounded-full transition-all hover:scale-110 active:scale-95 shadow-lg relative ${
-                      isPatrolledToday 
+                      isCheckInBySup 
                         ? 'bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-900 ring-4 ring-amber-300 shadow-amber-200 animate-bounce' 
                         : 'bg-indigo-600 text-white shadow-indigo-100/50 ring-1 ring-white/20'
                     }`}
@@ -1722,11 +1716,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                       <span translate="no" className="notranslate font-medium tracking-wide">JOB XIN CHÀO! ✨</span>
                       <div className="absolute -bottom-1 left-3 w-1.5 h-1.5 bg-blue-50 rotate-45 border-r border-b border-blue-100/50"></div>
                     </div>
-                    <JobAvatar size={18} animate={isPatrolledToday} />
+                    <JobAvatar size={18} animate={isCheckInBySup} />
                   </button>
 
                   {/* Comic Dialogue bubble showing ROBOT JOB report/nudge when active or during S.U.P patrol */}
-                  {(isAiReminding || isPatrolledBySup) && (
+                  {(isAiReminding || isCheckInBySup) && !showAIChat && (
                     <div className="absolute left-12 top-1/2 -translate-y-1/2 z-[110] bg-blue-50 border-2 border-indigo-400 rounded-2xl p-2.5 px-3.5 shadow-[5px_5px_0px_rgba(79,70,229,0.15)] min-w-[210px] max-w-[280px] text-left animate-in fade-in slide-in-from-left-2 duration-300">
                       {/* Speech tail */}
                       <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[7px] rotate-45 w-3 h-3 bg-blue-50 border-l-2 border-b-2 border-indigo-400"></div>

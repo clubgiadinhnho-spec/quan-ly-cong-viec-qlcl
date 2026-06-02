@@ -317,6 +317,8 @@ export const ReportPage = ({
                           currentUser.personalEmail === 'lenhattruong.tpp@gmail.com' ||
                           currentUser.personalEmail === 'lenhattruong.caphef1@gmail.com';
   
+  const canViewDkpi = isReportManager || !!userPermissions.reports_viewDkpi;
+  
   const [selectedStaffId, setSelectedStaffId] = useState<string>(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -617,7 +619,7 @@ export const ReportPage = ({
     const score = (uid: string) => {
       const u = users.find(x => x.id === uid);
       if (!u) return 999;
-      const n = u.name.toLowerCase();
+      const n = (u.name || '').toLowerCase();
       if (n.includes('trường') || n.includes('truong')) return 1;
       if (n.includes('tân') || n.includes('tan')) return 2;
       if (n.includes('tú') || n.includes('tu')) return 3;
@@ -702,7 +704,7 @@ export const ReportPage = ({
 
   // Role and Permission enforcement for non-managers
   useEffect(() => {
-    if (!isReportManager) {
+    if (!canViewDkpi) {
       if (activeTab !== 'staff') {
         setActiveTab('staff');
       }
@@ -710,7 +712,7 @@ export const ReportPage = ({
         setSelectedStaffId(currentUser.id);
       }
     }
-  }, [isReportManager, activeTab, selectedStaffId, currentUser.id, setActiveTab]);
+  }, [canViewDkpi, activeTab, selectedStaffId, currentUser.id, setActiveTab]);
 
   // Synchronize task categories from database for labels and activity names
   useEffect(() => {
@@ -750,9 +752,9 @@ export const ReportPage = ({
   // Fetch KPI configuration weights / allocations and saved drafts of scores/comments
   useEffect(() => {
     const fetchConfig = async () => {
-      const tan = users.find(u => u.name.toLowerCase().includes('tân') || u.name.toLowerCase().includes('tan'));
-      const tu = users.find(u => u.name.toLowerCase().includes('tú') || u.name.toLowerCase().includes('tu'));
-      const hung = users.find(u => u.name.toLowerCase().includes('hùng') || u.name.toLowerCase().includes('hung'));
+      const tan = users.find(u => (u.name || '').toLowerCase().includes('tân') || (u.name || '').toLowerCase().includes('tan'));
+      const tu = users.find(u => (u.name || '').toLowerCase().includes('tú') || (u.name || '').toLowerCase().includes('tu'));
+      const hung = users.find(u => (u.name || '').toLowerCase().includes('hùng') || (u.name || '').toLowerCase().includes('hung'));
       const defaultList = [tan, tu, hung].filter((u): u is User => !!u).map(u => u.id);
 
       try {
@@ -1882,7 +1884,7 @@ export const ReportPage = ({
     if (userId === 'ALL') return false;
     const targetUser = users.find(u => u.id === userId);
     if (!targetUser) return false;
-    const isTan = targetUser.name.toLowerCase().includes('tân') || targetUser.name.toLowerCase().includes('tan');
+    const isTan = (targetUser.name || '').toLowerCase().includes('tân') || (targetUser.name || '').toLowerCase().includes('tan');
     if (isTan && kpiCode) {
       const kpiItem = kpiItems.find(k => k.code === kpiCode);
       if (kpiItem && kpiItem.section === 'C') {
@@ -2479,7 +2481,7 @@ export const ReportPage = ({
             </div>
 
             <div className="flex items-center flex-wrap gap-3">
-              {isReportManager && (
+              {canViewDkpi && (
                 <button
                   onClick={() => { setActiveTab('dept'); setSelectedStaffId('ALL'); }}
                   className={`h-11 px-5 rounded-md text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'dept' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}

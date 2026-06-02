@@ -82,10 +82,13 @@ export const TaskList: React.FC<TaskListProps> = ({
       let changed = false;
 
       tasks.forEach(t => {
-        const realTime = new Date(t.lastActionAt || t.updatedAt || 0).getTime();
+        let realTime = new Date(t.lastActionAt || t.updatedAt || 0).getTime();
+        if (isNaN(realTime)) {
+          realTime = 0;
+        }
         const stableTime = prev[t.id];
 
-        if (!stableTime) {
+        if (stableTime === undefined) {
           next[t.id] = realTime;
           changed = true;
         } else if (realTime > stableTime) {

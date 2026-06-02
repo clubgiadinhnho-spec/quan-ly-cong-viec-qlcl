@@ -13,7 +13,7 @@ export const getUserById = (id: string, allUsers: User[]): User | undefined => {
   if (userById) return userById;
   
   // 2. Kiểm tra theo Tên (Tuyệt đối)
-  const userByName = allUsers.find(u => u.name.toLowerCase() === id.toLowerCase());
+  const userByName = allUsers.find(u => (u.name || '').toLowerCase() === id.toLowerCase());
   if (userByName) return userByName;
 
   return undefined;
@@ -41,17 +41,40 @@ export const getTaskAssigneeName = (task: Task, allUsers: User[]): string => {
 export const isUserTask = (task: Task, user: User | null): boolean => {
   if (!user || !task) return false;
   
-  // 1. So khớp ID trực tiếp (Firebase UID hoặc Legacy ID)
-  if (task.assigneeId === user.id) return true;
-  
-  // 2. So khớp theo Mã nhân viên (Staff Code)
-  if (user.code && task.assigneeId === user.code) return true;
-  
+  const assigneeId = (task.assigneeId || '').trim();
+  if (!assigneeId) return false;
+
+  const assigneeIdLower = assigneeId.toLowerCase();
+
+  // 1. So khớp ID trực tiếp hoặc UID Auth hoặc uniqueKey
+  if (user.id && assigneeIdLower === user.id.toLowerCase()) return true;
+  if ((user as any).uid && assigneeIdLower === (user as any).uid.toLowerCase()) return true;
+  if (user.uniqueKey && assigneeIdLower === user.uniqueKey.toLowerCase()) return true;
+  if (user.code && assigneeIdLower === user.code.toLowerCase()) return true;
+
+  // 2. So khớp theo Email (email, companyEmail, personalEmail)
+  const userEmails = [
+    user.email,
+    user.companyEmail,
+    user.personalEmail
+  ].map(e => (e || '').trim().toLowerCase()).filter(Boolean);
+
+  if (userEmails.includes(assigneeIdLower)) return true;
+
   // 3. Tra cứu trong danh sách FIXED_STAFF để so khớp Email
-  const staffByTask = FIXED_STAFF.find(u => u.id === task.assigneeId || u.code === task.assigneeId);
-  if (staffByTask && user.companyEmail) {
-    if (staffByTask.companyEmail?.toLowerCase() === user.companyEmail.toLowerCase()) return true;
-    if (staffByTask.personalEmail?.toLowerCase() === user.companyEmail.toLowerCase()) return true;
+  const staffByTask = FIXED_STAFF.find(u => 
+    (u.id && u.id.toLowerCase() === assigneeIdLower) || 
+    (u.code && u.code.toLowerCase() === assigneeIdLower) ||
+    (u.uniqueKey && u.uniqueKey.toLowerCase() === assigneeIdLower)
+  );
+  if (staffByTask) {
+    const staffEmails = [
+      staffByTask.companyEmail,
+      staffByTask.personalEmail,
+      (staffByTask as any).email
+    ].map(e => (e || '').trim().toLowerCase()).filter(Boolean);
+
+    if (staffEmails.some(se => userEmails.includes(se))) return true;
   }
   
   // 4. So khớp theo tên hiển thị (Trường hợp cuối)

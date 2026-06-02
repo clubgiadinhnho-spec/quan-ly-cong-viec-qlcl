@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { User as UserType } from "../types";
 import { auth, logout, db } from "../lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDocFromServer } from 'firebase/firestore';
+import { doc, getDocFromServer, setDoc } from 'firebase/firestore';
 
 export function useAuth(allUsers: UserType[]) {
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
@@ -96,10 +96,33 @@ export function useAuth(allUsers: UserType[]) {
       if (!matchingStaff) {
         matchingStaff = allUsers.find(s => 
           (s.companyEmail || "").toLowerCase() === userEmail || 
-          (s.personalEmail || "").toLowerCase() === userEmail
+          (s.personalEmail || "").toLowerCase() === userEmail ||
+          (s.email || "").toLowerCase() === userEmail
         );
       }
       
+      if (matchingStaff) {
+        const hasMismatchedUid = (matchingStaff as any).uid !== fbUser.uid;
+        if (hasMismatchedUid && matchingStaff.uniqueKey) {
+          const syncUid = async () => {
+            try {
+              await setDoc(doc(db, 'user_profiles', matchingStaff.uniqueKey), {
+                id: fbUser.uid,
+                uid: fbUser.uid,
+                email: fbUser.email || "",
+                updatedAt: new Date().toISOString()
+              }, { merge: true });
+              console.log(`[Auto-Sync] Đấu nối thành công UID ${fbUser.uid} cho nhân sự ${matchingStaff.uniqueKey}`);
+            } catch (err) {
+              console.error("[Auto-Sync] Thất bại khi ghi Firestore user_profiles:", err);
+            }
+          };
+          syncUid();
+        }
+      }
+
+      let nextUser: UserType | null = null;
+
       if (isSystemAdmin) {
         const adminProfile = matchingStaff ? { ...matchingStaff, role: "Admin" as any } : {
           id: fbUser.uid,
@@ -109,21 +132,40 @@ export function useAuth(allUsers: UserType[]) {
           status: "ACTIVE",
           uniqueKey: `ADMIN_${fbUser.uid}`
         };
-        setCurrentUser({ ...adminProfile, id: fbUser.uid, email: fbUser.email || "", lastActive: Date.now() } as UserType);
+        nextUser = { ...adminProfile, id: fbUser.uid, email: fbUser.email || "" } as UserType;
       } else if (matchingStaff) {
         if (matchingStaff.status === 'ACTIVE' || matchingStaff.role === 'Admin') {
-          setCurrentUser({ ...matchingStaff, id: fbUser.uid, email: fbUser.email || "", lastActive: Date.now() } as UserType);
+          nextUser = { ...matchingStaff, id: fbUser.uid, email: fbUser.email || "" } as UserType;
         } else {
           handleLogout();
+          return;
         }
-      } else {
-        // If not found yet, maybe they are not registered or allUsers not fully loaded
-        setCurrentUser(null);
+      }
+
+      const isDifferent = !currentUser && nextUser !== null ||
+                          !!currentUser && nextUser === null ||
+                          (!!currentUser && !!nextUser && (
+                            currentUser.id !== nextUser.id || 
+                            currentUser.name !== nextUser.name ||
+                            currentUser.role !== nextUser.role ||
+                            currentUser.phone !== nextUser.phone ||
+                            currentUser.companyEmail !== nextUser.companyEmail ||
+                            currentUser.personalEmail !== nextUser.personalEmail ||
+                            currentUser.status !== nextUser.status ||
+                            currentUser.avatar !== nextUser.avatar ||
+                            currentUser.uniqueKey !== nextUser.uniqueKey ||
+                            JSON.stringify(currentUser.delegatedPermissions) !== JSON.stringify(nextUser.delegatedPermissions)
+                          ));
+
+      if (isDifferent) {
+        setCurrentUser(nextUser ? { ...nextUser, lastActive: Date.now() } : null);
       }
     } else {
-      setCurrentUser(null);
+      if (currentUser !== null) {
+        setCurrentUser(null);
+      }
     }
-  }, [fbUser, allUsers, handleLogout]);
+  }, [fbUser, allUsers, handleLogout, currentUser]);
 
   return {
     currentUser,

@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Task, User } from '../types';
 import { TaskList } from '../components/tasks/TaskList';
 import { Search, Sparkles, CheckCircle2, Trash2, FileDown, Printer, ExternalLink, X } from 'lucide-react';
-import { normalizeString, getTaskAssigneeName, isTaskDeleted } from '../utils/userUtils';
+import { normalizeString, getTaskAssigneeName, isTaskDeleted, isUserTask } from '../utils/userUtils';
+import { useTaskContext } from '../contexts/TaskContext';
 import { AnimatePresence, motion } from 'motion/react';
 
 interface NewProposalsPageProps {
@@ -53,6 +54,7 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
   lastReadChatTimestamps,
   presence
 }) => {
+  const { viewScope } = useTaskContext();
   const isManager = currentUser.role === 'Admin' || !!currentUser.delegatedPermissions?.canApproveTask;
   const isAdmin = currentUser.role === 'Admin';
 
@@ -113,6 +115,7 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
   const pendingTasks = useMemo(() => {
     return tasks
       .filter(t => !isTaskDeleted(t) && t.status === 'PENDING' && !t.isCycleRecord)
+      .filter(t => viewScope === 'mine' ? isUserTask(t, currentUser) : true)
       .filter(t => {
         if (!search) return true;
         const term = normalizeString(search);
@@ -156,7 +159,7 @@ export const NewProposalsPage: React.FC<NewProposalsPageProps> = ({
         return fields.some(f => normalizeString(f || '').includes(term));
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [tasks, search, isManager, currentUser, allUsers]);
+  }, [tasks, search, isManager, currentUser, allUsers, viewScope]);
 
   const handleBulkApprove = () => {
     if (selectedIds.length === 0 || !approveTasksBulk) return;

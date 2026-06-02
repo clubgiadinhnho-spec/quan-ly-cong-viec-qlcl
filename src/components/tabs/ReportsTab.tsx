@@ -5,6 +5,7 @@ import { Header } from '../layout/Header';
 import { HolidayBanner } from '../layout/HolidayBanner';
 import { ReportPage } from '../../pages/ReportPage';
 import { Settings } from 'lucide-react';
+import { getUserPermissionsOf } from './PermissionMatrixTab';
 
 interface ReportsTabProps {
   effectiveUser: User;
@@ -21,6 +22,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
   effectiveUser, tasks, allUsers, updateTask, officialReports,
   firebaseSaveReportDraft, firebaseSaveOfficialReport, presence
 }) => {
+  const userPermissions = getUserPermissionsOf(effectiveUser);
   const isLNT = effectiveUser.name === 'Lê Nhật Trường';
   const isReportManager = effectiveUser.role === 'Admin' || 
                           !!effectiveUser.delegatedPermissions?.canViewReports ||
@@ -29,18 +31,23 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({
                           effectiveUser.personalEmail === 'lenhattruong.tpp@gmail.com' ||
                           effectiveUser.personalEmail === 'lenhattruong.caphef1@gmail.com';
 
+  const canViewDkpi = isReportManager || !!userPermissions.reports_viewDkpi;
+
   const [activeTab, setActiveTab ] = useState<'dept' | 'staff' | 'config'>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const urlTab = params.get('report_tab');
       if (urlTab === 'dept' || urlTab === 'staff' || urlTab === 'config') {
-        if (!isReportManager && urlTab !== 'staff') {
+        if (urlTab === 'dept' && !canViewDkpi) {
+          return 'staff';
+        }
+        if (urlTab === 'config' && !isReportManager) {
           return 'staff';
         }
         return urlTab as 'dept' | 'staff' | 'config';
       }
     }
-    return isReportManager ? 'dept' : 'staff';
+    return canViewDkpi ? 'dept' : 'staff';
   });
 
   return (

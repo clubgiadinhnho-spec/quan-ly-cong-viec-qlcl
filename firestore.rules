@@ -9,13 +9,13 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == 'truong.le@tanphuvietnam.vn' || 
-        request.auth.token.email == 'lenhattruong.tpp@gmail.com' ||
-        request.auth.token.email == 'lenhattruong.caphef1@gmail.com' ||
-        request.auth.token.email == 'club.nhuatanphu@gmail.com' ||
-        request.auth.token.email == 'tanphuvietnam.tpp@gmail.com' ||
-        request.auth.token.email == 'truongln.tanhongngoc@gmail.com' ||
-        request.auth.token.email == 'lenhattruong.ddt@gmail.com'
+        request.auth.token.email.matches('(?i)truong.le@tanphuvietnam.vn') || 
+        request.auth.token.email.matches('(?i)lenhattruong.tpp@gmail.com') ||
+        request.auth.token.email.matches('(?i)lenhattruong.caphef1@gmail.com') ||
+        request.auth.token.email.matches('(?i)club.nhuatanphu@gmail.com') ||
+        request.auth.token.email.matches('(?i)tanphuvietnam.tpp@gmail.com') ||
+        request.auth.token.email.matches('(?i)truongln.tanhongngoc@gmail.com') ||
+        request.auth.token.email.matches('(?i)lenhattruong.ddt@gmail.com')
       );
     }
 
@@ -40,10 +40,10 @@ service cloud.firestore {
              data.content is string && data.content.size() <= 5000;
     }
 
-    // 1. User Profiles - MỞ KHÓA TUYỆT ĐỐI THEO LỆNH
+    // 1. User Profiles - Allow profile read/write for matched users (Auto-Sync compatibility)
     match /user_profiles/{profileId} {
-      allow read: if true;
-      allow write: if true; // CHO PHÉP TẠO VÀ SỬA ĐỂ BẠN HẬU ĐĂNG KÝ THÀNH CÔNG
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
     
     // Global Access Control fallback

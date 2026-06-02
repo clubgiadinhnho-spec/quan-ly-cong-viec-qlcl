@@ -1,11 +1,37 @@
+function cleanDateIn(val: any): string {
+  if (!val) return '';
+  if (typeof val === 'string') return val;
+  if (val && typeof val === 'object') {
+    if (typeof val.toDate === 'function') {
+      try {
+        return val.toDate().toISOString();
+      } catch (e) {}
+    }
+    if (typeof val.seconds === 'number') {
+      try {
+        return new Date(val.seconds * 1000).toISOString();
+      } catch (e) {}
+    }
+    const sec = val.seconds ?? val._seconds;
+    if (typeof sec === 'number') {
+      try {
+        return new Date(sec * 1000).toISOString();
+      } catch (e) {}
+    }
+  }
+  const str = String(val);
+  return str === '[object Object]' ? '' : str;
+}
+
 export function formatDate(dateString: string | null | undefined): string {
-  if (!dateString) return '—';
+  const cleaned = cleanDateIn(dateString);
+  if (!cleaned) return '—';
   
   try {
-    const date = new Date(dateString);
+    const date = new Date(cleaned);
     if (isNaN(date.getTime())) {
       // Fallback for strings that Date constructor might fail on but follow YYYY-MM-DD
-      const parts = dateString.split(/[-/]/);
+      const parts = cleaned.split(/[-/]/);
       if (parts.length === 3) {
         if (parts[0].length === 4) { // YYYY-MM-DD
            const d = parts[2].padStart(2, '0');
@@ -20,7 +46,7 @@ export function formatDate(dateString: string | null | undefined): string {
            return `${d}/${m}/${y}`;
         }
       }
-      return dateString;
+      return cleaned;
     }
     
     const d = date.getDate().toString().padStart(2, '0');
@@ -29,7 +55,7 @@ export function formatDate(dateString: string | null | undefined): string {
     
     return `${d}/${m}/${y}`;
   } catch (e) {
-    return dateString;
+    return cleaned;
   }
 }
 
@@ -56,11 +82,12 @@ export function getMonthYear(date: any): string {
 }
 
 export function formatDateTime(dateString: string | null | undefined): string {
-  if (!dateString) return '—';
+  const cleaned = cleanDateIn(dateString);
+  if (!cleaned) return '—';
   
   try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
+    const date = new Date(cleaned);
+    if (isNaN(date.getTime())) return cleaned;
     
     const d = date.getDate().toString().padStart(2, '0');
     const m = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -70,16 +97,17 @@ export function formatDateTime(dateString: string | null | undefined): string {
     
     return `${d}/${m}/${y} ${hh}:${mm}`;
   } catch (e) {
-    return dateString;
+    return cleaned;
   }
 }
 
 export function formatFullDateTime(dateString: string | null | undefined): string {
-  if (!dateString) return '—';
+  const cleaned = cleanDateIn(dateString);
+  if (!cleaned) return '—';
   
   try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
+    const date = new Date(cleaned);
+    if (isNaN(date.getTime())) return cleaned;
     
     const d = date.getDate().toString().padStart(2, '0');
     const m = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -90,7 +118,7 @@ export function formatFullDateTime(dateString: string | null | undefined): strin
     
     return `${hh}:${mm}:${ss} ${d}/${m}/${y}`;
   } catch (e) {
-    return dateString;
+    return cleaned;
   }
 }
 

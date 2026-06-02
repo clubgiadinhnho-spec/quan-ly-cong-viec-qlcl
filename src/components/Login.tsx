@@ -168,7 +168,23 @@ export default function Login({ users, onLogin, onAddStaff }: LoginProps) {
     try {
       const fbUser = await loginWithGoogle();
       if (fbUser) {
-        const staffMember = validateEmail(fbUser.email || '');
+        // THIẾT QUÂN LUẬT: TÌM HỒ SƠ THEO MỌI CÁCH (UID HOẶC EMAIL)
+        let staffMember = users.find(u => u.id === fbUser.uid || (u as any).uid === fbUser.uid);
+        let profileDocId = '';
+
+        if (!staffMember) {
+          // NẾU KHÔNG THẤY THEO UID, TÌM THEO EMAIL
+          const emailMatch = await findProfileByEmail(fbUser.email || '');
+          if (emailMatch) {
+            staffMember = emailMatch.data as User;
+            profileDocId = emailMatch.docId;
+            // TỰ ĐỘNG ĐỒNG BỘ UID MỚI VÀO HỒ SƠ FIRESTORE
+            await syncProfileUid(profileDocId, fbUser.uid);
+            // Cập nhật lại model cục bộ
+            staffMember.id = fbUser.uid;
+          }
+        }
+
         if (!staffMember) {
            setError(
              <span translate="no" className="notranslate">Email Google này không có trong danh sách nhân sự được cấp phép.</span> as any

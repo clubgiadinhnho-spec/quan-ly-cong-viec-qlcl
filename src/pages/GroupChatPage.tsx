@@ -321,7 +321,7 @@ const handleCreateTopic = () => {
   useEffect(() => {
     if (showMentionList) {
       const filtered = users
-        .filter(u => u.name.toLowerCase().includes(mentionQuery.toLowerCase()))
+        .filter(u => (u.name || '').toLowerCase().includes((mentionQuery || '').toLowerCase()))
         .slice(0, 5);
       setFilteredMentionUsers(filtered);
     }

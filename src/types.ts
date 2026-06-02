@@ -95,6 +95,7 @@ export interface UserPermissions {
   // BÁO CÁO THÁNG & KPI - FINE-GRAINED PERMISSIONS
   // -------------------------------------------------------------
   reports_viewPage?: boolean;
+  reports_viewDkpi?: boolean;
   reports_configPage?: boolean;
   reports_saveEvaluation?: boolean;
 

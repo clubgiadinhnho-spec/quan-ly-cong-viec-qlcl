@@ -25,6 +25,35 @@ import { vi } from 'date-fns/locale';
 import { User, UserPresence, Task, TaskComment, PrivateMessage, ReportDraft, OfficialReport, LogEntry, DiscussionTopic, DiscussionMessage, TaskCategory, CycleHistoryEntry, AIChatMessage } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
+const safeDateToISO = (val: any): string | null => {
+  if (!val) return null;
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object') {
+    if (typeof val.toDate === 'function') {
+      try {
+        return val.toDate().toISOString();
+      } catch (e) {}
+    }
+    const sec = val.seconds ?? val._seconds;
+    if (typeof sec === 'number') {
+      try {
+        return new Date(sec * 1000).toISOString();
+      } catch (e) {}
+    }
+  }
+  const str = String(val);
+  if (str && str !== '[object Object]') return str;
+  return null;
+};
+
+const safeDateToISORequired = (val: any, fallback: string): string => {
+  return safeDateToISO(val) || fallback;
+};
+
+const safeDateToISOOptional = (val: any): string | null => {
+  return safeDateToISO(val);
+};
+
 export const useFirebaseData = (currentUserId?: string) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [messages, setMessages] = useState<TaskComment[]>([]);
@@ -120,14 +149,30 @@ export const useFirebaseData = (currentUserId?: string) => {
           const now = new Date().toISOString();
           const tasksData = snapshot.docs.map(doc => {
             const data = doc.data();
+            const nowISO = now;
+            
+            const pUpdatedAt = safeDateToISORequired(data.updatedAt, nowISO);
+            const pLastActionAt = safeDateToISORequired(data.lastActionAt, pUpdatedAt);
+            const pSystemCreatedAt = safeDateToISORequired(data.systemCreatedAt, pUpdatedAt);
+            const pDeletedAt = safeDateToISOOptional(data.deletedAt);
+            const pIssueDate = data.issueDate || pSystemCreatedAt.split('T')[0] || nowISO.split('T')[0];
+            const pStartDate = data.startDate || pIssueDate;
+            const pExpectedEndDate = safeDateToISOOptional(data.expectedEndDate);
+            const pActualEndDate = safeDateToISOOptional(data.actualEndDate);
+            const pExtensionDate = safeDateToISOOptional(data.extensionDate);
+
             return {
               ...data,
               id: doc.id,
-              updatedAt: (data.updatedAt as any)?.toDate ? (data.updatedAt as any).toDate().toISOString() : (data.updatedAt || now),
-              lastActionAt: (data.lastActionAt as any)?.toDate ? (data.lastActionAt as any).toDate().toISOString() : (data.lastActionAt || (data.updatedAt as any)?.toDate ? (data.updatedAt as any).toDate().toISOString() : data.updatedAt || now),
-              systemCreatedAt: (data.systemCreatedAt as any)?.toDate ? (data.systemCreatedAt as any).toDate().toISOString() : data.systemCreatedAt,
-              issueDate: data.issueDate || now.split('T')[0],
-              startDate: data.startDate || data.issueDate || now.split('T')[0],
+              updatedAt: pUpdatedAt,
+              lastActionAt: pLastActionAt,
+              systemCreatedAt: pSystemCreatedAt,
+              deletedAt: pDeletedAt,
+              issueDate: pIssueDate,
+              startDate: pStartDate,
+              expectedEndDate: pExpectedEndDate,
+              actualEndDate: pActualEndDate,
+              extensionDate: pExtensionDate,
               code: data.code || 'N/A'
             } as Task;
           });

@@ -167,8 +167,12 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     tasks, currentUser: effectiveUser, allUsers, firebaseAddTask, firebaseUpdateTask, firebaseDeleteTask, firebaseSendPrivateMsg
   });
 
+  const { supState, togglePatrol } = useSupervisorPatrol({
+    tasks, currentUser: effectiveUser, users: allUsers, activeTab, setActiveTab
+  });
+
   const { counts, sortedTasks } = useAppLogic({
-    tasks, effectiveUser, viewScope, search, activeTab, allUsers, selectedMonth
+    tasks, effectiveUser, viewScope, search, activeTab, allUsers, selectedMonth, supState
   });
 
   const { notifications, unreadCount: adminUnreadCount, markAsRead: markNotifRead, deleteNotification: deleteNotif, createNotification } = useNotifications(isAdmin);
@@ -182,10 +186,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
   useJobAI({
     tasks, currentUser: effectiveUser, sendAiMessage, aiMessages, users: allUsers
-  });
-
-  const { supState, togglePatrol } = useSupervisorPatrol({
-    tasks, currentUser: effectiveUser, users: allUsers, activeTab
   });
 
   // Presence Heartbeat

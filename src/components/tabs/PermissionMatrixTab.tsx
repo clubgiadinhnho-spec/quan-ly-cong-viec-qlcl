@@ -146,6 +146,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     textColor: 'text-violet-700',
     items: [
       { key: 'reports_viewPage', label: 'TRUY CẬP XEM BÁO CÁO KPI PHÒNG', description: 'Theo dõi kết quả hoàn tất biểu đồ & năng suất phòng QLCL', defaultStaff: false, defaultAdmin: true },
+      { key: 'reports_viewDkpi', label: 'TRUY CẬP TRANG ĐKPI PHÒNG QLCL', description: 'Cho phép xem và truy cập trang Đăng ký KPI phòng ban (ĐKPI Phòng QLCL)', defaultStaff: true, defaultAdmin: true },
       { key: 'reports_configPage', label: 'THIẾT LẬP KPI PHÒNG BAN', description: 'Điều phối điều kiện các chỉ mục cân đo, cài đặt trọng số cốt quy định', defaultStaff: false, defaultAdmin: true },
       { key: 'reports_saveEvaluation', label: 'LƯU ĐÁNH GIÁ THÁNG (KPI)', description: 'Cho phép quản lý bấm nút Lưu Đánh Giá Tháng', defaultStaff: false, defaultAdmin: true },
     ]
@@ -233,6 +234,7 @@ export const getUserDefaultPermissions = (user: User): UserPermissions => {
     office_manageBirthdayWishes: !isStaffDefault,
 
     reports_viewPage: !isStaffDefault,
+    reports_viewDkpi: true,
     reports_configPage: !isStaffDefault,
     reports_saveEvaluation: !isStaffDefault,
 

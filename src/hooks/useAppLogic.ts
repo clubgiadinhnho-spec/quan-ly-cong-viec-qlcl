@@ -12,6 +12,17 @@ interface UseAppLogicProps {
   activeTab: string;
   allUsers: User[];
   selectedMonth?: string;
+  supState?: {
+    isActive: boolean;
+    currentTaskId: string | null;
+    currentTaskCode: string;
+    speech: string;
+    speechJob?: string;
+    patrolledAt: string | null;
+    currentIndex: number;
+    patrolledTaskIds?: string[];
+    isCheckIn?: boolean;
+  };
 }
 
 export const useAppLogic = ({
@@ -21,7 +32,8 @@ export const useAppLogic = ({
   search,
   activeTab,
   allUsers,
-  selectedMonth = 'all'
+  selectedMonth = 'all',
+  supState
 }: UseAppLogicProps) => {
   // THIẾT QUÂN LUẬT: Trì hoãn luân hồi (Delayed Sorting) - 3 phút
   const [stableSortTimes, setStableSortTimes] = useState<Record<string, number>>({});
@@ -170,7 +182,7 @@ export const useAppLogic = ({
       return filtered.filter(t => viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
     };
 
-    const pendingList = basePending; // Nhân viên được xem tất cả đề xuất mới
+    const pendingList = basePending.filter(t => viewScope === 'mine' ? isUserTask(t, effectiveUser) : true); // Nhân viên được xem tất cả đề xuất mới hoặc lọc theo viewScope
     const activeList = filterByScope(baseActive);
     const approvalList = filterByScope(baseApproval);
     const trashList = filterByScope(baseTrash);
@@ -212,6 +224,12 @@ export const useAppLogic = ({
   // 2. Main Sorting & Filtering Logic
   const sortedTasks = useMemo(() => {
     return tasks.filter(t => {
+      // ẢNH HƯỞNG S.U.P ROBOT: Nếu robot đang tuần tra công việc này trên phân khu tasks, ép hiển thị 100% để bảo đảm cuộn mượt và hiển thị robot đối thoại
+      const isBeingPatrolled = !!(supState?.isActive && (supState?.currentTaskId === t.id || supState?.currentTaskId === t.id + '_cycle_') && activeTab === "tasks");
+      if (isBeingPatrolled) {
+        return true;
+      }
+
       // 1. Kiểm tra tìm kiếm (nếu không có search thì true)
       if (!matchesSearch(t)) return false;
 
@@ -231,7 +249,7 @@ export const useAppLogic = ({
       if (t.isCycleRecord) return false;
 
       if (activeTab === "pending_confirmation") {
-        return t.status === "PENDING"; 
+        return t.status === "PENDING" && (viewScope === "mine" ? isUserTask(t, effectiveUser) : true); 
       }
       
       if (activeTab === "pending_approval") {
@@ -264,7 +282,7 @@ export const useAppLogic = ({
       // Code
       return b.code.localeCompare(a.code);
     });
-  }, [tasks, activeTab, search, viewScope, effectiveUser, stableSortTimes]);
+  }, [tasks, activeTab, search, viewScope, effectiveUser, stableSortTimes, supState]);
 
   return {
     counts,

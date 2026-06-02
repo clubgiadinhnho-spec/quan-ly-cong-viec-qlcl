@@ -91,9 +91,33 @@ export default function App() {
     setTimeout(() => setHighlightedTaskId(null), 10000);
 
     setTimeout(() => {
-      const element = document.getElementById(`task-card-${taskId}`) || 
-                      document.getElementById(`task-${taskId}`);
+      const idToMatch = taskId;
+      const baseIdToMatch = idToMatch.split('_cycle_')[0];
+
+      let element = document.getElementById(`task-card-${idToMatch}`) || 
+                    document.getElementById(`task-${idToMatch}`);
+      
+      if (!element) {
+        element = document.getElementById(`task-card-${baseIdToMatch}`) || 
+                  document.getElementById(`task-${baseIdToMatch}`);
+      }
+
+      if (!element) {
+        element = document.querySelector(`[id^="task-card-${idToMatch}"]`) ||
+                  document.querySelector(`[id^="task-${idToMatch}"]`) ||
+                  document.querySelector(`[id^="task-card-${baseIdToMatch}"]`) ||
+                  document.querySelector(`[id^="task-${baseIdToMatch}"]`) ||
+                  document.querySelector(`[id*="${baseIdToMatch}"]`);
+      }
+
       if (element) {
+        if (element.tagName === 'TR') {
+          const firstCell = element.querySelector('td');
+          if (firstCell) {
+            firstCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+          }
+        }
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }, 500);

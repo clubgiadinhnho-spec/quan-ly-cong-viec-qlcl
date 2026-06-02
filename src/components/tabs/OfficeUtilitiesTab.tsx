@@ -51,16 +51,35 @@ const getVietnameseDayLabel = (dayOfWeek: number) => {
   return `T${dayOfWeek + 1}`;
 };
 
-const formatDateVN = (dateStr: string | null | undefined): string => {
+const formatDateVN = (dateStr: any): string => {
   if (!dateStr) return '';
-  const parts = dateStr.trim().split('-');
+  let str = '';
+  if (typeof dateStr === 'string') {
+    str = dateStr;
+  } else if (typeof dateStr === 'object') {
+    if (typeof dateStr.toDate === 'function') {
+      try {
+        str = dateStr.toDate().toISOString().split('T')[0];
+      } catch (e) {}
+    } else if (typeof dateStr.seconds === 'number') {
+      try {
+        str = new Date(dateStr.seconds * 1000).toISOString().split('T')[0];
+      } catch (e) {}
+    } else {
+      str = String(dateStr);
+    }
+  } else {
+    str = String(dateStr);
+  }
+  if (!str || str === '[object Object]') return '';
+  const parts = str.trim().split('-');
   if (parts.length === 3) {
     const y = parts[0].slice(-2);
     const m = parts[1];
     const d = parts[2];
     return `${d}/${m}/${y}`;
   }
-  return dateStr;
+  return str;
 };
 
 const getWeekRange = (dateStr: string) => {
@@ -1570,9 +1589,9 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
   // ---- BIRTHDAY STATES ----
   const birthdayUsers = useMemo(() => {
     if (!allUsers) return [];
-    const activeNames = activeQLCLEmployees.map(emp => emp.name.toLowerCase().trim());
+    const activeNames = activeQLCLEmployees.map(emp => (emp.name || '').toLowerCase().trim());
     return allUsers.filter(u => {
-      const nameLower = u.name.toLowerCase().trim();
+      const nameLower = (u.name || '').toLowerCase().trim();
       if (nameLower === 'quản trị viên' || nameLower === 'mai thị hậu') return false;
       return activeNames.some(actName => actName === nameLower || nameLower.includes(actName) || actName.includes(nameLower));
     });
@@ -1891,7 +1910,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
   // ---- DYNAMIC BIRTHDAY UTILITIES ----
   const getBirthdayDetails = (name: string) => {
     // 1. Resolve matching user from allUsers to get their formal birthDate
-    const targetUser = allUsers.find(u => u.name === name || u.name.toLowerCase().includes(name.toLowerCase()));
+    const targetUser = allUsers.find(u => u.name === name || (u.name || '').toLowerCase().includes((name || '').toLowerCase()));
     const birthDateStr = targetUser?.birthDate;
 
     let day = 0;

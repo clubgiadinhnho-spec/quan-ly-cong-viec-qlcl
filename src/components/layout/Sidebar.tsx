@@ -114,7 +114,15 @@ export const Sidebar = ({
       const tasksData = tasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
       const profilesSnap = await getDocs(collection(db, 'user_profiles'));
-      const profilesData = profilesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const profilesData = profilesSnap.docs.map(d => {
+        const data = d.data();
+        return {
+          ...data,
+          docId: d.id,
+          uniqueKey: data.uniqueKey || d.id,
+          id: data.id || ''
+        };
+      });
 
       const categoriesSnap = await getDocs(collection(db, 'task_categories'));
       const categoriesData = categoriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -154,8 +162,8 @@ export const Sidebar = ({
     reader.onload = (event) => {
       try {
         const parsed = JSON.parse(event.target?.result as string);
-        if (!parsed.tasks || !parsed.user_profiles || !parsed.task_categories) {
-          alert("Lỗi định dạng tệp: Tệp sao lưu không hợp lệ hoặc thiếu dữ liệu cốt lõi!");
+        if (!parsed.tasks) {
+          alert("Lỗi định dạng tệp: Tệp sao lưu bắt buộc phải chứa danh sách công việc (tasks)!");
           return;
         }
         setSelectedFileContent(parsed);
@@ -176,7 +184,7 @@ export const Sidebar = ({
 
     setIsRestoring(true);
     try {
-      const { tasks, user_profiles, task_categories } = selectedFileContent;
+      const { tasks = [], user_profiles = [], task_categories = [] } = selectedFileContent;
 
       const tasksSnap = await getDocs(collection(db, 'tasks'));
       const profilesSnap = await getDocs(collection(db, 'user_profiles'));
@@ -188,14 +196,47 @@ export const Sidebar = ({
       categoriesSnap.docs.forEach(d => deleteOps.push({ ref: doc(db, 'task_categories', d.id), type: 'delete' }));
 
       const writeOps: any[] = [];
+      
+      // THIẾT QUÂN LUẬT SANITIZATION: Đảm bảo dữ liệu tasks tương thích 100% với firestore.rules
+      const validStatuses = [
+        'IN_PROGRESS', 'PENDING_APPROVAL', 'COMPLETED', 'CANCELLED', 'ON_HOLD', 
+        'Hoàn thành', 'Đang thực hiện', 'Chưa bắt đầu', 'Tạm dừng', 
+        'AWAITING_CONFIRMATION', 'PENDING', 'APPROVED', 'DELETED'
+      ];
+
       tasks.forEach((item: any) => {
         const { id, ...data } = item;
-        if (id) writeOps.push({ ref: doc(db, 'tasks', id), type: 'set', data });
+        if (id) {
+          // Thực hiện làm sạch dữ liệu để tránh bị Firestore rules chặn quyền
+          const cleanCode = (typeof data.code === 'string' ? data.code : String(id)).substring(0, 50);
+          const cleanTitle = (typeof data.title === 'string' ? data.title : 'Chưa có tiêu đề').substring(0, 500);
+          const cleanAssigneeId = typeof data.assigneeId === 'string' ? data.assigneeId : 'unassigned';
+          const cleanStatus = data.status && validStatuses.includes(data.status) ? data.status : 'Chưa bắt đầu';
+
+          const sanitizedData = {
+            ...data,
+            code: cleanCode,
+            title: cleanTitle,
+            assigneeId: cleanAssigneeId,
+            status: cleanStatus
+          };
+          writeOps.push({ ref: doc(db, 'tasks', id), type: 'set', data: sanitizedData });
+        }
       });
+
       user_profiles.forEach((item: any) => {
-        const { id, ...data } = item;
-        if (id) writeOps.push({ ref: doc(db, 'user_profiles', id), type: 'set', data });
+        // LỆNH SỬA LỖI ĐỒNG BỘ: Sử dụng uniqueKey/docId làm Document ID để tránh bị đổi thành ID phụ thuộc UID
+        const docId = item.docId || item.uniqueKey || item.id;
+        if (docId) {
+          const sanitizedPayload = {
+            ...item,
+            uniqueKey: item.uniqueKey || docId,
+            id: item.id || '' // Firebase Auth UID
+          };
+          writeOps.push({ ref: doc(db, 'user_profiles', docId), type: 'set', data: sanitizedPayload });
+        }
       });
+
       task_categories.forEach((item: any) => {
         const { id, ...data } = item;
         if (id) writeOps.push({ ref: doc(db, 'task_categories', id), type: 'set', data });

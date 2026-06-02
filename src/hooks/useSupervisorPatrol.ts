@@ -13,6 +13,7 @@ export interface SupervisorState {
   patrolledAt: string | null;
   currentIndex: number;
   patrolledTaskIds?: string[];
+  isCheckIn?: boolean;
 }
 
 interface UseSupervisorPatrolProps {
@@ -20,13 +21,15 @@ interface UseSupervisorPatrolProps {
   currentUser: User | null;
   users: User[];
   activeTab: string;
+  setActiveTab?: (tab: string) => void;
 }
 
 export const useSupervisorPatrol = ({
   tasks,
   currentUser,
   users,
-  activeTab
+  activeTab,
+  setActiveTab
 }: UseSupervisorPatrolProps) => {
   const [supState, setSupState] = useState<SupervisorState>({
     isActive: false,
@@ -71,7 +74,8 @@ export const useSupervisorPatrol = ({
           currentTaskCode: '',
           speech: 'Hệ thống an ninh S.U.P sẵn sàng!',
           patrolledAt: null,
-          currentIndex: 0
+          currentIndex: 0,
+          isCheckIn: false
         });
       }
     });
@@ -162,8 +166,8 @@ export const useSupervisorPatrol = ({
 
     // Normal tasks
     const phrases = [
-      `Kiểm tra Mã \${code}: Diễn tiến ổn định. Đồng chí \${assigneeName} tiếp tục bám sát!`,
-      `Rà soát Mã \${code}: Không phát hiện lỗi nghiêm trọng. Yêu cầu đồng chí \${assigneeName} nỗ lực!`
+      `Kiểm tra Mã ${code}: Diễn tiến ổn định. Đồng chí ${assigneeName} tiếp tục bám sát!`,
+      `Rà soát Mã ${code}: Không phát hiện lỗi nghiêm trọng. Yêu cầu đồng chí ${assigneeName} nỗ lực!`
     ];
     return phrases[Math.floor(Math.random() * phrases.length)];
   }, []);
@@ -309,7 +313,8 @@ export const useSupervisorPatrol = ({
                 currentTaskCode: cTask.code,
                 speech: scanSpeech,
                 speechJob: `Đang quét cảm biến tiến độ và hiệu năng...`,
-                patrolledAt: new Date().toISOString()
+                patrolledAt: new Date().toISOString(),
+                isCheckIn: false
               });
 
               // Thời gian vàng để màn hình cuộn mượt đến việc đó và mô phỏng quét (giảm tốc độ đi ~80% để quan sát trung thực)
@@ -325,7 +330,8 @@ export const useSupervisorPatrol = ({
             currentTaskCode: task.code,
             speech: `S.U.P chốt hạ vị trí: Di chuyển kiểm tra Mã ${task.code}!`,
             speechJob: 'Đang giải nén hồ sơ công tác...',
-            patrolledAt: new Date().toISOString()
+            patrolledAt: new Date().toISOString(),
+            isCheckIn: true
           });
 
           await sleepWithAbort(3500);
@@ -346,7 +352,8 @@ export const useSupervisorPatrol = ({
             currentTaskCode: task.code,
             speech: greeting,
             speechJob: 'Sẵn sàng báo cáo!',
-            patrolledAt: new Date().toISOString()
+            patrolledAt: new Date().toISOString(),
+            isCheckIn: true
           });
 
           await sleepWithAbort(4000);
@@ -359,7 +366,8 @@ export const useSupervisorPatrol = ({
             currentTaskCode: task.code,
             speech: greeting,
             speechJob: 'Đang kết nối Gemini rà soát mục tiêu dựa trên QCD...',
-            patrolledAt: new Date().toISOString()
+            patrolledAt: new Date().toISOString(),
+            isCheckIn: true
           });
 
           // Bước 3: Đối thoại AI - PHÂN TÍCH SẮC BÉN
@@ -441,7 +449,8 @@ export const useSupervisorPatrol = ({
             currentTaskCode: task.code,
             speech: greeting,
             speechJob: assistantReply,
-            patrolledAt: new Date().toISOString()
+            patrolledAt: new Date().toISOString(),
+            isCheckIn: true
           });
 
           await sleepWithAbort(8000);
@@ -454,7 +463,8 @@ export const useSupervisorPatrol = ({
             currentTaskCode: task.code,
             speech: supervisorClosing,
             speechJob: `[LÀM NGAY]: ${nextAction}`,
-            patrolledAt: new Date().toISOString()
+            patrolledAt: new Date().toISOString(),
+            isCheckIn: true
           });
 
           await sleepWithAbort(9000);
@@ -491,7 +501,8 @@ export const useSupervisorPatrol = ({
             speech: 'S.U.P hoàn thành tuần tra, đang nghỉ ngơi...',
             speechJob: '',
             patrolledAt: new Date().toISOString(),
-            currentIndex: 0
+            currentIndex: 0,
+            isCheckIn: false
           });
 
         } catch (err: any) {
@@ -514,21 +525,77 @@ export const useSupervisorPatrol = ({
     }
   }, [isAdmin]);
 
+  // Auto-switch tab to 'tasks' when S.U.P robot is patrolling
+  useEffect(() => {
+    if (supState.isActive && supState.currentTaskId && activeTab !== 'tasks') {
+      setActiveTab?.('tasks');
+    }
+  }, [supState.isActive, supState.currentTaskId, activeTab, setActiveTab]);
+
   // Client AUTO-SCROLL/JUMP & HIGHLIGHT trace logic for worker devices
   useEffect(() => {
     if (!supState.isActive || !supState.currentTaskId || activeTab !== 'tasks') return;
 
-    // Check if the current task row exists visual-wise (both mobile card and desktop table row formats)
-    const timer = setTimeout(() => {
-      const element = document.getElementById(`task-card-${supState.currentTaskId}`) || 
-                      document.getElementById(`task-${supState.currentTaskId}`);
-      if (element) {
-        // Beautiful smooth focal jump
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }, 300);
+    // We schedule multiple scroll attempts to handle React render cycles and database sync lag (100ms to 1500ms)
+    const scrollAttempts = [100, 300, 600, 1000, 1500];
+    const timers = scrollAttempts.map(delay => {
+      return setTimeout(() => {
+        const idToMatch = supState.currentTaskId;
+        if (!idToMatch) return;
+        const baseIdToMatch = idToMatch.split('_cycle_')[0];
 
-    return () => clearTimeout(timer);
+        // Robust DOM selection including exact matching, base ID matching, task-row ID formats & wildcard query matching
+        let element = document.getElementById(`task-card-${idToMatch}`) || 
+                      document.getElementById(`task-${idToMatch}`) ||
+                      document.getElementById(`task-row-${idToMatch}`);
+        
+        if (!element) {
+          element = document.getElementById(`task-card-${baseIdToMatch}`) || 
+                    document.getElementById(`task-${baseIdToMatch}`) ||
+                    document.getElementById(`task-row-${baseIdToMatch}`);
+        }
+
+        if (!element) {
+          element = document.querySelector(`[id^="task-card-${idToMatch}"]`) ||
+                    document.querySelector(`[id^="task-${idToMatch}"]`) ||
+                    document.querySelector(`[id^="task-row-${idToMatch}"]`) ||
+                    document.querySelector(`[id^="task-card-${baseIdToMatch}"]`) ||
+                    document.querySelector(`[id^="task-${baseIdToMatch}"]`) ||
+                    document.querySelector(`[id^="task-row-${baseIdToMatch}"]`) ||
+                    document.querySelector(`[id*="${baseIdToMatch}"]`);
+        }
+
+        if (element) {
+          try {
+            // CỰC KỲ CHÍNH XÁC: Tính toán toạ độ tuyệt đối để cuộn mượt và căn chính giữa màn hình (tránh lag layout lồng nhau)
+            const rect = element.getBoundingClientRect();
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            const targetY = rect.top + scrollTop - (window.innerHeight / 2) + (rect.height / 2);
+            window.scrollTo({
+              top: targetY,
+              behavior: 'smooth'
+            });
+          } catch (scrollErr) {
+            console.error("Vertical scroll failed: ", scrollErr);
+            // Fallback an toàn chuẩn HTML
+            if (element.tagName === 'TR') {
+              const firstCell = element.querySelector('td');
+              if (firstCell) {
+                firstCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              } else {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            } else {
+              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }
+        }
+      }, delay);
+    });
+
+    return () => {
+      timers.forEach(t => clearTimeout(t));
+    };
   }, [supState.currentTaskId, supState.isActive, activeTab]);
 
   return {

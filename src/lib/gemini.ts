@@ -1,13 +1,14 @@
 import { Task, User } from '../types';
+import { isUserTask } from '../utils/userUtils';
 
 // Cache để giảm Quota AI
 const adviceCache: Record<string, { advice: string, timestamp: number }> = {};
 const CACHE_TIMEOUT = 1000 * 60 * 30; // 30 phút
 
 export async function getPerformanceAdvice(user: User, tasks: Task[], viewer: User) {
-  const isSelf = viewer.id === user.id;
-  const completedTasks = tasks.filter(t => t.status === 'COMPLETED' && t.assigneeId === user.id);
-  const ongoingTasks = tasks.filter(t => t.status === 'IN_PROGRESS' && t.assigneeId === user.id);
+  const isSelf = viewer.id === user.id || viewer.uniqueKey === user.uniqueKey;
+  const completedTasks = tasks.filter(t => (t.status === 'COMPLETED' || t.status === 'Hoàn thành') && isUserTask(t, user));
+  const ongoingTasks = tasks.filter(t => (t.status === 'IN_PROGRESS' || t.status === 'Đang thực hiện') && isUserTask(t, user));
   const lateTasks = tasks.filter(t => t.status !== 'COMPLETED' && t.expectedEndDate && new Date(t.expectedEndDate) < new Date());
   
   // Tạo key cho cache dựa trên ID người dùng và số lượng task (summary)

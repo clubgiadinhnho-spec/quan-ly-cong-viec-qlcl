@@ -308,6 +308,7 @@ export interface Task {
   patrolReviewedByAdmin?: boolean;
   lastPatrolTime?: string;
   patrolStatus?: string;
+  supCheckInPending?: boolean;
   requestEndTracking?: boolean;
   last_ai_content?: string;
   last_ai_response?: string;

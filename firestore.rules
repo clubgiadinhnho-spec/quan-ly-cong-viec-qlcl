@@ -138,5 +138,10 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // 12. Office Leave Requests
+    match /office_leave_requests/{id} {
+      allow read, write: if isSignedIn();
+    }
+
   }
 }

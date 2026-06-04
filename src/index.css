@@ -8,6 +8,7 @@
   --animate-spin-slow: spin 3s linear infinite;
   --animate-shake: shake 0.2s ease-in-out infinite;
   --animate-ring: ring 2s ease-in-out infinite;
+  --animate-sup-bounce: sup-bounce 1s ease-in-out infinite;
 
   @keyframes shake {
     0%, 100% { transform: translateX(0); }
@@ -19,6 +20,11 @@
     0%, 100% { transform: rotate(0); }
     10%, 30%, 50%, 70%, 90% { transform: rotate(6deg); }
     20%, 40%, 60%, 80% { transform: rotate(-6deg); }
+  }
+
+  @keyframes sup-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
   }
 }
 

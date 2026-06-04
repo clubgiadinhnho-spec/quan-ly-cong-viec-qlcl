@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { History, X, Clock, User as UserIcon } from 'lucide-react';
+import { History, X, Clock, User as UserIcon, Sparkles } from 'lucide-react';
 import { Task, User } from '../../types';
 import { formatAllDatesInString } from '../../lib/dateUtils';
 import { 
@@ -112,6 +112,8 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
   // Sort weeks and items within weeks
   const sortedWeeks = Object.values(groupedHistory).sort((a: any, b: any) => b.weekNumber - a.weekNumber);
   
+  const hasAnyExplicitAiHistory = (task.history || []).some((h: any) => h.aiApplied === true);
+
   const getEntryColor = (item: any) => {
     if (item.type === 'chat') return 'bg-purple-500';
     const content = item.content || '';
@@ -196,6 +198,17 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
                       const author = users.find(u => u.id === item.authorId);
                       const colorClass = getEntryColor(item);
                       
+                      // Check if we should fallback to display AI on the latest progress update for legacy tasks
+                      const isLatestProgressUpdate = !hasAnyExplicitAiHistory && 
+                        item.content?.includes('Cập nhật tiến độ:') &&
+                        item.version === Math.max(...(task.history || [])
+                          .filter((h: any) => h.content?.includes('Cập nhật tiến độ:'))
+                          .map((h: any) => h.version || 0)
+                        );
+                      
+                      const shouldShowAiBlock = item.aiApplied === true || (task.aiApplied && isLatestProgressUpdate);
+                      const aiDetails = item.aiAppliedDetails || task.aiAppliedDetails;
+                      
                       return (
                         <div key={itemIdx} className="relative pl-8 group">
                           {/* Timeline Dot */}
@@ -234,6 +247,28 @@ export const HistoryModal = ({ taskId, tasks, users, onClose }: HistoryModalProp
                                 {renderFormattedContent(item.content)}
                               </span>
                             </div>
+
+                            {/* AI Application Record Widget */}
+                            {shouldShowAiBlock && (
+                              <div className="mt-3.5 p-3.5 bg-rose-50/70 border border-rose-100 rounded-sm flex gap-3 transition-colors hover:bg-rose-50">
+                                <div className="p-1.5 bg-rose-500 text-white rounded-sm shrink-0 h-fit">
+                                  <Sparkles size={14} className="animate-pulse" />
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-black text-rose-700 uppercase tracking-widest leading-none bg-rose-200/50 px-2 py-0.5 rounded-sm">
+                                      ỨNG DỤNG AI
+                                    </span>
+                                    <span className="text-[9px] font-bold text-rose-400 leading-none">
+                                      ID: KPI-AIU
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-rose-950 font-semibold leading-relaxed whitespace-pre-wrap">
+                                    {aiDetails || 'Đã ghi nhận ứng dụng AI tối ưu hóa chất lượng, tiến độ công việc trong chu kỳ.'}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );

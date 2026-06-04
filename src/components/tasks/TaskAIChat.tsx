@@ -18,6 +18,27 @@ interface TaskAIChatProps {
   onClose: () => void;
 }
 
+const getFriendlyMentorName = (name: string | undefined) => {
+  if (!name) return "bạn";
+  const trimmed = name.trim();
+  if (trimmed.includes("Mỹ Tân") || trimmed.endsWith("Tân")) {
+    return "Chị @Tân";
+  }
+  if (trimmed.includes("Nhật Trường") || trimmed.endsWith("Trường")) {
+    return "Anh @Trường";
+  }
+  if (trimmed.includes("Nhựt Hùng") || trimmed.endsWith("Hùng")) {
+    return "Anh @Hùng";
+  }
+  if (trimmed.includes("Phan Tú") || trimmed.endsWith("Tú")) {
+    return "Bạn @Tú";
+  }
+  // Fallback to name's last word
+  const parts = trimmed.split(' ');
+  const lastName = parts[parts.length - 1];
+  return `bạn @${lastName}`;
+};
+
 export const TaskAIChat: React.FC<TaskAIChatProps> = ({
   task,
   assigneeName,
@@ -98,7 +119,7 @@ export const TaskAIChat: React.FC<TaskAIChatProps> = ({
 
           // Match S.U.P Boss chỉ thị
           if (trimmed.includes('S.U.P Boss chỉ thị') || trimmed.includes('S.U.P chỉ thị')) {
-            const cleanText = trimmed.replace(/^[🗣️👥🤖\s*-]+/, '').trim().replace(/^\*\*|\*\*$/g, '').replace(/:$/, '');
+            const cleanText = trimmed.replace(/^[🗣️👥🤖\s*-]+/, '').trim().replace(/^\*\*|\*\*$/g, '').replace(/:$/, '').replace(/\*\*/g, '"');
             return (
               <div key={idx} className="flex items-center gap-1.5 font-extrabold text-orange-600 mt-2 mb-1 bg-orange-100/50 p-1 px-1.5 rounded border border-orange-200/50 w-fit">
                 <SupIconSVG size={13} className="shrink-0" />
@@ -109,7 +130,7 @@ export const TaskAIChat: React.FC<TaskAIChatProps> = ({
 
           // Match JOB phân tích kỹ thuật
           if (trimmed.includes('JOB phân tích kỹ thuật') || trimmed.includes('JOB phân tích')) {
-            const cleanText = trimmed.replace(/^[🤖👥🗣️\s*-]+/, '').trim().replace(/^\*\*|\*\*$/g, '').replace(/:$/, '');
+            const cleanText = trimmed.replace(/^[🤖👥🗣️\s*-]+/, '').trim().replace(/^\*\*|\*\*$/g, '').replace(/:$/, '').replace(/\*\*/g, '"');
             return (
               <div key={idx} className="flex items-center gap-1.5 font-extrabold text-blue-600 mt-2 mb-1 bg-blue-100/50 p-1 px-1.5 rounded border border-blue-200/50 w-fit">
                 <JobIconSVG size={13} className="shrink-0" />
@@ -120,7 +141,7 @@ export const TaskAIChat: React.FC<TaskAIChatProps> = ({
 
           // Match next action
           if (trimmed.includes('Đầu ra tiếp theo [LÀM NGAY]') || trimmed.includes('Đầu ra tiếp theo')) {
-            const cleanText = trimmed.replace(/^[✨🎯👉\s*-]+/, '').trim().replace(/^\*\*|\*\*$/g, '').replace(/:$/, '');
+            const cleanText = trimmed.replace(/^[✨🎯👉\s*-]+/, '').trim().replace(/^\*\*|\*\*$/g, '').replace(/:$/, '').replace(/\*\*/g, '"');
             return (
               <div key={idx} className="flex items-center gap-1.5 font-extrabold text-rose-700 mt-2 mb-1 bg-rose-50 px-1.5 py-1 rounded border border-rose-200 w-fit">
                 <span className="shrink-0 text-[10.5px]">🎯</span>
@@ -133,14 +154,15 @@ export const TaskAIChat: React.FC<TaskAIChatProps> = ({
           if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
             return (
               <p key={idx} className="text-gray-700 pl-2.5 border-l-2 border-orange-300 italic my-1 font-medium leading-relaxed text-[12px]">
-                {trimmed}
+                {trimmed.replace(/\*\*/g, '"')}
               </p>
             );
           }
 
+          const lineWithQuotes = line.replace(/\*\*/g, '"');
           return (
             <p key={idx} className="text-gray-800 font-medium leading-normal whitespace-pre-wrap">
-              {line}
+              {lineWithQuotes}
             </p>
           );
         })}
@@ -169,22 +191,23 @@ export const TaskAIChat: React.FC<TaskAIChatProps> = ({
     setLoading(true);
 
     try {
+      const friendlyName = getFriendlyMentorName(assigneeName);
       // 1. S.U.P PATROL REPORT CHECK: If this task has been patrolled and has results, present it
       if (isInitialMode && task.lastPatrolResult) {
         const { assistantReply, supervisorClosing, nextAction } = task.lastPatrolResult;
         
-        const reportGreeting = `Chào Sếp, S.U.P đã hoàn thành rà soát trực tiếp công việc này ngày hôm nay. Đây là kết quả cuộc trao đổi:
+        const reportGreeting = `${friendlyName} ơi, Sếp SUP đã rà soát trực tiếp công việc này và vừa check-in đấy nhé!
 
-🗣️ **S.U.P Boss chỉ thị**:
+🗣️ "S.U.P Boss chỉ thị":
 "${supervisorClosing || "Không có chỉ thị đặc biệt."}"
 
-🤖 **JOB phân tích kỹ thuật**:
+🤖 "JOB phân tích kỹ thuật":
 "${assistantReply || "Tiến trình bám sát QCD."}"
 
-🎯 **Đầu ra tiếp theo [LÀM NGAY]**:
-👉 **${nextAction || "Liên tục cập nhật tiến độ."}**
+🎯 "Đầu ra tiếp theo [LÀM NGAY]":
+👉 "${nextAction || "Liên tục cập nhật tiến độ."}"
 
-Sếp và Anh Em khẩn trương thực hiện theo đúng chỉ đạo nhé! Sếp có muốn chỉ đạo hoặc hỏi đáp gì thêm với JOB không ạ?`;
+Sếp và Anh Em khẩn trương thực hiện theo đúng chỉ đạo nhé! ${friendlyName} có muốn báo cáo tiến độ hoặc hỏi đáp gì thêm với JOB để gỡ rối không ạ?`;
 
         await onSendMessage({
           taskId: task.id,

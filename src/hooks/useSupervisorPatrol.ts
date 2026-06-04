@@ -14,6 +14,8 @@ export interface SupervisorState {
   currentIndex: number;
   patrolledTaskIds?: string[];
   isCheckIn?: boolean;
+  dailyQuotaUsed?: number;
+  dailyQuotaMax?: number;
 }
 
 interface UseSupervisorPatrolProps {
@@ -66,6 +68,12 @@ export const useSupervisorPatrol = ({
     const unsub = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data() as SupervisorState;
+        if (data.dailyQuotaUsed === undefined || data.dailyQuotaMax === undefined) {
+          updateDoc(docRef, {
+            dailyQuotaUsed: data.dailyQuotaUsed ?? 0,
+            dailyQuotaMax: data.dailyQuotaMax ?? 30
+          });
+        }
         setSupState(data);
       } else {
         // Initial state
@@ -76,7 +84,9 @@ export const useSupervisorPatrol = ({
           speech: 'Hệ thống an ninh S.U.P sẵn sàng!',
           patrolledAt: null,
           currentIndex: 0,
-          isCheckIn: false
+          isCheckIn: false,
+          dailyQuotaUsed: 0,
+          dailyQuotaMax: 30
         });
       }
     });
@@ -207,7 +217,7 @@ export const useSupervisorPatrol = ({
           abortControllerRef.current = null;
         }
 
-        await setDoc(docRef, {
+        await updateDoc(docRef, {
           isActive: false,
           currentTaskId: null,
           currentTaskCode: '',
@@ -220,9 +230,18 @@ export const useSupervisorPatrol = ({
         return;
       }
 
+      // Check quota constraint
+      const snapData = snap.exists() ? snap.data() : {};
+      const currentUsed = snapData.dailyQuotaUsed ?? 0;
+      const currentMax = snapData.dailyQuotaMax ?? 30;
+      if (currentUsed >= currentMax) {
+        alert(`S.U.P đã chạm giới hạn hạn ngạch (Quota) ngày (${currentUsed}/${currentMax}). Vui lòng khôi phục quota để có thể tiếp tục tuần tra!`);
+        return;
+      }
+
       // Check working hours constraint
       if (!checkIsWorkingHours()) {
-        await setDoc(docRef, {
+        await updateDoc(docRef, {
           isActive: false,
           currentTaskId: null,
           currentTaskCode: '',
@@ -239,7 +258,7 @@ export const useSupervisorPatrol = ({
       const activeTasks = tasksRef.current.filter(t => t.status === 'APPROVED' && !t.waitingApproval && !t.deletedAt);
 
       if (activeTasks.length === 0) {
-        await setDoc(docRef, {
+        await updateDoc(docRef, {
           isActive: false,
           currentTaskId: null,
           currentTaskCode: '',
@@ -308,7 +327,7 @@ export const useSupervisorPatrol = ({
               ];
               const scanSpeech = scanSpeeches[i % scanSpeeches.length];
 
-              await setDoc(docRef, {
+              await updateDoc(docRef, {
                 isActive: true,
                 currentTaskId: cTask.id,
                 currentTaskCode: cTask.code,
@@ -325,7 +344,7 @@ export const useSupervisorPatrol = ({
           }
 
           // Bước 1: Di chuyền và cuộn mượt tới Task mục tiêu chính thức
-          await setDoc(docRef, {
+          await updateDoc(docRef, {
             isActive: true,
             currentTaskId: task.id,
             currentTaskCode: task.code,
@@ -347,7 +366,7 @@ export const useSupervisorPatrol = ({
           ];
           const greeting = supervisorGreetings[Math.floor(Math.random() * supervisorGreetings.length)];
 
-          await setDoc(docRef, {
+          await updateDoc(docRef, {
             isActive: true,
             currentTaskId: task.id,
             currentTaskCode: task.code,
@@ -361,7 +380,7 @@ export const useSupervisorPatrol = ({
           if (signal.aborted) return;
 
           // Let ROBOT JOB show it's analyzing
-          await setDoc(docRef, {
+          await updateDoc(docRef, {
             isActive: true,
             currentTaskId: task.id,
             currentTaskCode: task.code,
@@ -424,7 +443,23 @@ export const useSupervisorPatrol = ({
           let nextAction = "Báo cáo ngay";
 
           try {
+            // Check quota before calling Gemini
+            const qSnap = await getDoc(docRef);
+            const qData = qSnap.exists() ? qSnap.data() : {};
+            const qUsed = qData.dailyQuotaUsed ?? 0;
+            const qMax = qData.dailyQuotaMax ?? 30;
+
+            if (qUsed >= qMax) {
+              throw new Error("S.U.P Quota Exceeded");
+            }
+
             const responseText = await callGemini(systemPromptAndQuery);
+
+            // Increment quota usage in Firestore
+            await updateDoc(docRef, {
+              dailyQuotaUsed: qUsed + 1
+            });
+
             const jsonString = responseText.substring(responseText.indexOf('{'), responseText.lastIndexOf('}') + 1);
             if (jsonString) {
               const data = JSON.parse(jsonString || '{}');
@@ -434,7 +469,11 @@ export const useSupervisorPatrol = ({
             }
           } catch (geminiError: any) {
             console.error("Patrol AI Error:", geminiError);
-            if (geminiError?.message?.includes("quota") || geminiError?.message?.includes("429")) {
+            if (geminiError?.message === "S.U.P Quota Exceeded") {
+              assistantReply = "Đã chạm mốc hạn ngạch (Quota) S.U.P. Hãy khôi phục Quota để tiếp tục!";
+              supervisorClosing = "Robot tạm nghỉ vì cạn pin!";
+              nextAction = "Sạc pin";
+            } else if (geminiError?.message?.includes("quota") || geminiError?.message?.includes("429")) {
               assistantReply = "Hệ thống AI 'hết pin' (Quota). Robot sẽ tiếp tục tuần tra thủ công!";
             } else {
               assistantReply = "Robot đang bận rà soát dữ liệu kỹ thuật.";
@@ -444,7 +483,7 @@ export const useSupervisorPatrol = ({
           if (signal.aborted) return;
 
           // Update Firestore with Robot Job's feedback
-          await setDoc(docRef, {
+          await updateDoc(docRef, {
             isActive: true,
             currentTaskId: task.id,
             currentTaskCode: task.code,
@@ -458,7 +497,7 @@ export const useSupervisorPatrol = ({
           if (signal.aborted) return;
 
           // Update Firestore with S.U.P Boss's closing & nextAction
-          await setDoc(docRef, {
+          await updateDoc(docRef, {
             isActive: true,
             currentTaskId: task.id,
             currentTaskCode: task.code,
@@ -477,6 +516,7 @@ export const useSupervisorPatrol = ({
               patrolStatus: 'WAITING',
               lastPatrolTime: new Date().toISOString(),
               patrolReviewedByAdmin: false,
+              supCheckInPending: true,
               lastPatrolResult: {
                 assistantReply,
                 supervisorClosing,
@@ -495,7 +535,7 @@ export const useSupervisorPatrol = ({
           if (signal.aborted) return;
 
           // Step 5: Auto-rest
-          await setDoc(docRef, {
+          await updateDoc(docRef, {
             isActive: false,
             currentTaskId: null,
             currentTaskCode: '',
@@ -625,6 +665,20 @@ export const useSupervisorPatrol = ({
   return {
     supState,
     togglePatrol,
-    isAdmin
+    isAdmin,
+    resetQuota: async () => {
+      const docRef = doc(db, 'settings', 'supervisor_state');
+      await updateDoc(docRef, { dailyQuotaUsed: 0 });
+    },
+    increaseQuotaLimit: async () => {
+      const docRef = doc(db, 'settings', 'supervisor_state');
+      const snap = await getDoc(docRef);
+      const currentMax = snap.exists() ? (snap.data().dailyQuotaMax ?? 30) : 30;
+      await updateDoc(docRef, { dailyQuotaMax: currentMax + 10 });
+    },
+    setQuotaLimit: async (newLimit: number) => {
+      const docRef = doc(db, 'settings', 'supervisor_state');
+      await updateDoc(docRef, { dailyQuotaMax: newLimit });
+    }
   };
 };

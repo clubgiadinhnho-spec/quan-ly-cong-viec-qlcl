@@ -34,14 +34,18 @@ export const calculateNextDueDate = (currentDateStr: string, recurrence: Recurre
 export const createHistoryEntry = (
   currentHistory: ProgressUpdate[],
   changes: string[],
-  authorId: string
+  authorId: string,
+  aiApplied?: boolean | null,
+  aiAppliedDetails?: string | null
 ): ProgressUpdate[] => {
   const newHistory = [...(currentHistory || [])];
   newHistory.push({
     version: (newHistory.length > 0 ? newHistory[newHistory.length - 1].version : 0) + 1,
     content: changes.join(' | '),
     timestamp: new Date().toISOString(),
-    authorId: authorId
+    authorId: authorId,
+    ...(aiApplied !== undefined && aiApplied !== null ? { aiApplied } : {}),
+    ...(aiAppliedDetails ? { aiAppliedDetails } : {})
   });
   return newHistory;
 };
@@ -125,8 +129,25 @@ export const prepareTaskUpdates = (
     }
   }
 
+  // Track AI application changes
+  if (updates.aiApplied !== undefined && updates.aiApplied !== task.aiApplied) {
+    changes.push(updates.aiApplied ? `Có ghi nhận ứng dụng AI cho công việc` : `Đã gỡ bỏ ghi nhận ứng dụng AI`);
+  }
+  if (updates.aiAppliedDetails !== undefined && updates.aiAppliedDetails !== task.aiAppliedDetails && updates.aiAppliedDetails) {
+    changes.push(`Cập nhật nội dung ứng dụng AI`);
+  }
+
   if (changes.length > 0) {
-    newUpdates.history = createHistoryEntry(task.history, changes, currentUser?.id || 'system');
+    const activeAiApplied = updates.aiApplied !== undefined ? updates.aiApplied : task.aiApplied;
+    const activeAiAppliedDetails = updates.aiAppliedDetails !== undefined ? updates.aiAppliedDetails : task.aiAppliedDetails;
+
+    newUpdates.history = createHistoryEntry(
+      task.history, 
+      changes, 
+      currentUser?.id || 'system',
+      activeAiApplied,
+      activeAiAppliedDetails
+    );
     newUpdates.lastActionAt = new Date().toISOString();
   }
 

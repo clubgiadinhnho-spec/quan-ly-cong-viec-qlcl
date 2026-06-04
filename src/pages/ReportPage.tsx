@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Task, User, OfficialReport, ReportDraft } from '../types';
 import { 
-  AlertCircle, Paperclip, Calendar, Download, Clock, CheckCircle2, FileText, X, TrendingUp, Briefcase, Sparkles, GraduationCap, UserCircle, Settings, Users, Check, Save, RotateCcw, ChevronDown, ChevronUp, Edit, Trash2, ChevronLeft, ChevronRight, Printer, ExternalLink
+  Search, AlertCircle, Paperclip, Calendar, Download, Clock, CheckCircle2, FileText, X, TrendingUp, Briefcase, Sparkles, GraduationCap, UserCircle, Settings, Users, Check, Save, RotateCcw, ChevronDown, ChevronUp, Edit, Trash2, ChevronLeft, ChevronRight, Printer, ExternalLink
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -389,6 +389,12 @@ export const ReportPage = ({
     return 'qltt';
   });
   const [selectedDetailCategory, setSelectedDetailCategory] = useState<{ code: string; label: string } | null>(null);
+  const [drawerSearchText, setDrawerSearchText] = useState("");
+
+  useEffect(() => {
+    setDrawerSearchText("");
+  }, [selectedDetailCategory]);
+
   const [taskCategories, setTaskCategories] = useState<any[]>([]);
   const [acknowledgements, setAcknowledgements] = useState<Record<string, { confirmed: boolean; confirmedAt: string }>>({});
   const [isSavingAcknowledgement, setIsSavingAcknowledgement] = useState(false);
@@ -422,17 +428,17 @@ export const ReportPage = ({
   const getAvailableCopyMonths = () => {
     const result = new Set<string>();
 
-    const isAfterApril2026 = (period: string) => {
+    const isAfterFebruary2026 = (period: string) => {
       const parts = period.split('/');
       if (parts.length !== 2) return false;
       const m = parseInt(parts[0], 10);
       const y = parseInt(parts[1], 10);
       if (isNaN(m) || isNaN(y)) return false;
-      return y > 2026 || (y === 2026 && m > 4);
+      return y > 2026 || (y === 2026 && m > 2);
     };
 
     savedConfigPeriods.forEach(p => {
-      if (p !== configPeriod && isAfterApril2026(p)) {
+      if (p !== configPeriod && isAfterFebruary2026(p)) {
         result.add(p);
       }
     });
@@ -442,7 +448,7 @@ export const ReportPage = ({
       const mStr = String(now.getMonth() + 1).padStart(2, '0');
       const yStr = String(now.getFullYear());
       const formatP = `${mStr}/${yStr}`;
-      if (formatP !== configPeriod && isAfterApril2026(formatP)) {
+      if (formatP !== configPeriod && isAfterFebruary2026(formatP)) {
         result.add(formatP);
       }
     }
@@ -1336,12 +1342,12 @@ export const ReportPage = ({
     // Get list of active user IDs to calculate
     const targetUserIds = userId === 'ALL' ? allocatedUserIds : [userId];
 
-    // Compute elapsed months since policy started (from May 2026)
+    // Compute elapsed months since policy started (from March 2026)
     let elapsedMonths = 0;
     if (year > 2026) {
       elapsedMonths = month;
     } else if (year === 2026) {
-      elapsedMonths = Math.max(0, month - 4);
+      elapsedMonths = Math.max(0, month - 2);
     }
 
     // Compute targets
@@ -1380,7 +1386,7 @@ export const ReportPage = ({
       if (tYear > 2026) {
         isDateValid = tMonth <= month;
       } else if (tYear === 2026) {
-        isDateValid = tMonth >= 5 && tMonth <= month;
+        isDateValid = tMonth >= 3 && tMonth <= month;
       }
       return isDateValid && userMatch;
     });
@@ -1458,8 +1464,8 @@ export const ReportPage = ({
     const targetUserIds = userId === 'ALL' ? allocatedUserIds : [userId];
 
     // Compute annual active months based on when the policy started
-    // Campaign begins in May 2026 (05/2026). So 8 months in 2026, 12 months for subsequent years.
-    const annualMonths = year === 2026 ? 8 : 12;
+    // Campaign begins in March 2026 (03/2026). So 10 months in 2026, 12 months for subsequent years.
+    const annualMonths = year === 2026 ? 10 : 12;
 
     // Compute annual targets
     let targetCuuHo = 0;
@@ -1497,7 +1503,7 @@ export const ReportPage = ({
       if (tYear > 2026) {
         isDateValid = true; // All months for future years
       } else if (tYear === 2026) {
-        isDateValid = tMonth >= 5; // Starts from May 2026
+        isDateValid = tMonth >= 3; // Starts from March 2026
       }
       return tYear === year && isDateValid && userMatch;
     });
@@ -1566,7 +1572,7 @@ export const ReportPage = ({
     const [monthStr, yearStr] = reportPeriod.split('/');
     const month = parseInt(monthStr, 10) || 5;
     const year = parseInt(yearStr, 10) || 2026;
-    const elapsedMonths = year > 2026 ? month : (year === 2026 ? Math.max(0, month - 4) : 0);
+    const elapsedMonths = year > 2026 ? month : (year === 2026 ? Math.max(0, month - 2) : 0);
     const annualWeeksObj = getBchAnnualMetrics('ALL');
     const annualMonths = annualWeeksObj.annualMonths;
 
@@ -1688,7 +1694,7 @@ export const ReportPage = ({
                - <strong>Quản lý (Leader)</strong>: Cứu Hộ: 1 cái/tháng (TB 1.0 cái/tháng); TNDS: 1 cái/tháng (TB 1.0 cái/tháng). Tổng lũy kế cần đạt <strong className="text-purple-700">{elapsedMonths * 2} bảo hiểm</strong> đến tháng {monthStr} là đạt.
             </span>
             <span className="block mt-1 text-[10px] text-rose-600 font-extrabold bg-rose-50 border border-rose-100 p-1.5 rounded inline-block">
-               💡 KPI được Tập đoàn triển khai bắt đầu từ tháng 5/2026. Chỉ tiêu trước tháng 5 không tính. Số tháng tích lũy từ tháng 5 tính đến tháng {monthStr}/{year} là <strong className="underline text-rose-700">{elapsedMonths} tháng</strong>.
+               💡 KPI được Tập đoàn triển khai bắt đầu từ tháng 3/2026. Chỉ tiêu trước tháng 3 không tính. Số tháng tích lũy từ tháng 3 tính đến tháng {monthStr}/{year} là <strong className="underline text-rose-700">{elapsedMonths} tháng</strong>.
             </span>
           </div>
         ) : (
@@ -4606,11 +4612,23 @@ export const ReportPage = ({
               })()}
 
               <div className="p-6 overflow-y-auto space-y-4">
-                <p className="text-xs text-slate-500 italic">
-                  {selectedDetailCategory.code === 'AIU' 
-                    ? "Danh sách tổng hợp toàn bộ các công việc trong kỳ báo cáo hoạt động và nội dung ghi nhận ứng dụng AI chi tiết của nhân sự, dùng để làm cơ sở đánh giá chất lượng và kiểm soát KPI Phòng ban."
-                    : "Các nhiệm vụ lặp lại tuần hoàn có chung tiêu đề dự án/mục tiêu được nén gọn thành 1 đầu việc chung, biểu thị tổng số phiên kiểm soát thực tế."}
-                </p>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-100 pb-3">
+                  <p className="text-xs text-slate-500 italic flex-1 leading-relaxed">
+                    {selectedDetailCategory.code === 'AIU' 
+                      ? "Danh sách tổng hợp toàn bộ các công việc trong kỳ báo cáo hoạt động và nội dung ghi nhận ứng dụng AI chi tiết của nhân sự, dùng để làm cơ sở đánh giá chất lượng và kiểm soát KPI Phòng ban."
+                      : "Các nhiệm vụ lặp lại tuần hoàn có chung tiêu đề dự án/mục tiêu được nén gọn thành 1 đầu việc chung, biểu thị tổng số phiên kiểm soát thực tế."}
+                  </p>
+                  <div className="relative w-full md:w-64 shrink-0">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm công việc..."
+                      value={drawerSearchText}
+                      onChange={(e) => setDrawerSearchText(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-bold transition-colors hover:bg-slate-100/50"
+                    />
+                  </div>
+                </div>
 
                 {(() => {
                   const drawerKpiItem = kpiItems.find(item => item.code === selectedDetailCategory.code);
@@ -4622,7 +4640,23 @@ export const ReportPage = ({
                   const overrideKey = drawerKpiItem ? `${selectedStaffId}_${drawerKpiItem.id}` : '';
                   const currentComment = overrideKey ? (itemComments[overrideKey] || '') : '';
                   
-                  return metricsSource.groups?.map((g, gi) => {
+                  const filteredGroups = (metricsSource.groups || []).filter((g: any) => {
+                    if (!drawerSearchText.trim()) return true;
+                    const search = drawerSearchText.toLowerCase().trim();
+                    const titleMatch = (g.title || '').toLowerCase().includes(search);
+                    const objectiveMatch = (g.objective || '').toLowerCase().includes(search);
+                    return titleMatch || objectiveMatch;
+                  });
+
+                  if (filteredGroups.length === 0) {
+                    return (
+                      <div className="text-center py-10 text-xs text-slate-400 italic font-bold">
+                        Không tìm thấy công việc nào khớp với từ khóa "{drawerSearchText}"
+                      </div>
+                    );
+                  }
+
+                  return filteredGroups.map((g, gi) => {
                     const cleanTitle = g.title.replace(/^[✅❌]\s*\[.*?\]\s*/, '').trim();
                     const isChecked = currentComment.split('\n').some(l => {
                       const trimmed = l.trim();

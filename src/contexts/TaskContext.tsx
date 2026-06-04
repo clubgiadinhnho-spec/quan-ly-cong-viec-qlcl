@@ -108,6 +108,9 @@ interface TaskContextType {
   setSelectedPermissionUserId: (id: string | null) => void;
   supState: any;
   togglePatrol: () => Promise<void>;
+  resetQuota?: () => Promise<void>;
+  increaseQuotaLimit?: () => Promise<void>;
+  setQuotaLimit?: (newLimit: number) => Promise<void>;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
@@ -167,7 +170,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     tasks, currentUser: effectiveUser, allUsers, firebaseAddTask, firebaseUpdateTask, firebaseDeleteTask, firebaseSendPrivateMsg
   });
 
-  const { supState, togglePatrol } = useSupervisorPatrol({
+  const { supState, togglePatrol, resetQuota, increaseQuotaLimit, setQuotaLimit } = useSupervisorPatrol({
     tasks, currentUser: effectiveUser, users: allUsers, activeTab, setActiveTab
   });
 
@@ -397,7 +400,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     highlightedTaskId, setHighlightedTaskId, showDirectChat, setShowDirectChat, isChatMinimized, setIsChatMinimized,
     isNotificationCenterOpen, setIsNotificationCenterOpen, showHealthReminder, setShowHealthReminder,
     selectedPermissionUserId, setSelectedPermissionUserId,
-    supState, togglePatrol
+    supState, togglePatrol, resetQuota, increaseQuotaLimit, setQuotaLimit
   };
 
   return <TaskContext.Provider value={value}>{children}</TaskContext.Provider>;

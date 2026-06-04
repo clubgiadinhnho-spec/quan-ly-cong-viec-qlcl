@@ -27,23 +27,23 @@ interface StaffListPageProps {
 
 // GIÁ TRỊ BẤT BIẾN - AI KHÔNG ĐƯỢC TỰ Ý THAY ĐỔI DANH SÁCH CHỨC DANH NÀY
 const getDisplayNameTitle = (user: User) => {
-  const normName = user.name.trim();
+  const normName = (user?.name || '').trim();
   if (normName === 'Lê Nhật Trường' || normName === 'Quản Trị Viên') return 'ADMIN';
 
-  const rawTitle = (user.title || '').trim().toUpperCase();
+  const rawTitle = (user?.title || '').trim().toUpperCase();
   if (rawTitle && rawTitle !== 'CHUYÊN VIÊN QC' && rawTitle !== 'CHỜ CẬP NHẬT' && rawTitle !== 'NHÂN VIÊN') {
     return rawTitle;
   }
   
-  if (user.role === 'Admin') return 'QUẢN TRỊ VIÊN';
-  if (user.role === 'Trưởng Phòng') return 'TRƯỞNG PHÒNG QLCL';
-  if (user.role === 'Leader') return 'TRƯỞNG NHÓM QLCL';
+  if (user?.role === 'Admin') return 'QUẢN TRỊ VIÊN';
+  if (user?.role === 'Trưởng Phòng') return 'TRƯỞNG PHÒNG QLCL';
+  if (user?.role === 'Leader') return 'TRƯỞNG NHÓM QLCL';
   return 'NHÂN VIÊN QLCL';
 };
 
 const getRoleBgColor = (user: User) => {
   const title = getDisplayNameTitle(user);
-  const normName = user.name.trim();
+  const normName = (user?.name || '').trim();
   // Admin & Lê Nhật Trường -> Đỏ
   if (normName === 'Lê Nhật Trường' || normName === 'Quản Trị Viên' || title === 'ADMIN') return 'bg-[#FF3B30]'; 
   // Leader -> Cam

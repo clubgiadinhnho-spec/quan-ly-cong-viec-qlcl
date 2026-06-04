@@ -5,6 +5,45 @@ import { User } from '../../types';
 import { Header } from '../layout/Header';
 import { HolidayBanner } from '../layout/HolidayBanner';
 import { getUserPermissionsOf } from './PermissionMatrixTab';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
+
+const DEFAULT_LEAVE_REQUESTS = [
+  // Lê Nhật Trường (ID: 1)
+  { id: 1001, name: 'Lê Nhật Trường', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-01-02', endDate: '2026-01-02', status: 'Đã duyệt' },
+  { id: 1002, name: 'Lê Nhật Trường', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-02-13', endDate: '2026-02-13', status: 'Đã duyệt' },
+  { id: 1003, name: 'Lê Nhật Trường', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-03-04', endDate: '2026-03-04', status: 'Đã duyệt' },
+  { id: 1004, name: 'Lê Nhật Trường', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-03-11', endDate: '2026-03-11', status: 'Đã duyệt' },
+  { id: 1005, name: 'Lê Nhật Trường', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-03-25', endDate: '2026-03-25', status: 'Đã duyệt' },
+  { id: 1006, name: 'Lê Nhật Trường', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-05-07', endDate: '2026-05-07', status: 'Đã duyệt' },
+
+  // Nguyễn Kiều Phan Tú (ID: 2)
+  { id: 2001, name: 'Nguyễn Kiều Phan Tú', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-01-02', endDate: '2026-01-02', status: 'Đã duyệt' },
+  { id: 2002, name: 'Nguyễn Kiều Phan Tú', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-02-11', endDate: '2026-02-11', status: 'Đã duyệt' },
+  { id: 2003, name: 'Nguyễn Kiều Phan Tú', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-02-13', endDate: '2026-02-13', status: 'Đã duyệt' },
+  { id: 2004, name: 'Nguyễn Kiều Phan Tú', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-04-17', endDate: '2026-04-17', status: 'Đã duyệt' },
+  { id: 2005, name: 'Nguyễn Kiều Phan Tú', type: 'Nghỉ ốm', days: 3.0, reason: 'Con ốm T2, T3, T4', startDate: '2026-05-04', endDate: '2026-05-06', status: 'Đã duyệt' },
+
+  // Võ Thị Mỹ Tân (ID: 3)
+  { id: 3001, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-01-02', endDate: '2026-01-02', status: 'Đã duyệt' },
+  { id: 3002, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-01-14', endDate: '2026-01-14', status: 'Đã duyệt' },
+  { id: 3003, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-01-22', endDate: '2026-01-22', status: 'Đã duyệt' },
+  { id: 3004, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-01-30', endDate: '2026-01-30', status: 'Đã duyệt' },
+  { id: 3005, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-02-11', endDate: '2026-02-11', status: 'Đã duyệt' },
+  { id: 3006, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 5.0, reason: 'Nghỉ phép năm', startDate: '2026-02-23', endDate: '2026-02-27', status: 'Đã duyệt' },
+  { id: 3007, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-05-13', endDate: '2026-05-13', status: 'Đã duyệt' },
+  { id: 3008, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-05-29', endDate: '2026-05-29', status: 'Đã duyệt' },
+
+  // Bành Nhựt Hùng (ID: 4)
+  { id: 4001, name: 'Bành Nhựt Hùng', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-01-21', endDate: '2026-01-21', status: 'Đã duyệt' },
+  { id: 4002, name: 'Bành Nhựt Hùng', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-02-12', endDate: '2026-02-12', status: 'Đã duyệt' },
+  { id: 4003, name: 'Bành Nhựt Hùng', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-02-13', endDate: '2026-02-13', status: 'Đã duyệt' },
+  { id: 4004, name: 'Bành Nhựt Hùng', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-04-16', endDate: '2026-04-16', status: 'Đã duyệt' },
+  { id: 4005, name: 'Bành Nhựt Hùng', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-04-24', endDate: '2026-04-24', status: 'Đã duyệt' },
+  { id: 4006, name: 'Bành Nhựt Hùng', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-05-21', endDate: '2026-05-21', status: 'Đã duyệt' },
+  { id: 4007, name: 'Bành Nhựt Hùng', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-05-28', endDate: '2026-05-28', status: 'Đã duyệt' },
+  { id: 4008, name: 'Bành Nhựt Hùng', type: 'Nghỉ thai sản / Đặc biệt', days: 3.0, reason: 'Nghỉ việc riêng đặc biệt cưới hỏi', startDate: '2026-03-18', endDate: '2026-03-20', status: 'Đã duyệt' }
+];
 
 // Global holder for historical defaults
 let defaultHistoricalEdits: { [key: string]: string } = {};
@@ -80,6 +119,11 @@ const formatDateVN = (dateStr: any): string => {
     return `${d}/${m}/${y}`;
   }
   return str;
+};
+
+const parseLocalMidnight = (dateStr: string): Date => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
 };
 
 const getWeekRange = (dateStr: string) => {
@@ -164,76 +208,38 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
   });
 
   // ---- XIN NGHỈ PHÉP STATES ----
-  const [leaveRequests, setLeaveRequests] = useState<{ id: number; name: string; type: string; days: number; reason: string; startDate: string; endDate: string; status: string }[]>(() => {
-    // Generate precise model-driven approved leave applications matching actual timesheet entries from January 2026 to May 2026
-    const defaultRequests = [
-      // Lê Nhật Trường (ID: 1)
-      { id: 1001, name: 'Lê Nhật Trường', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-01-02', endDate: '2026-01-02', status: 'Đã duyệt' },
-      { id: 1002, name: 'Lê Nhật Trường', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-02-13', endDate: '2026-02-13', status: 'Đã duyệt' },
-      { id: 1003, name: 'Lê Nhật Trường', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-03-04', endDate: '2026-03-04', status: 'Đã duyệt' },
-      { id: 1004, name: 'Lê Nhật Trường', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-03-11', endDate: '2026-03-11', status: 'Đã duyệt' },
-      { id: 1005, name: 'Lê Nhật Trường', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-03-25', endDate: '2026-03-25', status: 'Đã duyệt' },
-      { id: 1006, name: 'Lê Nhật Trường', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-05-07', endDate: '2026-05-07', status: 'Đã duyệt' },
+  const [leaveRequests, setLeaveRequests] = useState<{ id: number; name: string; type: string; days: number; reason: string; startDate: string; endDate: string; status: string }[]>(DEFAULT_LEAVE_REQUESTS);
 
-      // Nguyễn Kiều Phan Tú (ID: 2)
-      { id: 2001, name: 'Nguyễn Kiều Phan Tú', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-01-02', endDate: '2026-01-02', status: 'Đã duyệt' },
-      { id: 2002, name: 'Nguyễn Kiều Phan Tú', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-02-11', endDate: '2026-02-11', status: 'Đã duyệt' },
-      { id: 2003, name: 'Nguyễn Kiều Phan Tú', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-02-13', endDate: '2026-02-13', status: 'Đã duyệt' },
-      { id: 2004, name: 'Nguyễn Kiều Phan Tú', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-04-17', endDate: '2026-04-17', status: 'Đã duyệt' },
-      { id: 2005, name: 'Nguyễn Kiều Phan Tú', type: 'Nghỉ ốm', days: 3.0, reason: 'Con ốm T2, T3, T4', startDate: '2026-05-04', endDate: '2026-05-06', status: 'Đã duyệt' },
-
-      // Võ Thị Mỹ Tân (ID: 3)
-      { id: 3001, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-01-02', endDate: '2026-01-02', status: 'Đã duyệt' },
-      { id: 3002, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-01-14', endDate: '2026-01-14', status: 'Đã duyệt' },
-      { id: 3003, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-01-22', endDate: '2026-01-22', status: 'Đã duyệt' },
-      { id: 3004, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-01-30', endDate: '2026-01-30', status: 'Đã duyệt' },
-      { id: 3005, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-02-11', endDate: '2026-02-11', status: 'Đã duyệt' },
-      { id: 3006, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 5.0, reason: 'Nghỉ phép năm', startDate: '2026-02-23', endDate: '2026-02-27', status: 'Đã duyệt' },
-      { id: 3007, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-05-13', endDate: '2026-05-13', status: 'Đã duyệt' },
-      { id: 3008, name: 'Võ Thị Mỹ Tân', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-05-29', endDate: '2026-05-29', status: 'Đã duyệt' },
-
-      // Bành Nhựt Hùng (ID: 4)
-      { id: 4001, name: 'Bành Nhựt Hùng', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-01-21', endDate: '2026-01-21', status: 'Đã duyệt' },
-      { id: 4002, name: 'Bành Nhựt Hùng', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-02-12', endDate: '2026-02-12', status: 'Đã duyệt' },
-      { id: 4003, name: 'Bành Nhựt Hùng', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-02-13', endDate: '2026-02-13', status: 'Đã duyệt' },
-      { id: 4004, name: 'Bành Nhựt Hùng', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-04-16', endDate: '2026-04-16', status: 'Đã duyệt' },
-      { id: 4005, name: 'Bành Nhựt Hùng', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-04-24', endDate: '2026-04-24', status: 'Đã duyệt' },
-      { id: 4006, name: 'Bành Nhựt Hùng', type: 'Nghỉ phép năm', days: 0.5, reason: 'Nghỉ phép năm', startDate: '2026-05-21', endDate: '2026-05-21', status: 'Đã duyệt' },
-      { id: 4007, name: 'Bành Nhựt Hùng', type: 'Nghỉ phép năm', days: 1.0, reason: 'Nghỉ phép năm', startDate: '2026-05-28', endDate: '2026-05-28', status: 'Đã duyệt' },
-      { id: 4008, name: 'Bành Nhựt Hùng', type: 'Nghỉ thai sản / Đặc biệt', days: 3.0, reason: 'Nghỉ việc riêng đặc biệt cưới hỏi', startDate: '2026-03-18', endDate: '2026-03-20', status: 'Đã duyệt' }
-    ];
-
-    const saved = localStorage.getItem('office_leave_requests');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Retain user's custom added requests outside standard timesheet months Jan-May 2026, and filter out any stale incorrect entries
-        const filtered = parsed.filter((req: any) => {
-          if (req.id === 4008 || req.id === 3009) {
-            return false;
-          }
-          const start = new Date(req.startDate);
-          const limitStart = new Date('2026-01-01');
-          const limitEnd = new Date('2026-05-31');
-          if (start >= limitStart && start <= limitEnd) {
-            return false;
-          }
-          return true;
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'office_leave_requests'), (snapshot) => {
+      if (snapshot.empty) {
+        // Seed the default requests in a batch if the collection is newly initialized or empty
+        const batch = writeBatch(db);
+        DEFAULT_LEAVE_REQUESTS.forEach((req) => {
+          const ref = doc(db, 'office_leave_requests', String(req.id));
+          batch.set(ref, req);
         });
-        return [...defaultRequests, ...filtered];
-      } catch (e) {
-        console.error(e);
+        batch.commit().catch(console.error);
+        setLeaveRequests(DEFAULT_LEAVE_REQUESTS);
+      } else {
+        const fetched = snapshot.docs.map(d => d.data() as typeof DEFAULT_LEAVE_REQUESTS[0]);
+        // Sort descending by id
+        const sorted = fetched.sort((a, b) => b.id - a.id);
+        setLeaveRequests(sorted);
       }
-    }
-    return defaultRequests;
-  });
+    }, (error) => {
+      console.error("Error listening to leave requests:", error);
+    });
+    return unsub;
+  }, []);
+
   const [leaveType, setLeaveType] = useState('Nghỉ phép năm');
   const [leaveDays, setLeaveDays] = useState(1);
   const [leaveReason, setLeaveReason] = useState('');
-  const [leaveStart, setLeaveStart] = useState('2026-05-26');
-  const [leaveEnd, setLeaveEnd] = useState('2026-05-26');
-  const [summaryMonth, setSummaryMonth] = useState(5);
-  const [summaryYear, setSummaryYear] = useState(2026);
+  const [leaveStart, setLeaveStart] = useState(() => new Date().toLocaleDateString('en-CA'));
+  const [leaveEnd, setLeaveEnd] = useState(() => new Date().toLocaleDateString('en-CA'));
+  const [summaryMonth, setSummaryMonth] = useState(() => new Date().getMonth() + 1);
+  const [summaryYear, setSummaryYear] = useState(() => new Date().getFullYear());
 
   const [leaveAllowances, setLeaveAllowances] = useState<{ [empId: string]: { standard: number; seniority: number; prevYearCarry: number } }>(() => {
     const saved = localStorage.getItem('office_leave_allowances');
@@ -386,8 +392,8 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
   }, [groupedLeaveRequests]);
 
   // ---- SMART MONTHLY TIMESHEET METRICS STATES ----
-  const [selectedMonth, setSelectedMonth] = useState(5); // May by default
-  const [selectedYear, setSelectedYear] = useState(2026);
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
   
   const [hasSaturdayWorkMap, setHasSaturdayWorkMap] = useState<Record<string, boolean>>(() => {
     const saved = localStorage.getItem('office_has_saturday_work_map');
@@ -958,8 +964,8 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
         for (let i = 0; i < leaveRequests.length; i++) {
           const req = leaveRequests[i];
           if (req.status === 'Đã duyệt' && req.name.toLowerCase() === empName.toLowerCase() && req.type === 'Nghỉ phép năm') {
-            const start = new Date(req.startDate);
-            const end = new Date(req.endDate);
+            const start = parseLocalMidnight(req.startDate);
+            const end = parseLocalMidnight(req.endDate);
             const currentDate = new Date(year, m - 1, d);
             if (currentDate >= start && currentDate <= end) {
               const det = getDayDetails(d, m, year);
@@ -1003,8 +1009,8 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
       for (let i = 0; i < leaveRequests.length; i++) {
         const req = leaveRequests[i];
         if (req.status === 'Đã duyệt' && req.name.toLowerCase() === empName.toLowerCase() && req.type === 'Nghỉ phép năm') {
-          const start = new Date(req.startDate);
-          const end = new Date(req.endDate);
+          const start = parseLocalMidnight(req.startDate);
+          const end = parseLocalMidnight(req.endDate);
           const currentDate = new Date(year, month - 1, d);
           if (currentDate >= start && currentDate <= end) {
             const det = getDayDetails(d, month, year);
@@ -1103,8 +1109,8 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
       // 1. Đồng bộ Đơn nghỉ phép đã được PHÊ DUYỆT (Đã duyệt)
       leaveRequests.forEach(req => {
         if (req.status === 'Đã duyệt' && req.name.toLowerCase() === emp.name.toLowerCase()) {
-          const start = new Date(req.startDate);
-          const end = new Date(req.endDate);
+          const start = parseLocalMidnight(req.startDate);
+          const end = parseLocalMidnight(req.endDate);
           
           for (let d = 1; d <= totalDays; d++) {
             const currentDate = new Date(year, month - 1, d);
@@ -1789,7 +1795,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
       endDate: leaveEnd,
       status: 'Đang phê duyệt'
     };
-    setLeaveRequests([item, ...leaveRequests]);
+    setDoc(doc(db, 'office_leave_requests', String(item.id)), item).catch(console.error);
     setLeaveReason('');
     
     setConfirmModal({
@@ -3691,6 +3697,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                               max="30"
                               step="1"
                               value={allowance.standard}
+                              disabled={!userPermissions.office_syncLeaveQuota}
                               onChange={e => {
                                 const val = Math.max(0, Number(e.target.value));
                                 setLeaveAllowances(prev => ({
@@ -3698,7 +3705,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                                   [emp.id]: { ...allowance, standard: val }
                                 }));
                               }}
-                              className="w-16 h-8 text-center bg-slate-50/80 font-mono font-black border border-slate-205 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                              className="w-16 h-8 text-center bg-slate-50/80 font-mono font-black border border-slate-205 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500/50 disabled:bg-transparent disabled:border-transparent disabled:shadow-none disabled:cursor-default"
                             />
                           </td>
 
@@ -3710,6 +3717,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                               max="10"
                               step="0.5"
                               value={allowance.seniority}
+                              disabled={!userPermissions.office_syncLeaveQuota}
                               onChange={e => {
                                 const val = Math.max(0, Number(e.target.value));
                                 setLeaveAllowances(prev => ({
@@ -3717,7 +3725,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                                   [emp.id]: { ...allowance, seniority: val }
                                 }));
                               }}
-                              className="w-16 h-8 text-center bg-slate-50/80 font-mono font-black border border-slate-205 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                              className="w-16 h-8 text-center bg-slate-50/80 font-mono font-black border border-slate-205 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500/50 disabled:bg-transparent disabled:border-transparent disabled:shadow-none disabled:cursor-default"
                             />
                           </td>
 
@@ -3729,6 +3737,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                               max="20"
                               step="0.5"
                               value={allowance.prevYearCarry}
+                              disabled={!userPermissions.office_syncLeaveQuota}
                               onChange={e => {
                                 const val = Math.max(0, Number(e.target.value));
                                 setLeaveAllowances(prev => ({
@@ -3736,7 +3745,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                                   [emp.id]: { ...allowance, prevYearCarry: val }
                                 }));
                               }}
-                              className="w-16 h-8 text-center bg-slate-50/80 font-mono font-black border border-slate-205 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                              className="w-16 h-8 text-center bg-slate-50/80 font-mono font-black border border-slate-205 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500/50 disabled:bg-transparent disabled:border-transparent disabled:shadow-none disabled:cursor-default"
                             />
                           </td>
 
@@ -3962,7 +3971,8 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      setLeaveRequests(prev => prev.map(item => item.id === req.id ? { ...item, status: 'Đã duyệt' } : item));
+                                      updateDoc(doc(db, 'office_leave_requests', String(req.id)), { status: 'Đã duyệt' })
+                                        .catch(console.error);
                                     }}
                                     className="px-2.5 py-1.5 text-[8.5px] font-black text-white bg-emerald-600 hover:bg-emerald-700 hover:shadow shadow-emerald-200 rounded-lg uppercase tracking-wider transition-all active:scale-90 cursor-pointer animate-none"
                                   >
@@ -4857,7 +4867,8 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
 
                 <form onSubmit={(e) => {
                   e.preventDefault();
-                  setLeaveRequests(prev => prev.map(x => x.id === editingLeave.id ? editingLeave : x));
+                  setDoc(doc(db, 'office_leave_requests', String(editingLeave.id)), editingLeave)
+                    .catch(console.error);
                   setEditingLeave(null);
                 }} className="space-y-3.5">
                   <div className="space-y-1">
@@ -5273,7 +5284,8 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                       } else if (type === 'event') {
                         setCalendarEvents(prev => prev.filter(x => x.id !== id));
                       } else if (type === 'leave') {
-                        setLeaveRequests(prev => prev.filter(x => x.id !== id));
+                        deleteDoc(doc(db, 'office_leave_requests', String(id)))
+                          .catch(console.error);
                       } else if (type === 'wish') {
                         setWishes(prev => prev.filter(x => x.id !== id));
                       }

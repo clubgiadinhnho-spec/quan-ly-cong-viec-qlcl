@@ -18,6 +18,40 @@ import { getUserById, getSafeNameProps, getTaskAssigneeName, isUserTask, checkIs
 import { generateQCDExplanation } from '../../services/geminiService';
 import { useTaskContext } from '../../contexts/TaskContext';
 
+const getFriendlyMentorName = (name: string | undefined) => {
+  if (!name) return "bạn";
+  const trimmed = name.trim();
+  if (trimmed.includes("Mỹ Tân") || trimmed.endsWith("Tân")) {
+    return "Chị @Tân";
+  }
+  if (trimmed.includes("Nhật Trường") || trimmed.endsWith("Trường")) {
+    return "Anh @Trường";
+  }
+  if (trimmed.includes("Nhựt Hùng") || trimmed.endsWith("Hùng")) {
+    return "Anh @Hùng";
+  }
+  if (trimmed.includes("Phan Tú") || trimmed.endsWith("Tú")) {
+    return "Bạn @Tú";
+  }
+  // Fallback to name's last word
+  const parts = trimmed.split(' ');
+  const lastName = parts[parts.length - 1];
+  return `bạn @${lastName}`;
+};
+
+const getIdleDaysText = (task: Task) => {
+  const lastTime = task.updatedAt || task.systemCreatedAt || task.issueDate;
+  if (!lastTime) return "5 ngày rồi";
+  try {
+    const diff = Date.now() - new Date(lastTime).getTime();
+    const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+    if (days > 1) {
+      return `${days} ngày rồi`;
+    }
+  } catch (e) {}
+  return "5 ngày rồi";
+};
+
 const HIGHLIGHT_COLORS: Record<string, string> = {
   'amber': '!bg-amber-50/50 hover:!bg-amber-100/60 ring-inset ring-1 ring-amber-200/30 text-amber-950',
   'emerald': '!bg-emerald-50/50 hover:!bg-emerald-100/60 ring-inset ring-1 ring-emerald-200/30 text-emerald-950',
@@ -74,15 +108,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 }) => {
   const chatButtonRef = React.useRef<HTMLButtonElement>(null);
   
-  let supState: any = null;
-  let contextTriggerAiNudge: any = null;
-  try {
-    const taskCtx = useTaskContext();
-    supState = taskCtx?.supState;
-    contextTriggerAiNudge = taskCtx?.triggerAiNudge;
-  } catch (err) {
-    // ignore outside of context provider
-  }
+  const taskCtx = useTaskContext();
+  const supState = taskCtx?.supState;
+  const contextTriggerAiNudge = taskCtx?.triggerAiNudge;
 
   const assigneeName = getTaskAssigneeName(task, users);
   const assignee = getUserById(assigneeName, users) || getUserById(task.assigneeId, users);
@@ -347,6 +375,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     }
   }, [task.aiReminderResponded, task.aiReminderCreatedAt]);
 
+  const isCheckInPending = !isDeletedMoreThan24h && task.supCheckInPending === true;
   const isAiReminding = !isDeletedMoreThan24h && task.aiReminderResponded === false && !localExpired;
   const isWasPatrolledBySup = !isDeletedMoreThan24h && canViewSup && !!supState?.patrolledTaskIds?.includes(task.id);
   const isPatrolledToday = !isDeletedMoreThan24h && canViewSup && !!(task.lastPatrolTime && !task.patrolReviewedByAdmin && (() => { try { return isSameDay(parseISO(task.lastPatrolTime), new Date()); } catch(e) { return false; } })());
@@ -354,11 +383,15 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const isAnySpeechActive = isPatrolledBySup || isAiReminding || showAIChat;
   const priorityRowClass = getPriorityRowClass(task.priorityOrder);
   const highlightClass = task.highlightColor ? HIGHLIGHT_COLORS[task.highlightColor] : (task.isHighlighted ? HIGHLIGHT_COLORS['amber'] : '');
-  const finalRowClass = highlightClass || priorityRowClass || 'hover:bg-gray-50/50';
+  const finalRowClass = isCheckInPending 
+    ? 'bg-yellow-200 border-2 border-yellow-500 text-yellow-950 font-black animate-sup-bounce' 
+    : (highlightClass || priorityRowClass || 'hover:bg-gray-50/50');
 
   let cellBorderColor = "border-gray-300";
   if (isPatrolledBySup) {
     cellBorderColor = "border-orange-500";
+  } else if (isCheckInPending) {
+    cellBorderColor = "border-yellow-500";
   } else if (highlightedTaskId === task.id) {
     cellBorderColor = "border-blue-500";
   } else if (isWasPatrolledBySup) {
@@ -380,6 +413,16 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     }
     return rawDeadlineInfo;
   }, [rawDeadlineInfo, isDeletedMoreThan24h]);
+
+  const clearCheckInPending = async () => {
+    if (task.supCheckInPending) {
+      try {
+        await onUpdate(task.id, { supCheckInPending: false });
+      } catch (err) {
+        console.error("Failed to clear S.U.P check-in status:", err);
+      }
+    }
+  };
 
   const handleTickleJob = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -468,13 +511,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       return 0;
     };
 
-    let context: any = null;
-    try {
-      context = useTaskContext();
-    } catch (err) {
-      // ignore
-    }
-    const allTasks = context?.tasks || tasks || [];
+    const allTasks = taskCtx?.tasks || tasks || [];
 
     if (!allTasks || allTasks.length === 0) {
       return { cycleCount: 0, elapsedDays: 0 };
@@ -751,7 +788,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   if (isMobileCard) {
     const isHighlight = task.highlightColor || task.isHighlighted;
     const highlightMobileClass = task.highlightColor ? HIGHLIGHT_COLORS[task.highlightColor] : (task.isHighlighted ? HIGHLIGHT_COLORS['amber'] : '');
-    const mobileBg = highlightMobileClass || (isRowLiveActivePatrolled ? 'bg-orange-50/10' : 'bg-white');
+    const mobileBg = isCheckInPending 
+      ? 'bg-yellow-250 border-2 border-yellow-500 text-yellow-950 font-black animate-sup-bounce'
+      : (highlightMobileClass || (isRowLiveActivePatrolled ? 'bg-orange-50/10' : 'bg-white'));
 
     const formatVietnameseDateMobile = (dateStr: string | undefined): string => {
       if (!dateStr) return '—';
@@ -788,6 +827,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     return (
       <div 
         id={`task-card-${task.id}`}
+        onClick={clearCheckInPending}
         className={`rounded-xl border-2 ${cellBorderColor} shadow-md p-4 transition-all space-y-4 font-sans relative ${mobileBg} ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
       >
         {/* TOP: TÊN NHÂN SỰ */}
@@ -1086,7 +1126,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 </button>
 
                 {/* Speech bubble for mobile */}
-                {(isAiReminding || isCheckInBySup) && !showAIChat && (
+                {(isAiReminding || isCheckInBySup || isCheckInPending) && !showAIChat && (
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 z-[110] bg-blue-50 border-2 border-indigo-400 rounded-2xl p-2.5 px-3.5 shadow-lg min-w-[210px] max-w-[280px] text-left animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[6px] rotate-45 w-3 h-3 bg-blue-50 border-b-2 border-r-2 border-indigo-400"></div>
                     <div className="flex items-center justify-between mb-1 leading-none">
@@ -1110,19 +1150,21 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                       )}
                     </div>
                     <p className="text-[10px] font-black leading-relaxed text-indigo-950 not-italic whitespace-pre-line" translate="no">
-                      {isPatrolledBySup 
-                        ? (() => {
-                            const baseSpeech = supState?.speechJob || "Ổn định: Mọi mục tiêu đang bám sát chỉ đạo của Sếp.";
-                            if (baseSpeech.includes("Sẵn sàng báo cáo") || baseSpeech.includes("quét cảm biến") || baseSpeech.includes("giải nén hồ sơ") || baseSpeech.includes("Gemini")) {
-                              return baseSpeech;
-                            }
-                            return `${baseSpeech}\n\n🤖 [JOB]: "Dạ, Em nhận lệnh. Sẽ nhắc bạn ${assigneeName} làm ngay ạ!"`;
-                          })()
-                        : (() => {
-                            const taskAiMessages = (aiMessages || []).filter(msg => msg.taskId === task.id);
-                            const lastJobMsg = [...taskAiMessages].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
-                            return lastJobMsg?.content || `${assigneeName} ơi, hạn ${task.expectedEndDate || task.dueDate || 'chưa định'} sắp đến, mục tiêu "${task.objective || task.title}" tiến hành đến đâu rồi?`;
-                          })()
+                      {isCheckInPending
+                        ? `${getFriendlyMentorName(assigneeName)} ơi, Sếp SUP vừa check-in và có lệnh "${task.lastPatrolResult?.supervisorClosing || "Trình kế hoạch ngay"}", việc này đã để trống ${getIdleDaysText(task)} không thấy động tĩnh rồi! Hãy click vào xem ngay nhé!`
+                        : isPatrolledBySup 
+                            ? (() => {
+                                const baseSpeech = supState?.speechJob || "Ổn định: Mọi mục tiêu đang bám sát chỉ đạo của Sếp.";
+                                if (baseSpeech.includes("Sẵn sàng báo cáo") || baseSpeech.includes("quét cảm biến") || baseSpeech.includes("giải nén hồ sơ") || baseSpeech.includes("Gemini")) {
+                                  return baseSpeech;
+                                }
+                                return `${baseSpeech}\n\n🤖 [JOB]: "Dạ, Em nhận lệnh. Sẽ nhắc bạn ${assigneeName} làm ngay ạ!"`;
+                              })()
+                            : (() => {
+                                const taskAiMessages = (aiMessages || []).filter(msg => msg.taskId === task.id);
+                                const lastJobMsg = [...taskAiMessages].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+                                return lastJobMsg?.content || `${assigneeName} ơi, hạn ${task.expectedEndDate || task.dueDate || 'chưa định'} sắp đến, mục tiêu "${task.objective || task.title}" tiến hành đến đâu rồi?`;
+                              })()
                       }
                     </p>
                   </div>
@@ -1644,6 +1686,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   return (
     <motion.tr 
       id={`task-${task.id}`}
+      onClick={clearCheckInPending}
       initial={false}
       animate={{ 
         backgroundColor: isPatrolledBySup 
@@ -1655,7 +1698,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       transition={{ duration: 0.4 }}
       className={`group transition-all ${finalRowClass} relative ${isAnySpeechActive ? 'z-[100] shadow-xl' : (isRowLiveActivePatrolled ? 'z-10 shadow-md' : '')} ${isSelected ? 'bg-blue-50/50' : ''}`}
     >
-      <td className={`p-1 px-1.5 text-center border ${cellBorderColor} align-middle w-[40px] ${isRowLiveActivePatrolled ? 'bg-transparent' : ''}`}>
+      <td className={`p-1 px-1.5 text-center border ${cellBorderColor} align-middle w-[40px] ${(isRowLiveActivePatrolled || isCheckInPending) ? 'bg-transparent' : ''}`}>
          <input 
             type="checkbox" 
             checked={isSelected}
@@ -1663,7 +1706,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
             className="w-3 h-3 rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all"
          />
       </td>
-      <td className={`p-1.5 text-center text-[10px] border ${cellBorderColor} align-top relative h-px min-w-[70px] ${task.isHighlighted || task.priorityOrder ? 'text-gray-600' : 'text-gray-400'} ${isRowLiveActivePatrolled ? 'bg-transparent' : ''}`}>
+      <td className={`p-1.5 text-center text-[10px] border ${cellBorderColor} align-top relative h-px min-w-[70px] ${task.isHighlighted || task.priorityOrder ? 'text-gray-600' : 'text-gray-400'} ${(isRowLiveActivePatrolled || isCheckInPending) ? 'bg-transparent' : ''}`}>
         <div className="flex flex-col items-center pt-0.5 h-full justify-between">
           <div className="flex flex-col items-center gap-1 mb-2">
                 <div translate="no" className="notranslate leading-none text-[12px] font-mono font-black text-blue-600 bg-blue-50/50 px-1 py-0.5 rounded-sm border border-blue-100/50">
@@ -1758,7 +1801,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   </button>
 
                   {/* Comic Dialogue bubble showing ROBOT JOB report/nudge when active or during S.U.P patrol */}
-                  {(isAiReminding || isCheckInBySup) && !showAIChat && (
+                  {(isAiReminding || isCheckInBySup || isCheckInPending) && !showAIChat && (
                     <div className="absolute left-12 top-1/2 -translate-y-1/2 z-[110] bg-blue-50 border-2 border-indigo-400 rounded-2xl p-2.5 px-3.5 shadow-[5px_5px_0px_rgba(79,70,229,0.15)] min-w-[210px] max-w-[280px] text-left animate-in fade-in slide-in-from-left-2 duration-300">
                       {/* Speech tail */}
                       <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[7px] rotate-45 w-3 h-3 bg-blue-50 border-l-2 border-b-2 border-indigo-400"></div>
@@ -1787,19 +1830,21 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
                       {/* Speech text */}
                       <p className="text-[10px] font-black leading-relaxed text-indigo-950 not-italic whitespace-pre-line" translate="no">
-                        {isPatrolledBySup 
-                          ? (() => {
-                              const baseSpeech = supState?.speechJob || "Ổn định: Mọi mục tiêu đang bám sát chỉ đạo của Sếp.";
-                              if (baseSpeech.includes("Sẵn sàng báo cáo") || baseSpeech.includes("quét cảm biến") || baseSpeech.includes("giải nén hồ sơ") || baseSpeech.includes("Gemini")) {
-                                return baseSpeech;
-                              }
-                              return `${baseSpeech}\n\n🤖 [JOB]: "Dạ, Em nhận lệnh. Sẽ nhắc bạn ${assigneeName} làm ngay ạ!"`;
-                            })()
-                          : (() => {
-                              const taskAiMessages = (aiMessages || []).filter(msg => msg.taskId === task.id);
-                              const lastJobMsg = [...taskAiMessages].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
-                              return lastJobMsg?.content || `${assigneeName} ơi, hạn ${task.expectedEndDate || task.dueDate || 'chưa định'} sắp đến, mục tiêu "${task.objective || task.title}" tiến hành đến đâu rồi?`;
-                            })()
+                        {isCheckInPending
+                          ? `${getFriendlyMentorName(assigneeName)} ơi, Sếp SUP vừa check-in và có lệnh "${task.lastPatrolResult?.supervisorClosing || "Trình kế hoạch ngay"}", việc này đã để trống ${getIdleDaysText(task)} không thấy động tĩnh rồi! Hãy click vào xem ngay nhé!`
+                          : isPatrolledBySup 
+                              ? (() => {
+                                  const baseSpeech = supState?.speechJob || "Ổn định: Mọi mục tiêu đang bám sát chỉ đạo của Sếp.";
+                                  if (baseSpeech.includes("Sẵn sàng báo cáo") || baseSpeech.includes("quét cảm biến") || baseSpeech.includes("giải nén hồ sơ") || baseSpeech.includes("Gemini")) {
+                                    return baseSpeech;
+                                  }
+                                  return `${baseSpeech}\n\n🤖 [JOB]: "Dạ, Em nhận lệnh. Sẽ nhắc bạn ${assigneeName} làm ngay ạ!"`;
+                                })()
+                              : (() => {
+                                  const taskAiMessages = (aiMessages || []).filter(msg => msg.taskId === task.id);
+                                  const lastJobMsg = [...taskAiMessages].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+                                  return lastJobMsg?.content || `${assigneeName} ơi, hạn ${task.expectedEndDate || task.dueDate || 'chưa định'} sắp đến, mục tiêu "${task.objective || task.title}" tiến hành đến đâu rồi?`;
+                                })()
                         }
                       </p>
                     </div>
@@ -1882,7 +1927,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
         </div>
       </td>
       <td 
-        className={`p-1 border ${cellBorderColor} align-top h-px relative transition-colors ${task.highlightColor ? HIGHLIGHT_COLORS[task.highlightColor] : (isRowLiveActivePatrolled ? 'bg-transparent' : (isNewInBoard ? 'border-l-4 border-emerald-500 bg-emerald-50/10' : ''))}`}
+        className={`p-1 border ${cellBorderColor} align-top h-px relative transition-colors ${task.highlightColor ? HIGHLIGHT_COLORS[task.highlightColor] : ((isRowLiveActivePatrolled || isCheckInPending) ? 'bg-transparent' : (isNewInBoard ? 'border-l-4 border-emerald-500 bg-emerald-50/10' : ''))}`}
       >
         <div className="flex flex-col h-full gap-1.5 px-0.5 pt-0.5 pb-4">
           {/* 1. Identity Section - Avatar & Name on same row */}
@@ -2031,7 +2076,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           </div>
         </div>
       </td>
-      <td className={`p-1.5 border ${cellBorderColor} relative group align-top h-px ${isRowLiveActivePatrolled ? 'bg-transparent' : ((!isAdmin && !isOwner) ? 'bg-gray-50' : '')}`}>
+      <td className={`p-1.5 border ${cellBorderColor} relative group align-top h-px ${(isRowLiveActivePatrolled || isCheckInPending) ? 'bg-transparent' : ((!isAdmin && !isOwner) ? 'bg-gray-50' : '')}`}>
         {task.attachmentUrl && (
           <a 
             href={task.attachmentUrl} 
@@ -2144,7 +2189,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       </td>
 
       <td 
-        className={`p-0 border ${cellBorderColor} align-top h-full ${isRowLiveActivePatrolled ? 'bg-transparent' : ((!isAdmin && !isOwner) ? 'bg-gray-50/30' : 'bg-white')}`}
+        className={`p-0 border ${cellBorderColor} align-top h-full ${(isRowLiveActivePatrolled || isCheckInPending) ? 'bg-transparent' : ((!isAdmin && !isOwner) ? 'bg-gray-50/30' : 'bg-white')}`}
       >
         <div className="flex flex-col h-full min-h-[100px] relative">
               {/* Header area for Vn and Toolbar - NO LONGER DIRECT EDIT */}
@@ -2267,7 +2312,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
               />
         </div>
       </td>
-      <td className={`p-0 text-center border ${cellBorderColor} align-middle ${isRowLiveActivePatrolled ? 'bg-transparent' : ''}`}>
+      <td className={`p-0 text-center border ${cellBorderColor} align-middle ${(isRowLiveActivePatrolled || isCheckInPending) ? 'bg-transparent' : ''}`}>
         <div className="relative group/priority w-full h-full min-h-[40px] flex items-center justify-center p-1">
           <button 
             onClick={canEditPriority && !task.priorityOrder ? () => onTogglePriority(task.id) : undefined}
@@ -2307,7 +2352,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
           )}
         </div>
       </td>
-      <td className={`py-2 px-1 text-center border ${cellBorderColor} align-middle ${isRowLiveActivePatrolled ? 'bg-transparent' : ''}`}>
+      <td className={`py-2 px-1 text-center border ${cellBorderColor} align-middle ${(isRowLiveActivePatrolled || isCheckInPending) ? 'bg-transparent' : ''}`}>
         <div className="flex flex-col items-center justify-center gap-1.5 w-fit mx-auto min-w-[40px] py-1">
             {(isAdmin || isOwner || isAuthor || user?.role === 'Trưởng Phòng') ? (
               <>
@@ -2385,6 +2430,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 {/* VIEW HISTORY */}
                 <button 
                   onClick={() => {
+                    clearCheckInPending();
                     if (isAdmin && isPatrolledToday) {
                       onUpdate(task.id, { patrolReviewedByAdmin: true });
                     }

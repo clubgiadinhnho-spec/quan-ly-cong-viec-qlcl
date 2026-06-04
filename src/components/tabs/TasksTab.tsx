@@ -36,7 +36,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
     createNotification, markAsRead, lastReadChatTimestamps,
     selectedMonth, onMonthChange, tasks,
     sendAiMessage, triggerAiNudge, resetTaskAIStatus, aiMessages,
-    supState, togglePatrol
+    supState, togglePatrol, resetQuota, increaseQuotaLimit
   } = useTaskContext();
 
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -205,36 +205,37 @@ export const TasksTab: React.FC<TasksTabProps> = ({
               <span translate="no" className="notranslate">P.QLCL ({allActiveCount})</span>
             </button>
           </div>
-          
           {/* SUPERVISOR ROBOT AREA (CON ROBOT CAM CŨ) - KHOANH ĐỎ SLOT */}
           {(() => {
             const canViewSup = effectiveUser.role === 'Admin' || effectiveUser.role === 'Trưởng Phòng' || effectiveUser.delegatedPermissions?.system_viewSup === true;
             if (!canViewSup) return null;
             const canControlSup = effectiveUser.role === 'Admin' || effectiveUser.role === 'Trưởng Phòng' || effectiveUser.delegatedPermissions?.system_viewSup === true;
             return (
-              <div className="flex-shrink-0 md:flex-1 flex items-center justify-center px-1 md:px-4 max-w-xs md:max-w-xl">
-                <div className="flex items-center gap-1.5 md:gap-2.5 bg-orange-50/55 border border-orange-200/60 rounded-2xl px-2 md:px-3 py-1 md:py-1.5 shadow-sm max-w-full animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex-shrink-0 md:flex-1 flex flex-wrap items-center justify-center gap-2 px-1 md:px-2 max-w-lg md:max-w-2xl">
+                
+                {/* Robot Main Bubble (Compact styled) */}
+                <div className="flex items-center gap-1.5 md:gap-2 bg-orange-50/55 border border-orange-200/60 rounded-xl px-2 py-0.5 md:py-1 shadow-xs animate-in h-[38px] fade-in zoom-in-95 duration-200">
                   
                   {/* Pulsing/bouncing Orange Robot Icon */}
                   <button
                     onClick={canControlSup ? togglePatrol : undefined}
                     disabled={!canControlSup}
-                    className={`flex-shrink-0 w-7 h-7 md:w-8 md:h-8 rounded-full transition-all text-white flex items-center justify-center relative ${
-                      supState.isActive ? 'bg-orange-100 border-2 border-dashed border-orange-300' : 'bg-orange-500 hover:bg-orange-600 active:scale-95 shadow-md'
+                    className={`flex-shrink-0 w-6 h-6 rounded-full transition-all text-white flex items-center justify-center relative ${
+                      supState.isActive ? 'bg-orange-100 border border-dashed border-orange-300' : 'bg-orange-500 hover:bg-orange-600 active:scale-95 shadow-md'
                     } ${canControlSup ? 'cursor-pointer' : 'cursor-default'}`}
                     title={canControlSup ? (supState.isActive ? "Bấm để TẠM DỪNG Tuần Tra" : "Bấm để KÍCH HOẠT Tuần Tra") : "Hệ thống giám sát S.U.P"}
                   >
                     {!supState.isActive ? (
                       <motion.div
                         layoutId="sup-robot-avatar"
-                        animate={{ y: [0, -4, 0] }}
+                        animate={{ y: [0, -3, 0] }}
                         transition={{
                           y: { repeat: Infinity, duration: 2, ease: "easeInOut" },
                           layout: { type: "tween", duration: 3.5, ease: "easeInOut" }
                         }}
                         className="w-full h-full rounded-full bg-orange-500 flex items-center justify-center relative z-[10] shadow-md"
                       >
-                        <svg viewBox="0 0 24 24" className="w-4 h-4 md:w-4.5 md:h-4.5 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <svg viewBox="0 0 24 24" className="w-3 h-3 fill-none stroke-current" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <rect x="3" y="11" width="18" height="10" rx="2" />
                           <circle cx="12" cy="5" r="2" />
                           <path d="M12 7v4" />
@@ -245,45 +246,71 @@ export const TasksTab: React.FC<TasksTabProps> = ({
                     ) : (
                       // Elegant placeholder when patrolling
                       <div className="w-full h-full flex items-center justify-center text-orange-400">
-                        <span className="text-[8px] md:text-[9px] font-black animate-pulse">S.U.P</span>
+                        <span className="text-[7px] font-black animate-pulse">S.U.P</span>
                       </div>
                     )}
 
                     {supState.isActive && (
-                      <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border border-white animate-ping" />
+                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-white animate-ping" />
                     )}
                   </button>
 
-                  {/* Mobile-only Compact Label */}
-                  <div className="flex md:hidden flex-col select-none">
-                    <span className="text-[10px] font-black text-orange-600 leading-none">SUP</span>
-                    {supState.isActive && (
-                      <span className="text-[6px] font-black text-green-500 mt-0.5 animate-pulse">LIVE</span>
-                    )}
-                  </div>
-
-                  {/* Speech Dialogue Bubble - Desktop only */}
-                  <div className="hidden md:flex relative flex-col min-w-0">
-                    <div className="relative flex flex-col min-w-0">
-                      <div className="flex items-center gap-1.5 leading-none mb-0.5">
-                        <span className="text-[8px] font-black text-white bg-orange-600 px-1 py-0.5 rounded-sm uppercase tracking-wider select-none leading-none">
-                          SUPERVISOR ROBOT
-                        </span>
-                        <span className={`w-1.5 h-1.5 rounded-full ${supState.isActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-                        <span className="text-[7.5px] font-bold text-orange-500 uppercase tracking-widest">
-                          {supState.isActive ? 'ĐANG TUẦN TRA' : 'NGHỈ NGƠI'}
-                        </span>
-                      </div>
-                      
-                      <div className="text-[10px] text-orange-955 font-black leading-snug truncate max-w-[280px]">
-                        <span translate="no" className="notranslate">
-                          {supState.speech || 'Hệ thống an ninh giám sát S.U.P sẵn sàng!'}
-                        </span>
-                      </div>
+                  {/* Compact Text Label */}
+                  <div className="flex relative flex-col min-w-0 max-w-[150px] xs:max-w-[200px] md:max-w-[220px]">
+                    <div className="flex items-center gap-1 leading-none mb-0.5">
+                      <span className="text-[7.5px] font-black text-white bg-orange-600 px-1 py-0.5 rounded-sm uppercase tracking-wider select-none leading-none">
+                        S.U.P
+                      </span>
+                      <span className={`w-1 h-1 rounded-full ${supState.isActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                      <span className="text-[7px] font-bold text-orange-500 uppercase tracking-widest leading-none">
+                        {supState.isActive ? 'LIVE' : 'IDLE'}
+                      </span>
+                    </div>
+                    
+                    <div className="text-[9px] text-orange-900 font-extrabold leading-tight truncate">
+                      <span translate="no" className="notranslate">
+                        {supState.speech || 'Hệ thống an ninh S.U.P'}
+                      </span>
                     </div>
                   </div>
 
                 </div>
+
+                {/* S.U.P Quota Control Panel */}
+                <div className="flex items-center gap-2 bg-purple-50/70 border border-purple-200/80 rounded-xl px-2 md:px-3 py-0.5 md:py-1 shadow-xs select-none animate-in fade-in h-[38px] zoom-in-95 duration-200">
+                  <div className="flex flex-col min-w-[55px]">
+                    <span className="text-[7px] font-black text-purple-600 uppercase tracking-wider leading-none">HẠN NGẠCH</span>
+                    <span className="text-[10px] font-black text-purple-950 mt-1 leading-none whitespace-nowrap">
+                      {supState.dailyQuotaUsed ?? 0} <span className="text-purple-400 font-medium font-mono text-[9px]">/</span> {supState.dailyQuotaMax ?? 30} <span className="text-[7px] text-purple-400 font-bold uppercase tracking-wider">Lượt</span>
+                    </span>
+                  </div>
+
+                  {canControlSup && (
+                    <div className="flex items-center gap-1.5 border-l border-purple-200 pl-2">
+                      <button
+                        onClick={async () => {
+                          if (window.confirm("Bạn có chắc chắn muốn KHÔI PHỤC (Reset) hạn ngạch sử dụng trong ngày của S.U.P về 0?")) {
+                            await resetQuota?.();
+                          }
+                        }}
+                        className="px-1.5 py-1 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white rounded-lg text-[8px] font-black uppercase transition-all tracking-wider shadow-sm cursor-pointer"
+                        title="Reset số lượt tuần tra đã dùng về 0"
+                      >
+                        RESET
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await increaseQuotaLimit?.();
+                        }}
+                        className="px-1.5 py-1 bg-white border border-purple-300 hover:bg-purple-50 active:scale-95 text-purple-700 rounded-lg text-[8px] font-black uppercase transition-all tracking-widest shadow-xs cursor-pointer"
+                        title="Tăng thêm +10 hạn ngạch trong ngày"
+                      >
+                        +10
+                      </button>
+                    </div>
+                  )}
+                </div>
+
               </div>
             );
           })()}

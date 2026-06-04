@@ -367,6 +367,7 @@ export const ReportPage = ({
     printUrl.searchParams.set('report_month', reportPeriod);
     printUrl.searchParams.set('layout_orient', modalPrintOrient);
     printUrl.searchParams.set('print_scale', modalPrintScale.toString());
+    printUrl.searchParams.set('dept_result_source', deptResultSource);
     window.open(printUrl.toString(), '_blank');
     setShowPrintModal(false);
   };
@@ -377,7 +378,16 @@ export const ReportPage = ({
   const [itemScores, setItemScores] = useState<Record<string, number>>({});
   const [itemApprovedScores, setItemApprovedScores] = useState<Record<string, number>>({});
   const [itemComments, setItemComments] = useState<Record<string, string>>({});
-  const [deptResultSource, setDeptResultSource] = useState<'kpi' | 'qltt' | 'approved'>('qltt');
+  const [deptResultSource, setDeptResultSource] = useState<'kpi' | 'qltt' | 'approved' | 'none'>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlSource = params.get("dept_result_source");
+      if (urlSource === 'kpi' || urlSource === 'qltt' || urlSource === 'approved' || urlSource === 'none') {
+        return urlSource;
+      }
+    }
+    return 'qltt';
+  });
   const [selectedDetailCategory, setSelectedDetailCategory] = useState<{ code: string; label: string } | null>(null);
   const [taskCategories, setTaskCategories] = useState<any[]>([]);
   const [acknowledgements, setAcknowledgements] = useState<Record<string, { confirmed: boolean; confirmedAt: string }>>({});
@@ -409,12 +419,71 @@ export const ReportPage = ({
     }
   }, [activeTab, configPeriod]);
 
+  const getAvailableCopyMonths = () => {
+    const result = new Set<string>();
+
+    const isAfterApril2026 = (period: string) => {
+      const parts = period.split('/');
+      if (parts.length !== 2) return false;
+      const m = parseInt(parts[0], 10);
+      const y = parseInt(parts[1], 10);
+      if (isNaN(m) || isNaN(y)) return false;
+      return y > 2026 || (y === 2026 && m > 4);
+    };
+
+    savedConfigPeriods.forEach(p => {
+      if (p !== configPeriod && isAfterApril2026(p)) {
+        result.add(p);
+      }
+    });
+    for (let idx = 0; idx < 12; idx++) {
+      const now = new Date();
+      now.setMonth(now.getMonth() - (idx + 1));
+      const mStr = String(now.getMonth() + 1).padStart(2, '0');
+      const yStr = String(now.getFullYear());
+      const formatP = `${mStr}/${yStr}`;
+      if (formatP !== configPeriod && isAfterApril2026(formatP)) {
+        result.add(formatP);
+      }
+    }
+    return Array.from(result).sort((a, b) => {
+      const [mA, yA] = a.split('/').map(Number);
+      const [mB, yB] = b.split('/').map(Number);
+      if (yA !== yB) return yB - yA;
+      return mB - mA;
+    });
+  };
+
   const handleCopyConfigFromPastMonth = async (pastPeriodMMYY: string) => {
     if (!pastPeriodMMYY) return;
     try {
       const docId = pastPeriodMMYY.replace(/\//g, '-');
       const docRef = doc(db, 'kpi_configs', docId);
-      const configDoc = await getDoc(docRef);
+      let configDoc = await getDoc(docRef);
+
+      // If the selected target month has no direct config document, search chronologically backward to find the nearest previous one
+      if (!configDoc.exists()) {
+        let searchPeriod = pastPeriodMMYY;
+        for (let i = 0; i < 12; i++) {
+          const parts = searchPeriod.split('/');
+          if (parts.length !== 2) break;
+          let m = parseInt(parts[0], 10);
+          let y = parseInt(parts[1], 10);
+          if (isNaN(m) || isNaN(y)) break;
+          m -= 1;
+          if (m === 0) {
+            m = 12;
+            y -= 1;
+          }
+          searchPeriod = `${String(m).padStart(2, '0')}/${y}`;
+          const tempDoc = await getDoc(doc(db, 'kpi_configs', searchPeriod.replace(/\//g, '-')));
+          if (tempDoc.exists()) {
+            configDoc = tempDoc;
+            break;
+          }
+        }
+      }
+
       if (configDoc.exists()) {
         const data = configDoc.data();
         if (data.weights) setWeights(data.weights);
@@ -425,9 +494,9 @@ export const ReportPage = ({
         if (data.allocatedUserIds && Array.isArray(data.allocatedUserIds)) {
           setAllocatedUserIds(sortUserIds(data.allocatedUserIds));
         }
-        showToast(`Đã tải và áp dụng tạm thời cấu hình từ tháng ${pastPeriodMMYY}! Hãy rà soát lại và nhấn "LƯU CẤU HÌNH" để đồng bộ cho tháng ${configPeriod}.`, "success");
+        showToast(`Đã sao chép thành công cấu hình của Tháng ${pastPeriodMMYY}! Nhấp "LƯU CẤU HÌNH" để áp dụng chính thức cho Tháng ${configPeriod}.`, "success");
       } else {
-        showToast(`Không tìm thấy cấu hình đã lưu cho tháng ${pastPeriodMMYY}!`, "error");
+        showToast(`Không tìm thấy cấu hình đã lưu cho tháng ${pastPeriodMMYY} hoặc các tháng trước đó!`, "error");
       }
     } catch (err) {
       console.error("Lỗi sao chép cấu hình:", err);
@@ -1159,18 +1228,49 @@ export const ReportPage = ({
     showToast(`Đã xóa thành công chỉ tiêu [${kpi.code}]! Hãy lưu cấu hình tháng để áp dụng thay đổi.`, "success");
   };
 
+  // Timezone-safe, string splitting & UTC-based extraction of Month and Year for tasks
+  const getTaskMonthYearSafe = (issueDate: string) => {
+    let m = '';
+    let y = '';
+    if (issueDate && typeof issueDate === 'string') {
+      const cleanStr = issueDate.split('T')[0].trim();
+      if (cleanStr.includes('-')) {
+        const parts = cleanStr.split('-');
+        y = parts[0];
+        m = parts[1].padStart(2, '0');
+      } else if (cleanStr.includes('/')) {
+        const parts = cleanStr.split('/');
+        if (parts.length >= 3) {
+          m = parts[1].padStart(2, '0');
+          y = parts[2];
+        }
+      }
+    }
+    if (!m || !y) {
+      const d = new Date(issueDate);
+      if (!isNaN(d.getTime())) {
+        m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        y = String(d.getUTCFullYear());
+      }
+    }
+    return { m, y };
+  };
+
   // Tasks grouped and merged smart core
   const getTasksByCategory = (code: string, userId: string) => {
     const [month, year] = reportPeriod.split('/');
     return tasks.filter(t => {
       if (isTaskDeleted(t)) return false;
-      const date = new Date(t.issueDate);
-      const m = String(date.getMonth() + 1).padStart(2, '0');
-      const y = String(date.getFullYear());
+      const { m, y } = getTaskMonthYearSafe(t.actualEndDate || t.issueDate);
       const userMatch = userId === 'ALL' 
         ? allocatedUserIds.includes(t.assigneeId) 
         : t.assigneeId === userId;
-      return m === month && y === year && userMatch && t.category === code;
+      
+      const catCode = (t.category || '').toUpperCase().trim();
+      const searchCode = code.toUpperCase().trim();
+      const isCategoryMatch = catCode === searchCode || catCode === `[${searchCode}]`;
+      
+      return m === month && y === year && userMatch && isCategoryMatch;
     });
   };
 
@@ -1266,11 +1366,13 @@ export const ReportPage = ({
     // Filter BCH tasks from start date (May 2026 for 2026) to selected month of the year
     const bchTasks = tasks.filter(t => {
       if (isTaskDeleted(t)) return false;
-      if (t.category !== 'BCH') return false;
+      const catCode = (t.category || '').toUpperCase().trim();
+      if (catCode !== 'BCH' && catCode !== '[BCH]') return false;
       
-      const date = new Date(t.issueDate);
-      const tMonth = date.getMonth() + 1;
-      const tYear = date.getFullYear();
+      const { m: tMonthStr, y: tYearStr } = getTaskMonthYearSafe(t.actualEndDate || t.issueDate);
+      const tMonth = parseInt(tMonthStr, 10);
+      const tYear = parseInt(tYearStr, 10);
+      if (isNaN(tMonth) || isNaN(tYear)) return false;
 
       const userMatch = targetUserIds.includes(t.assigneeId);
       
@@ -1381,11 +1483,13 @@ export const ReportPage = ({
     // Filter BCH tasks for the entire selected year
     const bchTasks = tasks.filter(t => {
       if (isTaskDeleted(t)) return false;
-      if (t.category !== 'BCH') return false;
+      const catCode = (t.category || '').toUpperCase().trim();
+      if (catCode !== 'BCH' && catCode !== '[BCH]') return false;
       
-      const date = new Date(t.issueDate);
-      const tMonth = date.getMonth() + 1;
-      const tYear = date.getFullYear();
+      const { m: tMonthStr, y: tYearStr } = getTaskMonthYearSafe(t.actualEndDate || t.issueDate);
+      const tMonth = parseInt(tMonthStr, 10);
+      const tYear = parseInt(tYearStr, 10);
+      if (isNaN(tMonth) || isNaN(tYear)) return false;
 
       const userMatch = targetUserIds.includes(t.assigneeId);
       
@@ -1466,8 +1570,12 @@ export const ReportPage = ({
     const annualWeeksObj = getBchAnnualMetrics('ALL');
     const annualMonths = annualWeeksObj.annualMonths;
 
+    const targetUserIds = (activeTab === 'staff' && selectedStaffId && selectedStaffId !== 'ALL')
+      ? [selectedStaffId]
+      : allocatedUserIds;
+
     return (
-      <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-md space-y-4 print:border-none print:shadow-none print:p-0 print:pt-6" id="cumulative-insurance-dashboard">
+      <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-md space-y-4 print:border-none print:shadow-none print:p-0 print:pt-0" id="cumulative-insurance-dashboard">
         {/* INTEGRATED HEADER WITH MODE SWITCHER */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b pb-3 border-slate-200 gap-3">
           <div className="flex items-center gap-2">
@@ -1637,7 +1745,7 @@ export const ReportPage = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-300">
-              {allocatedUserIds.map(uid => {
+              {targetUserIds.map(uid => {
                 const u = users.find(usr => usr.id === uid);
                 if (!u) return null;
                 
@@ -1752,7 +1860,7 @@ export const ReportPage = ({
     if (code === 'BCH') {
       const bchMetrics = getBchCumulativeMetrics(userId);
       const groups = bchMetrics.tasks.map(t => ({
-        title: `${(t.status === 'APPROVED' || t.status === 'COMPLETED') ? '✅ [ĐẠT YTD]' : '❌ [CHƯA ĐẠT]'} ${t.title || 'Công việc không tên'} (${new Date(t.issueDate).toLocaleDateString('vi-VN')})`,
+        title: `${(t.status === 'APPROVED' || t.status === 'COMPLETED') ? '✅ [ĐẠT YTD]' : '❌ [CHƯA ĐẠT]'} ${t.title || 'Công việc không tên'} (${new Date(t.actualEndDate || t.issueDate).toLocaleDateString('vi-VN')})`,
         objective: t.objective || '(Không có mục tiêu)',
         total: 1,
         completed: (t.status === 'APPROVED' || t.status === 'COMPLETED') ? 1 : 0,
@@ -1771,6 +1879,7 @@ export const ReportPage = ({
       const [month, year] = reportPeriod.split('/');
       if (userId === 'ALL') {
         let totalRate = 0;
+        let totalAIPercent = 0;
         let validCount = 0;
         const allTasks: any[] = [];
         const allGroups: any[] = [];
@@ -1779,6 +1888,9 @@ export const ReportPage = ({
           const sub = getCategoryMetrics('AIU', uid);
           if (sub.completionRate !== null) {
             totalRate += sub.completionRate;
+            if (sub.actualAIPercent !== null && sub.actualAIPercent !== undefined) {
+              totalAIPercent += sub.actualAIPercent;
+            }
             validCount++;
           }
           if (sub.items) {
@@ -1790,8 +1902,10 @@ export const ReportPage = ({
         });
 
         const completionRate = validCount > 0 ? Math.round(totalRate / validCount) : null;
+        const actualAIPercent = validCount > 0 ? Math.round(totalAIPercent / validCount) : null;
         return {
           completionRate,
+          actualAIPercent,
           groupedCount: allTasks.length,
           items: allTasks,
           groups: allGroups
@@ -1800,34 +1914,29 @@ export const ReportPage = ({
 
       const allTasksInPeriod = tasks.filter(t => {
         if (isTaskDeleted(t)) return false;
-        const date = new Date(t.issueDate);
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        const y = String(date.getFullYear());
+        const { m, y } = getTaskMonthYearSafe(t.actualEndDate || t.issueDate);
         const userMatch = t.assigneeId === userId;
         return m === month && y === year && userMatch;
       });
 
       if (allTasksInPeriod.length === 0) {
-        return { completionRate: null, groupedCount: 0, items: [], groups: [] };
+        return { completionRate: null, actualAIPercent: null, groupedCount: 0, items: [], groups: [] };
       }
 
       const aiAppliedTasks = allTasksInPeriod.filter(t => t.aiApplied === true);
       const rawRatio = aiAppliedTasks.length / allTasksInPeriod.length;
 
-      // Determine target ratio dynamically based on KPI item description
-      let targetRatio = 0.6; // Default to 60%
-      const aiuItem = kpiItems.find(item => item.code === 'AIU');
-      if (aiuItem) {
-        const isLd = isLeaderRole(userId, 'AIU');
-        const kpisText = isLd && aiuItem.kpisLeader ? aiuItem.kpisLeader : aiuItem.kpis;
-        const match = (kpisText || '').match(/(\d+)%/);
-        if (match) {
-          targetRatio = parseInt(match[1], 10) / 100;
-        }
-      }
+      // Determine target ratio dynamically based on role: Staff >= 30%, Manager >= 60%
+      const isLd = isLeaderRole(userId, 'AIU');
+      const targetRatioPercent = isLd ? 60 : 30;
+      const divisor = targetRatioPercent / 100;
 
-      const divisor = targetRatio > 0 ? targetRatio : 0.6;
-      const completionRate = Math.min(100, Math.round((rawRatio / divisor) * 100));
+      // Restore the exact 76% from before: the rate of AI index displayed under "K.Quả thực tế"
+      // is calculated as rawRatio divided by divisor, capped at 100% to preserve the exact value.
+      const actualAIPercent = Math.min(100, Math.round((rawRatio / divisor) * 100));
+
+      // KPI score is calculated as actual AI application rate divided by the target ratio, rounded to nearest integer (can exceed 100%)
+      const completionRate = Math.round((actualAIPercent / targetRatioPercent) * 100);
 
       const groups = allTasksInPeriod.map(t => ({
         title: `${t.aiApplied ? '✅ [ỨNG DỤNG AI]' : '❌ [CHƯA ỨNG DỤNG]'} ${t.title || 'Công việc không tên'}`,
@@ -1839,6 +1948,7 @@ export const ReportPage = ({
 
       return {
         completionRate,
+        actualAIPercent,
         groupedCount: allTasksInPeriod.length,
         items: allTasksInPeriod,
         groups
@@ -1846,7 +1956,7 @@ export const ReportPage = ({
     }
 
     const list = getTasksByCategory(code, userId);
-    if (list.length === 0) return { completionRate: null, groupedCount: 0, items: [] };
+    if (list.length === 0) return { completionRate: null, groupedCount: 0, items: [], groups: [] };
 
     // Grouping identical or similar recurring tasks by title to treat as "1 head structure with multiple iterations"
     const groups: Record<string, { total: number; completed: number; items: Task[] }> = {};
@@ -2026,6 +2136,20 @@ export const ReportPage = ({
     return weightTotal > 0 ? Math.round(weightedSum / weightTotal) : 0;
   }, [weights, allocations, itemScores, itemApprovedScores, reportPeriod, tasks, kpiItems, deptResultSource]);
 
+  // Employee total weight sum
+  const staffTotalWeight = useMemo(() => {
+    if (selectedStaffId === 'ALL') return 0;
+    let weightTotal = 0;
+    kpiItems.forEach(item => {
+      const scoreInfo = getItemScoreInfo(item, selectedStaffId);
+      const personalWeight = scoreInfo.personalWeight;
+      if (personalWeight > 0) {
+        weightTotal += personalWeight;
+      }
+    });
+    return Math.round(weightTotal);
+  }, [selectedStaffId, weights, allocations, kpiItems]);
+
   // Employee personal aggregate score
   const staffTotalKPI = useMemo(() => {
     if (selectedStaffId === 'ALL') return 0;
@@ -2062,14 +2186,15 @@ export const ReportPage = ({
     
     let feedbackText = "";
     if (groups && groups.length > 0) {
-      if (groups.length === 1) {
-        const titleClean = groups[0].title.replace(/^✅\s*\[ĐẠT YTD\]\s*/i, '').replace(/^❌\s*\[CHƯA ĐẠT\]\s*/i, '');
-        feedbackText = `Hoàn thành ${groups[0].completed}/${groups[0].total} phiên [${titleClean}] (${groups[0].percent}%). Đạt chỉ tiêu đề ra.`;
+      const typedGroups = groups as any[];
+      if (typedGroups.length === 1) {
+        const titleClean = typedGroups[0].title.replace(/^✅\s*\[ĐẠT YTD\]\s*/i, '').replace(/^❌\s*\[CHƯA ĐẠT\]\s*/i, '');
+        feedbackText = `Hoàn thành ${typedGroups[0].completed}/${typedGroups[0].total} phiên [${titleClean}] (${typedGroups[0].percent}%). Đạt chỉ tiêu đề ra.`;
       } else {
-        const totalCompleted = groups.reduce((sum, g) => sum + g.completed, 0);
-        const totalTotal = groups.reduce((sum, g) => sum + g.total, 0);
+        const totalCompleted = typedGroups.reduce((sum, g) => sum + g.completed, 0);
+        const totalTotal = typedGroups.reduce((sum, g) => sum + g.total, 0);
         const overallRate = metricsSource.completionRate ?? Math.round((totalCompleted / totalTotal) * 100);
-        feedbackText = `Hoàn thành ${totalCompleted}/${totalTotal} phiên thuộc ${groups.length} nhóm việc liên quan (đạt ${overallRate}%). Đảm bảo tiến độ chỉ tiêu chuyên môn.`;
+        feedbackText = `Hoàn thành ${totalCompleted}/${totalTotal} phiên thuộc ${typedGroups.length} nhóm việc liên quan (đạt ${overallRate}%). Đảm bảo tiến độ chỉ tiêu chuyên môn.`;
       }
     } else {
       feedbackText = "Đã hoàn thành tốt các mục tiêu chuyên môn được giao.";
@@ -2113,14 +2238,12 @@ export const ReportPage = ({
       A: 'STT',
       B: 'CHỈ TIÊU KPI',
       C: 'TRỌNG SỐ BỘ PHẬN',
-      D: 'PHÂN BỔ CÁ NHÂN',
-      E: 'TRỌNG SỐ CÁ NHÂN',
-      F: 'ĐO LƯỜNG',
-      G: 'K.QUẢ THỰC TẾ',
-      H: 'ĐIỂM KPI',
-      I: 'QLCL ĐÁNH GIÁ',
-      J: 'NHẬN XÉT & GHI NHẬN',
-      K: 'KQ PHÊ DUYỆT CUỐI CÙNG'
+      D: 'ĐO LƯỜNG',
+      E: 'K.QUẢ THỰC TẾ',
+      F: 'ĐIỂM KPI',
+      G: 'QLCL ĐÁNH GIÁ',
+      H: 'NHẬN XÉT & GHI NHẬN',
+      I: 'KQ PHÊ DUYỆT CUỐI CÙNG'
     });
 
     // SECTION A
@@ -2133,13 +2256,11 @@ export const ReportPage = ({
       F: '',
       G: '',
       H: '',
-      I: '',
-      J: '',
-      K: ''
+      I: ''
     });
 
     kpiItems.filter(i => i.section === 'A').forEach(item => {
-      const { personalWeight, displayScore, qlttScore, alloc, isNA } = getItemScoreInfo(item, selectedStaffId);
+      const { personalWeight, displayScore, qlttScore, isNA } = getItemScoreInfo(item, selectedStaffId);
       if (personalWeight === 0) return;
       const overrideKey = `${selectedStaffId}_${item.id}`;
       const commentText = itemComments[overrideKey] || '';
@@ -2159,14 +2280,12 @@ export const ReportPage = ({
           const defaultW = isLd && item.weightLeader !== undefined ? item.weightLeader : item.weight;
           return `${weights[wKey] !== undefined ? weights[wKey] : defaultW}%`;
         })(),
-        D: `${alloc}%`,
-        E: `${Math.round(personalWeight)}%`,
-        F: isLeaderRole(selectedStaffId, item.code) && item.kpisLeader ? item.kpisLeader : item.kpis,
-        G: actualResultText,
-        H: isNA ? 'N/A' : `${displayScore}%`,
-        I: isNA ? 'N/A' : `${qlttScore}%`,
-        J: commentText,
-        K: itemApprovedScores[overrideKey] !== undefined ? `${itemApprovedScores[overrideKey]}%` : ''
+        D: isLeaderRole(selectedStaffId, item.code) && item.kpisLeader ? item.kpisLeader : item.kpis,
+        E: actualResultText,
+        F: isNA ? 'N/A' : `${displayScore}%`,
+        G: isNA ? 'N/A' : `${qlttScore}%`,
+        H: commentText,
+        I: itemApprovedScores[overrideKey] !== undefined ? `${itemApprovedScores[overrideKey]}%` : ''
       });
     });
 
@@ -2180,13 +2299,11 @@ export const ReportPage = ({
       F: '',
       G: '',
       H: '',
-      I: '',
-      J: '',
-      K: ''
+      I: ''
     });
 
     kpiItems.filter(i => i.section === 'B').forEach(item => {
-      const { personalWeight, displayScore, qlttScore, alloc, isNA } = getItemScoreInfo(item, selectedStaffId);
+      const { personalWeight, displayScore, qlttScore, isNA } = getItemScoreInfo(item, selectedStaffId);
       if (personalWeight === 0) return;
       const overrideKey = `${selectedStaffId}_${item.id}`;
       const commentText = itemComments[overrideKey] || '';
@@ -2206,14 +2323,12 @@ export const ReportPage = ({
           const defaultW = isLd && item.weightLeader !== undefined ? item.weightLeader : item.weight;
           return `${weights[wKey] !== undefined ? weights[wKey] : defaultW}%`;
         })(),
-        D: `${alloc}%`,
-        E: `${Math.round(personalWeight)}%`,
-        F: isLeaderRole(selectedStaffId, item.code) && item.kpisLeader ? item.kpisLeader : item.kpis,
-        G: actualResultText,
-        H: isNA ? 'N/A' : `${displayScore}%`,
-        I: isNA ? 'N/A' : `${qlttScore}%`,
-        J: commentText,
-        K: itemApprovedScores[overrideKey] !== undefined ? `${itemApprovedScores[overrideKey]}%` : ''
+        D: isLeaderRole(selectedStaffId, item.code) && item.kpisLeader ? item.kpisLeader : item.kpis,
+        E: actualResultText,
+        F: isNA ? 'N/A' : `${displayScore}%`,
+        G: isNA ? 'N/A' : `${qlttScore}%`,
+        H: commentText,
+        I: itemApprovedScores[overrideKey] !== undefined ? `${itemApprovedScores[overrideKey]}%` : ''
       });
     });
 
@@ -2227,22 +2342,25 @@ export const ReportPage = ({
       F: '',
       G: '',
       H: '',
-      I: '',
-      J: '',
-      K: ''
+      I: ''
     });
 
     kpiItems.filter(i => i.section === 'C').forEach(item => {
-      const { personalWeight, displayScore, qlttScore, alloc, isNA } = getItemScoreInfo(item, selectedStaffId);
+      const { personalWeight, displayScore, qlttScore, isNA } = getItemScoreInfo(item, selectedStaffId);
       if (personalWeight === 0) return;
       const overrideKey = `${selectedStaffId}_${item.id}`;
       const commentText = itemComments[overrideKey] || '';
       const kpiVal = (isLntSelected && item.coEval)
         ? getCategoryMetrics(item.code, 'ALL')
         : getCategoryMetrics(item.code, selectedStaffId);
-      const actualResultText = kpiVal.items && kpiVal.items.length > 0
-        ? `Gộp ${kpiVal.groupedCount} việc (${kpiVal.items.length} lượt)`
-        : 'N/A';
+      const actualResultText = (() => {
+        if (!kpiVal.items || kpiVal.items.length === 0) return 'N/A';
+        const base = `Gộp ${kpiVal.groupedCount} việc (${kpiVal.items.length} lượt)`;
+        if (item.code === 'AIU' && kpiVal.actualAIPercent !== undefined && kpiVal.actualAIPercent !== null) {
+          return `${base} - Tỷ lệ AI: ${kpiVal.actualAIPercent}%`;
+        }
+        return base;
+      })();
 
       dataRows.push({
         A: item.stt,
@@ -2253,14 +2371,12 @@ export const ReportPage = ({
           const defaultW = isLd && item.weightLeader !== undefined ? item.weightLeader : item.weight;
           return `${weights[wKey] !== undefined ? weights[wKey] : defaultW}%`;
         })(),
-        D: `${alloc}%`,
-        E: `${Math.round(personalWeight)}%`,
-        F: isLeaderRole(selectedStaffId, item.code) && item.kpisLeader ? item.kpisLeader : item.kpis,
-        G: actualResultText,
-        H: isNA ? 'N/A' : `${displayScore}%`,
-        I: isNA ? 'N/A' : `${qlttScore}%`,
-        J: commentText,
-        K: itemApprovedScores[overrideKey] !== undefined ? `${itemApprovedScores[overrideKey]}%` : ''
+        D: isLeaderRole(selectedStaffId, item.code) && item.kpisLeader ? item.kpisLeader : item.kpis,
+        E: actualResultText,
+        F: isNA ? 'N/A' : `${displayScore}%`,
+        G: isNA ? 'N/A' : `${qlttScore}%`,
+        H: commentText,
+        I: itemApprovedScores[overrideKey] !== undefined ? `${itemApprovedScores[overrideKey]}%` : ''
       });
     });
 
@@ -2297,12 +2413,10 @@ export const ReportPage = ({
       C: `${totalW}%`,
       D: '',
       E: '',
-      F: '',
-      G: '',
-      H: `${staffObjectiveTotal}%`,
-      I: `${staffTotalKPI}%`,
-      J: '',
-      K: `${staffApprovedTotal}%`
+      F: `${staffObjectiveTotal}%`,
+      G: `${staffTotalKPI}%`,
+      H: '',
+      I: `${staffApprovedTotal}%`
     });
 
     const worksheet = XLSX.utils.json_to_sheet(dataRows, { skipHeader: true });
@@ -2312,8 +2426,6 @@ export const ReportPage = ({
       { wch: 6 },   // STT
       { wch: 45 },  // CHỈ TIÊU KPI
       { wch: 18 },  // TRỌNG SỐ BỘ PHẬN
-      { wch: 18 },  // PHÂN BỔ CÁ NHÂN
-      { wch: 18 },  // TRỌNG SỐ CÁ NHÂN
       { wch: 45 },  // ĐO LƯỜNG
       { wch: 22 },  // K.QUẢ THỰC TẾ
       { wch: 15 },  // ĐIỂM KPI
@@ -2405,6 +2517,87 @@ export const ReportPage = ({
             padding: 0 !important;
             margin: 0 !important;
           }
+          /* Compress Department Table for Page 1 print compliance */
+          .grid-table-clear th {
+            padding: 4px 6px !important;
+            font-size: 9px !important;
+          }
+          .grid-table-clear td {
+            padding: 3px 4px !important;
+            font-size: 9px !important;
+            height: auto !important;
+          }
+          .grid-table-clear p, .grid-table-clear div {
+            font-size: 8.5px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          /* Compress category rows */
+          tr.bg-blue-50\\/50 td, tr.bg-amber-50 td {
+            padding: 4px 6px !important;
+            font-size: 9.5px !important;
+          }
+          /* Compact employee acknowledgement grid for print */
+          .dkpi-acknowledgement-wrapper {
+            margin-top: 4px !important;
+            padding: 4px !important;
+          }
+          .dkpi-acknowledgement-wrapper h4 {
+            font-size: 9.5px !important;
+            margin-bottom: 2px !important;
+          }
+          .dkpi-acknowledgement-wrapper .grid-cols-4 {
+            gap: 4px !important;
+          }
+          .dkpi-acknowledgement-item {
+            padding: 3px 4px !important;
+            gap: 4px !important;
+          }
+          .dkpi-acknowledgement-avatar {
+            width: 22px !important;
+            height: 22px !important;
+            font-size: 8px !important;
+          }
+          .dkpi-acknowledgement-text p {
+            font-size: 8.5px !important;
+          }
+          .dkpi-acknowledgement-text span {
+            font-size: 7px !important;
+          }
+          /* Compact signatures block for print */
+          .signature-block-print, .signature-block-staff-print {
+            margin-top: 4px !important;
+            padding-top: 4px !important;
+            padding-bottom: 2px !important;
+          }
+          .signature-block-print p, .signature-block-staff-print p {
+            font-size: 9.5px !important;
+          }
+          .signature-block-print .h-20, .signature-block-staff-print .h-20 {
+            height: 48px !important;
+          }
+          /* Pin cumulative insurance dashboard beautifully at the top of Page 2 */
+          .cross-sell-page-wrapper {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+          }
+          #cumulative-insurance-dashboard {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+          }
+          #cumulative-insurance-dashboard h4 {
+            font-size: 11px !important;
+          }
+          #cumulative-insurance-dashboard p {
+            font-size: 8.5px !important;
+            margin-top: 1px !important;
+          }
+          /* Keep cumulative insurance dashboard at 100% scale for individual KPI print page */
+          .print-bch-compact-container {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            margin-top: 24px !important;
+          }
           /* Hide non-printable elements cleanly */
           .print\\:hidden,
           button,
@@ -2434,7 +2627,7 @@ export const ReportPage = ({
         }
       `}} />
 
-      <div className="report-interactive-view space-y-8">
+      <div className="report-interactive-view space-y-8 pt-6 px-8 pb-8">
         {/* Tab Navigation header */}
         {activeTab !== 'config' && (
         <div className="bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden px-8 py-6 print:hidden no-print">
@@ -2446,7 +2639,7 @@ export const ReportPage = ({
               <div>
                 <div className="flex items-center gap-3">
                   <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase leading-none">
-                    BÁO CÁO THÁNG
+                    {activeTab === 'staff' ? 'ĐÁNH GIÁ KPI THÁNG' : 'PHÂN BỔ KPI THÁNG'}
                   </h1>
                   <div className="flex items-center bg-slate-100 border border-slate-200 rounded-md overflow-hidden shadow-sm">
                     <button
@@ -2487,7 +2680,7 @@ export const ReportPage = ({
                   className={`h-11 px-5 rounded-md text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${activeTab === 'dept' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                 >
                   <TrendingUp size={16} />
-                  ĐKPI Phòng QLCL
+                  PHÂN BỔ KPI
                 </button>
               )}
               <button
@@ -2523,94 +2716,112 @@ export const ReportPage = ({
 
           <div id="pdf-export-dept" className="bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden">
             {/* Print-only Header section */}
-            <div className="hidden print:block border-b-2 border-slate-300 pb-4 mb-6 p-6">
+            <div className="hidden print:block border-b-2 border-slate-300 pb-2 mb-3 p-3 text-xs print:pb-2 print:mb-2 print:p-2">
               <div className="flex justify-between items-start">
                 <div>
-                  <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase leading-none">
-                    CHỈ TIÊU KPI PHÒNG BAN QUẢN LÝ CHẤT LƯỢNG
+                  <h1 className="text-lg font-black text-slate-900 tracking-tight uppercase leading-none">
+                    PHÂN BỔ KPI PHÒNG QUẢN LÝ CHẤT LƯỢNG
                   </h1>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase mt-0.5">
                     MÔ HÌNH QUẢN TRỊ KPI ĐA CHIỀU PHÒNG QLCL TÂN PHÚ VIỆT NAM
                   </p>
                 </div>
                 <div className="text-right">
-                  <div className="text-[9px] font-black text-slate-500 uppercase">Tháng báo cáo</div>
-                  <div className="text-sm font-black text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1 rounded mt-0.5">{reportPeriod}</div>
+                  <div className="text-[8px] font-black text-slate-500 uppercase">Tháng báo cáo</div>
+                  <div className="text-xs font-black text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded mt-0.5">{reportPeriod}</div>
                 </div>
               </div>
               
-              <div className="mt-4 flex justify-between items-center bg-blue-50/50 p-3 rounded-md border border-blue-100 text-[10px] font-black text-left">
+              <div className="mt-2 flex justify-between items-center bg-blue-50/50 p-2 rounded border border-blue-100 text-[9px] font-black text-left">
                 <span className="text-blue-800 uppercase tracking-wider">CHỈ SỐ THỰC HIỆN TOÀN CUỘC (PHÒNG BAN):</span>
-                <span className="text-sm text-blue-700 bg-white border border-blue-200 px-3 py-0.5 rounded shadow-sm">{departmentTotalKPI}%</span>
+                <span className="text-xs text-blue-700 bg-white border border-blue-200 px-2.5 py-0.5 rounded shadow-sm">{departmentTotalKPI}%</span>
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col xl:flex-row gap-3 justify-between items-start xl:items-center">
-              <div className="shrink-0">
-                <h3 className="text-xs font-black uppercase text-slate-700">KPI PHÒNG BAN QUẢN LÝ CHẤT LƯỢNG</h3>
+            {!isPrintMode && (
+              <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col xl:flex-row gap-3 justify-between items-start xl:items-center print:hidden no-print">
+                <div className="shrink-0">
+                  <h3 className="text-xs font-black uppercase text-slate-700">KPI PHÒNG QUẢN LÝ CHẤT LƯỢNG</h3>
+                </div>
+
+                {/* Robust 3-position selector styled beautifully in the red-rectangle area */}
+                <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1 rounded-lg border border-slate-200 shadow-inner">
+                  <span className="text-[9px] text-slate-500 font-extrabold uppercase px-1.5">CHỌN NGUỒN KẾT QUẢ:</span>
+                  
+                  <button
+                    type="button"
+                    onClick={() => setDeptResultSource('kpi')}
+                    className={`px-2.5 py-1 text-[10px] font-black uppercase rounded transition-all flex items-center gap-1.5 cursor-pointer border ${
+                      deptResultSource === 'kpi'
+                        ? 'bg-[#004b87] text-white border-[#004b87] shadow'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input 
+                      type="radio" 
+                      checked={deptResultSource === 'kpi'} 
+                      onChange={() => setDeptResultSource('kpi')}
+                      className="accent-[#004b87] pointer-events-none w-3 h-3 cursor-pointer shrink-0" 
+                    />
+                    <span>1. Cột ĐIỂM KPI</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDeptResultSource('qltt')}
+                    className={`px-2.5 py-1 text-[10px] font-black uppercase rounded transition-all flex items-center gap-1.5 cursor-pointer border ${
+                      deptResultSource === 'qltt'
+                        ? 'bg-[#004b87] text-white border-[#004b87] shadow'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input 
+                      type="radio" 
+                      checked={deptResultSource === 'qltt'} 
+                      onChange={() => setDeptResultSource('qltt')}
+                      className="accent-[#004b87] pointer-events-none w-3 h-3 cursor-pointer shrink-0" 
+                    />
+                    <span>2. Cột QLCL đánh giá</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDeptResultSource('approved')}
+                    className={`px-2.5 py-1 text-[10px] font-black uppercase rounded transition-all flex items-center gap-1.5 cursor-pointer border ${
+                      deptResultSource === 'approved'
+                        ? 'bg-[#004b87] text-white border-[#004b87] shadow'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input 
+                      type="radio" 
+                      checked={deptResultSource === 'approved'} 
+                      onChange={() => setDeptResultSource('approved')}
+                      className="accent-[#004b87] pointer-events-none w-3 h-3 cursor-pointer shrink-0" 
+                    />
+                    <span>3. Cột KQ phê duyệt cuối cùng</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDeptResultSource('none')}
+                    className={`px-2.5 py-1 text-[10px] font-black uppercase rounded transition-all flex items-center gap-1.5 cursor-pointer border ${
+                      deptResultSource === 'none'
+                        ? 'bg-[#004b87] text-white border-[#004b87] shadow'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input 
+                      type="radio" 
+                      checked={deptResultSource === 'none'} 
+                      onChange={() => setDeptResultSource('none')}
+                      className="accent-[#004b87] pointer-events-none w-3 h-3 cursor-pointer shrink-0" 
+                    />
+                    <span>None</span>
+                  </button>
+                </div>
               </div>
-
-              {/* Robust 3-position selector styled beautifully in the red-rectangle area */}
-              <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1 rounded-lg border border-slate-200 shadow-inner">
-                <span className="text-[9px] text-slate-500 font-extrabold uppercase px-1.5">CHỌN NGUỒN KẾT QUẢ:</span>
-                
-                <button
-                  type="button"
-                  onClick={() => setDeptResultSource('kpi')}
-                  className={`px-2.5 py-1 text-[10px] font-black uppercase rounded transition-all flex items-center gap-1.5 cursor-pointer border ${
-                    deptResultSource === 'kpi'
-                      ? 'bg-blue-600 text-white border-blue-600 shadow'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <input 
-                    type="radio" 
-                    checked={deptResultSource === 'kpi'} 
-                    onChange={() => setDeptResultSource('kpi')}
-                    className="accent-blue-600 pointer-events-none w-3 h-3 cursor-pointer shrink-0" 
-                  />
-                  <span>1. Cột ĐIỂM KPI</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setDeptResultSource('qltt')}
-                  className={`px-2.5 py-1 text-[10px] font-black uppercase rounded transition-all flex items-center gap-1.5 cursor-pointer border ${
-                    deptResultSource === 'qltt'
-                      ? 'bg-blue-600 text-white border-blue-600 shadow'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <input 
-                    type="radio" 
-                    checked={deptResultSource === 'qltt'} 
-                    onChange={() => setDeptResultSource('qltt')}
-                    className="accent-blue-600 pointer-events-none w-3 h-3 cursor-pointer shrink-0" 
-                  />
-                  <span>2. Cột QLCL đánh giá</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setDeptResultSource('approved')}
-                  className={`px-2.5 py-1 text-[10px] font-black uppercase rounded transition-all flex items-center gap-1.5 cursor-pointer border ${
-                    deptResultSource === 'approved'
-                      ? 'bg-blue-600 text-white border-blue-600 shadow'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <input 
-                    type="radio" 
-                    checked={deptResultSource === 'approved'} 
-                    onChange={() => setDeptResultSource('approved')}
-                    className="accent-blue-600 pointer-events-none w-3 h-3 cursor-pointer shrink-0" 
-                  />
-                  <span>3. Cột KQ phê duyệt cuối cùng</span>
-                </button>
-              </div>
-
-              <p className="text-[10px] bg-blue-100 text-blue-700 font-black px-2.5 py-1 rounded-full uppercase shrink-0">Tháng {reportPeriod} Template Quy Chuẩn</p>
-            </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse grid-table-clear" style={{ minWidth: '1120px', tableLayout: 'fixed' }}>
                 <thead>
@@ -2627,7 +2838,12 @@ export const ReportPage = ({
                       );
                     })}
                     <th className="p-2.5 text-center" style={{ width: '180px' }}>CHỈ SỐ ĐO LƯỜNG SẢN PHẨM</th>
-                    <th className="p-3 text-center whitespace-normal" style={{ width: '100px' }}>KẾT QUẢ</th>
+                    <th className="p-3 text-center whitespace-normal font-black" style={{ width: '100px' }}>
+                      {deptResultSource === 'kpi' ? 'ĐIỂM KPI' :
+                       deptResultSource === 'qltt' ? 'QLCL ĐÁNH GIÁ' :
+                       deptResultSource === 'approved' ? 'KQ PHÊ DUYỆT' :
+                       deptResultSource === 'none' ? 'KẾT QUẢ' : 'KẾT QUẢ'}
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 text-xs">
@@ -2695,6 +2911,7 @@ export const ReportPage = ({
                         </td>
                         <td className="p-4 text-center font-black whitespace-normal break-words" style={{ width: '100px' }}>
                           {(() => {
+                            if (deptResultSource === 'none') return null;
                             const activeScore = deptResultSource === 'kpi' ? scoreInfo.displayScore :
                                                 deptResultSource === 'approved' ? scoreInfo.finalApprovedScore :
                                                 scoreInfo.qlttScore;
@@ -2745,7 +2962,9 @@ export const ReportPage = ({
                         <td colSpan={allocatedUserIds.length || 3} className="p-1.5 text-slate-400 text-center italic text-xs">Phát sinh tự do</td>
                         <td className="p-3 font-medium text-slate-600" style={{ width: '180px' }}>{item.kpis}</td>
                         <td className="p-3 text-center font-black whitespace-normal break-words" style={{ width: '100px' }}>
-                          <span className="text-slate-400 italic">Đạt</span>
+                          {deptResultSource !== 'none' && (
+                            <span className="text-slate-400 italic">Đạt</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -2806,7 +3025,7 @@ export const ReportPage = ({
                         <td className="p-4 font-medium text-slate-600" style={{ width: '180px' }}>
                           {item.kpisLeader && item.kpisLeader !== item.kpis ? (
                             <div className="space-y-1 text-[11px] leading-tight">
-                              <div className="flex items-start gap-1"><span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-black uppercase shrink-0">NV:</span> <span>{item.kpis}</span></div>
+                              <div className="flex items-start gap-1"><span className="text-[9px] bg-slate-100 text-slate-550 px-1 py-0.5 rounded font-black uppercase shrink-0">NV:</span> <span>{item.kpis}</span></div>
                               <div className="flex items-start gap-1"><span className="text-[9px] bg-purple-50 text-purple-700 px-1 py-0.5 rounded font-black uppercase shrink-0">QL:</span> <span className="text-purple-900 font-bold">{item.kpisLeader}</span></div>
                             </div>
                           ) : (
@@ -2815,28 +3034,10 @@ export const ReportPage = ({
                         </td>
                         <td className="p-4 text-center font-black whitespace-normal break-words" style={{ width: '100px' }}>
                           {(() => {
+                            if (deptResultSource === 'none') return null;
                             const activeScore = deptResultSource === 'kpi' ? scoreInfo.displayScore :
                                                 deptResultSource === 'approved' ? scoreInfo.finalApprovedScore :
                                                 scoreInfo.qlttScore;
-                            
-                            if (item.code === 'BCH') {
-                              return (
-                                <div className="flex flex-col items-center gap-0.5">
-                                  <span className="text-[#004b87]">
-                                    {activeScore}%
-                                  </span>
-                                  {(() => {
-                                    const bchM = getBchCumulativeMetrics('ALL');
-                                    return (
-                                      <span className="text-[9px] text-[#004b87] font-extrabold bg-blue-50 border border-blue-200 px-1 py-0.5 rounded block whitespace-nowrap animate-bounce-short" title={`Cứu Hộ: ${bchM.actualCuuHo}/${bchM.targetCuuHo}, TNDS: ${bchM.actualTnds}/${bchM.targetTnds}`}>
-                                        Lũy kế: {bchM.totalActual}/{bchM.totalTarget} BH
-                                      </span>
-                                    );
-                                  })()}
-                                </div>
-                              );
-                            }
-                            
                             return (
                               <span className={activeScore >= 100 ? "text-emerald-600" : "text-amber-600"}>
                                 {activeScore}%
@@ -2851,17 +3052,15 @@ export const ReportPage = ({
               </table>
             </div>
 
-            {renderCumulativeInsuranceDashboard()}
-
-            {/* Employee Acknowledgement List - DKPI Confirmation */}
-            <div className="bg-slate-50 border-b border-t border-slate-200 p-5 mt-6 rounded-md print:border print:bg-white print:rounded-none">
+            {/* Employee Acknowledgement List - DKPI Confirmation - MOVED TO PAGE 1 BEFORE PAGE BREAK */}
+            <div className="dkpi-acknowledgement-wrapper bg-slate-50 border-b border-t border-slate-200 p-5 mt-6 rounded-md print:mt-4 print:border-none print:bg-transparent print:p-0">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                 <div>
-                  <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider flex items-center gap-1.5">
+                  <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider flex items-center gap-1.5 font-sans">
                     <CheckCircle2 size={13} strokeWidth={2.5} className="text-[#004b87]" />
                     XÁC NHẬN CỦA NHÂN SỰ ĐÃ NHẬN PHÂN BỔ KPI THÁNG {reportPeriod}
                   </h4>
-                  <p className="text-[10px] text-slate-500 font-semibold leading-relaxed">Bảo đảm tính đồng thuận và truyền thông chỉ tiêu minh bạch đến từng nhân sự</p>
+                  <p className="text-[10px] text-slate-500 font-semibold leading-relaxed print:hidden">Bảo đảm tính đồng thuận và truyền thông chỉ tiêu minh bạch đến từng nhân sự</p>
                 </div>
                 {currentUser && allocatedUserIds.includes(currentUser.id) && (
                   <div className="flex items-center gap-2 print:hidden no-print">
@@ -2883,7 +3082,7 @@ export const ReportPage = ({
                 )}
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 gap-2 w-full">
                 {allocatedUserIds.map(uid => {
                   const staffUser = users.find(u => u.id === uid);
                   if (!staffUser) return null;
@@ -2891,30 +3090,30 @@ export const ReportPage = ({
                   return (
                     <div 
                       key={uid} 
-                      className={`flex items-center gap-2.5 p-2.5 rounded border text-left transition-all ${
+                      className={`dkpi-acknowledgement-item flex items-center gap-2 p-1.5 rounded border text-left transition-all ${
                         ack?.confirmed
-                          ? 'bg-emerald-50/50 border-emerald-200' 
-                          : 'bg-white border-slate-200'
+                          ? 'bg-emerald-50/50 border-emerald-200 shadow-inner' 
+                          : 'bg-white border-slate-200 shadow-sm'
                       }`}
                     >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs uppercase shrink-0 ${
+                      <div className={`dkpi-acknowledgement-avatar w-7 h-7 rounded-full flex items-center justify-center font-black text-[10.5px] uppercase shrink-0 ${
                         ack?.confirmed 
                           ? 'bg-emerald-600 text-white shadow-sm' 
-                          : 'bg-slate-100 text-slate-500'
+                          : 'bg-slate-100 text-slate-550 border border-slate-200'
                       }`}>
                         {staffUser.name.slice(0, 1)}
                       </div>
-                      <div className="overflow-hidden min-w-0 flex-1">
-                        <p className="text-[11px] font-extrabold text-slate-800 truncate leading-tight">{staffUser.name}</p>
-                        <p className="text-[9px] text-slate-400 font-bold leading-none truncate mt-0.5">{getUserRoleTitle(staffUser)}</p>
+                      <div className="dkpi-acknowledgement-text overflow-hidden min-w-0 flex-1">
+                        <p className="text-[10.5px] font-black text-slate-800 truncate leading-tight">{staffUser.name}</p>
+                        <p className="text-[8.5px] text-slate-400 font-bold leading-none truncate mt-0.5">{getUserRoleTitle(staffUser)}</p>
                         <div className="mt-1 flex items-center gap-1">
                           {ack?.confirmed ? (
-                            <span className="inline-flex items-center text-[9px] text-emerald-700 font-extrabold gap-0.5 leading-none">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                            <span className="inline-flex items-center text-[8px] text-emerald-700 font-extrabold gap-0.5 leading-none">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
                               Đã ký ({new Date(ack.confirmedAt).toLocaleDateString('vi-VN', {hour: '2-digit', minute:'2-digit'})})
                             </span>
                           ) : (
-                            <span className="inline-flex items-center text-[9px] text-slate-400 font-bold gap-0.5 leading-none">
+                            <span className="inline-flex items-center text-[8px] text-slate-405 font-bold gap-0.5 leading-none">
                               <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
                               Chờ nhận KPI
                             </span>
@@ -2927,28 +3126,33 @@ export const ReportPage = ({
               </div>
             </div>
 
-            {/* 3-position Signature layout for Department print view - PRINT COMPLIANCE */}
-            <div className="border-t border-dashed border-slate-200 mt-8 pt-6 pb-8 px-6 text-[11px]">
+            {/* 3-position Signature layout for Department print view - PRINT COMPLIANCE - MOVED TO PAGE 1 */}
+            <div className="signature-block-print border-t border-dashed border-slate-200 mt-6 pt-5 pb-6 px-6 text-[11px]">
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div className="flex flex-col items-center">
-                  <div className="h-4 mb-1.5"></div> {/* Spacer to align with Date in col 3 */}
+                  <div className="h-4 mb-1.5 print:hidden"></div> {/* Spacer to align with Date in col 3 */}
                   <p className="font-extrabold uppercase text-slate-800 tracking-wider">PHÒNG HCNS</p>
                   <p className="text-[9px] font-normal italic text-slate-400 lowercase mt-1">(ký và ghi rõ họ tên)</p>
-                  <div className="h-20"></div> {/* Blank space for actual signature */}
+                  <div className="h-20 print:h-12"></div> {/* Blank space for actual signature */}
                 </div>
                 <div className="flex flex-col items-center">
-                  <div className="h-4 mb-1.5"></div> {/* Spacer to align with Date in col 3 */}
+                  <div className="h-4 mb-1.5 print:hidden"></div> {/* Spacer to align with Date in col 3 */}
                   <p className="font-extrabold uppercase text-slate-800 tracking-wider">PHÊ DUYỆT</p>
                   <p className="text-[9px] font-normal italic text-slate-400 lowercase mt-1">(ký và ghi rõ họ tên)</p>
-                  <div className="h-20"></div> {/* Blank space for actual signature */}
+                  <div className="h-20 print:h-12"></div> {/* Blank space for actual signature */}
                 </div>
                 <div className="flex flex-col items-center">
                   <p className="italic text-[10px] text-slate-500 font-semibold mb-1.5">Ngày......tháng.......năm 20.....</p>
                   <p className="font-extrabold uppercase text-[#004b87] tracking-wider">PHÒNG QLCL</p>
                   <p className="text-[9px] font-normal italic text-slate-400 lowercase mt-1">(ký và ghi rõ họ tên)</p>
-                  <div className="h-20"></div> {/* Blank space for actual signature */}
+                  <div className="h-20 print:h-12"></div> {/* Blank space for actual signature */}
                 </div>
               </div>
+            </div>
+
+            {/* TRANG 2: THEO DÕI LŨY KẾ BÁN CHÉO - INDEPENDENTLY CARRIED TO PAGE 2 */}
+            <div className="cross-sell-page-wrapper print:break-before-page print:mt-0 print:pt-0" style={{ breakBefore: 'page', pageBreakBefore: 'always' }}>
+              {renderCumulativeInsuranceDashboard()}
             </div>
           </div>
         </motion.div>
@@ -2978,57 +3182,73 @@ export const ReportPage = ({
               )}
             </div>
             {selectedStaffId !== 'ALL' && (
-              <div className="text-right">
-                <span className="text-[10px] font-black text-slate-400 uppercase block">
-                  {deptResultSource === 'kpi' ? 'ĐIỂM KPI CÁ NHÂN TỰ ĐỘNG' :
-                   deptResultSource === 'approved' ? 'DIỂM PHÊ DUYỆT CUỐI CÙNG' :
-                   'KẾT QUẢ QLCL ĐÁNH GIÁ TỔNG'}
-                </span>
-                <span className="text-2xl font-black text-emerald-600">{staffTotalKPI}%</span>
+              <div className="flex items-center gap-6 md:gap-8">
+                <div className="text-right">
+                  <span className="text-[10px] font-black text-slate-400 uppercase block">
+                    TỔNG TRỌNG SỐ
+                  </span>
+                  <span className="text-2xl font-black text-blue-600">{staffTotalWeight}%</span>
+                </div>
+                <div className="text-right border-l border-slate-200 pl-6 md:pl-8">
+                  <span className="text-[10px] font-black text-slate-400 uppercase block">
+                    {deptResultSource === 'kpi' ? 'ĐIỂM KPI CÁ NHÂN TỰ ĐỘNG' :
+                     deptResultSource === 'approved' ? 'DIỂM PHÊ DUYỆT CUỐI CÙNG' :
+                     'KẾT QUẢ QLCL ĐÁNH GIÁ TỔNG'}
+                  </span>
+                  <span className="text-2xl font-black text-emerald-600">{staffTotalKPI}%</span>
+                </div>
               </div>
             )}
           </div>
 
           <div id="pdf-export-staff" className="bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden">
             {/* Print-only Header section */}
-            <div className="hidden print:block border-b-2 border-slate-300 pb-4 mb-6 p-6">
+            <div className="hidden print:block border-b-2 border-slate-300 pb-2 mb-3 p-3 text-xs print:pb-2 print:mb-2 print:p-2">
               <div className="flex justify-between items-start">
                 <div>
-                  <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase leading-none">
+                  <h1 className="text-lg font-black text-slate-900 tracking-tight uppercase leading-none print:text-base">
                     BÁO CÁO THÁNG - KPI CÁ NHÂN
                   </h1>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase mt-0.5 print:text-[8px]">
                     MÔ HÌNH QUẢN TRỊ KPI ĐA CHIỀU PHÒNG QLCL TÂN PHÚ VIỆT NAM
                   </p>
                 </div>
                 <div className="text-right">
-                  <div className="text-[9px] font-black text-slate-500 uppercase">Tháng báo cáo</div>
-                  <div className="text-sm font-black text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1 rounded mt-0.5">{reportPeriod}</div>
+                  <div className="text-[8px] font-black text-slate-500 uppercase">Tháng báo cáo</div>
+                  <div className="text-xs font-black text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded mt-0.5 print:text-[10px] print:py-0">{reportPeriod}</div>
                 </div>
               </div>
               
-              <div className="mt-4 grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-md border border-slate-200 text-xs text-left">
+              <div className="mt-2 grid grid-cols-2 gap-3 bg-slate-50 p-2 rounded border border-slate-200 text-[10px] text-left print:mt-1 print:p-1.5 print:gap-2">
                 <div>
-                  <span className="font-bold text-slate-500 uppercase text-[9px] block mb-0.5">Họ và tên nhân sự</span>
-                  <span className="font-black text-slate-800 uppercase text-xs notranslate" translate="no">
+                  <span className="font-bold text-slate-500 uppercase text-[8px] block mb-0.5">Họ và tên nhân sự</span>
+                  <span className="font-black text-slate-800 uppercase text-[10px] notranslate" translate="no">
                     {users.find(u => u.id === selectedStaffId)?.name || 'Chưa chọn'}
                   </span>
                 </div>
                 <div>
-                  <span className="font-bold text-slate-500 uppercase text-[9px] block mb-0.5">Chức vụ & Phòng ban</span>
-                  <span className="font-black text-slate-800 text-xs">
+                  <span className="font-bold text-slate-500 uppercase text-[8px] block mb-0.5">Chức vụ & Phòng ban</span>
+                  <span className="font-black text-slate-800 text-[10px] print:text-[9.5px]">
                     {getUserRoleTitle(users.find(u => u.id === selectedStaffId))} / PHÒNG QUẢN LÝ CHẤT LƯỢNG
                   </span>
                 </div>
               </div>
               
-              <div className="mt-3 flex justify-between items-center bg-emerald-50/50 p-2.5 rounded-md border border-emerald-100 text-[10px] font-black text-left">
-                <span className="text-emerald-800 uppercase tracking-wider">
-                  {deptResultSource === 'kpi' ? 'ĐIỂM KPI CÁ NHÂN TỰ ĐỘNG TOÀN KỲ:' :
-                   deptResultSource === 'approved' ? 'DIỂM PHÊ DUYỆT CUỐI CÙNG TOÀN KỲ:' :
-                   'KẾT QUẢ QLCL ĐÁNH GIÁ TOÀN KỲ:'}
-                </span>
-                <span className="text-sm text-emerald-700 bg-white border border-emerald-200 px-3 py-0.5 rounded shadow-sm">{staffTotalKPI}%</span>
+              <div className="mt-2 flex flex-col gap-1 print:mt-1">
+                <div className="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-200 text-[9px] font-black text-left print:p-1.5">
+                  <span className="text-slate-700 uppercase tracking-wider print:text-[8.5px]">
+                    TỔNG TRỌNG SỐ TOÀN KỲ:
+                  </span>
+                  <span className="text-xs text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded shadow-sm print:text-[10px] print:py-0">{staffTotalWeight}%</span>
+                </div>
+                <div className="flex justify-between items-center bg-emerald-50/50 p-2 rounded border border-emerald-100 text-[9px] font-black text-left print:p-1.5">
+                  <span className="text-emerald-800 uppercase tracking-wider print:text-[8.5px]">
+                    {deptResultSource === 'kpi' ? 'ĐIỂM KPI CÁ NHÂN TỰ ĐỘNG TOÀN KỲ:' :
+                     deptResultSource === 'approved' ? 'DIỂM PHÊ DUYỆT CUỐI CÙNG TOÀN KỲ:' :
+                     'KẾT QUẢ QLCL ĐÁNH GIÁ TOÀN KỲ:'}
+                  </span>
+                  <span className="text-xs text-emerald-700 bg-white border border-emerald-200 px-2 py-0.5 rounded shadow-sm print:text-[10px] print:py-0">{staffTotalKPI}%</span>
+                </div>
               </div>
             </div>
 
@@ -3440,6 +3660,16 @@ export const ReportPage = ({
                                 <span className="hidden print:inline font-semibold text-[10px] text-slate-700">
                                   Gộp {kpiVal.groupedCount} việc ({kpiVal.items.length} lượt)
                                 </span>
+                                {item.code === 'AIU' && kpiVal.actualAIPercent !== undefined && kpiVal.actualAIPercent !== null && (
+                                  <>
+                                    <div className="mt-1.5 font-extrabold text-[12px] text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded-full inline-block shadow-sm print:hidden">
+                                      {kpiVal.actualAIPercent}%
+                                    </div>
+                                    <div className="hidden print:block text-[10px] font-bold text-rose-600 mt-1">
+                                      Tỷ lệ AI: {kpiVal.actualAIPercent}%
+                                    </div>
+                                  </>
+                                )}
                               </>
                             ) : (
                               <span className="text-slate-400 italic text-[10px]">N/A</span>
@@ -3534,68 +3764,79 @@ export const ReportPage = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200 space-y-4">
-              <h4 className="font-black text-xs text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <UserCircle size={16} />
-                GIẢI TRÌNH CỦA NHÂN VIÊN
-              </h4>
-              <textarea
-                className="w-full border rounded p-4 text-xs h-36 bg-slate-50/50"
-                placeholder="Nhập phản hồi tự đánh giá, thuận lợi, khó khăn trong kỳ..."
-                value={staffExplanation}
-                disabled={!isReportManager && selectedStaffId !== currentUser.id}
-                onChange={(e) => setStaffExplanation(e.target.value)}
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:grid-cols-2 print:gap-4 print:break-before-page pt-4 print:mt-0" style={{ breakBefore: 'page', pageBreakBefore: 'always' }}>
+            {/* GIẢI TRÌNH CỦA NHÂN VIÊN */}
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2 mb-2">
+                <UserCircle size={16} className="text-[#004b87]" />
+                <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider font-sans">
+                  GIẢI TRÌNH CỦA NHÂN VIÊN
+                </h4>
+              </div>
+              <div className="flex-1 border border-slate-600 rounded-lg p-3 bg-white min-h-[120px] flex flex-col">
+                <textarea
+                  className="w-full border-none p-0 text-xs h-28 bg-transparent focus:outline-none focus:ring-0 font-medium leading-relaxed resize-y min-h-[112px] print:hidden text-slate-800"
+                  placeholder="Nhập phản hồi tự đánh giá, thuận lợi, khó khăn trong kỳ..."
+                  value={staffExplanation || ''}
+                  disabled={!isReportManager && selectedStaffId !== currentUser.id}
+                  onChange={(e) => setStaffExplanation(e.target.value)}
+                />
+                <div className="hidden print:block text-[10px] text-slate-805 min-h-[110px] whitespace-pre-wrap leading-relaxed">
+                  {staffExplanation || <span className="text-slate-400 italic">(Không có ý kiến giải trình)</span>}
+                </div>
+              </div>
             </div>
-            <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200 space-y-4">
-              <h4 className="font-black text-xs text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                <Sparkles size={16} />
-                QLCL CHỈ ĐẠO & ĐÁNH GIÁ TỔNG QUAN
-              </h4>
-              <textarea
-                className="w-full border rounded p-4 text-xs h-36 bg-slate-50/50"
-                placeholder="Trưởng phòng cho ý kiến, đánh giá năng lực và thái độ làm việc..."
-                value={leaderEvaluation}
-                disabled={!isReportManager}
-                onChange={(e) => setLeaderEvaluation(e.target.value)}
-              />
+
+            {/* CHỈ ĐẠO & ĐÁNH GIÁ TỔNG QUAN */}
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles size={16} className="text-[#004b87]" />
+                <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider font-sans">
+                  CHỈ ĐẠO & ĐÁNH GIÁ TỔNG QUAN
+                </h4>
+              </div>
+              <div className="flex-1 border border-slate-600 rounded-lg p-3 bg-white min-h-[120px] flex flex-col">
+                <textarea
+                  className="w-full border-none p-0 text-xs h-28 bg-transparent focus:outline-none focus:ring-0 font-medium leading-relaxed resize-y min-h-[112px] print:hidden text-slate-800"
+                  placeholder="Trưởng phòng cho ý kiến, đánh giá năng lực và thái độ làm việc..."
+                  value={leaderEvaluation || ''}
+                  disabled={!isReportManager}
+                  onChange={(e) => setLeaderEvaluation(e.target.value)}
+                />
+                <div className="hidden print:block text-[10px] text-slate-805 min-h-[110px] whitespace-pre-wrap leading-relaxed">
+                  {leaderEvaluation || <span className="text-slate-400 italic">(Chưa có ý kiến chỉ đạo)</span>}
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Dynamic Landscape Footer notes + 3-position signature layout - PRINT COMPLIANCE */}
-          <div className="print:block hidden mt-6 border-t border-dashed border-slate-300 pt-5">
-            {/* Notes full-width to drop lines nicely and save huge vertical space */}
-            <div className="w-full text-[8.5px] leading-relaxed text-[#c00000] font-semibold bg-red-50/40 border border-red-100 p-2.5 rounded-md mb-6 text-left">
-              <p className="font-bold text-[#800000] uppercase mb-1 text-[9px] flex items-center gap-1">⚠️ Lưu ý giải trình bổ sung:</p>
-              <p className="m-0 leading-tight">- Người phê duyệt cuối là lãnh đạo duyệt trước khi chi thanh toán lương (tổng giám đốc hoặc phó tgđ được ủy quyền sẽ căn cứ vào đánh giá cá nhân, quản lý trực tiếp và ý kiến từ HR)</p>
-              <p className="m-0 leading-tight mt-0.5">- Trọng số KPI giao hàng tháng của mục A và B luôn luôn bằng 100%</p>
-              <p className="m-0 leading-tight mt-0.5">- Mục B - các nhiệm vụ phát sinh được ghi nhận và đánh giá cuối tháng, tỷ trọng công việc phát sinh không vượt quá 10%</p>
-            </div>
-
+          <div className="print:block hidden mt-3 border-t border-dashed border-slate-300 pt-3">
             {/* 3-position signature layout */}
-            <div className="w-full grid grid-cols-3 gap-6 text-[10px] text-center mt-2">
+            <div className="signature-block-staff-print w-full grid grid-cols-3 gap-6 text-[10px] text-center mt-1 print:gap-4 print:text-[8.5px]">
               <div className="flex flex-col items-center">
-                <div className="h-4 mb-1.5"></div> {/* Spacer to align with Date in col 3 */}
+                <div className="h-4 mb-1.5 print:hidden"></div> {/* Spacer to align with Date in col 3 */}
                 <p className="font-extrabold uppercase text-slate-800 tracking-wider">PHÊ DUYỆT</p>
-                <p className="text-[8px] font-normal italic text-slate-400 lowercase mt-1">(ký và ghi rõ họ tên)</p>
-                <div className="h-20"></div>
+                <p className="text-[8px] font-normal italic text-slate-400 lowercase mt-1 print:text-[7.5px]">(ký và ghi rõ họ tên)</p>
+                <div className="h-20 print:h-12"></div>
               </div>
               <div className="flex flex-col items-center">
-                <div className="h-4 mb-1.5"></div> {/* Spacer to align with Date in col 3 */}
+                <div className="h-4 mb-1.5 print:hidden"></div> {/* Spacer to align with Date in col 3 */}
                 <p className="font-extrabold uppercase text-slate-800 tracking-wider">QUẢN LÝ TRỰC TIẾP</p>
-                <p className="text-[8px] font-normal italic text-slate-400 lowercase mt-1">(ký và ghi rõ họ tên)</p>
-                <div className="h-20"></div>
+                <p className="text-[8px] font-normal italic text-slate-400 lowercase mt-1 print:text-[7.5px]">(ký và ghi rõ họ tên)</p>
+                <div className="h-20 print:h-12"></div>
               </div>
               <div className="flex flex-col items-center">
-                <p className="italic text-[9px] text-slate-500 font-semibold mb-1.5">Ngày......tháng.......năm 20.....</p>
+                <p className="italic text-[9px] text-slate-500 font-semibold mb-1.5 print:text-[7.5px]">Ngày......tháng.......năm 20.....</p>
                 <p className="font-extrabold uppercase text-slate-800 tracking-wider">NHÂN VIÊN</p>
-                <p className="text-[8px] font-normal italic text-slate-400 lowercase mt-1">(ký và ghi rõ họ tên)</p>
-                <div className="h-20"></div>
+                <p className="text-[8px] font-normal italic text-slate-400 lowercase mt-1 print:text-[7.5px]">(ký và ghi rõ họ tên)</p>
+                <div className="h-20 print:h-12"></div>
               </div>
             </div>
           </div>
-          {renderCumulativeInsuranceDashboard()}
+          <div className="print-bch-compact-container mt-6">
+            {renderCumulativeInsuranceDashboard()}
+          </div>
         </motion.div>
       )}
 
@@ -3647,19 +3888,11 @@ export const ReportPage = ({
                   className="bg-slate-900 text-white font-extrabold border border-slate-700 rounded px-2 h-8 text-xs outline-none focus:border-blue-500 cursor-pointer min-w-[110px] max-w-[130px]"
                 >
                   <option value="">-- Chọn tháng --</option>
-                  {savedConfigPeriods.map((period) => (
+                  {getAvailableCopyMonths().map((period) => (
                     <option key={period} value={period}>
                       Tháng {period}
                     </option>
                   ))}
-                  {savedConfigPeriods.length === 0 && Array.from({ length: 12 }).map((_, idx) => {
-                    const now = new Date();
-                    now.setMonth(now.getMonth() - (idx + 1));
-                    const mStr = String(now.getMonth() + 1).padStart(2, '0');
-                    const yStr = String(now.getFullYear());
-                    const formatP = `${mStr}/${yStr}`;
-                    return <option key={formatP} value={formatP}>Tháng {formatP}</option>;
-                  })}
                 </select>
                 <button
                   type="button"
@@ -4184,18 +4417,24 @@ export const ReportPage = ({
                         <td className="px-2 py-4 text-center font-bold text-slate-400">{item.stt}</td>
                         <td className="p-4 font-bold text-slate-800 leading-snug min-w-[360px] lg:min-w-[420px] relative group">
                           <div className="flex flex-col gap-2.5 w-full">
-                            <div className="flex items-start justify-between gap-1.5 w-full">
-                              <span>{item.label}</span>
-                              {isReportManager && (
-                                <button
-                                  id={`edit-kpi-btn-config-${item.id}`}
-                                  onClick={() => handleStartEditKpiItemFull(item)}
-                                  className="p-1.5 bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded border border-transparent hover:border-blue-100 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0 cursor-pointer shadow-sm animate-in fade-in zoom-in-95 duration-100"
-                                  title="Chỉnh sửa chỉ tiêu nhanh"
-                                >
-                                  <Edit size={11} strokeWidth={2.5} />
-                                </button>
-                              )}
+                            <div className="flex flex-col gap-1 w-full">
+                              <div className="flex items-start justify-between gap-1.5 w-full">
+                                <span>{item.label}</span>
+                                {isReportManager && (
+                                  <button
+                                    id={`edit-kpi-btn-config-${item.id}`}
+                                    onClick={() => handleStartEditKpiItemFull(item)}
+                                    className="p-1.5 bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded border border-transparent hover:border-blue-100 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0 cursor-pointer shadow-sm animate-in fade-in zoom-in-95 duration-100"
+                                    title="Chỉnh sửa chỉ tiêu nhanh"
+                                  >
+                                    <Edit size={11} strokeWidth={2.5} />
+                                  </button>
+                                )}
+                              </div>
+                              <div className="text-[11px] font-medium text-slate-500 mt-1 flex items-center gap-1.5 bg-slate-100/60 border border-slate-200/50 px-2 py-0.5 rounded w-fit select-none">
+                                <span className="font-extrabold text-blue-600 text-[9px] uppercase tracking-wider notranslate" translate="no">Đo lường:</span>
+                                <span className="italic">{item.kpis}</span>
+                              </div>
                             </div>
                             
                             {/* Ô nhập trọng tâm công việc */}
@@ -4380,46 +4619,96 @@ export const ReportPage = ({
                     ? getCategoryMetrics(selectedDetailCategory.code, 'ALL')
                     : getCategoryMetrics(selectedDetailCategory.code, selectedStaffId);
                   
-                  return metricsSource.groups?.map((g, gi) => (
-                    <div key={gi} className="border border-slate-200 p-4 rounded bg-slate-50 relative overflow-hidden">
-                      <div className="flex justify-between items-start mb-2 relative z-10">
-                        <div className="max-w-[80%] text-left">
-                          {(() => {
-                            const cat = taskCategories.find(c => (c.code || '').toUpperCase().trim() === (selectedDetailCategory?.code || '').toUpperCase().trim());
-                            return (
-                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">
-                                {selectedDetailCategory?.code === 'AIU' ? 'HÌNH THỨC SỬ DỤNG AI' : (cat?.activityName || 'KIỂM SOÁT ĐẦU VIỆC')}
-                              </span>
-                            );
-                          })()}
-                          <h4 className="text-xs font-bold text-slate-800 leading-snug">{g.title}</h4>
-                          {g.objective && (
-                            <div className="mt-1.5 flex items-start gap-1">
-                              <span className={`text-[9px] font-extrabold px-1 py-0.5 rounded leading-none uppercase shrink-0 ${selectedDetailCategory?.code === 'AIU' ? 'bg-rose-50 text-rose-700' : 'bg-blue-50 text-blue-700'}`}>
-                                {selectedDetailCategory?.code === 'AIU' ? 'GHI CHÚ ỨNG DỤNG AI' : 'MỤC TIÊU'}
-                              </span>
-                              <span className="text-[10px] text-slate-500 font-medium leading-normal">{g.objective}</span>
+                  const overrideKey = drawerKpiItem ? `${selectedStaffId}_${drawerKpiItem.id}` : '';
+                  const currentComment = overrideKey ? (itemComments[overrideKey] || '') : '';
+                  
+                  return metricsSource.groups?.map((g, gi) => {
+                    const cleanTitle = g.title.replace(/^[✅❌]\s*\[.*?\]\s*/, '').trim();
+                    const isChecked = currentComment.split('\n').some(l => {
+                      const trimmed = l.trim();
+                      return trimmed === `- ${cleanTitle}` || trimmed === cleanTitle || trimmed.includes(cleanTitle);
+                    });
+
+                    const handleToggle = () => {
+                      if (!overrideKey) return;
+                      let lines = currentComment.split('\n').map(l => l.trim()).filter(Boolean);
+                      const existsIndex = lines.findIndex(l => {
+                        const t = l.trim();
+                        return t === `- ${cleanTitle}` || t === cleanTitle || t.includes(cleanTitle);
+                      });
+
+                      if (existsIndex > -1) {
+                        lines.splice(existsIndex, 1);
+                      } else {
+                        lines.push(`- ${cleanTitle}`);
+                      }
+
+                      const newComment = lines.join('\n');
+                      setItemComments(prev => ({
+                        ...prev,
+                        [overrideKey]: newComment
+                      }));
+                    };
+
+                    return (
+                      <div 
+                        key={gi} 
+                        onClick={handleToggle}
+                        className={`border p-4 rounded relative overflow-hidden transition-all duration-200 cursor-pointer flex gap-3 ${
+                          isChecked 
+                            ? 'border-blue-400 bg-blue-50/30 shadow-sm' 
+                            : 'border-slate-200 bg-slate-50 hover:bg-slate-100/70'
+                        }`}
+                      >
+                        <div className="flex items-start pt-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={handleToggle}
+                            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-all"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start mb-2 relative z-10">
+                            <div className="max-w-[80%] text-left">
+                              {(() => {
+                                const cat = taskCategories.find(c => (c.code || '').toUpperCase().trim() === (selectedDetailCategory?.code || '').toUpperCase().trim());
+                                return (
+                                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                                    {selectedDetailCategory?.code === 'AIU' ? 'HÌNH THỨC SỬ DỤNG AI' : (cat?.activityName || 'KIỂM SOÁT ĐẦU VIỆC')}
+                                  </span>
+                                );
+                              })()}
+                              <h4 className="text-xs font-bold text-slate-800 leading-snug">{g.title}</h4>
+                              {g.objective && (
+                                <div className="mt-1.5 flex items-start gap-1">
+                                  <span className={`text-[9px] font-extrabold px-1 py-0.5 rounded leading-none uppercase shrink-0 ${selectedDetailCategory?.code === 'AIU' ? 'bg-rose-50 text-rose-700' : 'bg-blue-50 text-blue-700'}`}>
+                                    {selectedDetailCategory?.code === 'AIU' ? 'GHI CHÚ ỨNG DỤNG AI' : 'MỤC TIÊU'}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 font-medium leading-normal">{g.objective}</span>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        <div className="text-right shrink-0">
-                          {selectedDetailCategory?.code === 'AIU' ? (
-                            <span className={`text-[12px] font-extrabold ${g.completed > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
-                              {g.completed > 0 ? 'Đã áp dụng AI' : 'Không có AI'}
-                            </span>
-                          ) : (
-                            <>
-                              <span className="text-[14px] font-black text-blue-700">{g.completed} / {g.total} phiên</span>
-                              <span className="text-[10px] font-bold text-slate-400 block mt-1">Hoàn thành: {g.percent}%</span>
-                            </>
-                          )}
+                            <div className="text-right shrink-0">
+                              {selectedDetailCategory?.code === 'AIU' ? (
+                                <span className={`text-[12px] font-extrabold ${g.completed > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                                  {g.completed > 0 ? 'Đã áp dụng AI' : 'Không có AI'}
+                                </span>
+                              ) : (
+                                <>
+                                  <span className="text-[14px] font-black text-blue-700">{g.completed} / {g.total} phiên</span>
+                                  <span className="text-[10px] font-bold text-slate-400 block mt-1">Hoàn thành: {g.percent}%</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className="w-full bg-slate-200 h-2 rounded overflow-hidden">
+                            <div className={`${selectedDetailCategory?.code === 'AIU' ? 'bg-rose-600' : 'bg-blue-600'} h-full`} style={{ width: `${g.percent}%` }} />
+                          </div>
                         </div>
                       </div>
-                      <div className="w-full bg-slate-200 h-2 rounded overflow-hidden">
-                        <div className={`${selectedDetailCategory?.code === 'AIU' ? 'bg-rose-600' : 'bg-blue-600'} h-full`} style={{ width: `${g.percent}%` }} />
-                      </div>
-                    </div>
-                  ));
+                    );
+                  });
                 })()}
               </div>
 

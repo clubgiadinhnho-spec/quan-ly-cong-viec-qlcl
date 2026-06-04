@@ -1,6 +1,8 @@
 import { useCallback, ChangeEvent } from 'react';
 import { Task, User } from '../types';
 import { exportTasksToExcel, importTasksFromExcel } from '../utils/excelUtils';
+import { db } from '../lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 interface ExcelHandlersProps {
   currentUser: User | null;
@@ -140,6 +142,7 @@ export const useExcelHandlers = ({
 
     const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+    // Export 5 Excel files
     exportTasksToExcel(deXuat, allUsers, `Backup_DeXuat_${dateStr}.xlsx`);
     await sleep(800);
     exportTasksToExcel(bangChinh, allUsers, `Backup_BangChinh_${dateStr}.xlsx`);
@@ -149,8 +152,49 @@ export const useExcelHandlers = ({
     exportTasksToExcel(hoanThanh, allUsers, `Backup_HoanThanh_${dateStr}.xlsx`);
     await sleep(800);
     exportTasksToExcel(thungRac, allUsers, `Backup_ThungRac_${dateStr}.xlsx`);
-    
-    alert("Hệ thống đã kích hoạt lệnh SIÊU BACKUP - 5 file đã được tải xuống.");
+    await sleep(800);
+
+    // Live dump full Firestore schema structure as JSON
+    try {
+      const gTasksSnap = await getDocs(collection(db, 'tasks'));
+      const tasksData = gTasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const profilesSnap = await getDocs(collection(db, 'user_profiles'));
+      const profilesData = profilesSnap.docs.map(d => {
+        const data = d.data();
+        return {
+          ...data,
+          docId: d.id,
+          uniqueKey: data.uniqueKey || d.id,
+          id: data.id || ''
+        };
+      });
+
+      const categoriesSnap = await getDocs(collection(db, 'task_categories'));
+      const categoriesData = categoriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const backupPayload = {
+        tasks: tasksData,
+        user_profiles: profilesData,
+        task_categories: categoriesData,
+        backupAt: new Date().toISOString()
+      };
+
+      const jsonFileName = `Backup_FullHeThong_JSON_${dateStr}.json`;
+      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(backupPayload, null, 2))}`;
+      
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', jsonString);
+      downloadAnchor.setAttribute('download', jsonFileName);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+
+      alert("Hệ thống đã kích hoạt lệnh SIÊU BACKUP - 5 file Excel và 1 file JSON Sao lưu hệ thống đã được tải xuống thành công.");
+    } catch (err) {
+      console.error('Backup JSON during Super Backup failed:', err);
+      alert("Hệ thống đã kích hoạt lệnh SIÊU BACKUP - Đã tải xuống các file Excel nhưng xảy ra lỗi khi tạo bản sao lưu JSON.");
+    }
   }, [currentUser, tasks, allUsers]);
 
   return { handleExportExcel, handleImportExcel, handleSuperBackup };

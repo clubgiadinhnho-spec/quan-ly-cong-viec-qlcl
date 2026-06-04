@@ -42,6 +42,7 @@ export const useSupervisorPatrol = ({
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isUpdatingRef = useRef<boolean>(false);
+  const lastScrolledTaskIdRef = useRef<string | null>(null);
 
   const tasksRef = useRef(tasks);
   const usersRef = useRef(users);
@@ -532,62 +533,85 @@ export const useSupervisorPatrol = ({
     }
   }, [supState.isActive, supState.currentTaskId, activeTab, setActiveTab]);
 
+  // Reset lastScrolledTaskIdRef when patrol finishes or becomes inactive
+  useEffect(() => {
+    if (!supState.isActive || !supState.currentTaskId) {
+      lastScrolledTaskIdRef.current = null;
+    }
+  }, [supState.isActive, supState.currentTaskId]);
+
   // Client AUTO-SCROLL/JUMP & HIGHLIGHT trace logic for worker devices
   useEffect(() => {
     if (!supState.isActive || !supState.currentTaskId || activeTab !== 'tasks') return;
 
-    // We schedule multiple scroll attempts to handle React render cycles and database sync lag (100ms to 1500ms)
-    const scrollAttempts = [100, 300, 600, 1000, 1500];
+    // We schedule multiple scroll attempts to handle React render cycles, layout renders and database sync lag (100ms to 2000ms)
+    const scrollAttempts = [100, 300, 600, 1000, 1500, 2000];
     const timers = scrollAttempts.map(delay => {
       return setTimeout(() => {
         const idToMatch = supState.currentTaskId;
         if (!idToMatch) return;
+
         const baseIdToMatch = idToMatch.split('_cycle_')[0];
 
-        // Robust DOM selection including exact matching, base ID matching, task-row ID formats & wildcard query matching
-        let element = document.getElementById(`task-card-${idToMatch}`) || 
-                      document.getElementById(`task-${idToMatch}`) ||
-                      document.getElementById(`task-row-${idToMatch}`);
-        
-        if (!element) {
-          element = document.getElementById(`task-card-${baseIdToMatch}`) || 
-                    document.getElementById(`task-${baseIdToMatch}`) ||
-                    document.getElementById(`task-row-${baseIdToMatch}`);
+        // Robust DOM selection: Filter candidates to select the one that is currently visible in the DOM (e.g. ignoring hidden mobile cards on PC and vice-versa)
+        const candidates = [
+          `task-card-${idToMatch}`,
+          `task-${idToMatch}`,
+          `task-row-${idToMatch}`,
+          `task-card-${baseIdToMatch}`,
+          `task-${baseIdToMatch}`,
+          `task-row-${baseIdToMatch}`
+        ];
+
+        let element: HTMLElement | null = null;
+        for (const id of candidates) {
+          const el = document.getElementById(id);
+          if (el && (el.offsetWidth > 0 || el.offsetHeight > 0)) {
+            element = el;
+            break;
+          }
         }
 
         if (!element) {
-          element = document.querySelector(`[id^="task-card-${idToMatch}"]`) ||
-                    document.querySelector(`[id^="task-${idToMatch}"]`) ||
-                    document.querySelector(`[id^="task-row-${idToMatch}"]`) ||
-                    document.querySelector(`[id^="task-card-${baseIdToMatch}"]`) ||
-                    document.querySelector(`[id^="task-${baseIdToMatch}"]`) ||
-                    document.querySelector(`[id^="task-row-${baseIdToMatch}"]`) ||
-                    document.querySelector(`[id*="${baseIdToMatch}"]`);
+          const queries = [
+            `[id^="task-card-${idToMatch}"]`,
+            `[id^="task-${idToMatch}"]`,
+            `[id^="task-row-${idToMatch}"]`,
+            `[id^="task-card-${baseIdToMatch}"]`,
+            `[id^="task-${baseIdToMatch}"]`,
+            `[id^="task-row-${baseIdToMatch}"]`,
+            `[id*="${baseIdToMatch}"]`
+          ];
+          for (const q of queries) {
+            const el = document.querySelector(q) as HTMLElement;
+            if (el && (el.offsetWidth > 0 || el.offsetHeight > 0)) {
+              element = el;
+              break;
+            }
+          }
         }
 
         if (element) {
-          try {
-            // CỰC KỲ CHÍNH XÁC: Tính toán toạ độ tuyệt đối để cuộn mượt và căn chính giữa màn hình (tránh lag layout lồng nhau)
-            const rect = element.getBoundingClientRect();
-            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-            const targetY = rect.top + scrollTop - (window.innerHeight / 2) + (rect.height / 2);
-            window.scrollTo({
-              top: targetY,
-              behavior: 'smooth'
-            });
-          } catch (scrollErr) {
-            console.error("Vertical scroll failed: ", scrollErr);
-            // Fallback an toàn chuẩn HTML
-            if (element.tagName === 'TR') {
-              const firstCell = element.querySelector('td');
-              if (firstCell) {
-                firstCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              } else {
-                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }
-            } else {
-              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const rect = element.getBoundingClientRect();
+          const elementCenter = rect.top + rect.height / 2;
+          const viewportCenter = window.innerHeight / 2;
+
+          // If we already successfully scroll-triggered this ID and it is currently reasonably centered, do not trigger scroll again to prevent smooth scroll cancellation/stutter
+          if (lastScrolledTaskIdRef.current === idToMatch) {
+            if (Math.abs(elementCenter - viewportCenter) < 120) {
+              return;
             }
+          }
+
+          // Found the element! Record that we have scrolled to this ID so subsequent timeouts don't disrupt the smooth scroll.
+          lastScrolledTaskIdRef.current = idToMatch;
+
+          try {
+            // Natively and cleanly call scrollIntoView directly on the target element (TR row on PC, card DIV on mobile)
+            // This guarantees perfect centering and full compatibility with the browser's native engine across all devices.
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          } catch (scrollErr) {
+            console.error("Scroll failed: ", scrollErr);
           }
         }
       }, delay);

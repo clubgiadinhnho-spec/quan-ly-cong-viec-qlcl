@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, User as UserIcon, Users as UsersIcon, Trash2, FileDown, Search, Printer, ExternalLink, X } from 'lucide-react';
+import { Plus, User as UserIcon, Users as UsersIcon, Trash2, FileDown, Search, Printer, ExternalLink, X, Sparkles } from 'lucide-react';
 import { User, Task } from '../../types';
 import { Header } from '../layout/Header';
 import { HolidayBanner } from '../layout/HolidayBanner';
@@ -59,6 +59,7 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [modalPrintOrient, setModalPrintOrient] = useState<'portrait' | 'landscape'>('landscape');
   const [modalPrintScale, setModalPrintScale] = useState<number>(100);
+  const [aiOnly, setAiOnly] = useState(false);
 
   const urlParams = React.useMemo(() => {
     return typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -112,6 +113,10 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
 
   const getTasksToDisplay = () => {
     let combined = tasks.filter(t => (t.status === "COMPLETED" || t.status === "Hoàn thành") && !t.waitingApproval && !isTaskDeleted(t) && !t.isCycleRecord);
+    
+    if (aiOnly) {
+      combined = combined.filter(t => t.aiApplied === true);
+    }
     
     // Search Filtering
     if (search) {
@@ -269,20 +274,33 @@ export const CompletedTasksTab: React.FC<CompletedTasksTabProps> = ({
             <span translate="no" className="notranslate">KẾT QUẢ CÔNG VIỆC HOÀN THÀNH</span>
           </h3>
           <div className="flex items-center gap-3 ml-auto md:ml-0">
-            {search && (
-              <span translate="no" className="notranslate text-[11px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded-md border border-green-100 animate-in fade-in slide-in-from-right-1">
-                TÌM THẤY: {tasksToDisplay.length}
+            {(search || aiOnly) && (
+              <span translate="no" className="notranslate text-[11px] font-black text-purple-700 bg-purple-50 px-2.5 py-1.5 rounded-lg border border-purple-200 shadow-xs animate-in zoom-in-95 duration-200 flex items-center gap-1.5 shrink-0 select-none">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-ping" />
+                TỔNG KẾT QUẢ: {tasksToDisplay.length}
               </span>
             )}
-            <div className="relative group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+            <div className="relative group flex items-center">
+              <Search className="absolute left-3 text-gray-400" size={14} />
               <input
                 type="text"
                 placeholder="Tìm nhanh..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-green-500 text-xs w-44 md:w-56 placeholder:notranslate transition-all group-focus-within:border-green-400 group-focus-within:shadow-sm shadow-sm"
+                className="pl-9 pr-10 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-green-500 text-xs w-44 md:w-56 placeholder:notranslate transition-all group-focus-within:border-green-400 group-focus-within:shadow-sm shadow-sm"
               />
+              <button
+                type="button"
+                onClick={() => setAiOnly(prev => !prev)}
+                className={`absolute right-2 px-1 py-1 rounded transition-all cursor-pointer ${
+                  aiOnly
+                    ? "text-purple-600 bg-purple-100 hover:bg-purple-200 shadow-xs"
+                    : "text-gray-300 hover:text-purple-500 hover:bg-gray-100"
+                }`}
+                title="Lọc công việc ứng dụng AI"
+              >
+                <Sparkles size={13} className={aiOnly ? "animate-pulse" : ""} />
+              </button>
             </div>
 
             <button

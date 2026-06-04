@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, User as UserIcon, Users as UsersIcon, FileDown, FileUp, Search, Trash2, Printer, ExternalLink, X } from 'lucide-react';
+import { Plus, User as UserIcon, Users as UsersIcon, FileDown, FileUp, Search, Trash2, Printer, ExternalLink, X, Sparkles } from 'lucide-react';
 import { User, Task } from '../../types';
 import { Header } from '../layout/Header';
 import { HolidayBanner } from '../layout/HolidayBanner';
@@ -42,6 +42,12 @@ export const TasksTab: React.FC<TasksTabProps> = ({
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [modalPrintOrient, setModalPrintOrient] = useState<'portrait' | 'landscape'>('landscape');
   const [modalPrintScale, setModalPrintScale] = useState<number>(100);
+  const [aiOnly, setAiOnly] = useState(false);
+
+  const finalTasks = React.useMemo(() => {
+    if (!aiOnly) return sortedTasks;
+    return sortedTasks.filter(t => t.aiApplied === true);
+  }, [sortedTasks, aiOnly]);
 
   const urlParams = React.useMemo(() => {
     return typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -304,20 +310,32 @@ export const TasksTab: React.FC<TasksTabProps> = ({
             
             {/* Quick search input side-by-side with title on mobile */}
             <div className="flex md:hidden items-center gap-1.5 print:hidden">
-              {search && (
-                <span translate="no" className="notranslate text-[9px] font-bold text-blue-600 bg-blue-50 px-1 py-0.5 rounded border border-blue-105/20 min-w-fit">
-                  {sortedTasks.length}
+              {(search || aiOnly) && (
+                <span translate="no" className="notranslate text-[9px] font-black text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200 min-w-fit shadow-xs animate-in zoom-in-95">
+                  TỔNG: {finalTasks.length}
                 </span>
               )}
-              <div className="relative group">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" size={11} />
+              <div className="relative group flex items-center">
+                <Search className="absolute left-2 text-gray-400" size={11} />
                 <input
                   type="text"
                   placeholder="Tìm nhanh..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-6 pr-1.5 py-1 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 text-[10px] w-24 xs:w-28 placeholder:notranslate transition-all group-focus-within:border-blue-400 group-focus-within:shadow-sm shadow-sm"
+                  className="pl-6 pr-6 py-1 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 text-[10px] w-24 xs:w-28 placeholder:notranslate transition-all group-focus-within:border-blue-400 group-focus-within:shadow-sm shadow-sm"
                 />
+                <button
+                  type="button"
+                  onClick={() => setAiOnly(prev => !prev)}
+                  className={`absolute right-1 p-0.5 rounded transition-all cursor-pointer ${
+                    aiOnly
+                      ? "text-purple-600 bg-purple-100"
+                      : "text-gray-300 hover:text-purple-500"
+                  }`}
+                  title="Lọc công việc ứng dụng AI"
+                >
+                  <Sparkles size={10} className={aiOnly ? "animate-pulse" : ""} />
+                </button>
               </div>
             </div>
             
@@ -343,7 +361,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
                   </button>
                   {(effectiveUser.role === "Admin" || effectiveUser.delegatedPermissions?.canExportExcel) && (
                     <button
-                      onClick={() => handleExportExcel(sortedTasks)}
+                      onClick={() => handleExportExcel(finalTasks)}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-all uppercase whitespace-nowrap"
                     >
                       <FileDown size={12} />
@@ -364,26 +382,39 @@ export const TasksTab: React.FC<TasksTabProps> = ({
             </div>
           </div>
           <div className="hidden md:flex items-center gap-3 print:hidden ml-auto md:ml-0">
-            {search && (
-              <span translate="no" className="notranslate text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100 animate-in fade-in slide-in-from-right-1">
-                TÌM THẤY: {sortedTasks.length}
+            {(search || aiOnly) && (
+              <span translate="no" className="notranslate text-[11px] font-black text-purple-700 bg-purple-50 px-2.5 py-1.5 rounded-lg border border-purple-200 shadow-xs animate-in zoom-in-95 duration-200 flex items-center gap-1.5 shrink-0 select-none">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-ping" />
+                TỔNG KẾT QUẢ: {finalTasks.length}
               </span>
             )}
-            <div className="relative group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+            <div className="relative group flex items-center">
+              <Search className="absolute left-3 text-gray-400" size={14} />
               <input
                 type="text"
                 placeholder="Tìm nhanh..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 pr-4 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 text-xs w-44 md:w-56 placeholder:notranslate transition-all group-focus-within:border-blue-400 group-focus-within:shadow-sm shadow-sm"
+                className="pl-9 pr-10 py-1.5 bg-white border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 text-xs w-44 md:w-56 placeholder:notranslate transition-all group-focus-within:border-blue-400 group-focus-within:shadow-sm shadow-sm"
               />
+              <button
+                type="button"
+                onClick={() => setAiOnly(prev => !prev)}
+                className={`absolute right-2 px-1 py-1 rounded transition-all cursor-pointer ${
+                  aiOnly
+                    ? "text-purple-600 bg-purple-100 hover:bg-purple-200"
+                    : "text-gray-300 hover:text-purple-500 hover:bg-gray-100"
+                }`}
+                title="Lọc công việc ứng dụng AI"
+              >
+                <Sparkles size={13} className={aiOnly ? "animate-pulse" : ""} />
+              </button>
             </div>
           </div>
         </div>
 
         <TaskList
-          tasks={sortedTasks}
+          tasks={finalTasks}
           user={effectiveUser}
           users={allUsers}
           onUpdate={updateTask}

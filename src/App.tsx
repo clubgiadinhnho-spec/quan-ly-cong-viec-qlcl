@@ -94,30 +94,44 @@ export default function App() {
       const idToMatch = taskId;
       const baseIdToMatch = idToMatch.split('_cycle_')[0];
 
-      let element = document.getElementById(`task-card-${idToMatch}`) || 
-                    document.getElementById(`task-${idToMatch}`);
-      
-      if (!element) {
-        element = document.getElementById(`task-card-${baseIdToMatch}`) || 
-                  document.getElementById(`task-${baseIdToMatch}`);
+      const candidates = [
+        `task-card-${idToMatch}`,
+        `task-${idToMatch}`,
+        `task-row-${idToMatch}`,
+        `task-card-${baseIdToMatch}`,
+        `task-${baseIdToMatch}`,
+        `task-row-${baseIdToMatch}`
+      ];
+
+      let element: HTMLElement | null = null;
+      for (const id of candidates) {
+        const el = document.getElementById(id);
+        if (el && (el.offsetWidth > 0 || el.offsetHeight > 0)) {
+          element = el;
+          break;
+        }
       }
 
       if (!element) {
-        element = document.querySelector(`[id^="task-card-${idToMatch}"]`) ||
-                  document.querySelector(`[id^="task-${idToMatch}"]`) ||
-                  document.querySelector(`[id^="task-card-${baseIdToMatch}"]`) ||
-                  document.querySelector(`[id^="task-${baseIdToMatch}"]`) ||
-                  document.querySelector(`[id*="${baseIdToMatch}"]`);
+        const queries = [
+          `[id^="task-card-${idToMatch}"]`,
+          `[id^="task-${idToMatch}"]`,
+          `[id^="task-row-${idToMatch}"]`,
+          `[id^="task-card-${baseIdToMatch}"]`,
+          `[id^="task-${baseIdToMatch}"]`,
+          `[id^="task-row-${baseIdToMatch}"]`,
+          `[id*="${baseIdToMatch}"]`
+        ];
+        for (const q of queries) {
+          const el = document.querySelector(q) as HTMLElement;
+          if (el && (el.offsetWidth > 0 || el.offsetHeight > 0)) {
+            element = el;
+            break;
+          }
+        }
       }
 
       if (element) {
-        if (element.tagName === 'TR') {
-          const firstCell = element.querySelector('td');
-          if (firstCell) {
-            firstCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            return;
-          }
-        }
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }, 500);

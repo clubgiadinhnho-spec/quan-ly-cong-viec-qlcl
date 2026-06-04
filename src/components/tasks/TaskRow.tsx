@@ -93,30 +93,44 @@ export const TaskRow: React.FC<TaskRowProps> = ({
       const idToMatch = task.id;
       const baseIdToMatch = idToMatch.split('_cycle_')[0];
 
-      let element = document.getElementById(`task-card-${idToMatch}`) || 
-                    document.getElementById(`task-${idToMatch}`);
-      
-      if (!element) {
-        element = document.getElementById(`task-card-${baseIdToMatch}`) || 
-                  document.getElementById(`task-${baseIdToMatch}`);
+      const candidates = [
+        `task-card-${idToMatch}`,
+        `task-${idToMatch}`,
+        `task-row-${idToMatch}`,
+        `task-card-${baseIdToMatch}`,
+        `task-${baseIdToMatch}`,
+        `task-row-${baseIdToMatch}`
+      ];
+
+      let element: HTMLElement | null = null;
+      for (const id of candidates) {
+        const el = document.getElementById(id);
+        if (el && (el.offsetWidth > 0 || el.offsetHeight > 0)) {
+          element = el;
+          break;
+        }
       }
 
       if (!element) {
-        element = document.querySelector(`[id^="task-card-${idToMatch}"]`) ||
-                  document.querySelector(`[id^="task-${idToMatch}"]`) ||
-                  document.querySelector(`[id^="task-card-${baseIdToMatch}"]`) ||
-                  document.querySelector(`[id^="task-${baseIdToMatch}"]`) ||
-                  document.querySelector(`[id*="${baseIdToMatch}"]`);
+        const queries = [
+          `[id^="task-card-${idToMatch}"]`,
+          `[id^="task-${idToMatch}"]`,
+          `[id^="task-row-${idToMatch}"]`,
+          `[id^="task-card-${baseIdToMatch}"]`,
+          `[id^="task-${baseIdToMatch}"]`,
+          `[id^="task-row-${baseIdToMatch}"]`,
+          `[id*="${baseIdToMatch}"]`
+        ];
+        for (const q of queries) {
+          const el = document.querySelector(q) as HTMLElement;
+          if (el && (el.offsetWidth > 0 || el.offsetHeight > 0)) {
+            element = el;
+            break;
+          }
+        }
       }
 
       if (element) {
-        if (element.tagName === 'TR') {
-          const firstCell = element.querySelector('td');
-          if (firstCell) {
-            firstCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            return;
-          }
-        }
         element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
@@ -131,8 +145,19 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   const isEmployee = user.role === 'Staff';
   
   const canViewSup = isAdmin || user.role === 'Trưởng Phòng' || user.delegatedPermissions?.system_viewSup === true;
-  const isPatrolledBySup = canViewSup && supState?.isActive && supState?.currentTaskId === task.id;
-  const isCheckInBySup = isPatrolledBySup && supState?.isCheckIn === true;
+  const isDeletedMoreThan24h = React.useMemo(() => {
+    if (!task.deletedAt) return false;
+    try {
+      const deletedTime = new Date(task.deletedAt).getTime();
+      if (isNaN(deletedTime)) return false;
+      return (Date.now() - deletedTime) > 24 * 60 * 60 * 1000;
+    } catch (e) {
+      return false;
+    }
+  }, [task.deletedAt]);
+  
+  const isPatrolledBySup = !isDeletedMoreThan24h && canViewSup && supState?.isActive && supState?.currentTaskId === task.id;
+  const isCheckInBySup = !isDeletedMoreThan24h && isPatrolledBySup && supState?.isCheckIn === true;
   
   const canSeeAI = isAdmin || user.role === 'Trưởng Phòng';
 
@@ -322,9 +347,9 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     }
   }, [task.aiReminderResponded, task.aiReminderCreatedAt]);
 
-  const isAiReminding = task.aiReminderResponded === false && !localExpired;
-  const isWasPatrolledBySup = canViewSup && !!supState?.patrolledTaskIds?.includes(task.id);
-  const isPatrolledToday = canViewSup && !!(task.lastPatrolTime && !task.patrolReviewedByAdmin && (() => { try { return isSameDay(parseISO(task.lastPatrolTime), new Date()); } catch(e) { return false; } })());
+  const isAiReminding = !isDeletedMoreThan24h && task.aiReminderResponded === false && !localExpired;
+  const isWasPatrolledBySup = !isDeletedMoreThan24h && canViewSup && !!supState?.patrolledTaskIds?.includes(task.id);
+  const isPatrolledToday = !isDeletedMoreThan24h && canViewSup && !!(task.lastPatrolTime && !task.patrolReviewedByAdmin && (() => { try { return isSameDay(parseISO(task.lastPatrolTime), new Date()); } catch(e) { return false; } })());
   const isRowLiveActivePatrolled = isPatrolledBySup || highlightedTaskId === task.id;
   const isAnySpeechActive = isPatrolledBySup || isAiReminding || showAIChat;
   const priorityRowClass = getPriorityRowClass(task.priorityOrder);
@@ -341,7 +366,20 @@ export const TaskRow: React.FC<TaskRowProps> = ({
   }
 
   // Deadline Warning Logic
-  const deadlineInfo = getTaskDeadlineStatus(task);
+  const rawDeadlineInfo = getTaskDeadlineStatus(task);
+  const deadlineInfo = React.useMemo(() => {
+    if (isDeletedMoreThan24h) {
+      return {
+        status: 'NORMAL' as const,
+        displayText: rawDeadlineInfo.displayText,
+        className: 'text-gray-400',
+        isOverdue: false,
+        isUrgent: false,
+        animate: false
+      };
+    }
+    return rawDeadlineInfo;
+  }, [rawDeadlineInfo, isDeletedMoreThan24h]);
 
   const handleTickleJob = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1118,6 +1156,59 @@ export const TaskRow: React.FC<TaskRowProps> = ({
 
             {/* Right actions group */}
             <div className="flex items-center gap-1.5">
+              {/* Green active Action button */}
+              {(isAdmin || isOwner || isAuthor || user?.role === 'Trưởng Phòng') && !isReadOnly && !task.deletedAt && task.status !== 'DELETED' && (
+                <>
+                  {task.status === 'APPROVED' && !task.isLocked && (
+                    isTwoStage ? (
+                      !isStage1Done ? (
+                        <button 
+                          onClick={handleGreenButtonClick}
+                          disabled={isProcessing}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-green-600 hover:bg-green-700 border border-green-500 text-white shadow-sm active:scale-95"
+                          title="TIẾP NHẬN"
+                        >
+                          <CheckCircle2 size={13} strokeWidth={3} />
+                        </button>
+                      ) : (
+                        (isAdmin || isOwner || user?.role === 'Trưởng Phòng') && (
+                          <button 
+                            onClick={handleGreenButtonClick}
+                            disabled={isProcessing}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 border border-emerald-500 text-white shadow-sm active:scale-95"
+                            title="CHỐT"
+                          >
+                            <RefreshCw size={11} />
+                          </button>
+                        )
+                      )
+                    ) : (
+                      <button 
+                        onClick={handleGreenButtonClick}
+                        className={`w-7 h-7 flex items-center justify-center rounded-lg ${
+                          isAdmin 
+                            ? (task.waitingApproval ? 'bg-blue-600 animate-bounce' : 'bg-green-600') 
+                            : (task.waitingApproval ? 'bg-green-500 opacity-50 cursor-default' : 'bg-green-600')
+                        } text-white shadow-sm active:scale-95`}
+                        title={task.waitingApproval ? 'CHỜ DUYỆT' : 'HOÀN THÀNH'}
+                      >
+                        <CheckCircle2 size={13} strokeWidth={3} />
+                      </button>
+                    )
+                  )}
+
+                  {task.status === 'PENDING' && canApprove && (
+                    <button 
+                      onClick={handleApprove}
+                      className="w-7 h-7 flex items-center justify-center bg-green-600 text-white rounded-lg border border-green-500 shadow-sm active:scale-95"
+                      title="DUYỆT"
+                    >
+                      <CheckCircle2 size={13} strokeWidth={3} />
+                    </button>
+                  )}
+                </>
+              )}
+
               {/* EDIT BUTTON (for pending / admin) */}
               {task.status === 'PENDING' && (user.role === 'Admin' || user.delegatedPermissions?.newProposals_edit !== false) && (isManager || isOwner || isAuthor) && !task.deletedAt && task.status !== 'DELETED' && (
                 <button 
@@ -1187,59 +1278,6 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                     )}
                   </AnimatePresence>
                 </div>
-              )}
-
-              {/* Green active Action button */}
-              {(isAdmin || isOwner || isAuthor || user?.role === 'Trưởng Phòng') && !isReadOnly && !task.deletedAt && task.status !== 'DELETED' && (
-                <>
-                  {task.status === 'APPROVED' && !task.isLocked && (
-                    isTwoStage ? (
-                      !isStage1Done ? (
-                        <button 
-                          onClick={handleGreenButtonClick}
-                          disabled={isProcessing}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-green-600 hover:bg-green-700 border border-green-500 text-white shadow-sm active:scale-95"
-                          title="TIẾP NHẬN"
-                        >
-                          <CheckCircle2 size={13} strokeWidth={3} />
-                        </button>
-                      ) : (
-                        (isAdmin || isOwner || user?.role === 'Trưởng Phòng') && (
-                          <button 
-                            onClick={handleGreenButtonClick}
-                            disabled={isProcessing}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 border border-emerald-500 text-white shadow-sm active:scale-95"
-                            title="CHỐT"
-                          >
-                            <RefreshCw size={11} />
-                          </button>
-                        )
-                      )
-                    ) : (
-                      <button 
-                        onClick={handleGreenButtonClick}
-                        className={`w-7 h-7 flex items-center justify-center rounded-lg ${
-                          isAdmin 
-                            ? (task.waitingApproval ? 'bg-blue-600 animate-bounce' : 'bg-green-600') 
-                            : (task.waitingApproval ? 'bg-green-500 opacity-50 cursor-default' : 'bg-green-600')
-                        } text-white shadow-sm active:scale-95`}
-                        title={task.waitingApproval ? 'CHỜ DUYỆT' : 'HOÀN THÀNH'}
-                      >
-                        <CheckCircle2 size={13} strokeWidth={3} />
-                      </button>
-                    )
-                  )}
-
-                  {task.status === 'PENDING' && canApprove && (
-                    <button 
-                      onClick={handleApprove}
-                      className="w-7 h-7 flex items-center justify-center bg-green-600 text-white rounded-lg border border-green-500 shadow-sm active:scale-95"
-                      title="DUYỆT"
-                    >
-                      <CheckCircle2 size={13} strokeWidth={3} />
-                    </button>
-                  )}
-                </>
               )}
 
               {/* DELETE BUTTON */}

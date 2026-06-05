@@ -182,6 +182,19 @@ export const useAppLogic = ({
       return filtered.filter(t => viewScope === "mine" ? isUserTask(t, effectiveUser) : true);
     };
 
+    const filterByMonthOnly = (list: Task[]) => {
+      let filtered = list;
+      if (selectedMonth && selectedMonth !== 'all') {
+        filtered = filtered.filter(t => {
+          const d = t.expectedEndDate || t.actualEndDate || t.issueDate;
+          return getMonthYear(d) === selectedMonth;
+        });
+      }
+      return filtered;
+    };
+
+    const activeListUnscoped = filterByMonthOnly(baseActive);
+
     const pendingList = basePending.filter(t => viewScope === 'mine' ? isUserTask(t, effectiveUser) : true); // Nhân viên được xem tất cả đề xuất mới hoặc lọc theo viewScope
     const activeList = filterByScope(baseActive);
     const approvalList = filterByScope(baseApproval);
@@ -210,8 +223,8 @@ export const useAppLogic = ({
       soonCount,
       priorityCount: priorityList.length,
       attention: totalCriticalAlerts > 0 || activeList.some(t => t.isNewInBoard),
-      allActive: activeList.length,
-      mine: activeList.filter(t => isUserTask(t, effectiveUser)).length,
+      allActive: activeListUnscoped.length,
+      mine: activeListUnscoped.filter(t => isUserTask(t, effectiveUser)).length,
       completedTotal: getCompletedCount(false),
       completedUnread: tasks.filter(t => (t.status === 'COMPLETED' || t.status === 'Hoàn thành') && !isTaskDeleted(t) && !t.waitingApproval && t.isNewInBoard).length,
       trash: trashList.length,

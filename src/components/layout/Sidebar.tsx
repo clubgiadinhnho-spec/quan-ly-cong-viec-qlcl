@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { collection, getDocs, writeBatch, doc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { User } from '../../types';
-import { ClipboardList, User as UserIcon, CheckCircle2, BarChart3, LogOut, MessageSquare, Users, Database, Sparkles, Trash2, ChevronRight, Tag, Clock, Workflow, LayoutGrid, ShieldAlert, CheckCheck, PlusSquare, Save, Calendar, Gift, Shield } from 'lucide-react';
+import { ClipboardList, User as UserIcon, CheckCircle2, BarChart3, LogOut, MessageSquare, Users, Database, Sparkles, Trash2, ChevronRight, Tag, Clock, Workflow, LayoutGrid, ShieldAlert, CheckCheck, PlusSquare, Save, Calendar, Gift, Shield, FileSpreadsheet } from 'lucide-react';
 
 import { Avatar } from '../common/Avatar';
 import { GroupChatIcon, GroupDiscussionIcon } from '../common/Icons';
@@ -438,7 +438,7 @@ export const Sidebar = ({
             {allMenuItems.map((item, idx) => {
               const isWorkflowItem = ['pending_confirmation', 'tasks', 'pending_approval', 'completed_tasks', 'trash'].includes(item.id);
               const isActive = activeTab === item.id || 
-                (item.id === 'staff_list' && ['office_calendar', 'attendance', 'leave_request', 'birthday', 'staff_list'].includes(activeTab)) ||
+                (item.id === 'staff_list' && ['office_calendar', 'attendance', 'attendance_monthly', 'leave_request', 'birthday', 'staff_list'].includes(activeTab)) ||
                 (item.id === 'system_history' && ['system_history', 'category_management', 'permission_matrix'].includes(activeTab));
               
               // Only show certain items to Admin
@@ -562,7 +562,7 @@ export const Sidebar = ({
 
       {/* LEVEL 2 SIDEBAR - ADMIN MAINTENANCE OR EMPTY FOR REGULAR USERS */}
       <AnimatePresence>
-        {isCollapsed && ['office_calendar', 'attendance', 'leave_request', 'birthday', 'staff_list', 'system_history', 'category_management', 'permission_matrix'].includes(activeTab) && (
+        {isCollapsed && ['office_calendar', 'attendance', 'attendance_monthly', 'leave_request', 'birthday', 'staff_list', 'system_history', 'category_management', 'permission_matrix'].includes(activeTab) && (
           <motion.aside
             id="sidebar-level-2"
             initial={{ width: 0, opacity: 0, x: -20 }}
@@ -581,7 +581,7 @@ export const Sidebar = ({
             </button>
 
             {(() => {
-              const isOfficeSection = ['office_calendar', 'attendance', 'leave_request', 'birthday', 'staff_list'].includes(activeTab);
+              const isOfficeSection = ['office_calendar', 'attendance', 'attendance_monthly', 'leave_request', 'birthday', 'staff_list'].includes(activeTab);
               const isDbSection = ['system_history', 'category_management', 'permission_matrix'].includes(activeTab);
               
               return (
@@ -636,6 +636,18 @@ export const Sidebar = ({
                           </button>
 
                           <button
+                            onClick={() => setActiveTab('attendance_monthly')}
+                            className={`w-full flex items-center gap-2.5 py-2 px-3 text-[10.5px] font-black uppercase rounded-xl transition-all whitespace-nowrap text-left ${
+                              activeTab === 'attendance_monthly' 
+                                ? 'bg-blue-600 text-white shadow-md' 
+                                : 'text-slate-600 hover:bg-blue-50/50 hover:text-blue-800'
+                            }`}
+                          >
+                            <FileSpreadsheet size={15} strokeWidth={2.5} className="shrink-0" />
+                            <span translate="no" className="notranslate flex-1">BẢNG CHẤM CÔNG</span>
+                          </button>
+
+                          <button
                             onClick={() => setActiveTab('attendance')}
                             className={`w-full flex items-center gap-2.5 py-2 px-3 text-[10.5px] font-black uppercase rounded-xl transition-all whitespace-nowrap text-left ${
                               activeTab === 'attendance' 
@@ -644,7 +656,7 @@ export const Sidebar = ({
                             }`}
                           >
                             <Clock size={15} strokeWidth={2.5} className="shrink-0" />
-                            <span translate="no" className="notranslate flex-1">Chấm Công Hàng Ngày</span>
+                            <span translate="no" className="notranslate flex-1">ĐIỂM DANH - 3T</span>
                           </button>
 
                           <button
@@ -681,7 +693,8 @@ export const Sidebar = ({
                         {(user.role === 'Admin' || user.delegatedPermissions?.canManageStaff) && <button onClick={() => setActiveTab('staff_list')} title="Quản Lý Nhân Sự" className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${activeTab === 'staff_list' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-blue-50/50'}`}><Users size={16} /></button>}
                         <button onClick={() => setActiveTab('office_calendar')} title="Lịch Công Tác" className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${activeTab === 'office_calendar' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-blue-50/50'}`}><Calendar size={16} /></button>
                         <button onClick={() => setActiveTab('leave_request')} title="Đơn Xin Nghỉ Phép" className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${activeTab === 'leave_request' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-blue-50/50'}`}><ClipboardList size={16} /></button>
-                        <button onClick={() => setActiveTab('attendance')} title="Chấm Công Hàng Ngày" className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${activeTab === 'attendance' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-blue-50/50'}`}><Clock size={16} /></button>
+                        <button onClick={() => setActiveTab('attendance_monthly')} title="BẢNG CHẤM CÔNG" className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${activeTab === 'attendance_monthly' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-blue-50/50'}`}><FileSpreadsheet size={16} /></button>
+                        <button onClick={() => setActiveTab('attendance')} title="ĐIỂM DANH - 3T" className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${activeTab === 'attendance' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-blue-50/50'}`}><Clock size={16} /></button>
                         <button onClick={() => setActiveTab('birthday')} title="Sinh Nhật Thành Viên" className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${activeTab === 'birthday' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-blue-50/50'}`}><Gift size={16} /></button>
                       </div>
                     )

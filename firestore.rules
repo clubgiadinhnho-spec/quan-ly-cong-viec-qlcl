@@ -42,7 +42,7 @@ service cloud.firestore {
 
     // 1. User Profiles - Allow profile read/write for matched users (Auto-Sync compatibility)
     match /user_profiles/{profileId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isSignedIn();
     }
     

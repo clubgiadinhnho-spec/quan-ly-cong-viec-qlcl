@@ -342,7 +342,7 @@ export const MainContent: React.FC = () => {
         />
       )}
 
-      {["office_calendar", "attendance", "leave_request", "birthday"].includes(activeTab) && (
+      {["office_calendar", "attendance", "attendance_monthly", "leave_request", "birthday"].includes(activeTab) && (
         <OfficeUtilitiesTab
           activeTab={activeTab as any}
           effectiveUser={effectiveUser}

@@ -155,12 +155,12 @@ const getWeekRange = (dateStr: string) => {
 };
 
 interface OfficeUtilitiesTabProps {
-  activeTab: 'office_calendar' | 'attendance' | 'leave_request' | 'birthday';
+  activeTab: 'office_calendar' | 'attendance' | 'attendance_monthly' | 'leave_request' | 'birthday';
   effectiveUser: User;
   allUsers: User[];
   presence: any[];
   setConfirmModal: (modal: any) => void;
-  setActiveTab?: (tab: 'office_calendar' | 'attendance' | 'leave_request' | 'birthday') => void;
+  setActiveTab?: (tab: 'office_calendar' | 'attendance' | 'attendance_monthly' | 'leave_request' | 'birthday') => void;
 }
 
 export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
@@ -344,7 +344,13 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
     const month = String(d.getMonth() + 1).padStart(2, '0');
     return `${year}-${month}`;
   });
-  const [attendanceFilterDay, setAttendanceFilterDay] = useState<string>('');
+  const [attendanceFilterDay, setAttendanceFilterDay] = useState<string>(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
 
   // QUIZ EVALUATION CUMULATIVE STATES & SYNCS
   const [tttViewMode, setTttViewMode] = useState<'ytd' | 'annual'>('ytd');
@@ -2063,6 +2069,15 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
     return () => clearInterval(timer);
   }, []);
 
+  // Sync sub tab display based on active parent tab selection
+  useEffect(() => {
+    if (activeTab === 'attendance') {
+      setAttendanceSubTab('daily');
+    } else if (activeTab === 'attendance_monthly') {
+      setAttendanceSubTab('monthly');
+    }
+  }, [activeTab]);
+
   // Format date helper
   const formatDateString = (d: Date) => {
     return d.toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -2074,7 +2089,9 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
       case 'office_calendar':
         return <span translate="no" className="notranslate">LỊCH CÔNG TÁC PHÒNG QLCL</span>;
       case 'attendance':
-        return <span translate="no" className="notranslate">BẢNG ĐIỂM DANH - 3T THẬT SỰ</span>;
+        return <span translate="no" className="notranslate">BẢNG ĐIỂM DANH - 3T</span>;
+      case 'attendance_monthly':
+        return <span translate="no" className="notranslate">BẢNG CHẤM CÔNG</span>;
       case 'leave_request':
         return <span translate="no" className="notranslate">ĐƠN XIN NGHỈ PHÉP</span>;
       case 'birthday':
@@ -3146,13 +3163,16 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
           </div>
         )}
                                   {/* TAB 2: CHẤM CÔNG HÀNG NGÀY */}
-        {activeTab === 'attendance' && (
+        {(activeTab === 'attendance' || activeTab === 'attendance_monthly') && (
           <div className="space-y-4">
             {/* Interactive Inner Navigation Segmented Controls */}
             <div className="flex items-center justify-center bg-slate-100 p-1 rounded-2xl max-w-sm mx-auto shadow-inner border border-slate-200">
               <button
                 type="button"
-                onClick={() => setAttendanceSubTab('daily')}
+                onClick={() => {
+                  setAttendanceSubTab('daily');
+                  if (setActiveTab) setActiveTab('attendance');
+                }}
                 className={`flex-1 py-1.5 px-3 text-xs font-black uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 ${
                   attendanceSubTab === 'daily'
                     ? 'bg-indigo-600 text-white shadow-sm'
@@ -3163,7 +3183,10 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setAttendanceSubTab('monthly')}
+                onClick={() => {
+                  setAttendanceSubTab('monthly');
+                  if (setActiveTab) setActiveTab('attendance_monthly');
+                }}
                 className={`flex-1 py-1.5 px-3 text-xs font-black uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 ${
                   attendanceSubTab === 'monthly'
                     ? 'bg-indigo-600 text-white shadow-sm'
@@ -3284,7 +3307,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                 </div>
 
                 {/* Danh sách nhân viên ghi nhận có đi làm */}
-                <div className="lg:col-span-2 bg-white border border-gray-100 rounded-3xl p-5 shadow-sm flex flex-col justify-between space-y-3">
+                <div className="lg:col-span-2 bg-white border border-gray-100 rounded-3xl p-4 shadow-sm flex flex-col justify-between space-y-2">
                   <div>
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-3 pb-2 border-b border-slate-100 text-left">
                       <div>
@@ -3320,7 +3343,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                         <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Vui lòng dùng cổng chấm công ở bên trái để điểm danh ghi nhận ngay</p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[420px] overflow-y-auto pr-1">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-[530px] overflow-y-auto pr-1">
                         {groupedRecords.map((gRec) => {
                           const hasDiemDanh = !!gRec.diemDanh;
                           const quizResultVal = hasDiemDanh ? (gRec.diemDanh.quizResult || '').trim() : '';
@@ -3349,9 +3372,9 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                           };
 
                           return (
-                            <div key={gRec.name} className="p-3.5 bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow hover:border-indigo-200 transition-all flex flex-col justify-between gap-2.5 text-left">
+                            <div key={gRec.name} className="px-3.5 py-2.5 bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow hover:border-indigo-200 transition-all flex flex-col justify-between gap-1.5 text-left">
                               {/* Employee Information Header with Action buttons */}
-                              <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 flex-wrap gap-2">
+                              <div className="flex items-center justify-between border-b border-slate-100 pb-1 flex-wrap gap-1">
                                 <div className="flex flex-col">
                                   <span className="text-xs font-black text-slate-850 uppercase tracking-wide">{gRec.name}</span>
                                   <div className="flex items-center gap-1.5 mt-0.5">
@@ -3402,10 +3425,10 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                               </div>
 
                               {/* Dual columns: THÔNG TIN ĐIỂM DANH vs ĐIỂM SỐ QUIZ TTT WITHOUT EMBEDDED BOXES */}
-                              <div className="grid grid-cols-2 gap-3 pt-0.5">
+                              <div className="grid grid-cols-2 gap-2 pt-0.5">
                                 {/* Check-In Column (Trái) */}
                                 <div className="flex flex-col justify-between text-left">
-                                  <div className="space-y-1">
+                                  <div className="space-y-0.5">
                                     <div className="flex items-center justify-between">
                                       <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider font-mono">ĐIỂM DANH 3T</span>
                                       {hasDiemDanh ? (
@@ -3420,8 +3443,8 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                                     </div>
                                     
                                     {hasDiemDanh ? (
-                                      <div className="space-y-1 mt-0.5">
-                                        <span className="font-extrabold text-slate-800 font-mono text-[14px] leading-none block">{gRec.diemDanh.time}</span>
+                                      <div className="space-y-0.5 mt-0.5">
+                                        <span className="font-extrabold text-slate-800 font-mono text-[13px] leading-none block">{gRec.diemDanh.time}</span>
                                         {gRec.diemDanh.quizExplanation && (
                                           <span className="text-[7.5px] text-emerald-600 bg-emerald-50 border border-emerald-100/50 px-1.5 py-0.5 rounded-md font-sans font-bold flex items-center gap-0.5 w-max">
                                             Đã lưu trữ ✔️
@@ -3436,21 +3459,21 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
 
                                 {/* Quiz Score Column (Phải) */}
                                 <div className="flex flex-col justify-between pl-3 border-l border-slate-100 text-left">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[8.5px] font-black text-indigo-900 uppercase tracking-wider font-mono">QUIZ TTT</span>
+                                  <div className="flex items-center justify-between animate-fade-in">
+                                    <span className="text-[8.5px] font-black text-indigo-950 uppercase tracking-wider font-mono">QUIZ TTT</span>
                                     {hasDiemDanh && quizResultVal ? (
-                                      <span className="text-[7.5px] font-black uppercase px-2 py-0.5 bg-indigo-50/50 text-indigo-700 border border-indigo-120/40 rounded-lg animate-pulse font-sans font-black">
+                                      <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded-lg animate-pulse font-sans">
                                         {getQuizEvaluation(quizResultVal)}
                                       </span>
                                     ) : (
-                                      <span className="text-[7.5px] font-extrabold text-slate-455 uppercase border border-dashed border-slate-200 px-1.5 py-0.2 rounded-full bg-slate-50 font-sans">CHƯA THI</span>
+                                      <span className="text-[9.5px] font-bold uppercase border border-dashed border-slate-200 px-2 py-0.5 rounded-lg bg-slate-50 text-slate-400 font-sans">CHƯA THI</span>
                                     )}
                                   </div>
 
                                   {hasDiemDanh ? (
                                     <div className="flex-1 flex flex-col justify-center pt-1">
-                                      <div className="flex items-center justify-between gap-1.5">
-                                        <span className="text-[8.5px] text-slate-600 font-extrabold uppercase shrink-0">KẾT QUẢ:</span>
+                                      <div className="flex items-center justify-between gap-1.5 bg-indigo-50/60 py-0.5 px-1.5 rounded-xl border border-indigo-100/80">
+                                        <span className="text-[11px] text-indigo-950 font-black uppercase shrink-0 pl-1 font-sans">KẾT QUẢ:</span>
                                         <input
                                           type="text"
                                           placeholder="9/10"
@@ -3465,19 +3488,19 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                                               return rec;
                                             }));
                                           }}
-                                          className="w-16 text-[10.5px] font-black h-5 px-1 text-center border border-indigo-200/50 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                          className="w-[72px] text-[13px] font-black h-7 px-1 text-center border-2 border-indigo-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/40 bg-white text-indigo-950 placeholder-indigo-300 shadow-sm transition-all disabled:bg-slate-50 disabled:text-slate-400 disabled:border-slate-200 disabled:cursor-not-allowed font-mono"
                                         />
                                       </div>
                                     </div>
                                   ) : (
                                     <div className="flex-1 flex flex-col justify-center pt-1 opacity-50 font-sans">
-                                      <div className="flex items-center justify-between gap-1.5">
-                                        <span className="text-[8px] text-slate-400 font-extrabold uppercase shrink-0">KẾT QUẢ:</span>
+                                      <div className="flex items-center justify-between gap-1.5 bg-slate-50 py-0.5 px-1.5 rounded-xl border border-slate-100">
+                                        <span className="text-[10.5px] text-slate-400 font-extrabold uppercase shrink-0 pl-1 font-sans">KẾT QUẢ:</span>
                                         <input
                                           type="text"
                                           disabled
                                           placeholder="Chưa thi"
-                                          className="w-16 text-[8px] font-bold h-5 px-1 text-center border border-slate-100 rounded-md bg-slate-50 cursor-not-allowed"
+                                          className="w-[72px] text-[11px] font-bold h-7 px-1 text-center border border-slate-200 rounded-lg bg-slate-100/50 text-slate-400 cursor-not-allowed font-mono"
                                         />
                                       </div>
                                     </div>
@@ -3486,10 +3509,10 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                               </div>
 
                               {/* Full-width "Giải trình" block spanning the entire bottom of the card */}
-                              <div className="border-t border-slate-100/60 pt-1.5 px-0.5 mt-0.5">
+                              <div className="border-t border-slate-100/60 pt-1 mt-0">
                                 {hasDiemDanh ? (
                                   <textarea
-                                    rows={2}
+                                    rows={1}
                                     placeholder="Giải trình/ Ghi chú"
                                     disabled={!canEditFields(gRec.diemDanh)}
                                     value={gRec.diemDanh.quizExplanation || ''}
@@ -3503,14 +3526,14 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                                       }));
                                     }}
                                     title={gRec.diemDanh.quizExplanation || ''}
-                                    className="w-full text-[10px] font-medium p-1.5 h-12 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-slate-50/10 hover:bg-white focus:bg-white transition-all font-sans resize-none disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                    className="w-full text-[10px] font-medium py-1 px-1.5 h-8.5 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-slate-50/10 hover:bg-white focus:bg-white transition-all font-sans resize-none disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
                                   />
                                 ) : (
                                   <textarea
-                                    rows={2}
+                                    rows={1}
                                     disabled
                                     placeholder="Giải trình/ Ghi chú"
-                                    className="w-full text-[9px] font-medium p-1.5 h-12 border border-slate-150 rounded-md bg-slate-50/70 cursor-not-allowed font-sans resize-none"
+                                    className="w-full text-[9px] font-medium py-1 px-1.5 h-8.5 border border-slate-150 rounded-md bg-slate-50/70 cursor-not-allowed font-sans resize-none"
                                   />
                                 )}
                               </div>
@@ -5108,8 +5131,8 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        // Switch active tab to attendance (Bảng Chấm Công)
-                        setActiveTab('attendance');
+                        // Switch active tab to attendance_monthly (Bảng Chấm Công)
+                        setActiveTab('attendance_monthly');
                       }}
                       className="inline-flex items-center gap-1.5 px-4 py-3 bg-[#f1f5f9] hover:bg-slate-200 border border-slate-200/70 rounded-xl transition-all active:scale-95 cursor-pointer"
                       title="Chuyển ngay sang tab Bảng Chấm Công để kiểm tra chỉ số đồng bộ"

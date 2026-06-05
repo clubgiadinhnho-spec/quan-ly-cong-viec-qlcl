@@ -17,7 +17,7 @@ import {
   ClipboardList, Sparkles, BarChart3, MessageSquare, 
   Menu, X, ShieldAlert, CheckCheck, Trash2, Users, Calendar, 
   Clock, FileText, Award, User as UserIcon, Settings, UserCheck, 
-  Database, LogOut, Workflow, Maximize2, Minimize2, Smartphone
+  Database, LogOut, Workflow, Maximize2, Minimize2, Smartphone, FileSpreadsheet
 } from "lucide-react";
 import { Avatar } from "./components/common/Avatar";
 import { motion, AnimatePresence } from "motion/react";
@@ -180,8 +180,9 @@ export default function App() {
       label: "VĂN PHÒNG",
       items: [
         { id: 'office_calendar', label: 'Lịch Công Tác', icon: Calendar },
-        { id: 'attendance', label: 'Bảng Chấm Công', icon: Clock },
         { id: 'leave_request', label: 'Đơn Xin Nghỉ Phép', icon: FileText },
+        { id: 'attendance_monthly', label: 'Bảng Chấm Công', icon: FileSpreadsheet },
+        { id: 'attendance', label: 'Điểm Danh - 3T', icon: Clock },
         { id: 'birthday', label: 'Tiệc Sinh Nhật', icon: Award },
         { id: 'staff_list', label: 'Quản Lý Nhân Sự', icon: Users, permissionKey: 'canManageStaff' },
       ]

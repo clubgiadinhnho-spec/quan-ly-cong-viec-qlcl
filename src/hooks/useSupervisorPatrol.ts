@@ -64,6 +64,7 @@ export const useSupervisorPatrol = ({
 
   // Listen to supervisor state in Firestore for real-time synchronization
   useEffect(() => {
+    if (!currentUser) return;
     const docRef = doc(db, 'settings', 'supervisor_state');
     const unsub = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
@@ -92,7 +93,7 @@ export const useSupervisorPatrol = ({
     });
 
     return () => unsub();
-  }, []);
+  }, [currentUser]);
 
   // Check working hours: 8 AM to 5 PM (17h) Vietnamese Time (UTC+7)
   const checkIsWorkingHours = (): boolean => {

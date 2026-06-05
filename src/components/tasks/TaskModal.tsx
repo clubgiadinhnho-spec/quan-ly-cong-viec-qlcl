@@ -142,7 +142,9 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
   // Sync deadline if cycle or start date changes, unless manually edited
   React.useEffect(() => {
     if (!isEdit && !isManualEdit) {
-      if (recurrence !== 'NONE') {
+      if (recurrence === 'DAILY') {
+        setExpectedDate(startDate);
+      } else if (recurrence !== 'NONE') {
         const calculated = calculateNextDeadline(startDate || new Date().toISOString().split('T')[0], recurrence);
         setExpectedDate(calculated);
       } else if (startDate) {
@@ -247,9 +249,36 @@ export const TaskModal = ({ onClose, onSave, users, tasks, task, currentUser, ca
                 <label className="block text-[10px] font-black text-gray-500 mb-1 uppercase tracking-wider">
                   <span translate="no" className="notranslate">KHỞI TẠO <span className="text-red-500">*</span></span>
                 </label>
-                <div className="w-full px-3 py-3 md:py-1.5 min-h-[44px] md:min-h-0 bg-slate-100 border border-gray-200 rounded-xl text-sm font-bold text-gray-500 flex items-center cursor-not-allowed opacity-70">
-                  <span translate="no" className="notranslate">{formatToDisplayDate(issueDate)}</span>
-                </div>
+                {isAdmin ? (
+                  <div className="relative group">
+                    <input 
+                      type="text"
+                      placeholder="dd/mm/yy"
+                      className="w-full px-3 py-3 md:py-1.5 min-h-[44px] md:min-h-0 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-bold pr-10 transition-all"
+                      value={formatToDisplayDate(issueDate)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val.length === 8 && val.includes('/')) {
+                          const iso = parseFromDisplayToISO(val);
+                          if (iso) setIssueDate(iso);
+                        }
+                      }}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+                      <Calendar size={16} className="text-gray-400 group-focus-within:text-blue-500 pointer-events-none" />
+                      <input 
+                        type="date"
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                        value={issueDate}
+                        onChange={(e) => setIssueDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full px-3 py-3 md:py-1.5 min-h-[44px] md:min-h-0 bg-slate-100 border border-gray-200 rounded-xl text-sm font-bold text-gray-500 flex items-center cursor-not-allowed opacity-70">
+                    <span translate="no" className="notranslate">{formatToDisplayDate(issueDate)}</span>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-[10px] font-black text-gray-500 mb-1 uppercase tracking-wider">

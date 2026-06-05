@@ -54,6 +54,13 @@ const safeDateToISOOptional = (val: any): string | null => {
   return safeDateToISO(val);
 };
 
+const isTttTask = (task: Task) => {
+  const code = (task.code || '').toUpperCase();
+  const cat = (task.category || '').toUpperCase();
+  const title = (task.title || '').toUpperCase();
+  return code.includes('TTT') || cat.includes('TTT') || title.includes('TTT') || cat === 'TTT' || cat === '[TTT]' || title.includes('[TTT]');
+};
+
 export const useFirebaseData = (currentUserId?: string) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [messages, setMessages] = useState<TaskComment[]>([]);
@@ -721,7 +728,16 @@ export const useFirebaseData = (currentUserId?: string) => {
         const now = new Date().toISOString();
         const dateOnly = now.split('T')[0];
         const currentDeadline = existingTask.extensionDate || existingTask.expectedEndDate;
-        const nextDeadline = calculateNextDeadline(currentDeadline || dateOnly, existingTask.recurrence);
+        
+        const isDaily = existingTask.recurrence === 'DAILY';
+        let nextStartDate = isDaily ? dateOnly : (currentDeadline || dateOnly);
+        let nextDeadline = isDaily ? calculateNextDeadline(dateOnly, 'DAILY') : calculateNextDeadline(currentDeadline || dateOnly, existingTask.recurrence);
+
+        if (isTttTask(existingTask) && isDaily) {
+          const dayAfterApproval = calculateNextDeadline(dateOnly, 'DAILY');
+          nextStartDate = dayAfterApproval;
+          nextDeadline = dayAfterApproval;
+        }
 
         // 1. Sinh mã mới
         const codes = tasks.map(t => {
@@ -767,7 +783,7 @@ export const useFirebaseData = (currentUserId?: string) => {
           status: 'APPROVED',
           code: nextCode,
           issueDate: dateOnly,
-          startDate: currentDeadline || dateOnly,
+          startDate: nextStartDate,
           expectedEndDate: nextDeadline,
           extensionDate: null,
           actualEndDate: null,
@@ -907,7 +923,16 @@ export const useFirebaseData = (currentUserId?: string) => {
       if (isRecurring && !stopRecurrence) {
         const currentDeadline = existingTask.extensionDate || existingTask.expectedEndDate;
         const recType = recurrenceType || 'BI_WEEKLY';
-        const nextDeadline = calculateNextDeadline(currentDeadline || dateOnly, recType);
+        
+        const isDaily = recType === 'DAILY';
+        let nextStartDate = isDaily ? dateOnly : (currentDeadline || dateOnly);
+        let nextDeadline = isDaily ? calculateNextDeadline(dateOnly, 'DAILY') : calculateNextDeadline(currentDeadline || dateOnly, recType);
+
+        if (isTttTask(existingTask) && isDaily) {
+          const dayAfterApproval = calculateNextDeadline(dateOnly, 'DAILY');
+          nextStartDate = dayAfterApproval;
+          nextDeadline = dayAfterApproval;
+        }
         
         // 1. Tìm mã Cxxxx lớn nhất hiện có (Unique ID) - THIẾT QUÂN LUẬT SINH MÃ
         const getNextTaskCode = () => {
@@ -974,7 +999,7 @@ export const useFirebaseData = (currentUserId?: string) => {
           code: nextCode,
           previousTaskId: id, // Đấu nối chuỗi quan hệ (Task Linking)
           issueDate: dateOnly,
-          startDate: currentDeadline || dateOnly, 
+          startDate: nextStartDate, 
           expectedEndDate: nextDeadline,
           extensionDate: null,
           actualEndDate: null,

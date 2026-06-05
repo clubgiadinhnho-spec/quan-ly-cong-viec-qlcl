@@ -228,6 +228,7 @@ export const ReportPage = ({
   });
 
   const [bchViewMode, setBchViewMode] = useState<'ytd' | 'annual'>('ytd');
+  const [tttViewMode, setTttViewMode] = useState<'ytd' | 'annual'>('ytd');
 
   const handlePrevMonth = () => {
     const parts = reportPeriod.split('/');
@@ -319,6 +320,20 @@ export const ReportPage = ({
   
   const canViewDkpi = isReportManager || !!userPermissions.reports_viewDkpi;
   
+  const [attendanceRecords, setAttendanceRecords] = useState<any[]>([]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'office_attendance_records'), (snapshot) => {
+      if (!snapshot.empty) {
+        const fetched = snapshot.docs.map(d => d.data() as any);
+        setAttendanceRecords(fetched);
+      }
+    }, (error) => {
+      console.error("Error listening to attendance records in ReportPage:", error);
+    });
+    return unsub;
+  }, []);
+  
   const [selectedStaffId, setSelectedStaffId] = useState<string>(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -340,6 +355,66 @@ export const ReportPage = ({
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [modalPrintOrient, setModalPrintOrient] = useState<'portrait' | 'landscape'>('landscape');
   const [modalPrintScale, setModalPrintScale] = useState<number>(85);
+
+  // Cấu hình thang điểm Quiz 3T đánh giá quy đổi
+  const [quizEvalStructure, setQuizEvalStructure] = useState({
+    min_90: 15,
+    max_90: 20,
+    min_100: 20,
+    max_100: 24,
+    min_120: 24,
+    max_120: 27,
+    min_150: 27,
+    max_150: 30
+  });
+  const [isEditingQuizEval, setIsEditingQuizEval] = useState(false);
+  const [tempQuizEval, setTempQuizEval] = useState({
+    min_90: 15,
+    max_90: 20,
+    min_100: 20,
+    max_100: 24,
+    min_120: 24,
+    max_120: 27,
+    min_150: 27,
+    max_150: 30
+  });
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'quiz_evaluation_structure'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setQuizEvalStructure({
+          min_90: Number(data.min_90) || 15,
+          max_90: Number(data.max_90) || 20,
+          min_100: Number(data.min_100) || 20,
+          max_100: Number(data.max_100) || 24,
+          min_120: Number(data.min_120) || 24,
+          max_120: Number(data.max_120) || 27,
+          min_150: Number(data.min_150) || 27,
+          max_150: Number(data.max_150) || 30,
+        });
+      }
+    }, (err) => {
+      console.warn("Chưa có cấu hình settings/quiz_evaluation_structure trong Firestore hoặc chưa được phân quyền. Sử dụng cấu hình mặc định.");
+    });
+    return () => unsub();
+  }, []);
+
+  const handleOpenEditQuizEval = () => {
+    setTempQuizEval({ ...quizEvalStructure });
+    setIsEditingQuizEval(true);
+  };
+
+  const handleSaveQuizEval = async () => {
+    try {
+      await setDoc(doc(db, 'settings', 'quiz_evaluation_structure'), tempQuizEval);
+      setIsEditingQuizEval(false);
+      showToast("Đã lưu cơ cấu đánh giá Quiz 3T mới thành công!", "success");
+    } catch (err) {
+      console.error("Lỗi lưu cấu hình: ", err);
+      showToast("Có lỗi xảy ra khi lưu cấu hình!", "error");
+    }
+  };
 
   const urlParams = useMemo(() => {
     if (typeof window === 'undefined') return null;
@@ -1334,6 +1409,358 @@ export const ReportPage = ({
     return counts;
   };
 
+  const isTttTaskForReport = (t: any) => {
+    if (isTaskDeleted(t)) return false;
+    const code = (t.code || '').toUpperCase().trim();
+    const cat = (t.category || '').toUpperCase().trim();
+    const title = (t.title || '').toUpperCase().trim();
+    return code.includes('TTT') || cat.includes('TTT') || title.includes('TTT') || cat === 'TTT' || cat === '[TTT]';
+  };
+
+  const parseQuizScore = (resultStr: string | null | undefined, currentUpdateStr: string | null | undefined) => {
+    let text = resultStr || '';
+    if (!text && currentUpdateStr) {
+      // Strip HTML to allow parsing clean plain text
+      text = currentUpdateStr.replace(/<[^>]*>/g, '');
+    }
+    
+    if (!text) return { score: 0, max: 0 };
+    
+    // Match fraction pattern e.g., "30/30" or "10/10"
+    const fractionMatch = text.match(/(\d+)\s*[\/|:]\s*(\d+)/);
+    if (fractionMatch) {
+      return {
+        score: parseInt(fractionMatch[1], 10) || 0,
+        max: parseInt(fractionMatch[2], 10) || 0
+      };
+    }
+    
+    // Fallback search: any single number inside the text (e.g. "30" or "10" or "3")
+    const numMatch = text.match(/(\d+)/);
+    if (numMatch) {
+      const val = parseInt(numMatch[1], 10) || 0;
+      const maxVal = val <= 3 ? 3 : (val <= 10 ? 10 : 30); // Adaptive default max score
+      return { score: val, max: maxVal };
+    }
+    
+    return { score: 0, max: 0 };
+  };
+
+  const getTttCumulativeMetrics = (userId: string) => {
+    const [month, year] = reportPeriod.split('/');
+    const targetUserIds = userId === 'ALL' ? allocatedUserIds : [userId];
+
+    const isFromJune = parseInt(year, 10) > 2026 || (parseInt(year, 10) === 2026 && parseInt(month, 10) >= 6);
+
+    if (isFromJune) {
+      let totalAssigned = 0;
+      let totalCompleted = 0;
+      let totalScore = 0;
+      let totalMax = 0;
+      const quizDaysList: any[] = [];
+
+      targetUserIds.forEach(uid => {
+        const user = users.find(u => u.id === uid);
+        if (!user) return;
+        
+        const userName = user.name || '';
+        const normUserName = userName.trim().toLowerCase();
+
+        const userRecsInMonth = attendanceRecords.filter(rec => {
+          if (!rec.date) return false;
+          const normRecName = (rec.name || '').trim().toLowerCase();
+          if (normRecName !== normUserName) return false;
+
+          const [recY, recM] = rec.date.split('-');
+          return recY === year && recM === month;
+        });
+
+        // Group by ngày (date)
+        const recsByDate: { [key: string]: any[] } = {};
+        userRecsInMonth.forEach(rec => {
+          if (!recsByDate[rec.date]) {
+            recsByDate[rec.date] = [];
+          }
+          recsByDate[rec.date].push(rec);
+        });
+
+        Object.keys(recsByDate).sort().forEach(dateStr => {
+          totalAssigned++;
+          const dayRecords = recsByDate[dateStr];
+          
+          let bestScoreObj = { score: 0, max: 0, hasQuiz: false, quizResult: '', quizExplanation: '', status: 'CÓ MẶT' };
+          dayRecords.forEach(r => {
+            const qVal = (r.quizResult || '').trim();
+            if (qVal && qVal.toUpperCase() !== 'CHƯA THI') {
+              const { score, max } = parseQuizScore(qVal, r.quizExplanation);
+              if (max > 0) {
+                bestScoreObj.hasQuiz = true;
+                if (score > bestScoreObj.score || !bestScoreObj.quizResult) {
+                  bestScoreObj.score = score;
+                  bestScoreObj.max = max;
+                  bestScoreObj.quizResult = qVal;
+                  bestScoreObj.quizExplanation = r.quizExplanation || '';
+                }
+              }
+            }
+            if (r.status) {
+              bestScoreObj.status = r.status;
+            }
+          });
+
+          const [yStr, mStr, dStr] = dateStr.split('-');
+          const dateFormatted = `${dStr}/${mStr}/${yStr.substring(2)}`;
+
+          if (bestScoreObj.hasQuiz) {
+            totalCompleted++;
+            totalScore += bestScoreObj.score;
+            totalMax += bestScoreObj.max;
+          }
+
+          quizDaysList.push({
+            userId: uid,
+            userName,
+            date: dateStr,
+            dateFormatted,
+            quizResult: bestScoreObj.hasQuiz ? bestScoreObj.quizResult : 'Chưa thi',
+            quizExplanation: bestScoreObj.quizExplanation,
+            status: bestScoreObj.status,
+            accuracyDayRate: bestScoreObj.max > 0 ? Math.round((bestScoreObj.score / bestScoreObj.max) * 100) : 0
+          });
+        });
+      });
+
+      const accuracyRate = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
+      const completionRate = totalAssigned > 0 ? Math.round((totalCompleted / totalAssigned) * 100) : 100;
+
+      return {
+        totalAssigned,
+        totalCompleted,
+        totalScore,
+        totalMax,
+        accuracyRate,
+        completionRate,
+        quizDaysList,
+        tasks: []
+      };
+    }
+
+    const tttTasks = tasks.filter(t => {
+      if (!isTttTaskForReport(t)) return false;
+      if (t.status !== 'APPROVED' && t.status !== 'COMPLETED') return false;
+
+      const finishDate = t.actualEndDate || t.updatedAt || t.issueDate;
+      const { m, y } = getTaskMonthYearSafe(finishDate);
+      const userMatch = targetUserIds.includes(t.assigneeId);
+      return m === month && y === year && userMatch;
+    });
+
+    let totalAssigned = tttTasks.length;
+    let totalCompleted = tttTasks.length;
+
+    let totalScore = 0;
+    let totalMax = 0;
+
+    tttTasks.forEach(t => {
+      const { score, max } = parseQuizScore(t.quizResult, t.currentUpdate);
+      totalScore += score;
+      totalMax += max;
+    });
+
+    const accuracyRate = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
+    const completionRate = totalAssigned > 0 ? Math.round((totalCompleted / totalAssigned) * 100) : 100;
+
+    return {
+      totalAssigned,
+      totalCompleted,
+      totalScore,
+      totalMax,
+      accuracyRate,
+      completionRate,
+      tasks: tttTasks
+    };
+  };
+
+  const getTttAnnualMetrics = (userId: string) => {
+    const [_, yearStr] = reportPeriod.split('/');
+    const year = yearStr || '2026';
+    const targetUserIds = userId === 'ALL' ? allocatedUserIds : [userId];
+
+    let totalAssigned = 0;
+    let totalCompleted = 0;
+    let totalScore = 0;
+    let totalMax = 0;
+    const allQuizDays: any[] = [];
+    const allTttTasks: any[] = [];
+
+    targetUserIds.forEach(uid => {
+      const user = users.find(u => u.id === uid);
+      const userName = user?.name || '';
+      const normUserName = userName.trim().toLowerCase();
+
+      // Old TTT Tasks before June 2026
+      const oldTttTasks = tasks.filter(t => {
+        if (!isTttTaskForReport(t)) return false;
+        if (t.status !== 'APPROVED' && t.status !== 'COMPLETED') return false;
+        if (t.assigneeId !== uid) return false;
+
+        const finishDate = t.actualEndDate || t.updatedAt || t.issueDate;
+        const { m, y } = getTaskMonthYearSafe(finishDate);
+        return y === year && parseInt(m, 10) < 6;
+      });
+
+      oldTttTasks.forEach(t => {
+        const { score, max } = parseQuizScore(t.quizResult, t.currentUpdate);
+        totalScore += score;
+        totalMax += max;
+        totalAssigned++;
+        totalCompleted++;
+        allTttTasks.push(t);
+      });
+
+      // Attendance records from June 2026 onwards
+      if (year === '2026') {
+        const userRecsInYear = attendanceRecords.filter(rec => {
+          if (!rec.date) return false;
+          const normRecName = (rec.name || '').trim().toLowerCase();
+          if (normRecName !== normUserName) return false;
+
+          const [recY, recM] = rec.date.split('-');
+          return recY === year && parseInt(recM, 10) >= 6;
+        });
+
+        const recsByDate: { [key: string]: any[] } = {};
+        userRecsInYear.forEach(rec => {
+          if (!recsByDate[rec.date]) {
+            recsByDate[rec.date] = [];
+          }
+          recsByDate[rec.date].push(rec);
+        });
+
+        Object.keys(recsByDate).forEach(dateStr => {
+          totalAssigned++;
+          const dayRecords = recsByDate[dateStr];
+          
+          let bestScoreObj = { score: 0, max: 0, hasQuiz: false, quizResult: '', quizExplanation: '', status: 'CÓ MẶT' };
+          dayRecords.forEach(r => {
+            const qVal = (r.quizResult || '').trim();
+            if (qVal && qVal.toUpperCase() !== 'CHƯA THI') {
+              const { score, max } = parseQuizScore(qVal, r.quizExplanation);
+              if (max > 0) {
+                bestScoreObj.hasQuiz = true;
+                if (score > bestScoreObj.score || !bestScoreObj.quizResult) {
+                  bestScoreObj.score = score;
+                  bestScoreObj.max = max;
+                  bestScoreObj.quizResult = qVal;
+                  bestScoreObj.quizExplanation = r.quizExplanation || '';
+                }
+              }
+            }
+            if (r.status) {
+              bestScoreObj.status = r.status;
+            }
+          });
+
+          const [yStr, mStr, dStr] = dateStr.split('-');
+          const dateFormatted = `${dStr}/${mStr}/${yStr.substring(2)}`;
+
+          if (bestScoreObj.hasQuiz) {
+            totalCompleted++;
+            totalScore += bestScoreObj.score;
+            totalMax += bestScoreObj.max;
+          }
+
+          allQuizDays.push({
+            userId: uid,
+            userName,
+            date: dateStr,
+            dateFormatted,
+            quizResult: bestScoreObj.hasQuiz ? bestScoreObj.quizResult : 'Chưa thi',
+            quizExplanation: bestScoreObj.quizExplanation,
+            status: bestScoreObj.status,
+            accuracyDayRate: bestScoreObj.max > 0 ? Math.round((bestScoreObj.score / bestScoreObj.max) * 100) : 0
+          });
+        });
+      } else {
+        const userRecsInYear = attendanceRecords.filter(rec => {
+          if (!rec.date) return false;
+          const normRecName = (rec.name || '').trim().toLowerCase();
+          if (normRecName !== normUserName) return false;
+
+          const [recY] = rec.date.split('-');
+          return recY === year;
+        });
+
+        const recsByDate: { [key: string]: any[] } = {};
+        userRecsInYear.forEach(rec => {
+          if (!recsByDate[rec.date]) {
+            recsByDate[rec.date] = [];
+          }
+          recsByDate[rec.date].push(rec);
+        });
+
+        Object.keys(recsByDate).forEach(dateStr => {
+          totalAssigned++;
+          const dayRecords = recsByDate[dateStr];
+          
+          let bestScoreObj = { score: 0, max: 0, hasQuiz: false, quizResult: '', quizExplanation: '', status: 'CÓ MẶT' };
+          dayRecords.forEach(r => {
+            const qVal = (r.quizResult || '').trim();
+            if (qVal && qVal.toUpperCase() !== 'CHƯA THI') {
+              const { score, max } = parseQuizScore(qVal, r.quizExplanation);
+              if (max > 0) {
+                bestScoreObj.hasQuiz = true;
+                if (score > bestScoreObj.score || !bestScoreObj.quizResult) {
+                  bestScoreObj.score = score;
+                  bestScoreObj.max = max;
+                  bestScoreObj.quizResult = qVal;
+                  bestScoreObj.quizExplanation = r.quizExplanation || '';
+                }
+              }
+            }
+            if (r.status) {
+              bestScoreObj.status = r.status;
+            }
+          });
+
+          const [yStr, mStr, dStr] = dateStr.split('-');
+          const dateFormatted = `${dStr}/${mStr}/${yStr.substring(2)}`;
+
+          if (bestScoreObj.hasQuiz) {
+            totalCompleted++;
+            totalScore += bestScoreObj.score;
+            totalMax += bestScoreObj.max;
+          }
+
+          allQuizDays.push({
+            userId: uid,
+            userName,
+            date: dateStr,
+            dateFormatted,
+            quizResult: bestScoreObj.hasQuiz ? bestScoreObj.quizResult : 'Chưa thi',
+            quizExplanation: bestScoreObj.quizExplanation,
+            status: bestScoreObj.status,
+            accuracyDayRate: bestScoreObj.max > 0 ? Math.round((bestScoreObj.score / bestScoreObj.max) * 100) : 0
+          });
+        });
+      }
+    });
+
+    const accuracyRate = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
+    const completionRate = totalAssigned > 0 ? Math.round((totalCompleted / totalAssigned) * 100) : 100;
+
+    return {
+      totalAssigned,
+      totalCompleted,
+      totalScore,
+      totalMax,
+      accuracyRate,
+      completionRate,
+      quizDaysList: allQuizDays,
+      tasks: allTttTasks
+    };
+  };
+
   const getBchCumulativeMetrics = (userId: string) => {
     const [monthStr, yearStr] = reportPeriod.split('/');
     const month = parseInt(monthStr, 10) || 5;
@@ -1755,8 +2182,15 @@ export const ReportPage = ({
                 const u = users.find(usr => usr.id === uid);
                 if (!u) return null;
                 
-                const isLd = isLeaderRole(uid, 'BCH');
-                const roleTitle = isLd ? 'Leader/QL' : 'Staff/NV';
+                const userTitle = (() => {
+                  const name = u.name || '';
+                  const normName = name.trim();
+                  if (normName === 'Lê Nhật Trường') return 'Trưởng Phòng';
+                  if (normName === 'Võ Thị Mỹ Tân' || normName.includes('Mỹ Tân') || normName.includes('Tân')) return 'Trưởng Nhóm';
+                  if (u.role === 'Trưởng Phòng') return 'Trưởng Phòng';
+                  if (u.role === 'Leader') return 'Trưởng Nhóm';
+                  return 'Nhân Viên';
+                })();
                 
                 const res = bchViewMode === 'ytd' ? getBchCumulativeMetrics(uid) : getBchAnnualMetrics(uid);
                 const diff = res.totalTarget - res.totalActual;
@@ -1773,7 +2207,7 @@ export const ReportPage = ({
                         {u.name}
                       </div>
                     </td>
-                    <td className="p-3 text-center font-semibold text-slate-600 border border-slate-300 w-[80px] min-w-[80px]">{roleTitle}</td>
+                    <td className="p-3 text-center font-semibold text-slate-600 border border-slate-300 w-[80px] min-w-[80px]">{userTitle}</td>
                     <td className="py-2.5 px-1 text-center font-medium bg-sky-500/5 text-sky-800 border border-slate-300 w-[65px] min-w-[65px] max-w-[65px] whitespace-nowrap">{res.targetCuuHo} cái</td>
                     <td className="py-2.5 px-1 text-center font-medium bg-emerald-500/5 text-emerald-800 border border-slate-300 w-[65px] min-w-[65px] max-w-[65px] whitespace-nowrap">{res.targetTnds} cái</td>
                     <td className="py-2.5 px-1 text-center font-black bg-slate-100 text-slate-800 border border-slate-300 w-[65px] min-w-[65px] max-w-[65px] whitespace-nowrap">{res.totalTarget} cái</td>
@@ -1861,6 +2295,289 @@ export const ReportPage = ({
   };
 
 
+  const renderCumulativeQuizDashboard = () => {
+    const [monthStr, yearStr] = reportPeriod.split('/');
+    const month = parseInt(monthStr, 10) || 5;
+    const year = parseInt(yearStr, 10) || 2026;
+
+    const targetUserIds = (activeTab === 'staff' && selectedStaffId && selectedStaffId !== 'ALL')
+      ? [selectedStaffId]
+      : allocatedUserIds;
+
+    return (
+      <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-md space-y-4 print:border-none print:shadow-none print:p-0 print:pt-0" id="cumulative-quiz-dashboard">
+        {/* INTEGRATED HEADER WITH MODE SWITCHER */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b pb-3 border-slate-200 gap-3">
+          <div className="flex items-center gap-2">
+            <span className="p-1 px-2.5 bg-amber-50 text-amber-600 rounded text-base print:hidden">📝</span>
+            <div>
+              <h4 className="font-extrabold text-slate-800 text-sm uppercase">
+                {tttViewMode === 'ytd' 
+                  ? `BẢNG THEO DÕI LŨY KẾ ĐIỂM SỐ QUIZ 3T HÀNG NGÀY NĂM ${year}`
+                  : `BẢNG THEO DÕI LŨY KẾ ĐIỂM SỐ QUIZ 3T CẢ NĂM ${year}`
+                }
+              </h4>
+              <p className="text-[10px] text-slate-500 font-semibold uppercase mt-0.5">
+                {tttViewMode === 'ytd'
+                  ? `Cơ chế cộng dồn lũy kế đến Tháng ${monthStr} / Quyết định tập đoàn QLCL`
+                  : `Kế hoạch tích lũy cả năm ${year} / Chỉ tiêu rèn luyện năng lực đến 12/${year}`
+                }
+              </p>
+            </div>
+          </div>
+          
+          {/* TAB SWITCHER WITH DEDICATED PRINT BUTTON */}
+          <div className="flex items-center self-start sm:self-center gap-2 print:hidden no-print">
+            <button
+              type="button"
+              onClick={() => {
+                const printContents = document.getElementById('cumulative-quiz-dashboard')?.outerHTML;
+                if (printContents) {
+                  const printWindow = window.open('', '_blank');
+                  if (printWindow) {
+                    printWindow.document.write(`
+                      <html>
+                        <head>
+                          <title>BẢNG THEO DÕI LŨY KẾ ĐIỂM SỐ QUIZ 3T NĂM ${year}</title>
+                          <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+                          <style>
+                            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+                            body {
+                              font-family: 'Inter', sans-serif;
+                              padding: 24px;
+                              background-color: white;
+                              color: #1e293b;
+                            }
+                            .notranslate { translate: no; }
+                            .print\\:hidden, button, .no-print { display: none !important; }
+                            table { page-break-inside: avoid; }
+                            tr { page-break-inside: avoid; page-break-after: auto; }
+                          </style>
+                        </head>
+                        <body>
+                          <div class="space-y-4">
+                            ${printContents}
+                          </div>
+                          <script>
+                            setTimeout(() => {
+                              window.print();
+                              window.close();
+                            }, 500);
+                          </script>
+                        </body>
+                      </html>
+                    `);
+                    printWindow.document.close();
+                  }
+                }
+              }}
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg shadow-sm cursor-pointer hover:text-amber-600 transition-colors"
+              title="In riêng bảng điểm Quiz này"
+            >
+              <Printer size={13} strokeWidth={2.5} />
+              In bảng này
+            </button>
+ 
+            <div className="inline-flex p-0.5 bg-slate-100 rounded-lg border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setTttViewMode('ytd')}
+                className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all duration-150 ${
+                  tttViewMode === 'ytd'
+                    ? 'bg-white text-amber-600 shadow-sm border border-slate-200/50'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Theo Tháng (YTD: {monthStr})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTttViewMode('annual')}
+                className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all duration-150 ${
+                  tttViewMode === 'annual'
+                    ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/50'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Cả Năm {year}
+              </button>
+            </div>
+          </div>
+        </div>
+ 
+        {/* GUIDES BASED ON VIEW MODE & MECHANICAL STRUCTURE CARD */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 print:hidden">
+          {tttViewMode === 'ytd' ? (
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs text-slate-700 leading-relaxed text-left">
+              <strong className="text-slate-900 font-extrabold flex items-center gap-1">
+                <Sparkles size={11} className="text-amber-500 animate-spin-slow" /> Hướng dẫn kiểm soát Tuân thủ Quiz 3T:
+              </strong>
+              <span className="block mt-1.5 space-y-1">
+                <span>- <strong>Nhân sự</strong>: Cần hoàn thành 100% các câu hỏi Quiz 3T được giao hàng ngày. Mỗi kỳ điểm cao nâng cao điểm trung bình và bảo đảm chỉ tiêu rèn luyện năng lực Tập đoàn.</span>
+                <span>- <strong>Cơ cấu điểm</strong>: Mỗi kỳ thi gồm 3 câu hỏi (tối đa 10 điểm mỗi câu, tổng cộng 30 điểm/kỳ).</span>
+              </span>
+            </div>
+          ) : (
+            <div className="bg-indigo-50/40 p-4 rounded-xl border border-indigo-100/70 text-xs text-slate-700 leading-relaxed text-left">
+              <strong className="text-indigo-900 font-extrabold flex items-center gap-1">
+                <Sparkles size={11} className="text-indigo-500 animate-spin-slow" /> Hướng dẫn rèn luyện Quiz 3T Cả năm:
+              </strong>
+              <span className="block mt-1.5">
+                - <strong>Theo dõi cả năm</strong>: Tổng hợp điểm số tích lũy qua tất cả các kỳ thi Quiz trong năm {year} của phòng, hỗ trợ đánh giá ý thức tuân thủ và nỗ lực tự học của từng cá nhân.
+              </span>
+            </div>
+          )}
+ 
+          {/* BẢNG CƠ CẤU ĐÁNH GIÁ DỰ PHÒNG */}
+          <div className="bg-amber-50/40 p-3.5 rounded-xl border border-amber-200/60 text-xs text-slate-700 text-left relative group">
+            <div className="flex items-center justify-between mb-2">
+              <strong className="text-amber-900 font-extrabold flex items-center gap-1.5">
+                <Settings size={12} className="text-amber-600 animate-spin-slow" /> Bảng Cơ Cấu Đánh Giá Quy Đổi Điểm:
+              </strong>
+              <button
+                type="button"
+                onClick={handleOpenEditQuizEval}
+                className="p-1 px-2.5 rounded-md text-amber-700 hover:bg-amber-200/50 hover:text-amber-950 transition-all border border-amber-300 bg-amber-50 shadow-sm cursor-pointer inline-flex items-center gap-1 text-[9.5px] font-black uppercase active:scale-95 shrink-0"
+              >
+                <Edit size={10} /> Sửa
+              </button>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] font-medium text-slate-650">
+              <div className="flex items-center justify-between border-b border-dashed border-amber-100 pb-1">
+                <span>{quizEvalStructure.min_90} đến {quizEvalStructure.max_90} điểm:</span>
+                <span className="font-extrabold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">Đạt 90%</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-dashed border-amber-100 pb-1">
+                <span>{quizEvalStructure.min_100} đến {quizEvalStructure.max_100} điểm:</span>
+                <span className="font-extrabold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">Đạt 100%</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-dashed border-amber-100 pb-1">
+                <span>{quizEvalStructure.min_120} đến {quizEvalStructure.max_120} điểm:</span>
+                <span className="font-extrabold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">Đạt 120%</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-dashed border-amber-100 pb-1">
+                <span>{quizEvalStructure.min_150} đến {quizEvalStructure.max_150} điểm:</span>
+                <span className="font-extrabold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">Đạt 150%</span>
+              </div>
+            </div>
+            <p className="text-[9.5px] text-slate-450 italic mt-1.5 leading-tight">
+              * Hệ thống tự động tính điểm trung bình thực tế mỗi kỳ đã nộp để xếp loại chính xác.
+            </p>
+          </div>
+        </div>
+ 
+        {/* DATA TABLE */}
+        <div className="overflow-x-auto rounded-lg border border-slate-300">
+          <table className="w-full text-slate-800 border-collapse">
+            <thead>
+              <tr className="bg-slate-800 text-white text-[11px] font-black uppercase tracking-wider select-none border-b border-slate-700">
+                <th className="py-2.5 px-3 text-left border border-slate-700 w-[150px] min-w-[150px] max-w-[150px]">Họ và tên</th>
+                <th className="py-2.5 px-3 text-center border border-slate-700 w-[110px] min-w-[110px] max-w-[110px]">Chức danh</th>
+                <th className="py-2.5 px-3 text-center border border-slate-700 w-[110px] min-w-[110px] max-w-[110px]">Số Kỳ</th>
+                <th className="py-2.5 px-3 text-center border border-slate-700 w-[150px] min-w-[150px] max-w-[150px]">Điểm Trung Bình</th>
+                <th className="py-2.5 px-3 text-center border border-slate-700 w-[120px] min-w-[120px] max-w-[120px]">Độ chính xác</th>
+                <th className="py-2.5 px-3 text-center border border-slate-700 w-[220px] min-w-[220px] max-w-[220px]">Tiến độ tham gia</th>
+                <th className="py-2.5 px-3 text-center border border-slate-700 w-[140px] min-w-[140px] max-w-[140px]">Đánh giá</th>
+              </tr>
+            </thead>
+            <tbody>
+              {targetUserIds.map(uid => {
+                const res = tttViewMode === 'ytd' ? getTttCumulativeMetrics(uid) : getTttAnnualMetrics(uid);
+                const user = users.find(u => u.id === uid);
+                
+                const userTitle = (() => {
+                  const name = user?.name || '';
+                  const normName = name.trim();
+                  if (normName === 'Lê Nhật Trường') return 'Trưởng Phòng';
+                  if (normName === 'Võ Thị Mỹ Tân' || normName.includes('Mỹ Tân') || normName.includes('Tân')) return 'Trưởng Nhóm';
+                  if (user?.role === 'Trưởng Phòng') return 'Trưởng Phòng';
+                  if (user?.role === 'Leader') return 'Trưởng Nhóm';
+                  return 'Nhân Viên';
+                })();
+ 
+                const avgScore = res.totalCompleted > 0 ? Number((res.totalScore / res.totalCompleted).toFixed(1)) : 0;
+ 
+                const evalText = () => {
+                  if (res.totalCompleted === 0) return 'CHƯA THAM GIA';
+                  if (avgScore >= quizEvalStructure.min_90 && avgScore < quizEvalStructure.max_90) return 'ĐẠT 90%';
+                  if (avgScore >= quizEvalStructure.min_100 && avgScore < quizEvalStructure.max_100) return 'ĐẠT 100%';
+                  if (avgScore >= quizEvalStructure.min_120 && avgScore < quizEvalStructure.max_120) return 'ĐẠT 120%';
+                  if (avgScore >= quizEvalStructure.min_150 && avgScore <= quizEvalStructure.max_150) return 'ĐẠT 150%';
+                  return 'CẦN NỖ LỰC';
+                };
+ 
+                const evalBadgeClass = () => {
+                  if (res.totalCompleted === 0) return 'bg-slate-100 text-slate-500 border-slate-200';
+                  
+                  const text = evalText();
+                  if (text === 'ĐẠT 90%' || text === 'CẦN NỖ LỰC') {
+                    // Nền đỏ, chữ trắng cảnh báo và nổi bật
+                    return 'bg-red-600 text-white font-black border-red-700 shadow-md shadow-red-100';
+                  }
+
+                  if (avgScore >= quizEvalStructure.min_150) return 'bg-indigo-100 text-indigo-800 border-indigo-300 font-extrabold';
+                  if (avgScore >= quizEvalStructure.min_120) return 'bg-purple-100 text-purple-800 border-purple-300 font-extrabold';
+                  if (avgScore >= quizEvalStructure.min_100) return 'bg-emerald-100 text-emerald-800 border-emerald-300 font-extrabold';
+                  return 'bg-amber-100 text-amber-800 border-amber-200 font-extrabold';
+                };
+ 
+                return (
+                  <tr key={uid} className="text-xs hover:bg-slate-50/70 border-b border-slate-200 font-medium">
+                    <td className="py-2.5 px-3 font-semibold text-slate-900 border border-slate-300 whitespace-nowrap overflow-hidden text-ellipsis">
+                      {user?.name || `ID: ${uid}`}
+                    </td>
+                    <td className="py-2.5 px-3 text-center text-slate-650 font-bold border border-slate-300 whitespace-nowrap overflow-hidden text-ellipsis">
+                      {userTitle}
+                    </td>
+                    <td className="py-2.5 px-3 text-center font-bold text-slate-650 border border-slate-300">
+                      {res.totalAssigned} kỳ
+                    </td>
+                    <td className="py-2.5 px-3 text-center border border-slate-300 font-extrabold text-blue-700 bg-blue-50/50">
+                      {avgScore} / 30đ
+                    </td>
+                    <td className={`py-2.5 px-3 text-center border border-slate-300 font-extrabold ${res.accuracyRate >= 90 ? 'text-emerald-700 bg-emerald-50/30' : 'text-slate-700'}`}>
+                      {res.accuracyRate}%
+                    </td>
+                    <td className="py-2.5 px-3 border border-slate-300">
+                      <div className="flex flex-col gap-1 text-left w-full">
+                        <div className="flex justify-between text-[9.5px] font-bold text-slate-500">
+                          <span>THAM GIA: {res.totalCompleted}/{res.totalAssigned}</span>
+                          <span className={res.completionRate >= 100 ? "text-emerald-600 font-black" : "text-amber-600 font-black"}>
+                            {res.completionRate}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-200 h-1 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full ${res.completionRate >= 100 ? 'bg-emerald-500' : 'bg-amber-400'}`}
+                            style={{ width: `${res.completionRate}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-3 text-center border border-slate-300">
+                      <span className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider border shadow-sm ${evalBadgeClass()}`}>
+                        {(evalText() === 'ĐẠT 90%' || evalText() === 'CẦN NỖ LỰC') ? (
+                          <>
+                            <span className="text-[12px] animate-pulse">💪</span>
+                            <span>{evalText()}</span>
+                          </>
+                        ) : (
+                          evalText()
+                        )}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+
   // Smart Recurrence Aggregator
   const getCategoryMetrics = (code: string, userId: string) => {
     if (code === 'BCH') {
@@ -1879,6 +2596,54 @@ export const ReportPage = ({
         items: bchMetrics.tasks,
         groups
       };
+    }
+
+    if (code === 'TTT') {
+      const [month, year] = reportPeriod.split('/');
+      const isFromJune = parseInt(year, 10) > 2026 || (parseInt(year, 10) === 2026 && parseInt(month, 10) >= 6);
+      
+      if (isFromJune) {
+        if (userId === 'ALL') {
+          let totalRate = 0;
+          let validCount = 0;
+          const allGroups: any[] = [];
+          
+          allocatedUserIds.forEach(uid => {
+            const sub = getCategoryMetrics('TTT', uid);
+            if (sub.completionRate !== null) {
+              totalRate += sub.completionRate;
+              validCount++;
+            }
+            if (sub.groups) {
+              allGroups.push(...sub.groups);
+            }
+          });
+          
+          const completionRate = validCount > 0 ? Math.round(totalRate / validCount) : null;
+          return {
+            completionRate,
+            groupedCount: allGroups.length,
+            items: allGroups,
+            groups: allGroups
+          };
+        }
+        
+        const metrics = getTttCumulativeMetrics(userId);
+        const groups = (metrics.quizDaysList || []).map((q: any) => ({
+          title: `Chấm công ngày ${q.dateFormatted} (${q.status})`,
+          objective: q.quizResult && q.quizResult !== 'Chưa thi' ? `Điểm số Quiz: ${q.quizResult} • Chi tiết: ${q.quizExplanation || '(Không có)'}` : 'Chưa thi Quiz / Không có điểm',
+          total: 1,
+          completed: (q.quizResult && q.quizResult !== 'Chưa thi') ? 1 : 0,
+          percent: q.accuracyDayRate || 0
+        }));
+        
+        return {
+          completionRate: metrics.accuracyRate,
+          groupedCount: metrics.totalAssigned,
+          items: groups,
+          groups
+        };
+      }
     }
 
     if (code === 'AIU') {
@@ -3156,9 +3921,10 @@ export const ReportPage = ({
               </div>
             </div>
 
-            {/* TRANG 2: THEO DÕI LŨY KẾ BÁN CHÉO - INDEPENDENTLY CARRIED TO PAGE 2 */}
-            <div className="cross-sell-page-wrapper print:break-before-page print:mt-0 print:pt-0" style={{ breakBefore: 'page', pageBreakBefore: 'always' }}>
+            {/* TRANG 2: THEO DÕI LŨY KẾ BÁN CHÉO & ĐIỂM SỐ QUIZ 3T - INDEPENDENTLY CARRIED TO PAGE 2 */}
+            <div className="cross-sell-page-wrapper print:break-before-page print:mt-0 print:pt-0 space-y-6" style={{ breakBefore: 'page', pageBreakBefore: 'always' }}>
               {renderCumulativeInsuranceDashboard()}
+              {renderCumulativeQuizDashboard()}
             </div>
           </div>
         </motion.div>
@@ -3840,8 +4606,9 @@ export const ReportPage = ({
               </div>
             </div>
           </div>
-          <div className="print-bch-compact-container mt-6">
+          <div className="print-bch-compact-container mt-6 space-y-6">
             {renderCumulativeInsuranceDashboard()}
+            {renderCumulativeQuizDashboard()}
           </div>
         </motion.div>
       )}
@@ -5052,6 +5819,175 @@ export const ReportPage = ({
                   >
                     <ExternalLink size={12} strokeWidth={2.5} />
                     MỞ TRANG IN ↗
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal chỉnh sửa cơ cấu đánh giá Quiz 3T (Popup Dialog) */}
+      <AnimatePresence>
+        {isEditingQuizEval && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[999999] animate-in fade-in duration-200">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 relative overflow-hidden text-left"
+            >
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500" />
+              
+              <button 
+                onClick={() => setIsEditingQuizEval(false)}
+                className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                type="button"
+              >
+                <X size={16} />
+              </button>
+
+              <div className="mt-2">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-amber-500">
+                    <Settings size={18} strokeWidth={2.5} className="animate-spin-slow" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-tight">
+                      CƠ CẤU ĐÁNH GIÁ QUIZ 3T
+                    </h3>
+                    <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Cấu hình thang điểm xếp hạng</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 mb-6">
+                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-[10px] text-slate-500 font-medium leading-relaxed">
+                    Nhập dải điểm số trung bình tối thiểu và tối đa đạt được của mỗi kỳ (0 - 30 điểm) để quy đổi ra tỷ lệ % KPI tương ứng.
+                  </div>
+
+                  {/* Cấu hình các dải điểm */}
+                  <div className="space-y-3">
+                    {/* Đạt 90% */}
+                    <div className="grid grid-cols-5 gap-2 items-center">
+                      <span className="col-span-2 text-[10px] font-black text-slate-500 uppercase">Đạt 90%:</span>
+                      <div className="col-span-3 flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max="30"
+                          step="0.1"
+                          value={tempQuizEval.min_90}
+                          onChange={(e) => setTempQuizEval(prev => ({ ...prev, min_90: Number(e.target.value) }))}
+                          className="w-full text-center h-8 text-xs font-extrabold bg-blue-50 text-blue-700 border border-blue-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        />
+                        <span className="text-[10px] text-slate-400 font-bold">tới</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="30"
+                          step="0.1"
+                          value={tempQuizEval.max_90}
+                          onChange={(e) => setTempQuizEval(prev => ({ ...prev, max_90: Number(e.target.value) }))}
+                          className="w-full text-center h-8 text-xs font-extrabold bg-blue-50 text-blue-700 border border-blue-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Đạt 100% */}
+                    <div className="grid grid-cols-5 gap-2 items-center border-t border-slate-100 pt-3">
+                      <span className="col-span-2 text-[10px] font-black text-slate-500 uppercase">Đạt 100%:</span>
+                      <div className="col-span-3 flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max="30"
+                          step="0.1"
+                          value={tempQuizEval.min_100}
+                          onChange={(e) => setTempQuizEval(prev => ({ ...prev, min_100: Number(e.target.value) }))}
+                          className="w-full text-center h-8 text-xs font-extrabold bg-teal-50 text-teal-700 border border-teal-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-400"
+                        />
+                        <span className="text-[10px] text-slate-400 font-bold">tới</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="30"
+                          step="0.1"
+                          value={tempQuizEval.max_100}
+                          onChange={(e) => setTempQuizEval(prev => ({ ...prev, max_100: Number(e.target.value) }))}
+                          className="w-full text-center h-8 text-xs font-extrabold bg-teal-50 text-teal-700 border border-teal-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-400"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Đạt 120% */}
+                    <div className="grid grid-cols-5 gap-2 items-center border-t border-slate-100 pt-3">
+                      <span className="col-span-2 text-[10px] font-black text-slate-500 uppercase">Đạt 120%:</span>
+                      <div className="col-span-3 flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max="30"
+                          step="0.1"
+                          value={tempQuizEval.min_120}
+                          onChange={(e) => setTempQuizEval(prev => ({ ...prev, min_120: Number(e.target.value) }))}
+                          className="w-full text-center h-8 text-xs font-extrabold bg-purple-50 text-purple-700 border border-purple-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-purple-400"
+                        />
+                        <span className="text-[10px] text-slate-400 font-bold">tới</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="30"
+                          step="0.1"
+                          value={tempQuizEval.max_120}
+                          onChange={(e) => setTempQuizEval(prev => ({ ...prev, max_120: Number(e.target.value) }))}
+                          className="w-full text-center h-8 text-xs font-extrabold bg-purple-50 text-purple-700 border border-purple-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-purple-400"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Đạt 150% */}
+                    <div className="grid grid-cols-5 gap-2 items-center border-t border-slate-100 pt-3">
+                      <span className="col-span-2 text-[10px] font-black text-slate-500 uppercase">Đạt 150%:</span>
+                      <div className="col-span-3 flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max="30"
+                          step="0.1"
+                          value={tempQuizEval.min_150}
+                          onChange={(e) => setTempQuizEval(prev => ({ ...prev, min_150: Number(e.target.value) }))}
+                          className="w-full text-center h-8 text-xs font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                        />
+                        <span className="text-[10px] text-slate-400 font-bold">tới</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="30"
+                          step="0.1"
+                          value={tempQuizEval.max_150}
+                          onChange={(e) => setTempQuizEval(prev => ({ ...prev, max_150: Number(e.target.value) }))}
+                          className="w-full text-center h-8 text-xs font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 w-full">
+                  <button
+                    onClick={() => setIsEditingQuizEval(false)}
+                    className="flex-1 h-9 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                    type="button"
+                  >
+                    HỦY
+                  </button>
+                  <button
+                    onClick={handleSaveQuizEval}
+                    className="flex-[2] h-9 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-amber-200 hover:shadow active:scale-95 transition-all cursor-pointer"
+                    type="button"
+                  >
+                    <Save size={12} strokeWidth={2.5} />
+                    LƯU CẤU HÌNH
                   </button>
                 </div>
               </div>

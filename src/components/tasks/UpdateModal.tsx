@@ -8,13 +8,21 @@ interface UpdateModalProps {
   isOpen: boolean;
   onClose: () => void;
   task: Task;
-  onSave: (taskId: string, content: string, aiApplied?: boolean, aiAppliedDetails?: string) => void;
+  onSave: (taskId: string, content: string, aiApplied?: boolean, aiAppliedDetails?: string, quizResult?: string) => void;
 }
+
+const isTttTask = (task: Task) => {
+  const code = (task.code || '').toUpperCase();
+  const cat = (task.category || '').toUpperCase();
+  const title = (task.title || '').toUpperCase();
+  return code.includes('TTT') || cat.includes('TTT') || title.includes('[TTT]');
+};
 
 export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, task, onSave }) => {
   const editorRef = React.useRef<HTMLDivElement>(null);
   const [aiApplied, setAiApplied] = React.useState(false);
   const [aiAppliedDetails, setAiAppliedDetails] = React.useState('');
+  const [quizResult, setQuizResult] = React.useState('');
 
   const toHTML = (content: string) => {
     if (!content) return '';
@@ -38,6 +46,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, task,
     if (isOpen) {
       setAiApplied(!!task.aiApplied);
       setAiAppliedDetails(task.aiAppliedDetails || '');
+      setQuizResult(task.quizResult || '');
       
       // Small delay to ensure Ref is attached and Animation is stable
       const timer = setTimeout(() => {
@@ -65,7 +74,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, task,
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [isOpen, task.id, task.currentUpdate, task.aiApplied, task.aiAppliedDetails]); 
+  }, [isOpen, task.id, task.currentUpdate, task.aiApplied, task.aiAppliedDetails, task.quizResult]); 
 
   const handleApplyFormat = (e: React.MouseEvent, command: string, value?: string) => {
     e.preventDefault();
@@ -99,7 +108,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, task,
 
   const handleSave = () => {
     if (editorRef.current) {
-      onSave(task.id, editorRef.current.innerHTML, aiApplied, aiApplied ? aiAppliedDetails : '');
+      onSave(task.id, editorRef.current.innerHTML, aiApplied, aiApplied ? aiAppliedDetails : '', quizResult);
       onClose();
     }
   };
@@ -197,6 +206,21 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({ isOpen, onClose, task,
 
               {/* Editor */}
               <div className="flex-1 p-6 overflow-y-auto min-h-[300px] max-h-[60vh] bg-gray-50/20 shadow-inner">
+                {isTttTask(task) && (
+                  <div className="mb-4 bg-amber-50/60 border border-amber-200/50 p-2.5 px-4 rounded-xl flex items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1 px-2 bg-amber-100/80 text-amber-900 text-[10px] font-black rounded-lg uppercase tracking-wider">3T QUIZ</span>
+                      <span className="text-[12px] font-bold text-slate-700">KẾT QUẢ ĐẠT ĐƯỢC:</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={quizResult}
+                      onChange={(e) => setQuizResult(e.target.value)}
+                      placeholder="Ví dụ: 30/30"
+                      className="w-32 text-center text-xs font-black uppercase text-slate-800 bg-white border border-slate-300 rounded-lg py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-3xs"
+                    />
+                  </div>
+                )}
                 <style dangerouslySetInnerHTML={{ __html: `
                   .notranslate.rich-text-content, 
                   .notranslate.rich-text-content *,

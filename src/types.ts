@@ -273,6 +273,7 @@ export interface Task {
   attachmentUrl?: string;
   attachmentName?: string;
   category?: string; // Mã phân loại từ task_categories
+  quizResult?: string | null; // Điểm số Quiz [TTT] nếu có
   updatedAt: string;
   comments?: TaskComment[];
   requestDelete?: boolean;

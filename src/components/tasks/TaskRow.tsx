@@ -52,6 +52,13 @@ const getIdleDaysText = (task: Task) => {
   return "5 ngày rồi";
 };
 
+const isTttTask = (task: Task) => {
+  const code = (task.code || '').toUpperCase();
+  const cat = (task.category || '').toUpperCase();
+  const title = (task.title || '').toUpperCase();
+  return code.includes('TTT') || cat.includes('TTT') || title.includes('TTT') || cat === 'TTT' || cat === '[TTT]' || title.includes('[TTT]');
+};
+
 const HIGHLIGHT_COLORS: Record<string, string> = {
   'amber': '!bg-amber-50/50 hover:!bg-amber-100/60 ring-inset ring-1 ring-amber-200/30 text-amber-950',
   'emerald': '!bg-emerald-50/50 hover:!bg-emerald-100/60 ring-inset ring-1 ring-emerald-200/30 text-emerald-950',
@@ -619,11 +626,12 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     return processed;
   };
 
-  const handleUpdateProgress = (taskId: string, htmlContent: string, aiApplied?: boolean, aiAppliedDetails?: string) => {
+  const handleUpdateProgress = (taskId: string, htmlContent: string, aiApplied?: boolean, aiAppliedDetails?: string, quizResult?: string) => {
     onUpdate(taskId, { 
       currentUpdate: htmlContent,
       aiApplied: aiApplied ?? null,
       aiAppliedDetails: aiAppliedDetails ?? null,
+      quizResult: quizResult ?? null,
       isNewUpdate: true,
       lastActionAt: new Date().toISOString(),
       lastUpdatedByRole: user.role,
@@ -717,6 +725,38 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     if (!staffQ || !staffC || !staffD || !staffQExp.trim() || !staffCExp.trim() || !staffDExp.trim()) return;
     setIsProcessing(true);
     try {
+      if (isTttTask(task)) {
+        const today = new Date().toISOString().split('T')[0];
+        const hasOtherTttSubmittedToday = (tasks || []).some(t => {
+          if (!isTttTask(t)) return false;
+          if (t.assigneeId !== task.assigneeId) return false;
+          
+          if (t.id !== task.id) {
+            const wasWaitingToday = t.waitingApprovalAt && t.waitingApprovalAt.startsWith(today);
+            const wasCompletedToday = t.actualEndDate === today || (t.status === 'COMPLETED' && t.updatedAt && t.updatedAt.startsWith(today));
+            return wasWaitingToday || wasCompletedToday;
+          } else {
+            const wasCompletedToday = t.actualEndDate === today || (t.status === 'COMPLETED' && t.updatedAt && t.updatedAt.startsWith(today));
+            return wasCompletedToday;
+          }
+        });
+
+        if (hasOtherTttSubmittedToday) {
+          setConfirmModal({
+            show: true,
+            title: <span className="text-red-650 font-extrabold flex items-center gap-1.5" style={{ color: '#dc2626' }}>🚨 CẢNH BÁO VI PHẠM</span>,
+            message: <span className="font-semibold text-slate-700">Đối với mã công việc [TTT], mỗi nhân viên chỉ được trình duyệt tối đa 1 lần/ngày. Bạn đã trình duyệt hoặc hoàn tất một công việc [TTT] trong ngày hôm nay rồi!</span>,
+            isAlert: true,
+            confirmText: 'ĐÃ HIỂU',
+            onConfirm: () => {
+              setConfirmModal((p: any) => ({ ...p, show: false }));
+            }
+          });
+          setIsProcessing(false);
+          return;
+        }
+      }
+
       onUpdate(task.id, { 
         waitingApproval: true,
         isNewUpdate: true,
@@ -1041,6 +1081,11 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                 {task.aiApplied && (
                   <span translate="no" className="notranslate text-[10px] font-black px-1.5 py-0.5 bg-rose-600 text-white rounded border border-rose-700 shadow-sm shrink-0">
                     AI
+                  </span>
+                )}
+                {task.quizResult && (
+                  <span translate="no" className="notranslate text-[10px] font-black px-1.5 py-0.5 bg-amber-500 text-white rounded border border-amber-600 shadow-sm shrink-0">
+                    QZ: {task.quizResult}
                   </span>
                 )}
               </div>
@@ -2264,6 +2309,15 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                       title={task.aiAppliedDetails || "Có ứng dụng AI"}
                     >
                       AI
+                    </span>
+                  )}
+                  {task.quizResult && (
+                    <span 
+                      translate="no" 
+                      className="notranslate text-[9px] font-black px-1.5 py-0.5 bg-amber-500 text-white rounded-sm border border-amber-600 shadow-sm shrink-0 animate-pulse"
+                      title={`Kết quả: ${task.quizResult}`}
+                    >
+                      QZ: {task.quizResult}
                     </span>
                   )}
 

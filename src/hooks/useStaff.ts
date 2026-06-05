@@ -95,7 +95,7 @@ export const useStaff = () => {
     // SOURCE OF TRUTH LOGIC:
     // 1. Dùng FIXED_STAFF làm khung xương (Skeleton)
     const merged = FIXED_STAFF.map(fixed => {
-      const firestoreUser = firestoreProfiles[fixed.uniqueKey] as User | undefined;
+      const firestoreUser = (firestoreProfiles[fixed.uniqueKey] || (Object.values(firestoreProfiles) as User[]).find(u => u.uniqueKey === fixed.uniqueKey)) as User | undefined;
 
       if (firestoreUser) {
         // CẤP BẬC ƯU TIÊN: Firestore ghi đè 100% các thông tin linh động
@@ -126,7 +126,7 @@ export const useStaff = () => {
     // 2. Thêm những người dùng mới chỉ có trong Firestore
     const fixedKeys = new Set(FIXED_STAFF.map(s => s.uniqueKey));
     (Object.values(firestoreProfiles) as User[]).forEach(fUser => {
-      if (!fixedKeys.has(fUser.uniqueKey)) {
+      if (fUser.uniqueKey && !fixedKeys.has(fUser.uniqueKey)) {
         merged.push({
           ...fUser,
           // Đảm bảo không bị trống
@@ -136,7 +136,28 @@ export const useStaff = () => {
       }
     });
 
-    return merged;
+    // 3. Khóa chống trùng lặp tuyệt đối (Deduplication Guard)
+    const uniqueMerged: User[] = [];
+    const seenIds = new Set<string>();
+    const seenUniqueKeys = new Set<string>();
+
+    merged.forEach(user => {
+      const uId = user.id || user.uniqueKey;
+      const uKey = user.uniqueKey || user.id;
+      if (uId && uKey) {
+        if (!seenIds.has(uId) && !seenUniqueKeys.has(uKey)) {
+          seenIds.add(uId);
+          seenUniqueKeys.add(uKey);
+          uniqueMerged.push({
+            ...user,
+            id: uId,
+            uniqueKey: uKey
+          });
+        }
+      }
+    });
+
+    return uniqueMerged;
   }, [firestoreProfiles]);
 
   const updateProfile = async (uniqueKey: string, updates: Partial<User>) => {

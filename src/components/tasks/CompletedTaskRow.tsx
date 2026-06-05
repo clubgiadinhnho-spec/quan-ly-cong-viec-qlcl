@@ -75,11 +75,12 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
     return processed;
   };
 
-  const handleUpdateProgress = (taskId: string, htmlContent: string, aiApplied?: boolean, aiAppliedDetails?: string) => {
+  const handleUpdateProgress = (taskId: string, htmlContent: string, aiApplied?: boolean, aiAppliedDetails?: string, quizResult?: string) => {
     onUpdate(taskId, { 
       currentUpdate: htmlContent,
       aiApplied: aiApplied ?? null,
       aiAppliedDetails: aiAppliedDetails ?? null,
+      quizResult: quizResult ?? null,
       isNewUpdate: true,
       lastActionAt: new Date().toISOString(),
       lastUpdatedByRole: user.role,
@@ -267,6 +268,11 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                 {task.aiApplied && (
                   <span translate="no" className="notranslate text-[10px] font-black px-1.5 py-0.5 bg-rose-600 text-white rounded border border-rose-700 shadow-sm shrink-0">
                     AI
+                  </span>
+                )}
+                {task.quizResult && (
+                  <span translate="no" className="notranslate text-[10px] font-black px-1.5 py-0.5 bg-amber-500 text-white rounded border border-amber-600 shadow-sm shrink-0">
+                     QZ: {task.quizResult}
                   </span>
                 )}
               </div>
@@ -761,6 +767,15 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
                    title={task.aiAppliedDetails || "Có ứng dụng AI"}
                  >
                    AI
+                 </span>
+               )}
+               {task.quizResult && (
+                 <span 
+                   translate="no" 
+                   className="notranslate text-[9px] font-black px-1.5 py-0.2 bg-amber-500 text-white rounded-sm border border-amber-600 shadow-sm shrink-0 scale-90"
+                   title={`Kết quả: ${task.quizResult}`}
+                 >
+                    QZ: {task.quizResult}
                  </span>
                )}
              </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Calendar, Clock, CheckCircle2, MapPin, Sparkles, Gift, Send, FileText, CheckCircle, Check, Plus, ClipboardList, Trash2, ShieldAlert, Printer, RotateCcw, AlertTriangle, FileSpreadsheet, Sliders, ChevronDown, ChevronLeft, ChevronRight, Info, Save } from 'lucide-react';
+import { Calendar, Clock, CheckCircle2, MapPin, Sparkles, Gift, Send, FileText, CheckCircle, Check, Plus, ClipboardList, Trash2, ShieldAlert, Printer, RotateCcw, AlertTriangle, FileSpreadsheet, Sliders, ChevronDown, ChevronLeft, ChevronRight, Info, Save, Search, X, AlertCircle, Settings, Edit } from 'lucide-react';
 import { User } from '../../types';
 import { Header } from '../layout/Header';
 import { HolidayBanner } from '../layout/HolidayBanner';
@@ -173,6 +173,26 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
 }) => {
   const userPermissions = getUserPermissionsOf(effectiveUser);
 
+  const isUserAdminOrDeptManager = effectiveUser?.role === 'Admin' || effectiveUser?.role === 'Trưởng Phòng';
+
+  const canEditOrDeleteRecord = (rec: any) => {
+    if (!rec) return false;
+    if (isUserAdminOrDeptManager) return true;
+    const isOwn = rec.name?.toLowerCase() === effectiveUser?.name?.toLowerCase();
+    if (!isOwn) return false;
+    const ageMs = Date.now() - rec.id;
+    return ageMs < (15 * 60 * 1000); // 15 mins lock
+  };
+
+  const canEditFields = (rec: any) => {
+    if (!rec) return false;
+    if (isUserAdminOrDeptManager) return true;
+    const isOwn = rec.name?.toLowerCase() === effectiveUser?.name?.toLowerCase();
+    if (!isOwn) return false;
+    const ageMs = Date.now() - rec.id;
+    return ageMs < (15 * 60 * 1000); // 15 mins lock
+  };
+
   // ---- LỊCH CÔNG TÁC STATES ----
   const [calendarEvents, setCalendarEvents] = useState<{ id: number; title: string; date: string; time: string; location: string; host: string; status: string; type: string; reason: string }[]>(() => {
     const saved = localStorage.getItem('office_calendar_events');
@@ -233,6 +253,36 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
     return unsub;
   }, []);
 
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'office_attendance_records'), (snapshot) => {
+      if (snapshot.empty) {
+        // Seed initial default attendance records if the collection is newly initialized
+        const batch = writeBatch(db);
+        const DEFAULT_ATTENDANCE_RECORDS = [
+          { id: 1, name: 'Lê Nhật Trường', time: '07:45:22', status: 'Đúng giờ', type: 'Vân tay', location: 'VP Tân Phú (Vùng An Toàn IP)', mode: 'Offline', direction: 'VÀO', date: '2026-05-28' },
+          { id: 2, name: 'Nguyễn Kiều Phan Tú', time: '07:55:10', status: 'Đúng giờ', type: 'Điện thoại QR', location: 'Xưởng 1 (Vùng An Toàn GPS)', mode: 'Online', direction: 'VÀO', date: '2026-05-28' },
+          { id: 3, name: 'Nguyễn Kiều Phan Tú', time: '17:30:15', status: 'Đúng giờ', type: 'Điện thoại QR', location: 'Xưởng 1 (Vùng An Toàn GPS)', mode: 'Online', direction: 'RA', date: '2026-05-28' },
+          { id: 4, name: 'Võ Thị Mỹ Tân', time: '07:58:15', status: 'Đúng giờ', type: 'Vân tay', location: 'VP Tân Phú (Vùng An Toàn IP)', mode: 'Offline', direction: 'VÀO', date: '2026-05-28' },
+          { id: 5, name: 'Bành Nhựt Hùng', time: '08:12:05', status: 'Đi muộn', type: 'Khuôn mặt FaceID', location: 'Khu kiểm nghiệm (Vùng An Toàn GPS)', mode: 'Công tác', direction: 'VÀO', date: '2026-05-28' },
+          { id: 6, name: 'Bành Nhựt Hùng', time: '17:05:00', status: 'Đúng giờ', type: 'Khuôn mặt FaceID', location: 'Khu kiểm nghiệm (Vùng An Toàn GPS)', mode: 'Công tác', direction: 'RA', date: '2026-05-28' },
+        ];
+        DEFAULT_ATTENDANCE_RECORDS.forEach((req) => {
+          const ref = doc(db, 'office_attendance_records', String(req.id));
+          batch.set(ref, req);
+        });
+        batch.commit().catch(console.error);
+        setAttendanceRecords(DEFAULT_ATTENDANCE_RECORDS);
+      } else {
+        const fetched = snapshot.docs.map(d => d.data() as any);
+        const sorted = fetched.sort((a, b) => b.id - a.id);
+        setAttendanceRecords(sorted);
+      }
+    }, (error) => {
+      console.error("Error listening to attendance records:", error);
+    });
+    return unsub;
+  }, []);
+
   const [leaveType, setLeaveType] = useState('Nghỉ phép năm');
   const [leaveDays, setLeaveDays] = useState(1);
   const [leaveReason, setLeaveReason] = useState('');
@@ -240,6 +290,8 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
   const [leaveEnd, setLeaveEnd] = useState(() => new Date().toLocaleDateString('en-CA'));
   const [summaryMonth, setSummaryMonth] = useState(() => new Date().getMonth() + 1);
   const [summaryYear, setSummaryYear] = useState(() => new Date().getFullYear());
+  const [leaveFilterMonth, setLeaveFilterMonth] = useState<number | 'all'>('all');
+  const [leaveFilterYear, setLeaveFilterYear] = useState<number | 'all'>('all');
 
   const [leaveAllowances, setLeaveAllowances] = useState<{ [empId: string]: { standard: number; seniority: number; prevYearCarry: number } }>(() => {
     const saved = localStorage.getItem('office_leave_allowances');
@@ -260,87 +312,387 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
 
   // ---- CHẤM CÔNG STATES ----
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [attendanceRecords, setAttendanceRecords] = useState<{ id: number; name: string; time: string; status: string; type: string; location: string; mode: string; direction: string; date?: string }[]>(() => {
-    const todayStr = new Date().toLocaleDateString('en-CA');
+  const [attendanceRecords, setAttendanceRecords] = useState<{ id: number; name: string; time: string; status: string; type: string; location: string; mode: string; direction: string; date?: string; quizResult?: string; quizExplanation?: string }[]>(() => {
     const saved = localStorage.getItem('office_attendance_records');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          // Keep only today's records
-          return parsed.filter(r => r.date === todayStr);
+          return parsed;
         }
       } catch (e) {
         console.error(e);
       }
     }
-    // Only fallback to mock data if today is actually 2026-05-28. Otherwise, start with an empty list for a new day.
-    if (todayStr === '2026-05-28') {
-      return [
-        { id: 1, name: 'Lê Nhật Trường', time: '07:45:22', status: 'Đúng giờ', type: 'Vân tay', location: 'VP Tân Phú (Vùng An Toàn IP)', mode: 'Offline', direction: 'VÀO', date: '2026-05-28' },
-        { id: 2, name: 'Nguyễn Kiều Phan Tú', time: '07:55:10', status: 'Đúng giờ', type: 'Điện thoại QR', location: 'Xưởng 1 (Vùng An Toàn GPS)', mode: 'Online', direction: 'VÀO', date: '2026-05-28' },
-        { id: 3, name: 'Nguyễn Kiều Phan Tú', time: '17:30:15', status: 'Đúng giờ', type: 'Điện thoại QR', location: 'Xưởng 1 (Vùng An Toàn GPS)', mode: 'Online', direction: 'RA', date: '2026-05-28' },
-        { id: 4, name: 'Võ Thị Mỹ Tân', time: '07:58:15', status: 'Đúng giờ', type: 'Vân tay', location: 'VP Tân Phú (Vùng An Toàn IP)', mode: 'Offline', direction: 'VÀO', date: '2026-05-28' },
-        { id: 5, name: 'Bành Nhựt Hùng', time: '08:12:05', status: 'Đi muộn', type: 'Khuôn mặt FaceID', location: 'Khu kiểm nghiệm (Vùng An Toàn GPS)', mode: 'Công tác', direction: 'VÀO', date: '2026-05-28' },
-        { id: 6, name: 'Bành Nhựt Hùng', time: '17:05:00', status: 'Đúng giờ', type: 'Khuôn mặt FaceID', location: 'Khu kiểm nghiệm (Vùng An Toàn GPS)', mode: 'Công tác', direction: 'RA', date: '2026-05-28' },
-      ];
-    }
-    return [];
+    return [
+      { id: 1, name: 'Lê Nhật Trường', time: '07:45:22', status: 'Đúng giờ', type: 'Vân tay', location: 'VP Tân Phú (Vùng An Toàn IP)', mode: 'Offline', direction: 'VÀO', date: '2026-05-28' },
+      { id: 2, name: 'Nguyễn Kiều Phan Tú', time: '07:55:10', status: 'Đúng giờ', type: 'Điện thoại QR', location: 'Xưởng 1 (Vùng An Toàn GPS)', mode: 'Online', direction: 'VÀO', date: '2026-05-28' },
+      { id: 3, name: 'Nguyễn Kiều Phan Tú', time: '17:30:15', status: 'Đúng giờ', type: 'Điện thoại QR', location: 'Xưởng 1 (Vùng An Toàn GPS)', mode: 'Online', direction: 'RA', date: '2026-05-28' },
+      { id: 4, name: 'Võ Thị Mỹ Tân', time: '07:58:15', status: 'Đúng giờ', type: 'Vân tay', location: 'VP Tân Phú (Vùng An Toàn IP)', mode: 'Offline', direction: 'VÀO', date: '2026-05-28' },
+      { id: 5, name: 'Bành Nhựt Hùng', time: '08:12:05', status: 'Đi muộn', type: 'Khuôn mặt FaceID', location: 'Khu kiểm nghiệm (Vùng An Toàn GPS)', mode: 'Công tác', direction: 'VÀO', date: '2026-05-28' },
+      { id: 6, name: 'Bành Nhựt Hùng', time: '17:05:00', status: 'Đúng giờ', type: 'Khuôn mặt FaceID', location: 'Khu kiểm nghiệm (Vùng An Toàn GPS)', mode: 'Công tác', direction: 'RA', date: '2026-05-28' },
+    ];
   });
   const [checkInLog, setCheckInLog] = useState<any>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [checkInMode, setCheckInMode] = useState<'Offline' | 'Online' | 'Công tác'>('Online');
+  const [checkInMode, setCheckInMode] = useState<'Offline' | 'Online' | 'Công tác' | 'Nghỉ'>('Offline');
   const [attendanceSubTab, setAttendanceSubTab] = useState<'daily' | 'monthly'>('daily');
+  const [attendanceSearchQuery, setAttendanceSearchQuery] = useState('');
+  const [attendanceFilterMonth, setAttendanceFilterMonth] = useState<string>(() => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  });
+  const [attendanceFilterDay, setAttendanceFilterDay] = useState<string>('');
+
+  // QUIZ EVALUATION CUMULATIVE STATES & SYNCS
+  const [tttViewMode, setTttViewMode] = useState<'ytd' | 'annual'>('ytd');
+  const [isEditingQuizEval, setIsEditingQuizEval] = useState(false);
+  const [quizEvalStructure, setQuizEvalStructure] = useState({
+    min_90: 15,
+    max_90: 20,
+    min_100: 20,
+    max_100: 24,
+    min_120: 24,
+    max_120: 27,
+    min_150: 27,
+    max_150: 30
+  });
+  const [tempQuizEval, setTempQuizEval] = useState({
+    min_90: 15,
+    max_90: 20,
+    min_100: 20,
+    max_100: 24,
+    min_120: 24,
+    max_120: 27,
+    min_150: 27,
+    max_150: 30
+  });
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'quiz_evaluation_structure'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setQuizEvalStructure({
+          min_90: Number(data.min_90) || 15,
+          max_90: Number(data.max_90) || 20,
+          min_100: Number(data.min_100) || 20,
+          max_100: Number(data.max_100) || 24,
+          min_120: Number(data.min_120) || 24,
+          max_120: Number(data.max_120) || 27,
+          min_150: Number(data.min_150) || 27,
+          max_150: Number(data.max_150) || 30,
+        });
+      }
+    }, (err) => {
+      console.warn("Chưa có cấu hình settings/quiz_evaluation_structure trong Firestore. Sử dụng cấu hình mặc định.");
+    });
+    return () => unsub();
+  }, []);
+
+  const handleOpenEditQuizEval = () => {
+    setTempQuizEval({ ...quizEvalStructure });
+    setIsEditingQuizEval(true);
+  };
+
+  const handleSaveQuizEval = async () => {
+    try {
+      await setDoc(doc(db, 'settings', 'quiz_evaluation_structure'), tempQuizEval);
+      setIsEditingQuizEval(false);
+      alert("Đã lưu cơ cấu đánh giá Quiz 3T mới thành công!");
+    } catch (err) {
+      console.error("Lỗi lưu cấu hình: ", err);
+      alert("Có lỗi xảy ra khi lưu cấu hình!");
+    }
+  };
+
+  const parseQuizScore = (resultStr: string | null | undefined, currentUpdateStr: string | null | undefined) => {
+    let text = resultStr || '';
+    if (!text && currentUpdateStr) {
+      text = currentUpdateStr.replace(/<[^>]*>/g, '');
+    }
+    if (!text) return { score: 0, max: 0 };
+    const fractionMatch = text.match(/(\d+)\s*[\/|:]\s*(\d+)/);
+    if (fractionMatch) {
+      return {
+        score: parseInt(fractionMatch[1], 10) || 0,
+        max: parseInt(fractionMatch[2], 10) || 0
+      };
+    }
+    const numMatch = text.match(/(\d+)/);
+    if (numMatch) {
+      const val = parseInt(numMatch[1], 10) || 0;
+      const maxVal = val <= 3 ? 3 : (val <= 10 ? 10 : 30);
+      return { score: val, max: maxVal };
+    }
+    return { score: 0, max: 0 };
+  };
+
+  const getTttCumulativeMetrics = (userId: string) => {
+    let month = '06';
+    let year = '2026';
+    if (attendanceFilterMonth) {
+      const parts = attendanceFilterMonth.split('-');
+      if (parts.length === 2) {
+        year = parts[0];
+        month = parts[1];
+      }
+    } else {
+      const d = new Date();
+      year = String(d.getFullYear());
+      month = String(d.getMonth() + 1).padStart(2, '0');
+    }
+
+    const targetEmployees = userId === 'ALL' ? activeQLCLEmployees : activeQLCLEmployees.filter(emp => emp.id === userId);
+
+    let totalAssigned = 0;
+    let totalCompleted = 0;
+    let totalScore = 0;
+    let totalMax = 0;
+    const quizDaysList: any[] = [];
+
+    targetEmployees.forEach(emp => {
+      const userName = emp.name || '';
+      const normUserName = userName.trim().toLowerCase();
+
+      const userRecsInMonth = attendanceRecords.filter(rec => {
+        if (!rec.date) return false;
+        const normRecName = (rec.name || '').trim().toLowerCase();
+        if (normRecName !== normUserName) return false;
+
+        const [recY, recM] = rec.date.split('-');
+        return recY === year && recM === month;
+      });
+
+      // Group by date
+      const recsByDate: { [key: string]: any[] } = {};
+      userRecsInMonth.forEach(rec => {
+        if (!recsByDate[rec.date]) {
+          recsByDate[rec.date] = [];
+        }
+        recsByDate[rec.date].push(rec);
+      });
+
+      Object.keys(recsByDate).sort().forEach(dateStr => {
+        totalAssigned++;
+        const dayRecords = recsByDate[dateStr];
+        
+        let bestScoreObj = { score: 0, max: 0, hasQuiz: false, quizResult: '', quizExplanation: '', status: 'CÓ MẶT' };
+        dayRecords.forEach(r => {
+          const qVal = (r.quizResult || '').trim();
+          if (qVal && qVal.toUpperCase() !== 'CHƯA THI') {
+            const { score, max } = parseQuizScore(qVal, r.quizExplanation);
+            if (max > 0) {
+              bestScoreObj.hasQuiz = true;
+              if (score > bestScoreObj.score || !bestScoreObj.quizResult) {
+                bestScoreObj.score = score;
+                bestScoreObj.max = max;
+                bestScoreObj.quizResult = qVal;
+                bestScoreObj.quizExplanation = r.quizExplanation || '';
+              }
+            }
+          }
+          if (r.status) {
+            bestScoreObj.status = r.status;
+          }
+        });
+
+        const [yStr, mStr, dStr] = dateStr.split('-');
+        const dateFormatted = `${dStr}/${mStr}/${yStr.substring(2)}`;
+
+        if (bestScoreObj.hasQuiz) {
+          totalCompleted++;
+          totalScore += bestScoreObj.score;
+          totalMax += bestScoreObj.max;
+        }
+
+        quizDaysList.push({
+          userId: emp.id,
+          userName,
+          date: dateStr,
+          dateFormatted,
+          quizResult: bestScoreObj.hasQuiz ? bestScoreObj.quizResult : 'Chưa thi',
+          quizExplanation: bestScoreObj.quizExplanation,
+          status: bestScoreObj.status,
+          accuracyDayRate: bestScoreObj.max > 0 ? Math.round((bestScoreObj.score / bestScoreObj.max) * 100) : 0
+        });
+      });
+    });
+
+    const accuracyRate = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
+    const completionRate = totalAssigned > 0 ? Math.round((totalCompleted / totalAssigned) * 100) : 0;
+
+    return {
+      totalAssigned,
+      totalCompleted,
+      totalScore,
+      totalMax,
+      accuracyRate,
+      completionRate,
+      quizDaysList,
+      tasks: []
+    };
+  };
+
+  const getTttAnnualMetrics = (userId: string) => {
+    let year = '2026';
+    if (attendanceFilterMonth) {
+      const parts = attendanceFilterMonth.split('-');
+      if (parts.length === 2) {
+        year = parts[0];
+      }
+    } else {
+      year = String(new Date().getFullYear());
+    }
+
+    const targetEmployees = userId === 'ALL' ? activeQLCLEmployees : activeQLCLEmployees.filter(emp => emp.id === userId);
+
+    let totalAssigned = 0;
+    let totalCompleted = 0;
+    let totalScore = 0;
+    let totalMax = 0;
+    const allQuizDays: any[] = [];
+
+    targetEmployees.forEach(emp => {
+      const userName = emp.name || '';
+      const normUserName = userName.trim().toLowerCase();
+
+      const userRecsInYear = attendanceRecords.filter(rec => {
+        if (!rec.date) return false;
+        const normRecName = (rec.name || '').trim().toLowerCase();
+        if (normRecName !== normUserName) return false;
+
+        const [recY] = rec.date.split('-');
+        return recY === year;
+      });
+
+      const recsByDate: { [key: string]: any[] } = {};
+      userRecsInYear.forEach(rec => {
+        if (!recsByDate[rec.date]) {
+          recsByDate[rec.date] = [];
+        }
+        recsByDate[rec.date].push(rec);
+      });
+
+      Object.keys(recsByDate).sort().forEach(dateStr => {
+        totalAssigned++;
+        const dayRecords = recsByDate[dateStr];
+        
+        let bestScoreObj = { score: 0, max: 0, hasQuiz: false, quizResult: '', quizExplanation: '', status: 'CÓ MẶT' };
+        dayRecords.forEach(r => {
+          const qVal = (r.quizResult || '').trim();
+          if (qVal && qVal.toUpperCase() !== 'CHƯA THI') {
+            const { score, max } = parseQuizScore(qVal, r.quizExplanation);
+            if (max > 0) {
+              bestScoreObj.hasQuiz = true;
+              if (score > bestScoreObj.score || !bestScoreObj.quizResult) {
+                bestScoreObj.score = score;
+                bestScoreObj.max = max;
+                bestScoreObj.quizResult = qVal;
+                bestScoreObj.quizExplanation = r.quizExplanation || '';
+              }
+            }
+          }
+          if (r.status) {
+            bestScoreObj.status = r.status;
+          }
+        });
+
+        const [yStr, mStr, dStr] = dateStr.split('-');
+        const dateFormatted = `${dStr}/${mStr}/${yStr.substring(2)}`;
+
+        if (bestScoreObj.hasQuiz) {
+          totalCompleted++;
+          totalScore += bestScoreObj.score;
+          totalMax += bestScoreObj.max;
+        }
+
+        allQuizDays.push({
+          userId: emp.id,
+          userName,
+          date: dateStr,
+          dateFormatted,
+          quizResult: bestScoreObj.hasQuiz ? bestScoreObj.quizResult : 'Chưa thi',
+          quizExplanation: bestScoreObj.quizExplanation,
+          status: bestScoreObj.status,
+          accuracyDayRate: bestScoreObj.max > 0 ? Math.round((bestScoreObj.score / bestScoreObj.max) * 100) : 0
+        });
+      });
+    });
+
+    const accuracyRate = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
+    const completionRate = totalAssigned > 0 ? Math.round((totalCompleted / totalAssigned) * 100) : 0;
+
+    return {
+      totalAssigned,
+      totalCompleted,
+      totalScore,
+      totalMax,
+      accuracyRate,
+      completionRate,
+      quizDaysList: allQuizDays,
+      tasks: []
+    };
+  };
 
   // Automated daily reset detector inside OfficeUtilitiesTab
   useEffect(() => {
     const todayStr = new Date().toLocaleDateString('en-CA');
     const lastSavedDate = localStorage.getItem('office_attendance_date');
     if (lastSavedDate !== todayStr) {
-      setAttendanceRecords([]);
-      localStorage.setItem('office_attendance_records', JSON.stringify([]));
+      // Keep previous records for historical directory tracking, do not wipe!
       localStorage.setItem('office_attendance_date', todayStr);
       setCheckInLog(null);
-      console.log(`[ATTENDANCE RESET] Khởi tạo ngày mới: ${todayStr}, reset danh sách điểm danh hàng ngày thành công.`);
+      console.log(`[ATTENDANCE RESET] Khởi tạo ngày mới: ${todayStr}.`);
     }
   }, []);
 
   const userCheckedIn = useMemo(() => {
     const todayStr = new Date().toLocaleDateString('en-CA');
-    return attendanceRecords.some(r => r.name.toLowerCase() === effectiveUser.name.toLowerCase() && r.direction === 'VÀO' && (!r.date || r.date === todayStr));
+    return attendanceRecords.some(r => r.name.toLowerCase() === effectiveUser.name.toLowerCase() && (!r.date || r.date === todayStr));
   }, [attendanceRecords, effectiveUser.name]);
 
   const userCheckedOut = useMemo(() => {
-    const todayStr = new Date().toLocaleDateString('en-CA');
-    return attendanceRecords.some(r => r.name.toLowerCase() === effectiveUser.name.toLowerCase() && r.direction === 'RA' && (!r.date || r.date === todayStr));
-  }, [attendanceRecords, effectiveUser.name]);
+    return false;
+  }, []);
 
   const groupedRecords = useMemo(() => {
     const list: any[] = [];
-    attendanceRecords.forEach(rec => {
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    const todayRecs = attendanceRecords.filter(r => !r.date || r.date === todayStr);
+    todayRecs.forEach(rec => {
       let rOld = list.find(x => x.name.toLowerCase() === rec.name.toLowerCase());
       if (!rOld) {
         rOld = {
           name: rec.name,
-          vao: null,
-          ra: null
+          diemDanh: rec,
+          quizResult: rec.quizResult || ''
         };
         list.push(rOld);
-      }
-      if (rec.direction === 'VÀO') {
-        rOld.vao = rec;
-      } else if (rec.direction === 'RA') {
-        rOld.ra = rec;
       } else {
-        if (!rOld.vao) {
-          rOld.vao = rec;
-        } else if (!rOld.ra) {
-          rOld.ra = rec;
-        }
+        rOld.diemDanh = rec;
       }
     });
     return list;
   }, [attendanceRecords]);
+
+  const filteredHistoricalRecords = useMemo(() => {
+    return attendanceRecords.filter(rec => {
+      const matchSearch = !attendanceSearchQuery || rec.name.toLowerCase().includes(attendanceSearchQuery.toLowerCase());
+      let matchMonth = true;
+      if (attendanceFilterMonth) {
+        const recDate = rec.date || new Date().toLocaleDateString('en-CA');
+        matchMonth = recDate.startsWith(attendanceFilterMonth);
+      }
+      let matchDay = true;
+      if (attendanceFilterDay) {
+        const recDate = rec.date || new Date().toLocaleDateString('en-CA');
+        matchDay = recDate === attendanceFilterDay;
+      }
+      return matchSearch && matchMonth && matchDay;
+    });
+  }, [attendanceRecords, attendanceSearchQuery, attendanceFilterMonth, attendanceFilterDay]);
 
   // ---- EDITING MODALS STATES (ADMIN RIGHTS) ----
   const [editingEvent, setEditingEvent] = useState<any | null>(null);
@@ -390,6 +742,24 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
       return a.localeCompare(b);
     });
   }, [groupedLeaveRequests]);
+
+  const filteredMonthKeys = useMemo(() => {
+    return sortedMonthKeys.filter(monthKey => {
+      if (monthKey === 'Khác') {
+        return leaveFilterMonth === 'all' && leaveFilterYear === 'all';
+      }
+      const regex = /Tháng (\d+)\/(\d+)/;
+      const match = monthKey.match(regex);
+      if (match) {
+        const m = parseInt(match[1], 10);
+        const y = parseInt(match[2], 10);
+        if (leaveFilterMonth !== 'all' && m !== leaveFilterMonth) return false;
+        if (leaveFilterYear !== 'all' && y !== leaveFilterYear) return false;
+        return true;
+      }
+      return leaveFilterMonth === 'all' && leaveFilterYear === 'all';
+    });
+  }, [sortedMonthKeys, leaveFilterMonth, leaveFilterYear]);
 
   // ---- SMART MONTHLY TIMESHEET METRICS STATES ----
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth() + 1);
@@ -1106,9 +1476,9 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
       
       // No stubborn hardcoding overrides: all leaves are now model-driven and generated starting from the leaveRequests state!
 
-      // 1. Đồng bộ Đơn nghỉ phép đã được PHÊ DUYỆT (Đã duyệt)
+      // 1. Đồng bộ Đơn nghỉ phép đã được PHÊ DUYỆT (Đã duyệt) hoặc CHỜ DUYỆT (Chờ duyệt)
       leaveRequests.forEach(req => {
-        if (req.status === 'Đã duyệt' && req.name.toLowerCase() === emp.name.toLowerCase()) {
+        if ((req.status === 'Đã duyệt' || req.status === 'Chờ duyệt') && req.name.toLowerCase() === emp.name.toLowerCase()) {
           const start = parseLocalMidnight(req.startDate);
           const end = parseLocalMidnight(req.endDate);
           
@@ -1126,9 +1496,12 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                 symbol = 'NV';
               }
               
+              const isPending = req.status === 'Chờ duyệt';
+              const finalSymbol = isPending ? `${symbol}?` : symbol;
+              
               const det = getDayDetails(d, month, year);
               if (!det.isHoliday && det.dayOfWeek !== 0) {
-                list[d] = symbol;
+                list[d] = finalSymbol;
               }
             }
           }
@@ -1211,25 +1584,27 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
     let nvCount = 0;
     let offCount = 0;
 
-    Object.values(empLogs).forEach(status => {
-      if (status === '8') {
+    Object.values(empLogs).forEach(statusVal => {
+      const statusStr = typeof statusVal === 'string' ? statusVal : String(statusVal || '');
+      const clean = statusStr.endsWith('?') ? statusStr.replace('?', '') : statusStr;
+      if (clean === '8') {
         totalDaysWorked += 1.0;
         regularHours += 8;
-      } else if (status === '1/2P') {
+      } else if (clean === '1/2P') {
         totalDaysWorked += 0.5;
         regularHours += 4;
         pCount += 0.5;
-      } else if (status === 'P') {
+      } else if (clean === 'P') {
         pCount += 1.0;
-      } else if (status === 'L') {
+      } else if (clean === 'L') {
         lCount += 1.0;
-      } else if (status === 'CD') {
+      } else if (clean === 'CD') {
         cdCount += 1.0;
-      } else if (status === 'O') {
+      } else if (clean === 'O') {
         cdCount += 1.0;
-      } else if (status === 'NV') {
+      } else if (clean === 'NV') {
         nvCount += 1.0;
-      } else if (status === 'OFF') {
+      } else if (clean === 'OFF') {
         offCount += 1.0;
       }
     });
@@ -1699,7 +2074,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
       case 'office_calendar':
         return <span translate="no" className="notranslate">LỊCH CÔNG TÁC PHÒNG QLCL</span>;
       case 'attendance':
-        return <span translate="no" className="notranslate">CHẤM CÔNG HÀNG NGÀY</span>;
+        return <span translate="no" className="notranslate">BẢNG ĐIỂM DANH - 3T THẬT SỰ</span>;
       case 'leave_request':
         return <span translate="no" className="notranslate">ĐƠN XIN NGHỈ PHÉP</span>;
       case 'birthday':
@@ -1743,27 +2118,26 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
       } else if (checkInMode === 'Công tác') {
         typeVal = 'Di động GPS';
         locVal = 'Địa điểm Công tác (Vùng GPS ngoài cơ quan)';
+      } else if (checkInMode === 'Nghỉ') {
+        typeVal = 'Đăng ký vắng';
+        locVal = 'Nghỉ - Không đi làm';
       }
 
       // Check check-in/out records for today
       const todayStr = new Date().toLocaleDateString('en-CA');
-      const alreadyCheckedIn = attendanceRecords.some(r => r.name.toLowerCase() === effectiveUser.name.toLowerCase() && r.direction === 'VÀO' && (!r.date || r.date === todayStr));
-      const alreadyCheckedOut = attendanceRecords.some(r => r.name.toLowerCase() === effectiveUser.name.toLowerCase() && r.direction === 'RA' && (!r.date || r.date === todayStr));
+      const alreadyCheckedIn = attendanceRecords.some(r => r.name.toLowerCase() === effectiveUser.name.toLowerCase() && (!r.date || r.date === todayStr));
 
-      if (alreadyCheckedIn && alreadyCheckedOut) {
+      if (alreadyCheckedIn) {
         return;
       }
 
-      const isVao = !alreadyCheckedIn;
       const now = new Date();
       const hours = now.getHours();
       const minutes = now.getMinutes();
 
-      let calculatedStatus = 'Đúng giờ';
-      if (isVao) {
-        calculatedStatus = (hours >= 8 && minutes > 0) || hours > 8 ? 'Đi muộn' : 'Đúng giờ';
-      } else {
-        calculatedStatus = hours < 17 ? 'Về sớm' : 'Đúng giờ';
+      let calculatedStatus = 'CÓ MẶT';
+      if (checkInMode === 'Nghỉ') {
+        calculatedStatus = 'NGHỈ';
       }
 
       const log = {
@@ -1774,9 +2148,11 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
         type: typeVal,
         location: locVal,
         mode: checkInMode,
-        direction: isVao ? 'VÀO' : ('RA' as any),
+        direction: 'ĐIỂM DANH',
+        quizResult: '',
         date: new Date().toLocaleDateString('en-CA')
       };
+      setDoc(doc(db, 'office_attendance_records', String(log.id)), log).catch(console.error);
       setAttendanceRecords([log, ...attendanceRecords]);
       setCheckInLog(log);
     }, 1500);
@@ -1884,12 +2260,23 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
 
   const handleSaveDailyAttendance = () => {
     localStorage.setItem('office_attendance_records', JSON.stringify(attendanceRecords));
+    
+    // Durable cloud persistence to Firestore
+    const batch = writeBatch(db);
+    attendanceRecords.forEach((rec) => {
+      const ref = doc(db, 'office_attendance_records', String(rec.id));
+      batch.set(ref, rec);
+    });
+    batch.commit().catch(err => {
+      console.error("Lỗi khi lưu bảng điểm danh vào Firestore:", err);
+    });
+
     setConfirmModal({
       show: true,
       title: <span translate="no" className="notranslate font-black text-indigo-600">LƯU ĐIỂM DANH THÀNH CÔNG!</span>,
       message: (
         <span translate="no" className="notranslate uppercase font-black text-xs block text-center py-2 text-slate-750 leading-relaxed">
-          Đã lưu trữ thành công toàn bộ bản ghi quét thẻ điểm danh hàng ngày phòng QLCL!
+          Đã lưu trữ thành công toàn bộ bản ghi quét thẻ điểm danh hàng ngày phòng QLCL vào Cơ sở dữ liệu đám mây!
         </span>
       ),
       confirmText: <span translate="no" className="notranslate text-white font-black">XÁC NHẬN</span>,
@@ -2789,7 +3176,8 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
 
             {/* CHẾ ĐỘ 1: ĐIỂM DANH HÀNG NGÀY */}
             {attendanceSubTab === 'daily' && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 animate-fade-in">
+              <div className="space-y-4 animate-fade-in">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Chấm công Button bên trái */}
                 <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center text-center">
                   <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
@@ -2802,19 +3190,19 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                     {formatDateString(currentTime)}
                   </span>
 
-                  {/* 3 Work Modes Picker */}
+                  {/* 4 Work Modes Picker */}
                   <div className="mb-4 w-full max-w-xs">
                     <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block text-center mb-1.5">
                       Hình thức điểm danh
                     </span>
-                    <div className="grid grid-cols-3 gap-1 bg-slate-50 p-1 rounded-2xl border border-slate-150 shadow-inner">
-                      {(['Offline', 'Online', 'Công tác'] as const).map((mode) => (
+                    <div className="grid grid-cols-4 gap-1 bg-slate-50 p-1 rounded-2xl border border-slate-150 shadow-inner">
+                      {(['Offline', 'Online', 'Công tác', 'Nghỉ'] as const).map((mode) => (
                         <button
                           key={mode}
                           type="button"
-                          disabled={(userCheckedIn && userCheckedOut) || isScanning}
+                          disabled={userCheckedIn || isScanning}
                           onClick={() => setCheckInMode(mode)}
-                          className={`py-1.5 px-0.5 text-[9px] font-black uppercase rounded-lg transition-all cursor-pointer ${
+                          className={`py-1.5 px-0.5 text-[8px] font-black uppercase rounded-lg transition-all cursor-pointer ${
                             checkInMode === mode
                               ? 'bg-indigo-600 text-white shadow shadow-indigo-200'
                               : 'text-slate-555 hover:text-slate-855 hover:bg-white'
@@ -2823,6 +3211,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                           {mode === 'Offline' && '🌐'}
                           {mode === 'Online' && '⚡'}
                           {mode === 'Công tác' && '🚗'}
+                          {mode === 'Nghỉ' && '🛌'}
                           <span className="ml-0.5">{mode}</span>
                         </button>
                       ))}
@@ -2831,10 +3220,10 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
 
                   {/* Fingerprint click simulation */}
                   <button
-                    disabled={(userCheckedIn && userCheckedOut) || isScanning}
+                    disabled={userCheckedIn || isScanning}
                     onClick={handleCreateCheckIn}
                     className={`relative w-28 h-28 rounded-full flex flex-col items-center justify-center border-4 outline-none transition-all shadow-lg active:scale-95 ${
-                      (userCheckedIn && userCheckedOut)
+                      userCheckedIn
                         ? 'bg-emerald-50 border-emerald-500 text-emerald-600 font-bold'
                         : isScanning
                         ? 'bg-blue-50 border-blue-400 text-blue-500 animate-pulse font-bold'
@@ -2842,29 +3231,29 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                         ? 'bg-amber-50/70 border-amber-500/30 hover:border-amber-500 text-amber-600 hover:shadow-amber-500/10 font-bold'
                         : checkInMode === 'Công tác'
                         ? 'bg-purple-50/70 border-purple-500/30 hover:border-purple-500 text-purple-600 hover:shadow-purple-500/10 font-bold'
+                        : checkInMode === 'Nghỉ'
+                        ? 'bg-rose-50/70 border-rose-500/30 hover:border-rose-500 text-rose-600 hover:shadow-rose-500/10 font-bold'
                         : 'bg-indigo-50/50 border-indigo-600/30 hover:border-indigo-600 text-indigo-600 hover:shadow-indigo-500/10 font-bold'
                     }`}
                   >
                     {/* Visual Radar Waves */}
-                    {!(userCheckedIn && userCheckedOut) && (
+                    {!userCheckedIn && (
                       <span className={`absolute inset-0 rounded-full border animate-ping opacity-60 ${
-                        checkInMode === 'Offline' ? 'border-amber-500/30' : checkInMode === 'Công tác' ? 'border-purple-500/30' : 'border-indigo-500/30'
+                        checkInMode === 'Offline' ? 'border-amber-500/30' : checkInMode === 'Công tác' ? 'border-purple-500/30' : checkInMode === 'Nghỉ' ? 'border-rose-500/30' : 'border-indigo-500/30'
                       }`} />
                     )}
                     
-                    {(userCheckedIn && userCheckedOut) ? (
+                    {userCheckedIn ? (
                       <CheckCircle2 size={32} className="text-emerald-500 stroke-2" />
                     ) : (
                       <Clock size={32} className={`${isScanning ? 'animate-spin' : ''} stroke-[1.5]`} />
                     )}
-                    <span translate="no" className="notranslate text-[8.5px] font-black uppercase mt-2 tracking-widest block">
-                      {(userCheckedIn && userCheckedOut) 
-                        ? 'ĐÃ CHỐM XONG' 
+                    <span translate="no" className="notranslate text-[8.5px] font-black uppercase mt-2 tracking-widest block text-center">
+                      {userCheckedIn 
+                        ? 'ĐÃ ĐIỂM DANH' 
                         : isScanning 
                         ? 'ĐANG QUÉT...' 
-                        : !userCheckedIn 
-                        ? 'QUÉT GIỜ VÀO' 
-                        : 'QUÉT GIỜ RA'}
+                        : 'QUÉT ĐIỂM DANH'}
                     </span>
                   </button>
 
@@ -2876,11 +3265,20 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                     </div>
                   </div>
 
+                  {/* Note regulation block with scroll support moved here under Trạng thái định vị */}
+                  <div className="w-full max-w-xs bg-amber-50/70 border border-amber-100 rounded-2xl p-3 flex gap-2 items-start mt-3">
+                    <Info size={14} className="text-amber-600 mt-0.5 shrink-0" />
+                    <div className="max-h-24 overflow-y-auto pr-1 text-[9px] font-medium text-amber-900 leading-relaxed font-sans scrollbar-thin">
+                      <span className="font-black text-amber-850 block mb-0.5 uppercase tracking-wide">LƯU Ý QUYỀN HẠN & KHÓA GIỜ:</span>
+                      Nhân sự chỉ cập nhật của chính mình trong phạm vi 15 phút rồi hệ thống tự động khóa.
+                    </div>
+                  </div>
+
                   {checkInLog && (
                     <div className="mt-3 p-2.5 bg-emerald-50 border border-emerald-100 rounded-2xl text-left w-full">
                       <span translate="no" className="notranslate text-[9px] font-black text-emerald-800 uppercase block mb-1">XÁC NHẬN GHI SỔ THÀNH CÔNG:</span>
                       <p className="text-[11px] text-slate-750 font-bold uppercase">Nhân viên: <span className="font-extrabold">{checkInLog.name}</span></p>
-                      <p className="text-[11px] text-slate-750 font-bold uppercase mt-0.5">Giờ quét: <span className="font-extrabold text-indigo-600 font-mono text-[11px]">{checkInLog.time}</span> <span className="font-semibold text-[8px] text-slate-500">({checkInLog.direction === 'VÀO' ? 'GIỜ VÀO' : 'GIỜ RA'})</span></p>
+                      <p className="text-[11px] text-slate-750 font-bold uppercase mt-0.5">Giờ quét: <span className="font-extrabold text-indigo-600 font-mono text-[11px]">{checkInLog.time}</span> <span className="font-semibold text-[8px] text-slate-500">({checkInLog.mode === 'Nghỉ' ? 'ĐĂNG KÝ VẮNG' : 'ĐIỂM DANH'})</span></p>
                     </div>
                   )}
                 </div>
@@ -2907,8 +3305,8 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                           <Save size={10} className="stroke-[2.5]" />
                           LƯU ĐIỂM DANH
                         </button>
-                        <span className="shrink-0 text-[9px] font-black text-indigo-700 bg-indigo-50 border border-indigo-120 px-2.5 py-1 rounded-lg uppercase tracking-wider text-right">
-                          Sĩ số: {groupedRecords.length} NV ({attendanceRecords.length} lượt)
+                        <span className="shrink-0 text-[10px] font-black text-indigo-700 bg-indigo-50 border border-indigo-120 px-2.5 py-1 rounded-lg uppercase tracking-wider text-right">
+                          Sĩ số: {groupedRecords.length} Nhân viên
                         </span>
                       </div>
                     </div>
@@ -2924,129 +3322,197 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[420px] overflow-y-auto pr-1">
                         {groupedRecords.map((gRec) => {
+                          const hasDiemDanh = !!gRec.diemDanh;
+                          const quizResultVal = hasDiemDanh ? (gRec.diemDanh.quizResult || '').trim() : '';
+
+                          const getQuizEvaluation = (scoreStr: string) => {
+                            const trimmed = (scoreStr || '').trim();
+                            if (!trimmed) return 'ĐÃ THI';
+                            if (trimmed.includes('/')) {
+                              const [s, m] = trimmed.split('/').map(x => parseFloat(x));
+                              if (!isNaN(s) && !isNaN(m)) {
+                                const pct = s / m;
+                                if (pct >= 1) return '🌟 Xuất sắc';
+                                if (pct >= 0.8) return '👍 Đạt tốt';
+                                if (pct >= 0.5) return '✍️ Đạt';
+                                return '📚 Cố gắng';
+                              }
+                            }
+                            const scoreNum = parseFloat(trimmed);
+                            if (!isNaN(scoreNum)) {
+                              if (scoreNum >= 9) return '🌟 Xuất sắc';
+                              if (scoreNum >= 7) return '👍 Đạt tốt';
+                              if (scoreNum >= 5) return '✍️ Đạt';
+                              return '📚 Cố gắng';
+                            }
+                            return '✍️ Ghi nhận';
+                          };
+
                           return (
-                            <div key={gRec.name} className="p-3 bg-slate-50/70 rounded-xl border border-slate-150/80 hover:border-indigo-200 hover:bg-white hover:shadow transition-all flex flex-col justify-between gap-2.5 text-left">
-                              {/* Employee Information Header */}
-                              <div className="flex items-center justify-between border-b border-slate-150 pb-1.5">
-                                <span className="text-xs font-black text-slate-850 uppercase tracking-wide">{gRec.name}</span>
-                                <span translate="no" className="notranslate text-[8.5px] font-black uppercase text-indigo-600 bg-indigo-50 border border-indigo-120 px-2 py-0.5 rounded">
-                                  PHÒNG QLCL
-                                </span>
+                            <div key={gRec.name} className="p-3.5 bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow hover:border-indigo-200 transition-all flex flex-col justify-between gap-2.5 text-left">
+                              {/* Employee Information Header with Action buttons */}
+                              <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 flex-wrap gap-2">
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-black text-slate-850 uppercase tracking-wide">{gRec.name}</span>
+                                  <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span translate="no" className="notranslate text-[7px] font-extrabold uppercase text-indigo-600 bg-indigo-50 border border-indigo-120/50 px-1.5 py-0.2 rounded font-sans">
+                                      PHÒNG QLCL
+                                    </span>
+                                    {hasDiemDanh && (
+                                      <span className={`text-[7px] font-black uppercase border rounded px-1.5 py-0.2 select-none inline-block ${
+                                        gRec.diemDanh.mode === 'Nghỉ' ? 'text-rose-700 bg-rose-50 border-rose-100/60' : 'text-amber-700 bg-amber-50 border-amber-100/60'
+                                      }`}>{gRec.diemDanh.mode}</span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  {hasDiemDanh ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        disabled={!canEditOrDeleteRecord(gRec.diemDanh)}
+                                        onClick={() => setEditingAttendanceRecord(gRec.diemDanh)}
+                                        className="p-1 px-2 text-slate-500 hover:text-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg hover:bg-slate-100 border border-slate-200 transition-all text-[7.5px] font-black uppercase flex items-center gap-0.5 cursor-pointer"
+                                        title="Sửa điểm danh"
+                                      >
+                                        <Sliders size={8} /> SỬA
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={!canEditOrDeleteRecord(gRec.diemDanh)}
+                                        onClick={() => {
+                                          setDeleteConfirm({
+                                            type: 'attendance',
+                                            id: gRec.diemDanh.id,
+                                            title: `XEM XÉT XÓA BẢN GHI ĐIỂM DANH CỦA ${gRec.name}`,
+                                            subtitle: `Bản ghi quét: ${gRec.diemDanh.time} • Quy cách: ${gRec.diemDanh.mode}`
+                                          });
+                                        }}
+                                        className="p-1 px-2 text-slate-500 hover:text-rose-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg hover:bg-slate-100 border border-slate-200 transition-all text-[7.5px] font-black uppercase flex items-center gap-0.5 cursor-pointer"
+                                        title="Xóa điểm danh"
+                                      >
+                                        <Trash2 size={8} /> XÓA
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <span className="text-[7.5px] font-extrabold text-slate-400 uppercase border border-dashed border-slate-300 px-1.5 py-0.2 rounded-full">VẰNG</span>
+                                  )}
+                                </div>
                               </div>
 
-                              {/* Dual columns: GIỜ VÀO vs GIỜ RA */}
-                              <div className="grid grid-cols-2 gap-2">
-                                {/* Check-In Column (VÀO) */}
-                                <div className="p-2 bg-slate-50 border border-slate-120/60 rounded-lg flex flex-col justify-between min-h-[90px] space-y-1.5">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider font-mono">GIỜ VÀO</span>
-                                    {gRec.vao ? (
-                                      <span className={`text-[7.5px] font-black uppercase px-1.5 py-0.2 rounded-full ${
-                                        gRec.vao.status === 'Đúng giờ' ? 'bg-emerald-555 text-emerald-800' : 'bg-rose-555 text-rose-800 animate-pulse'
-                                      }`}>
-                                        {gRec.vao.status}
-                                      </span>
+                              {/* Dual columns: THÔNG TIN ĐIỂM DANH vs ĐIỂM SỐ QUIZ TTT WITHOUT EMBEDDED BOXES */}
+                              <div className="grid grid-cols-2 gap-3 pt-0.5">
+                                {/* Check-In Column (Trái) */}
+                                <div className="flex flex-col justify-between text-left">
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider font-mono">ĐIỂM DANH 3T</span>
+                                      {hasDiemDanh ? (
+                                        <span className={`text-[7.5px] font-black uppercase px-1.5 py-0.2 rounded-full ${
+                                          gRec.diemDanh.status === 'NGHỈ' ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                                        }`}>
+                                          {gRec.diemDanh.status || 'CÓ MẶT'}
+                                        </span>
+                                      ) : (
+                                        <span className="text-[7.5px] font-extrabold text-slate-350 uppercase">VẰNG</span>
+                                      )}
+                                    </div>
+                                    
+                                    {hasDiemDanh ? (
+                                      <div className="space-y-1 mt-0.5">
+                                        <span className="font-extrabold text-slate-800 font-mono text-[14px] leading-none block">{gRec.diemDanh.time}</span>
+                                        {gRec.diemDanh.quizExplanation && (
+                                          <span className="text-[7.5px] text-emerald-600 bg-emerald-50 border border-emerald-100/50 px-1.5 py-0.5 rounded-md font-sans font-bold flex items-center gap-0.5 w-max">
+                                            Đã lưu trữ ✔️
+                                          </span>
+                                        )}
+                                      </div>
                                     ) : (
-                                      <span className="text-[7.5px] font-extrabold text-slate-455 uppercase border border-dashed border-slate-300 px-1 py-0.2 rounded-full">VẰNG</span>
+                                      <p className="text-[8px] text-slate-400 italic font-medium py-1">Chưa quét hôm nay</p>
                                     )}
                                   </div>
-                                  {gRec.vao ? (
-                                    <div className="space-y-0.5 my-0.5">
-                                      <span className="font-extrabold text-slate-755 font-mono text-[11px] block">{gRec.vao.time}</span>
-                                      <span className="text-[7.5px] text-slate-500 font-extrabold uppercase tracking-wide block truncate">{gRec.vao.location}</span>
-                                      <span className="text-[8px] text-amber-700 font-black uppercase bg-amber-50 border border-amber-100/60 rounded px-1 py-0.2 select-none inline-block">{gRec.vao.mode}</span>
-                                    </div>
-                                  ) : (
-                                    <p className="text-[8.5px] text-slate-400 italic font-bold my-0.5">Chưa quét vào</p>
-                                  )}
-
-                                  {/* Vao Actions */}
-                                  {gRec.vao ? (
-                                    <div className="flex items-center gap-1 border-t border-slate-150/40 pt-1 mt-0.5 justify-end">
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditingAttendanceRecord(gRec.vao)}
-                                        className="p-0.5 px-1 text-slate-555 hover:text-indigo-600 rounded hover:bg-slate-200 border border-slate-150 transition-all text-[7.5px] font-black uppercase flex items-center gap-0.5 cursor-pointer"
-                                        title="Sửa giờ vào"
-                                      >
-                                        <Sliders size={7} /> SỬA
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setDeleteConfirm({
-                                            type: 'attendance',
-                                            id: gRec.vao.id,
-                                            title: `XEM XÉT XÓA GIỜ VÀO CỦA ${gRec.name}`,
-                                            subtitle: `Bản ghi quét: ${gRec.vao.time} • Quy cách: ${gRec.vao.mode}`
-                                          });
-                                        }}
-                                        className="p-0.5 px-1 text-slate-555 hover:text-rose-600 rounded hover:bg-slate-200 border border-slate-150 transition-all text-[7.5px] font-black uppercase flex items-center gap-0.5 cursor-pointer"
-                                        title="Xóa giờ vào"
-                                      >
-                                        <Trash2 size={7} /> XÓA
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div className="h-3" />
-                                  )}
                                 </div>
 
-                                {/* Check-Out Column (RA) */}
-                                <div className="p-2 bg-slate-50 border border-slate-120/60 rounded-lg flex flex-col justify-between min-h-[90px] space-y-1.5">
+                                {/* Quiz Score Column (Phải) */}
+                                <div className="flex flex-col justify-between pl-3 border-l border-slate-100 text-left">
                                   <div className="flex items-center justify-between">
-                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider font-mono">GIỜ RA</span>
-                                    {gRec.ra ? (
-                                      <span className={`text-[7.5px] font-black uppercase px-1.5 py-0.2 rounded-full ${
-                                        gRec.ra.status === 'Đúng giờ' ? 'bg-emerald-555 text-emerald-800' : 'bg-rose-555 text-rose-800 animate-pulse'
-                                      }`}>
-                                        {gRec.ra.status}
+                                    <span className="text-[8.5px] font-black text-indigo-900 uppercase tracking-wider font-mono">QUIZ TTT</span>
+                                    {hasDiemDanh && quizResultVal ? (
+                                      <span className="text-[7.5px] font-black uppercase px-2 py-0.5 bg-indigo-50/50 text-indigo-700 border border-indigo-120/40 rounded-lg animate-pulse font-sans font-black">
+                                        {getQuizEvaluation(quizResultVal)}
                                       </span>
                                     ) : (
-                                      <span className="text-[7.5px] font-extrabold text-slate-455 uppercase border border-dashed border-slate-300 px-1 py-0.2 rounded-full">VẰNG</span>
+                                      <span className="text-[7.5px] font-extrabold text-slate-455 uppercase border border-dashed border-slate-200 px-1.5 py-0.2 rounded-full bg-slate-50 font-sans">CHƯA THI</span>
                                     )}
                                   </div>
-                                  {gRec.ra ? (
-                                    <div className="space-y-0.5 my-0.5">
-                                      <span className="font-extrabold text-slate-755 font-mono text-[11px] block">{gRec.ra.time}</span>
-                                      <span className="text-[7.5px] text-slate-500 font-extrabold uppercase tracking-wide block truncate">{gRec.ra.location}</span>
-                                      <span className="text-[8px] text-emerald-800 font-black uppercase bg-emerald-50 border border-emerald-100/60 rounded px-1 py-0.2 select-none inline-block">{gRec.ra.mode}</span>
-                                    </div>
-                                  ) : (
-                                    <p className="text-[8.5px] text-slate-400 italic font-bold my-0.5">Chưa quét ra</p>
-                                  )}
 
-                                  {/* Ra Actions */}
-                                  {gRec.ra ? (
-                                    <div className="flex items-center gap-1 border-t border-slate-150/40 pt-1 mt-0.5 justify-end">
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditingAttendanceRecord(gRec.ra)}
-                                        className="p-0.5 px-1 text-slate-555 hover:text-indigo-600 rounded hover:bg-slate-200 border border-slate-150 transition-all text-[7.5px] font-black uppercase flex items-center gap-0.5 cursor-pointer"
-                                        title="Sửa giờ ra"
-                                      >
-                                        <Sliders size={7} /> SỬA
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setDeleteConfirm({
-                                            type: 'attendance',
-                                            id: gRec.ra.id,
-                                            title: `XEM XÉT XÓA GIỜ RA CỦA ${gRec.name}`,
-                                            subtitle: `Bản ghi quét: ${gRec.ra.time} • Quy cách: ${gRec.ra.mode}`
-                                          });
-                                        }}
-                                        className="p-0.5 px-1 text-slate-555 hover:text-rose-600 rounded hover:bg-slate-200 border border-slate-150 transition-all text-[7.5px] font-black uppercase flex items-center gap-0.5 cursor-pointer"
-                                        title="Xóa giờ ra"
-                                      >
-                                        <Trash2 size={7} /> XÓA
-                                      </button>
+                                  {hasDiemDanh ? (
+                                    <div className="flex-1 flex flex-col justify-center pt-1">
+                                      <div className="flex items-center justify-between gap-1.5">
+                                        <span className="text-[8.5px] text-slate-600 font-extrabold uppercase shrink-0">KẾT QUẢ:</span>
+                                        <input
+                                          type="text"
+                                          placeholder="9/10"
+                                          disabled={!canEditFields(gRec.diemDanh)}
+                                          value={gRec.diemDanh.quizResult || ''}
+                                          onChange={(e) => {
+                                            const val = e.target.value;
+                                            setAttendanceRecords(prev => prev.map(rec => {
+                                              if (rec.id === gRec.diemDanh.id) {
+                                                return { ...rec, quizResult: val };
+                                              }
+                                              return rec;
+                                            }));
+                                          }}
+                                          className="w-16 text-[10.5px] font-black h-5 px-1 text-center border border-indigo-200/50 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                        />
+                                      </div>
                                     </div>
                                   ) : (
-                                    <div className="h-3" />
+                                    <div className="flex-1 flex flex-col justify-center pt-1 opacity-50 font-sans">
+                                      <div className="flex items-center justify-between gap-1.5">
+                                        <span className="text-[8px] text-slate-400 font-extrabold uppercase shrink-0">KẾT QUẢ:</span>
+                                        <input
+                                          type="text"
+                                          disabled
+                                          placeholder="Chưa thi"
+                                          className="w-16 text-[8px] font-bold h-5 px-1 text-center border border-slate-100 rounded-md bg-slate-50 cursor-not-allowed"
+                                        />
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
+                              </div>
+
+                              {/* Full-width "Giải trình" block spanning the entire bottom of the card */}
+                              <div className="border-t border-slate-100/60 pt-1.5 px-0.5 mt-0.5">
+                                {hasDiemDanh ? (
+                                  <textarea
+                                    rows={2}
+                                    placeholder="Giải trình/ Ghi chú"
+                                    disabled={!canEditFields(gRec.diemDanh)}
+                                    value={gRec.diemDanh.quizExplanation || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setAttendanceRecords(prev => prev.map(rec => {
+                                        if (rec.id === gRec.diemDanh.id) {
+                                          return { ...rec, quizExplanation: val };
+                                        }
+                                        return rec;
+                                      }));
+                                    }}
+                                    title={gRec.diemDanh.quizExplanation || ''}
+                                    className="w-full text-[10px] font-medium p-1.5 h-12 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-slate-50/10 hover:bg-white focus:bg-white transition-all font-sans resize-none disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                  />
+                                ) : (
+                                  <textarea
+                                    rows={2}
+                                    disabled
+                                    placeholder="Giải trình/ Ghi chú"
+                                    className="w-full text-[9px] font-medium p-1.5 h-12 border border-slate-150 rounded-md bg-slate-50/70 cursor-not-allowed font-sans resize-none"
+                                  />
+                                )}
                               </div>
                             </div>
                           );
@@ -3056,7 +3522,543 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                   </div>
                 </div>
               </div>
-            )}
+
+              {/* BẢNG THEO DÕI LŨY KẾ ĐIỂM SỐ QUIZ 3T HÀNG NGÀY NĂM 2026 */}
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4 print:border-none print:shadow-none print:p-0 print:pt-0 mb-6" id="cumulative-quiz-dashboard">
+                {/* INTEGRATED HEADER WITH MODE SWITCHER */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b pb-3 border-slate-200 gap-3">
+                  <div className="flex items-center gap-2 text-left">
+                    <span className="p-1 px-2.5 bg-amber-50 text-amber-600 rounded-xl text-base print:hidden">📝</span>
+                    <div>
+                      <h4 className="font-extrabold text-slate-800 text-sm uppercase">
+                        {tttViewMode === 'ytd' 
+                          ? `BẢNG THEO DÕI LŨY KẾ ĐIỂM SỐ QUIZ 3T HÀNG NGÀY NĂM ${(attendanceFilterMonth || '2026-06').split('-')[0]}`
+                          : `BẢNG THEO DÕI LŨY KẾ ĐIỂM SỐ QUIZ 3T CẢ NĂM ${(attendanceFilterMonth || '2026-06').split('-')[0]}`
+                        }
+                      </h4>
+                      <p className="text-[10px] text-slate-500 font-semibold uppercase mt-0.5">
+                        {tttViewMode === 'ytd'
+                          ? `Cơ chế cộng dồn lũy kế đến Tháng ${(attendanceFilterMonth || '2026-06').split('-')[1]} / Quyết định tập đoàn QLCL`
+                          : `Kế hoạch tích lũy cả năm ${(attendanceFilterMonth || '2026-06').split('-')[0]} / Chỉ tiêu rèn luyện năng lực đến 12/${(attendanceFilterMonth || '2026-06').split('-')[0]}`
+                        }
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* TAB SWITCHER WITH DEDICATED PRINT BUTTON */}
+                  <div className="flex items-center self-start sm:self-center gap-2 print:hidden no-print">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const printContents = document.getElementById('cumulative-quiz-dashboard')?.outerHTML;
+                        if (printContents) {
+                          const printWindow = window.open('', '_blank');
+                          if (printWindow) {
+                            printWindow.document.write(`
+                              <html>
+                                <head>
+                                  <title>BẢNG THEO DÕI LŨY KẾ ĐIỂM SỐ QUIZ 3T NĂM ${(attendanceFilterMonth || '2026-06').split('-')[0]}</title>
+                                  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+                                  <style>
+                                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+                                    body {
+                                      font-family: 'Inter', sans-serif;
+                                      padding: 24px;
+                                      background-color: white;
+                                      color: #1e293b;
+                                    }
+                                    .notranslate { translate: no; }
+                                    .print\\:hidden, button, .no-print { display: none !important; }
+                                    table { page-break-inside: avoid; }
+                                    tr { page-break-inside: avoid; page-break-after: auto; }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="space-y-4">
+                                    ${printContents}
+                                  </div>
+                                  <script>
+                                    setTimeout(() => {
+                                      window.print();
+                                      window.close();
+                                    }, 500);
+                                  </script>
+                                </body>
+                              </html>
+                            `);
+                            printWindow.document.close();
+                          }
+                        }
+                      }}
+                      className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg shadow-sm cursor-pointer hover:text-amber-600 transition-colors"
+                      title="In riêng bảng điểm Quiz này"
+                    >
+                      <Printer size={13} strokeWidth={2.5} />
+                      In bảng này
+                    </button>
+         
+                    <div className="inline-flex p-0.5 bg-slate-100 rounded-lg border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setTttViewMode('ytd')}
+                        className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all duration-150 ${
+                          tttViewMode === 'ytd'
+                            ? 'bg-white text-amber-600 shadow-sm border border-slate-200/50'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Theo Tháng (YTD: {(attendanceFilterMonth || '2026-06').split('-')[1]})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTttViewMode('annual')}
+                        className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all duration-150 ${
+                          tttViewMode === 'annual'
+                            ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/50'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Cả Năm {(attendanceFilterMonth || '2026-06').split('-')[0]}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+         
+                {/* GUIDES BASED ON VIEW MODE & MECHANICAL STRUCTURE CARD */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 print:hidden">
+                  {tttViewMode === 'ytd' ? (
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs text-slate-700 leading-relaxed text-left flex flex-col justify-center">
+                      <strong className="text-slate-900 font-extrabold flex items-center gap-1">
+                        <Sparkles size={11} className="text-amber-500 animate-spin-slow" /> Hướng dẫn kiểm soát Tuân thủ Quiz 3T:
+                      </strong>
+                      <span className="block mt-1.5 space-y-1">
+                        <span>- <strong>Nhân sự</strong>: Cần hoàn thành 100% các câu hỏi Quiz 3T được giao hàng ngày. Mỗi kỳ điểm cao nâng cao điểm trung bình và bảo đảm chỉ tiêu rèn luyện năng lực Tập đoàn.</span>
+                        <span>- <strong>Cơ cấu điểm</strong>: Mỗi kỳ thi gồm 3 câu hỏi (tối đa 10 điểm mỗi câu, tổng cộng 30 điểm/kỳ).</span>
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="bg-indigo-50/40 p-4 rounded-xl border border-indigo-100/70 text-xs text-slate-700 leading-relaxed text-left flex flex-col justify-center">
+                      <strong className="text-indigo-900 font-extrabold flex items-center gap-1">
+                        <Sparkles size={11} className="text-indigo-500 animate-spin-slow" /> Hướng dẫn rèn luyện Quiz 3T Cả năm:
+                      </strong>
+                      <span className="block mt-1.5 font-medium text-slate-650">
+                        - <strong>Theo dõi cả năm</strong>: Tổng hợp điểm số tích lũy qua tất cả các kỳ thi Quiz trong năm ${(attendanceFilterMonth || '2026-06').split('-')[0]} của phòng, hỗ trợ đánh giá ý thức tuân thủ và nỗ lực tự học của từng cá nhân.
+                      </span>
+                    </div>
+                  )}
+
+                  {/* BẢNG CƠ CẤU ĐÁNH GIÁ DỰ PHÒNG */}
+                  <div className="bg-amber-50/40 p-3.5 rounded-xl border border-amber-200/60 text-xs text-slate-700 text-left relative group">
+                    <div className="flex items-center justify-between mb-2">
+                      <strong className="text-amber-900 font-extrabold flex items-center gap-1.5">
+                        <Settings size={12} className="text-amber-600 animate-spin-slow" /> Bảng Cơ Cấu Đánh Giá Quy Đổi Điểm:
+                      </strong>
+                      {isUserAdminOrDeptManager && (
+                        <button
+                          type="button"
+                          onClick={handleOpenEditQuizEval}
+                          className="p-1 px-2.5 rounded-md text-amber-700 hover:bg-amber-200/50 hover:text-amber-950 transition-all border border-amber-300 bg-amber-50 shadow-sm cursor-pointer inline-flex items-center gap-1 text-[9.5px] font-black uppercase active:scale-95 shrink-0"
+                        >
+                          <Edit size={10} /> Sửa
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] font-medium text-slate-650">
+                      <div className="flex items-center justify-between border-b border-dashed border-amber-100 pb-1">
+                        <span>{quizEvalStructure.min_90} đến {quizEvalStructure.max_90} điểm:</span>
+                        <span className="font-extrabold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">Đạt 90%</span>
+                      </div>
+                      <div className="flex items-center justify-between border-b border-dashed border-amber-100 pb-1">
+                        <span>{quizEvalStructure.min_100} đến {quizEvalStructure.max_100} điểm:</span>
+                        <span className="font-extrabold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-100">Đạt 100%</span>
+                      </div>
+                      <div className="flex items-center justify-between border-b border-dashed border-amber-100 pb-1">
+                        <span>{quizEvalStructure.min_120} đến {quizEvalStructure.max_120} điểm:</span>
+                        <span className="font-extrabold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">Đạt 120%</span>
+                      </div>
+                      <div className="flex items-center justify-between border-b border-dashed border-amber-100 pb-1">
+                        <span>{quizEvalStructure.min_150} đến {quizEvalStructure.max_150} điểm:</span>
+                        <span className="font-extrabold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">Đạt 150%</span>
+                      </div>
+                    </div>
+                    <p className="text-[9.5px] text-slate-450 italic mt-1.5 leading-tight">
+                      * Hệ thống tự động tính điểm trung bình thực tế mỗi kỳ đã nộp để xếp loại chính xác.
+                    </p>
+                  </div>
+                </div>
+
+                {/* DATA TABLE */}
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-slate-800 border-separate border-spacing-0">
+                    <thead>
+                      <tr className="bg-slate-800 text-white text-[11px] font-black uppercase tracking-wider select-none">
+                        <th className="py-2.5 px-3 text-left border-b border-r border-slate-300 last:border-r-0 w-[150px] min-w-[150px] max-w-[150px]">Họ và tên</th>
+                        <th className="py-2.5 px-3 text-center border-b border-r border-slate-300 last:border-r-0 w-[110px] min-w-[110px] max-w-[110px]">Chức danh</th>
+                        <th className="py-2.5 px-3 text-center border-b border-r border-slate-300 last:border-r-0 w-[110px] min-w-[110px] max-w-[110px]">Số Kỳ</th>
+                        <th className="py-2.5 px-3 text-center border-b border-r border-slate-300 last:border-r-0 w-[150px] min-w-[150px] max-w-[150px]">Điểm Trung Bình</th>
+                        <th className="py-2.5 px-3 text-center border-b border-r border-slate-300 last:border-r-0 w-[120px] min-w-[120px] max-w-[120px]">Độ chính xác</th>
+                        <th className="py-2.5 px-3 text-center border-b border-r border-slate-300 last:border-r-0 w-[220px] min-w-[220px] max-w-[220px]">Tiến độ tham gia</th>
+                        <th className="py-2.5 px-3 text-center border-b border-slate-300 w-[140px] min-w-[140px] max-w-[140px]">Đánh giá</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeQLCLEmployees.map((emp, index) => {
+                        const res = tttViewMode === 'ytd' ? getTttCumulativeMetrics(emp.id) : getTttAnnualMetrics(emp.id);
+                        const isLastRow = index === activeQLCLEmployees.length - 1;
+                        const tdBorderClass = `${isLastRow ? '' : 'border-b'} border-slate-300`;
+                        
+                        const userTitle = (() => {
+                          const name = emp.name || '';
+                          const normName = name.trim();
+                          if (normName === 'Lê Nhật Trường') return 'Trưởng Phòng';
+                          if (normName === 'Võ Thị Mỹ Tân' || normName.includes('Mỹ Tân') || normName.includes('Tân')) return 'Trưởng Nhóm';
+                          if (emp.role === 'Trưởng Phòng' || emp.role === 'Trưởng phòng') return 'Trưởng Phòng';
+                          if (emp.role === 'Leader' || emp.role === 'Trưởng nhóm') return 'Trưởng Nhóm';
+                          return 'Nhân Viên';
+                        })();
+         
+                        const avgScore = res.totalCompleted > 0 ? Number((res.totalScore / res.totalCompleted).toFixed(1)) : 0;
+         
+                        const evalText = () => {
+                          if (res.totalCompleted === 0) return 'CHƯA THAM GIA';
+                          if (avgScore >= quizEvalStructure.min_90 && avgScore < quizEvalStructure.max_90) return 'ĐẠT 90%';
+                          if (avgScore >= quizEvalStructure.min_100 && avgScore < quizEvalStructure.max_100) return 'ĐẠT 100%';
+                          if (avgScore >= quizEvalStructure.min_120 && avgScore < quizEvalStructure.max_120) return 'ĐẠT 120%';
+                          if (avgScore >= quizEvalStructure.min_150 && avgScore <= quizEvalStructure.max_150) return 'ĐẠT 150%';
+                          return 'CẦN NỖ LỰC';
+                        };
+         
+                        const evalBadgeClass = () => {
+                          if (res.totalCompleted === 0) return 'bg-slate-100 text-slate-500 border-slate-200';
+                          
+                          const text = evalText();
+                          if (text === 'ĐẠT 90%' || text === 'CẦN NỖ LỰC') {
+                            return 'bg-red-600 text-white font-black border-red-700 shadow-md shadow-red-100';
+                          }
+         
+                          if (avgScore >= quizEvalStructure.min_150) return 'bg-indigo-100 text-indigo-800 border-indigo-300 font-extrabold';
+                          if (avgScore >= quizEvalStructure.min_120) return 'bg-purple-100 text-purple-800 border-purple-300 font-extrabold';
+                          if (avgScore >= quizEvalStructure.min_100) return 'bg-emerald-100 text-emerald-800 border-emerald-300 font-extrabold';
+                          return 'bg-amber-100 text-amber-800 border-amber-200 font-extrabold';
+                        };
+         
+                        return (
+                          <tr key={emp.id} className="text-xs hover:bg-slate-50/70 border-b border-slate-200 font-medium">
+                            <td className="py-2.5 px-3 font-semibold text-slate-900 border border-slate-350 whitespace-nowrap overflow-hidden text-ellipsis text-left">
+                              <span className="notranslate" translate="no">{emp.name}</span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center text-slate-650 font-bold border border-slate-350 whitespace-nowrap overflow-hidden text-ellipsis">
+                              {userTitle}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-bold text-slate-650 border border-slate-350">
+                              {res.totalAssigned} kỳ
+                            </td>
+                            <td className="py-2.5 px-3 text-center border border-slate-350 font-extrabold text-blue-700 bg-blue-50/50">
+                              {avgScore} / 30đ
+                            </td>
+                            <td className={`py-2.5 px-3 text-center border border-slate-350 font-extrabold ${res.accuracyRate >= 90 ? 'text-emerald-700 bg-emerald-50/30' : 'text-slate-700'}`}>
+                              {res.accuracyRate}%
+                            </td>
+                            <td className="py-2.5 px-3 border border-slate-350">
+                              <div className="flex flex-col gap-1 text-left w-full">
+                                <div className="flex justify-between text-[9.5px] font-bold text-slate-500">
+                                  <span>THAM GIA: {res.totalCompleted}/{res.totalAssigned}</span>
+                                  <span className={res.completionRate >= 100 ? "text-emerald-600 font-black" : "text-amber-600 font-black"}>
+                                    {res.completionRate}%
+                                  </span>
+                                </div>
+                                <div className="w-full bg-slate-200 h-1 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full ${res.completionRate >= 100 ? 'bg-emerald-500' : 'bg-amber-400'}`}
+                                    style={{ width: `${res.completionRate}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-center border border-slate-350">
+                              <span className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider border shadow-sm ${evalBadgeClass()}`}>
+                                {(evalText() === 'ĐẠT 90%' || evalText() === 'CẦN NỖ LỰC') ? (
+                                  <>
+                                    <span className="text-[12px] animate-pulse">💪</span>
+                                    <span>{evalText()}</span>
+                                  </>
+                                ) : (
+                                  evalText()
+                                )}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* SINH DANH MỤC LỊCH SỬ ĐIỂM DANH THEO TỪNG THÁNG */}
+              <div className="bg-white border border-gray-150 rounded-3xl p-6 shadow-sm flex flex-col space-y-4 text-left">
+                <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-3 border-slate-100 gap-3">
+                  <div>
+                    <span className="text-[12px] font-black text-slate-850 uppercase tracking-widest block">
+                      DANH MỤC LỊCH SỬ ĐIỂM DANH & CẬP NHẬT
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-bold uppercase block tracking-wide mt-0.5">
+                      Theo dõi tổng quát các lượt điểm danh, điều chỉnh trạng thái và điểm thi Quiz
+                    </span>
+                  </div>
+
+
+
+                  {/* Filter controls */}
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                    {/* Name Search */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Tìm tên nhân viên..."
+                        value={attendanceSearchQuery}
+                        onChange={(e) => setAttendanceSearchQuery(e.target.value)}
+                        className="pl-7 pr-2.5 py-1.5 w-full sm:w-36 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 transition-all placeholder:text-slate-400"
+                      />
+                      <Search size={10} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    </div>
+
+                    {/* Compact Day Filter */}
+                    <div className="flex items-center gap-1.5 animate-fade-in bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 hover:border-slate-300 transition-all">
+                      <span className="text-[9px] font-black uppercase text-slate-400 font-mono tracking-wider shrink-0">Ngày:</span>
+                      <input
+                        type="date"
+                        value={attendanceFilterDay}
+                        onChange={(e) => setAttendanceFilterDay(e.target.value)}
+                        className="border-0 bg-transparent text-xs font-bold focus:outline-none font-mono p-0 h-4 w-28 cursor-pointer outline-none text-slate-700"
+                      />
+                    </div>
+
+                    {/* Compact Month filter input */}
+                    <div className="flex items-center gap-1.5 animate-fade-in bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 hover:border-slate-300 transition-all">
+                      <span className="text-[9px] font-black uppercase text-slate-400 font-mono tracking-wider shrink-0">Tháng:</span>
+                      <input
+                        type="month"
+                        value={attendanceFilterMonth}
+                        onChange={(e) => setAttendanceFilterMonth(e.target.value)}
+                        className="border-0 bg-transparent text-xs font-bold focus:outline-none bg-transparent font-mono p-0 h-4 w-20 cursor-pointer outline-none text-slate-700"
+                      />
+                    </div>
+
+                    {/* Clear Filter Button */}
+                    {(attendanceSearchQuery || attendanceFilterMonth || attendanceFilterDay) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAttendanceSearchQuery('');
+                          setAttendanceFilterMonth('');
+                          setAttendanceFilterDay('');
+                        }}
+                        className="p-1.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 rounded-xl text-[9px] font-black uppercase cursor-pointer transition-all"
+                      >
+                        Xóa lọc
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Historical Table and Cards */}
+                {filteredHistoricalRecords.length === 0 ? (
+                  <div className="py-8 bg-slate-50/35 border border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-center p-6 text-slate-450">
+                    <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest block">Không tìm thấy dữ liệu lịch sử</span>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Thay đổi từ khóa tìm kiếm hoặc chọn tháng khác</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* PC Table */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-100 bg-slate-50/50">
+                            <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase tracking-wider">Ngày</th>
+                            <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase tracking-wider">Nhân viên</th>
+                            <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase tracking-wider">Giờ quét</th>
+                            <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase tracking-wider">Hình thức</th>
+                            <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase tracking-wider">Trạng thái</th>
+                            <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase tracking-wider">Điểm Quiz TTT</th>
+                            <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase tracking-wider">Giải trình / Note</th>
+                            <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase tracking-wider text-center w-16">Hành động</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredHistoricalRecords.map((rec) => {
+                            return (
+                              <tr key={rec.id} className="hover:bg-slate-50/40 transition-all">
+                                <td className="py-2 px-3 text-xs font-bold text-slate-600 font-mono">
+                                  {rec.date ? formatDateVN(rec.date) : formatDateVN(new Date().toLocaleDateString('en-CA'))}
+                                </td>
+                                <td className="py-2 px-3 text-xs font-black text-slate-800 uppercase">
+                                  {rec.name}
+                                </td>
+                                <td className="py-2 px-3 text-xs font-bold text-indigo-600 font-mono">
+                                  {rec.time}
+                                </td>
+                                <td className="py-2 px-3">
+                                  <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded-md">
+                                    {rec.mode || 'Online'}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3">
+                                  <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                    rec.status === 'NGHỈ' ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                                  }`}>
+                                    {rec.status || 'CÓ MẶT'}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3">
+                                  <input
+                                    type="text"
+                                    placeholder="9/10"
+                                    disabled={!canEditFields(rec)}
+                                    value={rec.quizResult || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setAttendanceRecords(prev => prev.map(item => item.id === rec.id ? { ...item, quizResult: val } : item));
+                                    }}
+                                    className="text-[10px] font-black h-7 text-center border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white w-16 font-mono disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                  />
+                                </td>
+                                <td className="py-2 px-3">
+                                  <textarea
+                                    rows={1}
+                                    placeholder="Giải trình..."
+                                    disabled={!canEditFields(rec)}
+                                    value={rec.quizExplanation || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setAttendanceRecords(prev => prev.map(item => item.id === rec.id ? { ...item, quizExplanation: val } : item));
+                                    }}
+                                    className="text-[9px] font-medium h-7.5 w-full min-w-[120px] max-w-[200px] p-1 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-white font-sans overflow-y-auto resize-none leading-tight scrollbar-thin disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                  />
+                                </td>
+                                <td className="py-2 px-3">
+                                  <div className="flex flex-col gap-0.5 items-stretch justify-center w-14 mx-auto">
+                                    <button
+                                      type="button"
+                                      disabled={!canEditOrDeleteRecord(rec)}
+                                      onClick={() => setEditingAttendanceRecord(rec)}
+                                      className="p-1 px-1.5 text-slate-500 hover:text-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed rounded hover:bg-slate-100 border border-slate-200 transition-all text-[8px] font-black uppercase flex items-center justify-center gap-0.5 cursor-pointer w-full"
+                                    >
+                                      <Sliders size={7} /> SỬA
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={!canEditOrDeleteRecord(rec)}
+                                      onClick={() => {
+                                        setDeleteConfirm({
+                                          type: 'attendance',
+                                          id: rec.id,
+                                          title: `XÁC NHẬN XÓA LỊCH SỬ ĐIỂM DANH`,
+                                          subtitle: `Hệ thống: ${rec.name} vào ngày ${rec.date ? formatDateVN(rec.date) : ''}`
+                                        });
+                                      }}
+                                      className="p-1 px-1.5 text-slate-550 hover:text-rose-600 disabled:opacity-40 disabled:cursor-not-allowed rounded hover:bg-slate-100 border border-slate-200 transition-all text-[8px] font-black uppercase flex items-center justify-center gap-0.5 cursor-pointer w-full"
+                                    >
+                                      <Trash2 size={7} /> XÓA
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile Cards */}
+                    <div className="grid grid-cols-1 gap-2.5 md:hidden">
+                      {filteredHistoricalRecords.map((rec) => (
+                        <div key={rec.id} className="p-3 bg-slate-50/50 rounded-xl border border-slate-150 flex flex-col gap-2 text-left">
+                          <div className="flex items-center justify-between border-b border-slate-200/50 pb-1.5">
+                            <div>
+                              <span className="text-xs font-black text-slate-800 uppercase tracking-wide block">{rec.name}</span>
+                              <span className="text-[9px] text-slate-400 font-bold font-mono">{rec.date ? formatDateVN(rec.date) : formatDateVN(new Date().toLocaleDateString('en-CA'))} • {rec.time}</span>
+                            </div>
+                            <span className={`text-[8.5px] font-black uppercase px-2 py-0.5 rounded-full ${
+                              rec.status === 'NGHỈ' ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {rec.status || 'CÓ MẶT'}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col gap-1.5 bg-slate-100/50 p-2 rounded-lg border border-slate-200/40">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1">
+                                <span className="text-[8px] font-black text-slate-400 uppercase font-sans">Hình thức:</span>
+                                <span className="text-[8px] font-black uppercase bg-white border text-slate-705 px-1.5 py-0.2 rounded font-sans">{rec.mode || 'Online'}</span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[8px] font-black text-slate-400 uppercase font-sans">Quiz TTT:</span>
+                                <input
+                                  type="text"
+                                  placeholder="9/10"
+                                  disabled={!canEditFields(rec)}
+                                  value={rec.quizResult || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setAttendanceRecords(prev => prev.map(item => item.id === rec.id ? { ...item, quizResult: val } : item));
+                                  }}
+                                  className="text-[10px] font-black h-6 w-16 px-1.5 border border-slate-200 rounded-lg focus:outline-none bg-white text-center disabled:bg-slate-55/10 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 border-t border-slate-200/40 pt-1.5 mt-0.5">
+                              <span className="text-[8.5px] font-extrabold text-slate-500 uppercase shrink-0 font-sans">Giải trình:</span>
+                              <input
+                                type="text"
+                                placeholder="Nhập giải trình/ghi chú..."
+                                disabled={!canEditFields(rec)}
+                                value={rec.quizExplanation || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setAttendanceRecords(prev => prev.map(item => item.id === rec.id ? { ...item, quizExplanation: val } : item));
+                                }}
+                                className="flex-1 text-[9px] font-bold h-6 px-2 border border-slate-200 rounded-lg focus:outline-none bg-white text-left font-sans disabled:bg-slate-55/10 disabled:text-slate-400 disabled:cursor-not-allowed"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-1.5 border-t border-slate-200/50 pt-1.5 mt-0.5">
+                            <button
+                              type="button"
+                              disabled={!canEditOrDeleteRecord(rec)}
+                              onClick={() => setEditingAttendanceRecord(rec)}
+                              className="p-1 px-2 text-slate-600 hover:text-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed rounded hover:bg-slate-100 border border-slate-200 transition-all text-[8px] font-black uppercase flex items-center gap-0.5 cursor-pointer"
+                            >
+                              <Sliders size={8} /> SỬA
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!canEditOrDeleteRecord(rec)}
+                              onClick={() => {
+                                setDeleteConfirm({
+                                  type: 'attendance',
+                                  id: rec.id,
+                                  title: `XÁC NHẬN XÓA LỊCH SỬ ĐIỂM DANH`,
+                                  subtitle: `Hệ thống: ${rec.name} vào ngày ${rec.date ? formatDateVN(rec.date) : ''}`
+                                });
+                              }}
+                              className="p-1 px-2 text-slate-600 hover:text-rose-600 disabled:opacity-40 disabled:cursor-not-allowed rounded hover:bg-slate-100 border border-slate-200 transition-all text-[8px] font-black uppercase flex items-center gap-0.5 cursor-pointer"
+                            >
+                              <Trash2 size={8} /> XÓA
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
             {/* CHẾ ĐỘ 2: BẢNG CHẤM CÔNG THÁNG */}
             {attendanceSubTab === 'monthly' && (
@@ -3345,45 +4347,86 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                             const isEditing = editingCell?.empId === emp.id && editingCell?.day === d;
                             
                             let cellBg = '';
-                            if (isFuture) cellBg = 'bg-slate-50/50 opacity-40 cursor-not-allowed';
+                            if (isFuture) {
+                               const isPendingStatus = status.endsWith('?');
+                               if (status && status !== 'OFF') {
+                                 cellBg = isPendingStatus ? 'bg-amber-50/20 font-black' : 'bg-indigo-50/15 font-black';
+                               } else {
+                                 cellBg = 'bg-slate-50/50 opacity-40';
+                               }
+                             }
                             else if (isToday) cellBg = 'bg-red-50/15 border-x border-red-205 animate-blink-column';
                             else if (isSunday) cellBg = 'bg-amber-50/30';
                             else if (det.isHoliday) cellBg = 'bg-red-50/30';
 
+                            const isPendingStatus = status.endsWith('?');
+                            const baseStatus = isPendingStatus ? status.replace('?', '') : status;
                             let letterColor = 'text-slate-800 font-medium';
-                            if (status === 'P') letterColor = 'text-amber-600 font-medium bg-amber-50 border border-amber-100/50 rounded px-1';
-                            else if (status === '1/2P') letterColor = 'text-amber-600 font-medium bg-amber-50 border border-amber-100/50 rounded px-1';
-                            else if (status === 'L') letterColor = 'text-red-600 font-medium bg-red-100 border border-red-200 rounded px-1';
-                            else if (status === 'CD') letterColor = 'text-purple-600 font-medium bg-purple-50 border border-purple-100 rounded px-1';
-                            else if (status === 'O') letterColor = 'text-pink-600 font-medium bg-pink-50 border border-pink-100 rounded px-1';
-                            else if (status === 'NV') letterColor = 'text-orange-600 font-medium bg-orange-50 border border-orange-100 rounded px-1';
-                            else if (status === 'OFF') letterColor = 'text-slate-350 font-normal';
+                            if (baseStatus === 'P') {
+                              letterColor = isPendingStatus 
+                                ? 'text-amber-600 font-extrabold bg-amber-50/70 border border-dashed border-amber-300 rounded px-1 italic animate-pulse shadow-xs'
+                                : 'text-amber-600 font-medium bg-amber-50 border border-amber-100/50 rounded px-1';
+                            }
+                            else if (baseStatus === '1/2P') {
+                              letterColor = isPendingStatus 
+                                ? 'text-amber-600 font-extrabold bg-amber-50/70 border border-dashed border-amber-300 rounded px-1.5 italic animate-pulse shadow-xs'
+                                : 'text-amber-600 font-medium bg-amber-50 border border-amber-100/50 rounded px-1';
+                            }
+                            else if (baseStatus === 'L') {
+                              letterColor = 'text-red-600 font-medium bg-red-100 border border-red-200 rounded px-1';
+                            }
+                            else if (baseStatus === 'CD') {
+                              letterColor = isPendingStatus 
+                                ? 'text-purple-600 font-extrabold bg-purple-50/70 border border-dashed border-purple-300 rounded px-1.5 italic animate-pulse shadow-xs'
+                                : 'text-purple-600 font-medium bg-purple-50 border border-purple-100 rounded px-1';
+                            }
+                            else if (baseStatus === 'O') {
+                              letterColor = isPendingStatus 
+                                ? 'text-pink-600 font-extrabold bg-pink-50/70 border border-dashed border-pink-300 rounded px-1.5 italic animate-pulse shadow-xs'
+                                : 'text-pink-600 font-medium bg-pink-50 border border-pink-100 rounded px-1';
+                            }
+                            else if (baseStatus === 'NV') {
+                              letterColor = isPendingStatus 
+                                ? 'text-orange-600 font-extrabold bg-orange-50/70 border border-dashed border-orange-300 rounded px-1.5 italic animate-pulse shadow-xs'
+                                : 'text-orange-600 font-medium bg-orange-50 border border-orange-100 rounded px-1';
+                            }
+                            else if (baseStatus === 'OFF') {
+                              letterColor = 'text-slate-350 font-normal';
+                            }
 
-                            return (
-                              <td 
-                                key={d} 
-                                className={`p-1 border-r border-slate-100 text-center font-medium relative select-none ${isFuture ? 'cursor-not-allowed' : 'hover:bg-indigo-50/20 cursor-pointer'} ${cellBg}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (isFuture) return; // Không được tự chấm công ngày chưa tới
-                                  if (isEditing) {
-                                    setEditingCell(null);
-                                  } else {
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    setEditingCell({
-                                      empId: emp.id,
-                                      day: d,
-                                      coords: {
-                                        top: rect.top,
-                                        left: rect.left,
-                                        width: rect.width,
-                                        height: rect.height
-                                      }
-                                    });
-                                  }
-                                }}
-                              >
-                                <span className={letterColor}>{status === 'OFF' ? '' : status}</span>
+                            const canEditCell = !isFuture || userPermissions.office_manageAttendanceSheet;
+                              const hoverTooltip = isPendingStatus 
+                                ? `Chờ duyệt: ${emp.name} nghỉ ${baseStatus === 'P' ? 'phép năm' : baseStatus === '1/2P' ? 'nửa phép' : baseStatus === 'CD' ? 'Chế độ / Thai sản' : baseStatus === 'O' ? 'Ốm / Con ốm' : baseStatus === 'NV' ? 'Ngừng việc' : 'việc riêng'} ngày ${d}/${selectedMonth}/${selectedYear}`
+                                : det.isHoliday 
+                                  ? det.holidayName 
+                                  : status === 'P' ? 'Nghỉ phép năm' : status === 'CD' ? 'Nghỉ Chế độ' : status === 'O' ? 'Con ốm' : status === 'NV' ? 'Ngừng việc' : `Ngày ${d}`;
+
+                              return (
+                                <td 
+                                  key={d} 
+                                  title={hoverTooltip}
+                                  className={`p-1 border-r border-slate-100 text-center font-medium relative select-none ${!canEditCell ? 'cursor-not-allowed' : 'hover:bg-indigo-50/20 cursor-pointer'} ${cellBg}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!canEditCell) return; // Không được tự chấm công ngày chưa tới
+                                    if (isEditing) {
+                                      setEditingCell(null);
+                                    } else {
+                                      const rect = e.currentTarget.getBoundingClientRect();
+                                      setEditingCell({
+                                        empId: emp.id,
+                                        day: d,
+                                        coords: {
+                                          top: rect.top,
+                                          left: rect.left,
+                                          width: rect.width,
+                                          height: rect.height
+                                        }
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <span className={letterColor}>{baseStatus === 'OFF' ? '' : baseStatus}</span>
                                 
                                 {/* Fixed Popover Dropdown menu - escapes boundary clipping and supports top/bottom autopoly */}
                                 {isEditing && (() => {
@@ -3910,38 +4953,77 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
 
               {/* Danh sách sổ đơn từ bên phải */}
               <div className="lg:col-span-2 bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b pb-3 border-gray-100">
-                  <span translate="no" className="notranslate text-sm font-black text-slate-800 uppercase tracking-widest block font-sans">
-                    Theo dõi tình trạng đơn xin nghỉ phép của phòng
-                  </span>
-                  {userPermissions.office_syncLeaveQuota && (
-                    <button
-                      type="button"
-                      onClick={handleSaveAndSyncLeaveRequests}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-md active:scale-95 cursor-pointer animate-none"
-                      title="Chủ động lưu trữ và đồng bộ toàn bộ đơn xin phép đã chọn sang bảng chấm công tháng"
-                    >
-                      <Save size={12} className="stroke-[2.5]" />
-                      Lưu & Đồng bộ chủ động
-                    </button>
-                  )}
+                <div className="flex flex-col gap-4 mb-4 border-b pb-3 border-gray-100">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <span translate="no" className="notranslate text-sm font-black text-slate-800 uppercase tracking-widest block font-sans">
+                      Theo dõi tình trạng đơn xin nghỉ phép của phòng
+                    </span>
+                    {userPermissions.office_syncLeaveQuota && (
+                      <button
+                        type="button"
+                        onClick={handleSaveAndSyncLeaveRequests}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase transition-all shadow-md active:scale-95 cursor-pointer animate-none"
+                        title="Chủ động lưu trữ và đồng bộ toàn bộ đơn xin phép đã chọn sang bảng chấm công tháng"
+                      >
+                        <Save size={12} className="stroke-[2.5]" />
+                        Lưu & Đồng bộ chủ động
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Bộ lọc tháng năm xin nghỉ phép */}
+                  <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-100/80">
+                    <span className="text-[10.5px] font-black uppercase text-slate-400 tracking-wider">Bộ lọc tháng:</span>
+                    <div className="flex items-center gap-2">
+                      <select
+                        id="leave-filter-month-select"
+                        value={leaveFilterMonth}
+                        onChange={e => setLeaveFilterMonth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                        className="text-[11px] font-extrabold uppercase text-slate-700 bg-white border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-3xs"
+                      >
+                        <option value="all">TẤT CẢ CÁC THÁNG</option>
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                          <option key={m} value={m}>Tháng {m}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        id="leave-filter-year-select"
+                        value={leaveFilterYear}
+                        onChange={e => setLeaveFilterYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                        className="text-[11px] font-extrabold uppercase text-slate-700 bg-white border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-3xs"
+                      >
+                        <option value="all">TẤT CẢ CÁC NĂM</option>
+                        <option value={2025}>2025</option>
+                        <option value={2026}>2026</option>
+                        <option value={2027}>2027</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-6 max-h-[640px] overflow-y-auto pr-2">
-                  {sortedMonthKeys.map((monthKey) => {
-                    const requestsInMonth = groupedLeaveRequests[monthKey];
-                    if (!requestsInMonth || requestsInMonth.length === 0) return null;
-                    return (
-                      <div key={monthKey} className="space-y-3">
-                        <div className="flex items-center gap-2 border-b border-slate-100 pb-1.5 pt-1">
-                          <span className="text-[10px] font-black text-rose-600 uppercase tracking-widest bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-100/50">
-                            {monthKey}
-                          </span>
-                          <span className="text-[10px] font-bold text-slate-400">
-                            ({requestsInMonth.length} đơn)
-                          </span>
-                        </div>
-                        <div className="space-y-3">
+                  {filteredMonthKeys.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400 border-2 border-dashed border-red-50/15 rounded-3xl min-h-[220px]">
+                      <FileText size={36} className="text-slate-300 mb-2.5" />
+                      <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Không có đơn xin phép nào</p>
+                      <p className="text-[10px] text-slate-400 mt-1 uppercase font-medium">Phù hợp với bộ lọc đã chọn</p>
+                    </div>
+                  ) : (
+                    filteredMonthKeys.map((monthKey) => {
+                      const requestsInMonth = groupedLeaveRequests[monthKey];
+                      if (!requestsInMonth || requestsInMonth.length === 0) return null;
+                      return (
+                        <div key={monthKey} className="space-y-3">
+                          <div className="flex items-center gap-2 border-b border-slate-100 pb-1.5 pt-1">
+                            <span className="text-[10px] font-black text-rose-600 uppercase tracking-widest bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-100/50">
+                              {monthKey}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400">
+                              ({requestsInMonth.length} đơn)
+                            </span>
+                          </div>
+                          <div className="space-y-3">
                           {requestsInMonth.map((req) => (
                             <div key={req.id} className="p-4 border border-slate-100 rounded-2xl bg-white hover:border-blue-200 hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-4">
                               <div className="flex gap-3.5 items-start">
@@ -4012,7 +5094,8 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                         </div>
                       </div>
                     );
-                  })}
+                  })
+                  )}
                   {leaveRequests.length === 0 && (
                     <div className="p-8 text-center border-2 border-dashed border-slate-100 rounded-2xl">
                       <p className="text-xs text-slate-400 font-bold uppercase">Chưa có yêu cầu nghỉ phép nào được ghi nhận</p>
@@ -5020,6 +6103,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
 
                 <form onSubmit={(e) => {
                   e.preventDefault();
+                  setDoc(doc(db, 'office_attendance_records', String(editingAttendanceRecord.id)), editingAttendanceRecord).catch(console.error);
                   setAttendanceRecords(prev => prev.map(x => x.id === editingAttendanceRecord.id ? editingAttendanceRecord : x));
                   setEditingAttendanceRecord(null);
                 }} className="space-y-3.5">
@@ -5028,9 +6112,10 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                     <input
                       type="text"
                       required
+                      disabled={!isUserAdminOrDeptManager}
                       value={editingAttendanceRecord.name}
                       onChange={e => setEditingAttendanceRecord({ ...editingAttendanceRecord, name: e.target.value })}
-                      className="w-full text-xs h-10 px-3 border border-slate-200 rounded-xl focus:outline-none bg-white font-bold"
+                      className="w-full text-xs h-10 px-3 border border-slate-200 rounded-xl focus:outline-none bg-white font-bold disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
                     />
                   </div>
 
@@ -5040,62 +6125,84 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                       <input
                         type="text"
                         required
+                        disabled={!isUserAdminOrDeptManager}
                         value={editingAttendanceRecord.time}
                         onChange={e => setEditingAttendanceRecord({ ...editingAttendanceRecord, time: e.target.value })}
-                        className="w-full text-xs h-10 px-3 border border-slate-200 rounded-xl focus:outline-none bg-white font-bold font-mono"
+                        className="w-full text-xs h-10 px-3 border border-slate-200 rounded-xl focus:outline-none bg-white font-bold font-mono disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase">Tình trạng đi muộn / sớm</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase">Trạng thái điểm danh</label>
                       <select
-                        value={editingAttendanceRecord.status}
+                        disabled={!isUserAdminOrDeptManager}
+                        value={editingAttendanceRecord.status || 'CÓ MẶT'}
                         onChange={e => setEditingAttendanceRecord({ ...editingAttendanceRecord, status: e.target.value })}
-                        className="w-full text-xs h-10 px-3 border border-slate-200 rounded-xl focus:outline-none bg-white font-bold"
+                        className="w-full text-xs h-10 px-3 border border-slate-200 rounded-xl focus:outline-none bg-white font-bold disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
                       >
-                        <option value="Đúng giờ">Đúng giờ</option>
-                        <option value="Đi muộn">Đi muộn</option>
+                        <option value="CÓ MẶT">CÓ MẶT</option>
+                        <option value="NGHỈ">NGHỈ</option>
                       </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-400 uppercase">Ngày ghi nhận</label>
+                      <input
+                        type="date"
+                        required
+                        disabled={!isUserAdminOrDeptManager}
+                        value={editingAttendanceRecord.date || new Date().toLocaleDateString('en-CA')}
+                        onChange={e => setEditingAttendanceRecord({ ...editingAttendanceRecord, date: e.target.value })}
+                        className="w-full text-xs h-10 px-3 border border-slate-200 rounded-xl focus:outline-none bg-white font-bold font-mono disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                      />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase">Hình thức quét liên kết</label>
-                      <input
-                        type="text"
-                        required
-                        value={editingAttendanceRecord.type}
-                        onChange={e => setEditingAttendanceRecord({ ...editingAttendanceRecord, type: e.target.value })}
-                        className="w-full text-xs h-10 px-3 border border-slate-200 rounded-xl focus:outline-none bg-white font-bold"
-                      />
+                      <label className="text-[10px] font-black text-slate-400 uppercase">Hình thức điểm danh (Offline/Online/Công tác/Nghỉ)</label>
+                      <select
+                        disabled={!isUserAdminOrDeptManager}
+                        value={editingAttendanceRecord.mode || 'Online'}
+                        onChange={e => setEditingAttendanceRecord({ ...editingAttendanceRecord, mode: e.target.value as any })}
+                        className="w-full text-xs h-10 px-3 border border-slate-200 rounded-xl focus:outline-none bg-white font-bold cursor-pointer disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                      >
+                        <option value="Online">Online</option>
+                        <option value="Offline">Offline</option>
+                        <option value="Công tác">Công tác</option>
+                        <option value="Nghỉ">Nghỉ - Không đi làm</option>
+                      </select>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-slate-400 uppercase">Khu vực / Tọa độ định vị IP</label>
-                      <input
-                        type="text"
-                        required
-                        value={editingAttendanceRecord.location}
-                        onChange={e => setEditingAttendanceRecord({ ...editingAttendanceRecord, location: e.target.value })}
-                        className="w-full text-xs h-10 px-3 border border-slate-200 rounded-xl focus:outline-none bg-white font-bold"
-                      />
-                    </div>
-                  </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase">Hình thức điểm danh (Offline / Online / Công tác)</label>
-                    <select
-                      value={editingAttendanceRecord.mode || 'Online'}
-                      onChange={e => setEditingAttendanceRecord({ ...editingAttendanceRecord, mode: e.target.value as any })}
-                      className="w-full text-xs h-10 px-3 border border-slate-200 rounded-xl focus:outline-none bg-white font-bold cursor-pointer"
-                    >
-                      <option value="Online">Online</option>
-                      <option value="Offline">Offline</option>
-                      <option value="Công tác">Công tác</option>
-                    </select>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase">Điểm số Quiz (TTT)</label>
+                        <input
+                          type="text"
+                          disabled={!canEditFields(editingAttendanceRecord)}
+                          value={editingAttendanceRecord.quizResult || ''}
+                          onChange={e => setEditingAttendanceRecord({ ...editingAttendanceRecord, quizResult: e.target.value })}
+                          placeholder="9/10"
+                          className="w-full text-xs h-10 px-3 border border-slate-200 rounded-xl focus:outline-none bg-white font-bold disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase">Giải trình Quiz (TTT)</label>
+                        <input
+                          type="text"
+                          disabled={!canEditFields(editingAttendanceRecord)}
+                          value={editingAttendanceRecord.quizExplanation || ''}
+                          onChange={e => setEditingAttendanceRecord({ ...editingAttendanceRecord, quizExplanation: e.target.value })}
+                          placeholder="Ghi chú giải trình..."
+                          className="w-full text-xs h-10 px-3 border border-slate-200 rounded-xl focus:outline-none bg-white font-medium disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex justify-end gap-2.5 pt-3.5 border-t border-slate-100">
-                    {effectiveUser.role === 'Admin' && (
+                    {isUserAdminOrDeptManager && (
                       <button
                         type="button"
                         onClick={() => {
@@ -5280,6 +6387,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                     onClick={() => {
                       const { type, id } = deleteConfirm;
                       if (type === 'attendance') {
+                        deleteDoc(doc(db, 'office_attendance_records', String(id))).catch(console.error);
                         setAttendanceRecords(prev => prev.filter(x => x.id !== id));
                       } else if (type === 'event') {
                         setCalendarEvents(prev => prev.filter(x => x.id !== id));
@@ -5298,6 +6406,175 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                 </div>
               </motion.div>
             </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Modal chỉnh sửa cơ cấu đánh giá Quiz 3T */}
+        <AnimatePresence>
+          {isEditingQuizEval && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[999999] animate-in fade-in duration-200">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 relative overflow-hidden text-left"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500" />
+                
+                <button 
+                  onClick={() => setIsEditingQuizEval(false)}
+                  className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  type="button"
+                >
+                  <X size={16} />
+                </button>
+
+                <div className="mt-2">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-amber-500">
+                      <Settings size={18} strokeWidth={2.5} className="animate-spin-slow" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-black text-slate-800 uppercase tracking-tight">
+                        CƠ CẤU ĐÁNH GIÁ QUIZ 3T
+                      </h3>
+                      <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Cấu hình thang điểm xếp hạng</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 mb-6">
+                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-[10px] text-slate-500 font-medium leading-relaxed">
+                      Nhập dải điểm số trung bình tối thiểu và tối đa đạt được của mỗi kỳ (0 - 30 điểm) để quy đổi ra tỷ lệ % KPI tương ứng.
+                    </div>
+
+                    {/* Cấu hình các dải điểm */}
+                    <div className="space-y-3">
+                      {/* Đạt 90% */}
+                      <div className="grid grid-cols-5 gap-2 items-center">
+                        <span className="col-span-2 text-[10px] font-black text-slate-500 uppercase">Đạt 90%:</span>
+                        <div className="col-span-3 flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            max="30"
+                            step="0.1"
+                            value={tempQuizEval.min_90}
+                            onChange={(e) => setTempQuizEval(prev => ({ ...prev, min_90: Number(e.target.value) }))}
+                            className="w-full text-center h-8 text-xs font-extrabold bg-blue-50 text-blue-700 border border-blue-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          />
+                          <span className="text-[10px] text-slate-400 font-bold">tới</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="30"
+                            step="0.1"
+                            value={tempQuizEval.max_90}
+                            onChange={(e) => setTempQuizEval(prev => ({ ...prev, max_90: Number(e.target.value) }))}
+                            className="w-full text-center h-8 text-xs font-extrabold bg-blue-50 text-blue-700 border border-blue-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Đạt 100% */}
+                      <div className="grid grid-cols-5 gap-2 items-center border-t border-slate-100 pt-3">
+                        <span className="col-span-2 text-[10px] font-black text-slate-500 uppercase">Đạt 100%:</span>
+                        <div className="col-span-3 flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            max="30"
+                            step="0.1"
+                            value={tempQuizEval.min_100}
+                            onChange={(e) => setTempQuizEval(prev => ({ ...prev, min_100: Number(e.target.value) }))}
+                            className="w-full text-center h-8 text-xs font-extrabold bg-teal-50 text-teal-700 border border-teal-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-400"
+                          />
+                          <span className="text-[10px] text-slate-400 font-bold">tới</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="30"
+                            step="0.1"
+                            value={tempQuizEval.max_100}
+                            onChange={(e) => setTempQuizEval(prev => ({ ...prev, max_100: Number(e.target.value) }))}
+                            className="w-full text-center h-8 text-xs font-extrabold bg-teal-50 text-teal-700 border border-teal-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-400"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Đạt 120% */}
+                      <div className="grid grid-cols-5 gap-2 items-center border-t border-slate-100 pt-3">
+                        <span className="col-span-2 text-[10px] font-black text-slate-500 uppercase">Đạt 120%:</span>
+                        <div className="col-span-3 flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            max="30"
+                            step="0.1"
+                            value={tempQuizEval.min_120}
+                            onChange={(e) => setTempQuizEval(prev => ({ ...prev, min_120: Number(e.target.value) }))}
+                            className="w-full text-center h-8 text-xs font-extrabold bg-purple-50 text-purple-700 border border-purple-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-purple-400"
+                          />
+                          <span className="text-[10px] text-slate-400 font-bold">tới</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="30"
+                            step="0.1"
+                            value={tempQuizEval.max_120}
+                            onChange={(e) => setTempQuizEval(prev => ({ ...prev, max_120: Number(e.target.value) }))}
+                            className="w-full text-center h-8 text-xs font-extrabold bg-purple-50 text-purple-700 border border-purple-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-purple-400"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Đạt 150% */}
+                      <div className="grid grid-cols-5 gap-2 items-center border-t border-slate-100 pt-3">
+                        <span className="col-span-2 text-[10px] font-black text-slate-500 uppercase">Đạt 150%:</span>
+                        <div className="col-span-3 flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            max="30"
+                            step="0.1"
+                            value={tempQuizEval.min_150}
+                            onChange={(e) => setTempQuizEval(prev => ({ ...prev, min_150: Number(e.target.value) }))}
+                            className="w-full text-center h-8 text-xs font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                          />
+                          <span className="text-[10px] text-slate-400 font-bold">tới</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="30"
+                            step="0.1"
+                            value={tempQuizEval.max_150}
+                            onChange={(e) => setTempQuizEval(prev => ({ ...prev, max_150: Number(e.target.value) }))}
+                            className="w-full text-center h-8 text-xs font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 w-full">
+                    <button
+                      onClick={() => setIsEditingQuizEval(false)}
+                      className="flex-1 h-9 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                      type="button"
+                    >
+                      HỦY
+                    </button>
+                    <button
+                      onClick={handleSaveQuizEval}
+                      className="flex-[2] h-9 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-amber-200 hover:shadow active:scale-95 transition-all cursor-pointer"
+                      type="button"
+                    >
+                      <Save size={12} strokeWidth={2.5} />
+                      LƯU CẤU HÌNH
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
           )}
         </AnimatePresence>
 

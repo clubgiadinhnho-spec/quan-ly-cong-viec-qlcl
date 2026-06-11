@@ -3372,7 +3372,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                           };
 
                           return (
-                            <div key={gRec.name} className="px-3.5 py-2.5 bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow hover:border-indigo-200 transition-all flex flex-col justify-between gap-1.5 text-left">
+                            <div key={gRec.name} className="px-3.5 py-2.5 bg-white rounded-2xl border-2 border-slate-400 shadow-sm hover:shadow hover:border-indigo-400/80 transition-all flex flex-col justify-between gap-1.5 text-left">
                               {/* Employee Information Header with Action buttons */}
                               <div className="flex items-center justify-between border-b border-slate-100 pb-1 flex-wrap gap-1">
                                 <div className="flex flex-col">
@@ -3488,7 +3488,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                                               return rec;
                                             }));
                                           }}
-                                          className="w-[72px] text-[13px] font-black h-7 px-1 text-center border-2 border-indigo-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/40 bg-white text-indigo-950 placeholder-indigo-300 shadow-sm transition-all disabled:bg-slate-50 disabled:text-slate-400 disabled:border-slate-200 disabled:cursor-not-allowed font-mono"
+                                          className="w-[72px] text-[13px] font-black h-7 px-1 text-center border-2 border-indigo-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/40 bg-white text-indigo-950 placeholder-indigo-300 shadow-sm transition-all disabled:bg-indigo-50/30 disabled:text-indigo-950 disabled:border-indigo-600 disabled:cursor-not-allowed font-mono"
                                         />
                                       </div>
                                     </div>
@@ -3526,7 +3526,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                                       }));
                                     }}
                                     title={gRec.diemDanh.quizExplanation || ''}
-                                    className="w-full text-[10px] font-medium py-1 px-1.5 h-8.5 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-slate-50/10 hover:bg-white focus:bg-white transition-all font-sans resize-none disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                    className="w-full text-[10px] font-medium py-1 px-1.5 h-8.5 border border-slate-350 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400 bg-slate-50/10 hover:bg-white focus:bg-white transition-all font-sans resize-none disabled:bg-slate-50 disabled:text-slate-805 disabled:border-slate-400 disabled:cursor-not-allowed"
                                   />
                                 ) : (
                                   <textarea

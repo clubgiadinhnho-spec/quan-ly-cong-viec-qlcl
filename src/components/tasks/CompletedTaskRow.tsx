@@ -149,7 +149,7 @@ export const CompletedTaskRow: React.FC<CompletedTaskRowProps> = ({
     return (
       <div 
         id={`task-card-${task.id}`}
-        className={`rounded-xl border-2 border-gray-250 shadow-md p-4 transition-all space-y-4 font-sans relative ${mobileBg} ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+        className={`rounded-xl border-2 border-slate-400 shadow-md p-4 transition-all space-y-4 font-sans relative ${mobileBg} ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
       >
         {/* TOP: TÊN NHÂN SỰ */}
         <div className="flex start justify-between border-b border-gray-100 pb-3" id={`mobile-top-${task.id}`}>

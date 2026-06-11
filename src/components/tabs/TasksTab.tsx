@@ -211,10 +211,10 @@ export const TasksTab: React.FC<TasksTabProps> = ({
             if (!canViewSup) return null;
             const canControlSup = effectiveUser.role === 'Admin' || effectiveUser.role === 'Trưởng Phòng' || effectiveUser.delegatedPermissions?.system_viewSup === true;
             return (
-              <div className="flex-shrink-0 md:flex-1 flex flex-wrap items-center justify-center gap-2 px-1 md:px-2 max-w-lg md:max-w-2xl">
+              <div className="flex-shrink-0 md:flex-1 flex flex-row items-center justify-center gap-1.5 px-0.5 max-w-lg md:max-w-2xl select-none">
                 
-                {/* Robot Main Bubble (Compact styled) */}
-                <div className="flex items-center gap-1.5 md:gap-2 bg-orange-50/55 border border-orange-200/60 rounded-xl px-2 py-0.5 md:py-1 shadow-xs animate-in h-[38px] fade-in zoom-in-95 duration-200">
+                {/* Robot Main Bubble (Extra Compact styled) */}
+                <div className="flex items-center gap-1 bg-orange-50/55 border border-orange-200/60 rounded-xl px-1.5 py-1 shadow-xs animate-in h-[38px] fade-in zoom-in-95 duration-200 shrink-0">
                   
                   {/* Pulsing/bouncing Orange Robot Icon */}
                   <button
@@ -256,44 +256,36 @@ export const TasksTab: React.FC<TasksTabProps> = ({
                   </button>
 
                   {/* Compact Text Label */}
-                  <div className="flex relative flex-col min-w-0 max-w-[150px] xs:max-w-[200px] md:max-w-[220px]">
-                    <div className="flex items-center gap-1 leading-none mb-0.5">
-                      <span className="text-[7.5px] font-black text-white bg-orange-600 px-1 py-0.5 rounded-sm uppercase tracking-wider select-none leading-none">
-                        S.U.P
-                      </span>
-                      <span className={`w-1 h-1 rounded-full ${supState.isActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-                      <span className="text-[7px] font-bold text-orange-500 uppercase tracking-widest leading-none">
-                        {supState.isActive ? 'LIVE' : 'IDLE'}
-                      </span>
-                    </div>
-                    
-                    <div className="text-[9px] text-orange-900 font-extrabold leading-tight truncate">
-                      <span translate="no" className="notranslate">
-                        {supState.speech || 'Hệ thống an ninh S.U.P'}
-                      </span>
-                    </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[7.5px] font-black text-white bg-orange-600 px-1 py-0.5 rounded-sm uppercase tracking-wider select-none leading-none">
+                      S.U.P
+                    </span>
+                    <span className={`w-1 h-1 rounded-full ${supState.isActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                    <span className="text-[7.5px] font-black text-orange-605 uppercase tracking-wider leading-none">
+                      {supState.isActive ? 'LIVE' : 'IDLE'}
+                    </span>
                   </div>
 
                 </div>
 
                 {/* S.U.P Quota Control Panel */}
-                <div className="flex items-center gap-2 bg-purple-50/70 border border-purple-200/80 rounded-xl px-2 md:px-3 py-0.5 md:py-1 shadow-xs select-none animate-in fade-in h-[38px] zoom-in-95 duration-200">
-                  <div className="flex flex-col min-w-[55px]">
-                    <span className="text-[7px] font-black text-purple-600 uppercase tracking-wider leading-none">HẠN NGẠCH</span>
-                    <span className="text-[10px] font-black text-purple-950 mt-1 leading-none whitespace-nowrap">
-                      {supState.dailyQuotaUsed ?? 0} <span className="text-purple-400 font-medium font-mono text-[9px]">/</span> {supState.dailyQuotaMax ?? 30} <span className="text-[7px] text-purple-400 font-bold uppercase tracking-wider">Lượt</span>
+                <div className="flex items-center gap-1 bg-purple-50/70 border border-purple-200/80 rounded-xl px-1.5 py-1 shadow-xs animate-in fade-in h-[38px] zoom-in-95 duration-200 shrink-0">
+                  <div className="flex flex-col min-w-[34px] items-start justify-center leading-none">
+                    <span className="text-[6px] font-black text-purple-600 uppercase tracking-widest leading-none">HẠN NGẠCH</span>
+                    <span className="text-[9.5px] font-black text-purple-950 mt-0.5 leading-none whitespace-nowrap">
+                      {supState.dailyQuotaUsed ?? 0}<span className="text-purple-400 font-medium font-mono text-[8px]">/</span>{supState.dailyQuotaMax ?? 30}
                     </span>
                   </div>
 
                   {canControlSup && (
-                    <div className="flex items-center gap-1.5 border-l border-purple-200 pl-2">
+                    <div className="flex items-center gap-1 border-l border-purple-200 pl-1 shrink-0">
                       <button
                         onClick={async () => {
                           if (window.confirm("Bạn có chắc chắn muốn KHÔI PHỤC (Reset) hạn ngạch sử dụng trong ngày của S.U.P về 0?")) {
                             await resetQuota?.();
                           }
                         }}
-                        className="px-1.5 py-1 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white rounded-lg text-[8px] font-black uppercase transition-all tracking-wider shadow-sm cursor-pointer"
+                        className="px-1.5 py-0.5 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white rounded text-[7.5px] font-black uppercase transition-all tracking-wider cursor-pointer"
                         title="Reset số lượt tuần tra đã dùng về 0"
                       >
                         RESET
@@ -302,7 +294,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
                         onClick={async () => {
                           await increaseQuotaLimit?.();
                         }}
-                        className="px-1.5 py-1 bg-white border border-purple-300 hover:bg-purple-50 active:scale-95 text-purple-700 rounded-lg text-[8px] font-black uppercase transition-all tracking-widest shadow-xs cursor-pointer"
+                        className="px-1.5 py-0.5 bg-white border border-purple-300 hover:bg-purple-50 active:scale-95 text-purple-700 rounded text-[7.5px] font-black uppercase transition-all tracking-widest cursor-pointer"
                         title="Tăng thêm +10 hạn ngạch trong ngày"
                       >
                         +10

@@ -394,7 +394,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
     ? 'bg-yellow-200 border-2 border-yellow-500 text-yellow-950 font-black animate-sup-bounce' 
     : (highlightClass || priorityRowClass || 'hover:bg-gray-50/50');
 
-  let cellBorderColor = "border-gray-300";
+  let cellBorderColor = "border-slate-400";
   if (isPatrolledBySup) {
     cellBorderColor = "border-orange-500";
   } else if (isCheckInPending) {

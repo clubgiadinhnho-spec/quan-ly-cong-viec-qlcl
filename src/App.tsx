@@ -251,11 +251,12 @@ export default function App() {
       />
       
       {/* Bottom Navigation for Mobile (< 768px) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-200/80 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex items-center justify-around px-3 z-[80] backdrop-blur-md bg-white/95">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-200/80 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] flex items-center justify-around px-1 z-[80] backdrop-blur-md bg-white/95">
         {[
           { id: 'tasks', label: 'BẢNG CÔNG VIỆC', icon: ClipboardList, count: counts.active, badgeColor: 'bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.5)]' },
-          { id: 'pending_confirmation', label: 'Đề xuất', icon: Sparkles, count: counts.pending, badgeColor: 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' },
-          { id: 'reports', label: 'Báo cáo', icon: BarChart3 },
+          { id: 'pending_confirmation', label: 'ĐỀ XUẤT', icon: Sparkles, count: counts.pending, badgeColor: 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' },
+          { id: 'pending_approval', label: 'TRÌNH DUYỆT', icon: ShieldAlert, count: counts.pendingApprovalTotal, badgeColor: 'bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]' },
+          { id: 'attendance', label: 'ĐIỂM DANH-3T', icon: Clock },
           { id: 'menu', label: 'Menu', icon: Menu }
         ].map((item) => {
           const isActive = activeTab === item.id;
@@ -350,7 +351,8 @@ export default function App() {
                     { id: 'tasks', label: 'BẢNG CÔNG VIỆC', icon: ClipboardList, count: counts.active, badgeColor: 'bg-[#dc2626] shadow-[0_4px_10px_rgba(220,38,38,0.4)]' },
                     { id: 'pending_approval', label: 'TRÌNH DUYỆT', icon: ShieldAlert, count: counts.pendingApprovalTotal, badgeColor: 'bg-[#f97316] shadow-[0_4px_10px_rgba(249,115,22,0.35)]' },
                     { id: 'completed_tasks', label: 'CÔNG VIỆC HOÀN THÀNH', icon: CheckCheck, count: counts.completedTotal, badgeColor: 'bg-[#2563eb] shadow-[0_4px_10px_rgba(37,99,235,0.4)]' },
-                    { id: 'trash', label: 'TRUNG TÂM XÓA', icon: Trash2, count: counts.trash, badgeColor: 'bg-[#dc2626] shadow-[0_4px_10px_rgba(220,38,38,0.4)]' }
+                    { id: 'trash', label: 'TRUNG TÂM XÓA', icon: Trash2, count: counts.trash, badgeColor: 'bg-[#dc2626] shadow-[0_4px_10px_rgba(220,38,38,0.4)]' },
+                    { id: 'reports', label: 'BÁO CÁO THÁNG', icon: BarChart3 }
                   ].filter((item) => {
                     const perms = (effectiveUser?.delegatedPermissions || {}) as any;
                     if (effectiveUser?.role === 'Admin') return true;
@@ -359,6 +361,7 @@ export default function App() {
                     if (item.id === 'pending_approval' && perms.pendingApproval_view === false) return false;
                     if (item.id === 'completed_tasks' && perms.completedTasks_view === false) return false;
                     if (item.id === 'trash' && effectiveUser?.role !== 'Staff') return false;
+                    if (item.id === 'reports' && perms.reports_viewPage === false) return false;
                     return true;
                   }).map((item) => {
                     const isActive = activeTab === item.id;
@@ -400,6 +403,47 @@ export default function App() {
                       </button>
                     );
                   })}
+                </div>
+
+                {/* TIỆN ÍCH VĂN PHÒNG & ĐIỂM DANH QUICK LINK */}
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center gap-2.5 px-1 text-indigo-500">
+                    <Clock size={18} className="stroke-[2.5]" />
+                    <span translate="no" className="notranslate text-xs font-black uppercase tracking-widest text-[#2d4263]">
+                      THỦ TỤC & TIỆN ÍCH
+                    </span>
+                  </div>
+                  
+                  <button
+                    onClick={() => {
+                      setActiveTab('attendance');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between py-4 px-5 rounded-2xl transition-all duration-200 active:scale-[0.98] border ${
+                      activeTab === 'attendance'
+                        ? "bg-[#edf4ff] text-blue-600 font-extrabold border-blue-200"
+                        : "bg-gradient-to-r from-amber-50 to-orange-50/60 text-amber-900 border-amber-100 shadow-sm"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border transition-all ${
+                        activeTab === 'attendance'
+                          ? "bg-white border-blue-200 text-blue-600 shadow-sm"
+                          : "bg-white border-amber-200 text-amber-600 shadow-sm"
+                      }`}>
+                        <Clock size={16} className="stroke-[2.5]" />
+                      </div>
+                      <div className="flex flex-col text-left">
+                        <span translate="no" className="notranslate text-[11px] font-black uppercase tracking-tight">
+                          ĐIỂM DANH 3T
+                        </span>
+                        <span className="text-[9px] font-semibold text-amber-700/80 uppercase">
+                          Điểm danh & Làm bài Quiz hàng ngày
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-xs">👉</span>
+                  </button>
                 </div>
 
                 {/* MOBILE WEB-APP & FULLSCREEN UTILITIES */}

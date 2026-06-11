@@ -2460,7 +2460,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
       <HolidayBanner />
       <Header title={getHeaderTitle()} onlineUsers={presence} currentUserId={effectiveUser.id} />
 
-      <div className="p-6 overflow-y-auto max-w-7xl mx-auto w-full space-y-6">
+      <div className="p-3 sm:p-5 md:p-6 overflow-y-auto max-w-7xl mx-auto w-full space-y-4 sm:space-y-6">
         
         {/* TAB 1: LỊCH CÔNG TÁC */}
         {activeTab === 'office_calendar' && (
@@ -3202,7 +3202,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
               <div className="space-y-4 animate-fade-in">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Chấm công Button bên trái */}
-                <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center text-center">
+                <div className="bg-white border border-gray-100 rounded-3xl p-4 sm:p-6 shadow-sm flex flex-col items-center justify-center text-center">
                   <span translate="no" className="notranslate text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                     GIỜ HỆ THỐNG HIỆN TẠI
                   </span>
@@ -3214,7 +3214,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                   </span>
 
                   {/* 4 Work Modes Picker */}
-                  <div className="mb-4 w-full max-w-xs">
+                  <div className="mb-8 w-full max-w-xs">
                     <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block text-center mb-1.5">
                       Hình thức điểm danh
                     </span>
@@ -3245,7 +3245,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                   <button
                     disabled={userCheckedIn || isScanning}
                     onClick={handleCreateCheckIn}
-                    className={`relative w-28 h-28 rounded-full flex flex-col items-center justify-center border-4 outline-none transition-all shadow-lg active:scale-95 ${
+                    className={`relative w-28 h-28 mt-6 mb-4 rounded-full flex flex-col items-center justify-center border-4 outline-none transition-all shadow-lg active:scale-95 ${
                       userCheckedIn
                         ? 'bg-emerald-50 border-emerald-500 text-emerald-600 font-bold'
                         : isScanning
@@ -3261,7 +3261,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                   >
                     {/* Visual Radar Waves */}
                     {!userCheckedIn && (
-                      <span className={`absolute inset-0 rounded-full border animate-ping opacity-60 ${
+                      <span className={`absolute inset-0 rounded-full border animate-ping opacity-60 pointer-events-none ${
                         checkInMode === 'Offline' ? 'border-amber-500/30' : checkInMode === 'Công tác' ? 'border-purple-500/30' : checkInMode === 'Nghỉ' ? 'border-rose-500/30' : 'border-indigo-500/30'
                       }`} />
                     )}
@@ -3307,7 +3307,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                 </div>
 
                 {/* Danh sách nhân viên ghi nhận có đi làm */}
-                <div className="lg:col-span-2 bg-white border border-gray-100 rounded-3xl p-4 shadow-sm flex flex-col justify-between space-y-2">
+                <div className="lg:col-span-2 bg-white border border-gray-100 rounded-3xl p-3 sm:p-5 shadow-sm flex flex-col justify-between space-y-2">
                   <div>
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-3 pb-2 border-b border-slate-100 text-left">
                       <div>
@@ -3425,7 +3425,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                               </div>
 
                               {/* Dual columns: THÔNG TIN ĐIỂM DANH vs ĐIỂM SỐ QUIZ TTT WITHOUT EMBEDDED BOXES */}
-                              <div className="grid grid-cols-2 gap-2 pt-0.5">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
                                 {/* Check-In Column (Trái) */}
                                 <div className="flex flex-col justify-between text-left">
                                   <div className="space-y-0.5">
@@ -3547,7 +3547,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
               </div>
 
               {/* BẢNG THEO DÕI LŨY KẾ ĐIỂM SỐ QUIZ 3T HÀNG NGÀY NĂM 2026 */}
-              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4 print:border-none print:shadow-none print:p-0 print:pt-0 mb-6" id="cumulative-quiz-dashboard">
+              <div className="bg-white p-3.5 sm:p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4 print:border-none print:shadow-none print:p-0 print:pt-0 mb-6" id="cumulative-quiz-dashboard">
                 {/* INTEGRATED HEADER WITH MODE SWITCHER */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b pb-3 border-slate-200 gap-3">
                   <div className="flex items-center gap-2 text-left">
@@ -3711,8 +3711,8 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                   </div>
                 </div>
 
-                {/* DATA TABLE */}
-                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                {/* DATA TABLE (DESKTOP) */}
+                <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200">
                   <table className="w-full text-slate-800 border-separate border-spacing-0">
                     <thead>
                       <tr className="bg-slate-800 text-white text-[11px] font-black uppercase tracking-wider select-none">
@@ -3816,6 +3816,114 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                       })}
                     </tbody>
                   </table>
+                </div>
+
+                {/* DATA TABLE (MOBILE BLOCK CARDS) */}
+                <div className="md:hidden grid grid-cols-1 gap-3">
+                  {activeQLCLEmployees.map((emp) => {
+                    const res = tttViewMode === 'ytd' ? getTttCumulativeMetrics(emp.id) : getTttAnnualMetrics(emp.id);
+                    
+                    const userTitle = (() => {
+                      const name = emp.name || '';
+                      const normName = name.trim();
+                      if (normName === 'Lê Nhật Trường') return 'Trưởng Phòng';
+                      if (normName === 'Võ Thị Mỹ Tân' || normName.includes('Mỹ Tân') || normName.includes('Tân')) return 'Trưởng Nhóm';
+                      if (emp.role === 'Trưởng Phòng' || emp.role === 'Trưởng phòng') return 'Trưởng Phòng';
+                      if (emp.role === 'Leader' || emp.role === 'Trưởng nhóm') return 'Trưởng Nhóm';
+                      return 'Nhân Viên';
+                    })();
+     
+                    const avgScore = res.totalCompleted > 0 ? Number((res.totalScore / res.totalCompleted).toFixed(1)) : 0;
+     
+                    const evalText = () => {
+                      if (res.totalCompleted === 0) return 'CHƯA THAM GIA';
+                      if (avgScore >= quizEvalStructure.min_90 && avgScore < quizEvalStructure.max_90) return 'ĐẠT 90%';
+                      if (avgScore >= quizEvalStructure.min_100 && avgScore < quizEvalStructure.max_100) return 'ĐẠT 100%';
+                      if (avgScore >= quizEvalStructure.min_120 && avgScore < quizEvalStructure.max_120) return 'ĐẠT 120%';
+                      if (avgScore >= quizEvalStructure.min_150 && avgScore <= quizEvalStructure.max_150) return 'ĐẠT 150%';
+                      return 'CẦN NỖ LỰC';
+                    };
+     
+                    const evalBadgeClass = () => {
+                      if (res.totalCompleted === 0) return 'bg-slate-100 text-slate-500 border-slate-200';
+                      
+                      const text = evalText();
+                      if (text === 'ĐẠT 90%' || text === 'CẦN NỖ LỰC') {
+                        return 'bg-red-600 text-white font-black border-red-700 shadow-md shadow-red-100';
+                      }
+     
+                      if (avgScore >= quizEvalStructure.min_150) return 'bg-indigo-100 text-indigo-800 border-indigo-300 font-extrabold';
+                      if (avgScore >= quizEvalStructure.min_120) return 'bg-purple-100 text-purple-800 border-purple-300 font-extrabold';
+                      if (avgScore >= quizEvalStructure.min_100) return 'bg-emerald-100 text-emerald-800 border-emerald-300 font-extrabold';
+                      return 'bg-amber-100 text-amber-800 border-amber-200 font-extrabold';
+                    };
+
+                    return (
+                      <div key={emp.id} className="bg-white border-2 border-slate-100 shadow-sm rounded-2xl p-4 space-y-3 text-left transition-all">
+                        {/* Header card info */}
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-black text-xs text-slate-700 uppercase">
+                              {emp.name ? emp.name.charAt(0) : 'NV'}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="notranslate text-xs font-black text-slate-800 uppercase tracking-wide leading-tight" translate="no">
+                                {emp.name}
+                              </span>
+                              <span className="text-[8.5px] font-black text-indigo-655 bg-indigo-50 border border-indigo-100/50 px-1.5 py-0.2 rounded w-max mt-0.5 leading-none">
+                                {userTitle}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[8.5px] font-black uppercase tracking-wider border shadow-sm ${evalBadgeClass()}`}>
+                            {(evalText() === 'ĐẠT 90%' || evalText() === 'CẦN NỖ LỰC') ? (
+                              <>
+                                <span className="text-[11px] animate-pulse">💪</span>
+                                <span>{evalText()}</span>
+                              </>
+                            ) : (
+                              evalText()
+                            )}
+                          </span>
+                        </div>
+
+                        {/* Stats items */}
+                        <div className="grid grid-cols-3 gap-2 py-1 bg-slate-50 p-2 rounded-xl border border-slate-150/40 text-center">
+                          <div className="flex flex-col">
+                            <span className="text-[7.5px] font-black text-slate-400 uppercase">Số Kỳ</span>
+                            <span className="text-xs font-bold text-slate-700 mt-0.5 font-mono">{res.totalAssigned} kỳ</span>
+                          </div>
+                          
+                          <div className="flex flex-col border-x border-slate-200">
+                            <span className="text-[7.5px] font-black text-slate-400 uppercase">Điểm TB</span>
+                            <span className="text-xs font-black text-blue-700 mt-0.5 font-mono">{avgScore}/30đ</span>
+                          </div>
+
+                          <div className="flex flex-col">
+                            <span className="text-[7.5px] font-black text-slate-400 uppercase">Chính Xác</span>
+                            <span className="text-xs font-black text-emerald-700 mt-0.5 font-mono">{res.accuracyRate}%</span>
+                          </div>
+                        </div>
+
+                        {/* Participation bar */}
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-[8px] font-black text-slate-550 uppercase">
+                            <span>Sự tham gia: {res.totalCompleted}/{res.totalAssigned} kỳ</span>
+                            <span className={res.completionRate >= 100 ? "text-emerald-600" : "text-amber-600"}>
+                              Tỷ lệ {res.completionRate}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-150">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-300 ${res.completionRate >= 100 ? 'bg-emerald-500' : 'bg-amber-400'}`}
+                              style={{ width: `${res.completionRate}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

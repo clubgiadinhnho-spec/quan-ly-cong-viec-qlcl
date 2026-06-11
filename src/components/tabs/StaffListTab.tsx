@@ -32,7 +32,7 @@ export const StaffListTab: React.FC<StaffListTabProps> = ({
     <motion.div key="staff_list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <HolidayBanner />
       <Header title={<span translate="no" className="notranslate">QUẢN LÝ NHÂN SỰ</span>} onlineUsers={presence} currentUserId={effectiveUser.id} />
-      <div className="p-8">
+      <div className="p-4 sm:p-6 md:p-8">
         <StaffListPage
           onNavigate={setActiveTab} onOpenDirectChat={setShowDirectChat}
           unreadCount={(Object.values(unreadCounts) as number[]).reduce((a, b) => a + b, 0) + (groupUnreadCount as number)}

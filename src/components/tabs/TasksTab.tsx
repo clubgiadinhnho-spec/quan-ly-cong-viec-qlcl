@@ -184,7 +184,7 @@ export const TasksTab: React.FC<TasksTabProps> = ({
           />
         </div>
 
-        <div className="flex items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm transition-all duration-300 print:hidden overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-gray-200 shadow-sm transition-all duration-300 print:hidden overflow-hidden">
           <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl flex-shrink-0">
             <button
               onClick={() => setViewScope("mine")}

@@ -3289,9 +3289,9 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                   </div>
 
                   {/* Note regulation block with scroll support moved here under Trạng thái định vị */}
-                  <div className="w-full max-w-xs bg-amber-50/70 border border-amber-100 rounded-2xl p-3 flex gap-2 items-start mt-3">
+                  <div className="w-full max-w-xs bg-amber-50/70 border-2 border-amber-400/80 rounded-2xl p-3 flex gap-2 items-start mt-3 text-left">
                     <Info size={14} className="text-amber-600 mt-0.5 shrink-0" />
-                    <div className="max-h-24 overflow-y-auto pr-1 text-[9px] font-medium text-amber-900 leading-relaxed font-sans scrollbar-thin">
+                    <div className="max-h-24 overflow-y-auto pr-1 text-[9px] font-medium text-amber-900 leading-relaxed font-sans scrollbar-thin text-left">
                       <span className="font-black text-amber-850 block mb-0.5 uppercase tracking-wide">LƯU Ý QUYỀN HẠN & KHÓA GIỜ:</span>
                       Nhân sự chỉ cập nhật của chính mình trong phạm vi 15 phút rồi hệ thống tự động khóa.
                     </div>
@@ -3859,7 +3859,7 @@ export const OfficeUtilitiesTab: React.FC<OfficeUtilitiesTabProps> = ({
                     };
 
                     return (
-                      <div key={emp.id} className="bg-white border-2 border-slate-100 shadow-sm rounded-2xl p-4 space-y-3 text-left transition-all">
+                      <div key={emp.id} className="bg-white border-2 border-slate-400 shadow-sm rounded-2xl p-4 space-y-3 text-left transition-all">
                         {/* Header card info */}
                         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                           <div className="flex items-center gap-2">

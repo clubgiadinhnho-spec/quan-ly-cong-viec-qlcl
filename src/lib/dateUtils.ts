@@ -266,8 +266,9 @@ export const getTaskDeadlineStatus = (task: any, referenceDate: Date = new Date(
     };
   }
 
-  const dueDate = new Date(dueDateStr);
-  const startDate = new Date(startDateStr || dueDateStr);
+  // Parse dates safely using parseSafeDate to support DD/MM/YYYY and other standard formats
+  const dueDate = parseSafeDate(dueDateStr);
+  const startDate = parseSafeDate(startDateStr || dueDateStr);
   
   // Normalize dates to start of day for accurate day-to-day comparison
   const dD = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate()).getTime();
@@ -277,6 +278,9 @@ export const getTaskDeadlineStatus = (task: any, referenceDate: Date = new Date(
   const formattedDate = formatDate(dueDateStr);
   const totalTime = dD - sD;
   const remainingTime = dD - rD;
+
+  const msInDay = 24 * 60 * 60 * 1000;
+  const remainingDays = Math.ceil(remainingTime / msInDay);
 
   // 1. CRITICAL (Overdue): Today > DueDate
   if (rD > dD) {
@@ -302,10 +306,12 @@ export const getTaskDeadlineStatus = (task: any, referenceDate: Date = new Date(
     };
   }
 
-  // 3. WARNING (Soon): R <= T * 0.2
-  // totalTime <= 0 means start date >= due date (invalid but handled)
-  const threshold = totalTime > 0 ? (totalTime * 0.2) : 0;
-  if (remainingTime <= threshold) {
+  // 3. WARNING (Soon): Remaining days <= threshold days
+  // Default to 20% of total cycle range, but capped at a maximum of 3 days to avoid early/premature warnings for monthly tasks
+  const percentThresholdDays = totalTime > 0 ? (totalTime / msInDay) * 0.2 : 0;
+  const thresholdDays = Math.max(1, Math.min(3, percentThresholdDays));
+
+  if (remainingDays <= thresholdDays) {
     return {
       status: 'WARNING',
       displayText: `HẠN: ${formattedDate}`,

@@ -137,7 +137,11 @@ export const useExcelHandlers = ({
       return;
     }
 
-    const dateStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '');
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yy = String(now.getFullYear()).slice(-2); // 2-digit year (yy)
+    const dateStr = `${dd}${mm}${yy}`; // ddmmyy exactly
     
     // DeXuat: status === 'PENDING' && !deletedAt
     const deXuat = tasks.filter(t => t.status === 'PENDING' && !t.deletedAt);

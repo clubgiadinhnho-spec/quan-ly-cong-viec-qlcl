@@ -1,8 +1,10 @@
 import { useCallback, ChangeEvent } from 'react';
 import { Task, User } from '../types';
-import { exportTasksToExcel, importTasksFromExcel } from '../utils/excelUtils';
+import { exportTasksToExcel, importTasksFromExcel, getTasksExcelBlob } from '../utils/excelUtils';
 import { db } from '../lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 
 interface ExcelHandlersProps {
   currentUser: User | null;
@@ -129,7 +131,11 @@ export const useExcelHandlers = ({
   }, [currentUser, activeTab, firebaseAddTask, setConfirmModal]);
 
   const handleSuperBackup = useCallback(async () => {
-    if (currentUser?.role !== "Admin") return;
+    // Permit both Admins and Delegated Users with Super Backup permissions
+    if (currentUser?.role !== "Admin" && !currentUser?.delegatedPermissions?.canAccessSuperBackup) {
+      alert("Bạn không có quyền thực hiện chức năng SIÊU BACKUP.");
+      return;
+    }
 
     const dateStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '');
     
@@ -140,22 +146,8 @@ export const useExcelHandlers = ({
     const hoanThanh = tasks.filter(t => t.status === 'COMPLETED' && !t.deletedAt);
     const thungRac = tasks.filter(t => t.deletedAt);
 
-    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-    // Export 5 Excel files
-    exportTasksToExcel(deXuat, allUsers, `Backup_DeXuat_${dateStr}.xlsx`);
-    await sleep(800);
-    exportTasksToExcel(bangChinh, allUsers, `Backup_BangChinh_${dateStr}.xlsx`);
-    await sleep(800);
-    exportTasksToExcel(trinhDuyet, allUsers, `Backup_TrinhDuyet_${dateStr}.xlsx`);
-    await sleep(800);
-    exportTasksToExcel(hoanThanh, allUsers, `Backup_HoanThanh_${dateStr}.xlsx`);
-    await sleep(800);
-    exportTasksToExcel(thungRac, allUsers, `Backup_ThungRac_${dateStr}.xlsx`);
-    await sleep(800);
-
-    // Live dump full Firestore schema structure as JSON
     try {
+      // 1. Fetch live data from Firestore for full JSON backup first
       const gTasksSnap = await getDocs(collection(db, 'tasks'));
       const tasksData = gTasksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
@@ -180,20 +172,29 @@ export const useExcelHandlers = ({
         backupAt: new Date().toISOString()
       };
 
-      const jsonFileName = `Backup_FullHeThong_JSON_${dateStr}.json`;
-      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(backupPayload, null, 2))}`;
-      
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute('href', jsonString);
-      downloadAnchor.setAttribute('download', jsonFileName);
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
+      // 2. Generate Excel Blobs for each category
+      const deXuatBlob = getTasksExcelBlob(deXuat, allUsers);
+      const bangChinhBlob = getTasksExcelBlob(bangChinh, allUsers);
+      const trinhDuyetBlob = getTasksExcelBlob(trinhDuyet, allUsers);
+      const hoanThanhBlob = getTasksExcelBlob(hoanThanh, allUsers);
+      const thungRacBlob = getTasksExcelBlob(thungRac, allUsers);
 
-      alert("Hệ thống đã kích hoạt lệnh SIÊU BACKUP - 5 file Excel và 1 file JSON Sao lưu hệ thống đã được tải xuống thành công.");
-    } catch (err) {
-      console.error('Backup JSON during Super Backup failed:', err);
-      alert("Hệ thống đã kích hoạt lệnh SIÊU BACKUP - Đã tải xuống các file Excel nhưng xảy ra lỗi khi tạo bản sao lưu JSON.");
+      // 3. Package everything into a single, reliable ZIP file to bypass browser popup and security blockers in production environments
+      const zip = new JSZip();
+      zip.file(`Backup_DeXuat_${dateStr}.xlsx`, deXuatBlob);
+      zip.file(`Backup_BangChinh_${dateStr}.xlsx`, bangChinhBlob);
+      zip.file(`Backup_TrinhDuyet_${dateStr}.xlsx`, trinhDuyetBlob);
+      zip.file(`Backup_HoanThanh_${dateStr}.xlsx`, hoanThanhBlob);
+      zip.file(`Backup_ThungRac_${dateStr}.xlsx`, thungRacBlob);
+      zip.file(`Backup_FullHeThong_JSON_${dateStr}.json`, JSON.stringify(backupPayload, null, 2));
+
+      const zipContentBlob = await zip.generateAsync({ type: 'blob' });
+      saveAs(zipContentBlob, `SIEU_BACKUP_HE_THONG_${dateStr}.zip`);
+
+      alert("Hệ thống đã kích hoạt lệnh SIÊU BACKUP thành công!\nToàn bộ 5 file Excel và 1 file JSON đã được nén thành 1 file ZIP duy nhất và tải xuống thành công.");
+    } catch (err: any) {
+      console.error('Backup during Super Backup failed:', err);
+      alert(`Đã xảy ra lỗi khi thực hiện SIÊU BACKUP. Vui lòng kiểm tra lại kết nối Firebase và quyền hạn.\nChi tiết lỗi: ${err?.message || err}`);
     }
   }, [currentUser, tasks, allUsers]);
 

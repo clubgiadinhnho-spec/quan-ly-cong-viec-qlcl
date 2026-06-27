@@ -1236,7 +1236,7 @@ export const TaskRow: React.FC<TaskRowProps> = ({
                   className="px-2 py-0.5 rounded-full border border-rose-200 bg-rose-50 text-rose-600 text-[8.5px] font-black uppercase tracking-tight flex items-center gap-0.5 active:scale-95 transition-all select-none"
                 >
                   <Sparkles size={8} strokeWidth={3} className="animate-pulse" />
-                  <span>Chọc JOB</span>
+                  <span>JOB</span>
                 </button>
               )}
             </div>

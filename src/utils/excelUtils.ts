@@ -1,6 +1,10 @@
 import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
+import fileSaver from 'file-saver';
 import { Task, User } from '../types';
+
+// Bulletproof bundler compatibility helper for file-saver
+// @ts-ignore
+const saveAs = (fileSaver && (fileSaver as any).saveAs) || fileSaver;
 
 export const getTasksExcelBlob = (tasks: Task[], users: User[]) => {
   const formatDate = (dateStr: string) => {

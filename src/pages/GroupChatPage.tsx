@@ -1,7 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
+import jszip from 'jszip';
+import fileSaver from 'file-saver';
+
+// Bulletproof bundler compatibility helper for JSZip and file-saver
+// @ts-ignore
+const JSZip = (jszip as any).default || jszip;
+// @ts-ignore
+const saveAs = (fileSaver && (fileSaver as any).saveAs) || fileSaver;
 import { 
   RotateCcw,
   Send, 

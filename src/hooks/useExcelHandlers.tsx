@@ -3,8 +3,14 @@ import { Task, User } from '../types';
 import { exportTasksToExcel, importTasksFromExcel, getTasksExcelBlob } from '../utils/excelUtils';
 import { db } from '../lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
+import jszip from 'jszip';
+import fileSaver from 'file-saver';
+
+// Bulletproof bundler compatibility helper for JSZip and file-saver
+// @ts-ignore
+const JSZip = (jszip as any).default || jszip;
+// @ts-ignore
+const saveAs = (fileSaver && (fileSaver as any).saveAs) || fileSaver;
 
 interface ExcelHandlersProps {
   currentUser: User | null;
